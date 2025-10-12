@@ -27,3 +27,6 @@ qdrant-client = "1.13"
 # File I/O
 csv = "1.3"
 walkdir = "2.5"
+
+# Async runtime
+tokio = { version = "1.42", features = ["rt-multi-thread", "macros"] }

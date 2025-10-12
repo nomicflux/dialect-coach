@@ -16,7 +16,7 @@ authors = ["Dialect Coach Contributors"]
 # Shared dependencies
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.0", features = ["serde", "v4"] }
+uuid = { version = "1.0", features = ["serde", "v4", "v5"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0"
 anyhow = "1.0"

@@ -2,10 +2,12 @@ mod chunking;
 mod embeddings;
 mod loaders;
 mod processor;
+mod qdrant;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use dialect_coach_shared::{Dialect, Language};
+use dialect_coach_shared::{Dialect, DialectDocument, Language};
+use std::fs;
 
 #[derive(Parser)]
 #[command(name = "corpus-processor")]
@@ -44,11 +46,27 @@ enum Commands {
         overlap: usize,
     },
 
+    /// Upload processed documents to Qdrant
+    Upload {
+        /// Path to processed documents (JSONL file)
+        #[arg(short, long)]
+        input: String,
+
+        /// Qdrant server URL
+        #[arg(short, long, default_value = "http://localhost:6334")]
+        url: String,
+
+        /// Qdrant API key (optional, can also use QDRANT_API_KEY env var)
+        #[arg(short = 'k', long)]
+        api_key: Option<String>,
+    },
+
     /// List available dialects
     List,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -81,6 +99,30 @@ fn main() -> Result<()> {
             )?;
 
             println!("\n✓ Processing completed successfully");
+        }
+        Commands::Upload { input, url, api_key } => {
+            println!("Uploading documents to Qdrant:");
+            println!("  Input: {}", input);
+            println!("  Qdrant URL: {}\n", url);
+
+            // Load documents from JSONL file
+            println!("Loading documents from {}...", input);
+            let documents = load_documents_from_jsonl(&input)?;
+            println!("Loaded {} documents\n", documents.len());
+
+            // Connect to Qdrant and upload
+            let qdrant = if let Some(key) = api_key {
+                qdrant::QdrantService::new_with_api_key(&url, &key).await?
+            } else {
+                qdrant::QdrantService::new(&url).await?
+            };
+
+            println!("Uploading to Qdrant...");
+            qdrant.upload_documents(&documents).await?;
+
+            qdrant.get_collection_info().await?;
+
+            println!("\n✓ Upload completed successfully");
         }
         Commands::List => {
             println!("Available languages and dialects:\n");
@@ -125,4 +167,25 @@ fn parse_dialect(language: &str, dialect_name: &str) -> Result<Dialect> {
         dialect_name,
         language
     )
+}
+
+/// Load DialectDocuments from JSONL file
+fn load_documents_from_jsonl(path: &str) -> Result<Vec<DialectDocument>> {
+    let content = fs::read_to_string(path)
+        .context(format!("Failed to read JSONL file: {}", path))?;
+
+    let mut documents = Vec::new();
+
+    for (line_num, line) in content.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let doc: DialectDocument = serde_json::from_str(line)
+            .context(format!("Failed to parse JSON at line {}", line_num + 1))?;
+
+        documents.push(doc);
+    }
+
+    Ok(documents)
 }

@@ -6,10 +6,20 @@ Cargo.lock
 /frontend/dist
 
 # Corpus data (can be large)
-/corpus-processor/data/**/*.csv
-/corpus-processor/data/**/*.json
-/corpus-processor/data/**/*.txt
+/corpus-processor/**/*.csv
+/corpus-processor/**/*.tsv
+/corpus-processor/**/*.json
+/corpus-processor/**/*.jsonl
+/corpus-processor/**/*.txt
 !/corpus-processor/data/.gitkeep
+/corpus-data/**/*.csv
+/corpus-data/**/*.tsv
+/corpus-data/**/*.json
+/corpus-data/**/*.jsonl
+/corpus-data/**/*.txt
+.fastembed_cache/
+
+.env
 
 # IDE
 .idea/
