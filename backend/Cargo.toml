@@ -28,6 +28,12 @@ rig-core = "0.8"
 # Vector store
 qdrant-client = "1.13"
 
+# Async utilities
+futures-util = "0.3"
+
+# Environment
+dotenvy = "0.15"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
