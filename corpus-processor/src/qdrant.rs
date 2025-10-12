@@ -104,7 +104,7 @@ impl QdrantService {
                     // Create payload with document metadata
                     let mut payload = Payload::new();
                     payload.insert("content", doc.content.clone());
-                    payload.insert("dialect", doc.dialect.name());
+                    payload.insert("dialect", doc.dialect.id());
 
                     if let Some(formality) = &doc.formality {
                         payload.insert("formality", format!("{:?}", formality));

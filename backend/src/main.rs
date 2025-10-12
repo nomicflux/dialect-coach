@@ -1,6 +1,7 @@
 mod websocket;
 mod qdrant_service;
 mod agent_service;
+mod embedding_service;
 
 use anyhow::{Context, Result};
 use axum::{
@@ -19,6 +20,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 pub struct AppState {
     pub qdrant: Arc<qdrant_service::QdrantService>,
     pub agent: Arc<agent_service::AgentService>,
+    pub embeddings: Arc<embedding_service::EmbeddingService>,
 }
 
 #[tokio::main]
@@ -45,13 +47,20 @@ async fn main() -> Result<()> {
 
     let qdrant = Arc::new(qdrant);
 
+    // Initialize embedding service
+    tracing::info!("Initializing embedding service...");
+    let embeddings = embedding_service::EmbeddingService::new()
+        .context("Failed to initialize embedding service")?;
+    let embeddings = Arc::new(embeddings);
+
     // Initialize agent service
-    let agent = agent_service::AgentService::from_env(qdrant.clone())
+    let agent = agent_service::AgentService::from_env(qdrant.clone(), embeddings.clone())
         .context("Failed to initialize agent service")?;
 
     let state = AppState {
         qdrant,
         agent: Arc::new(agent),
+        embeddings,
     };
 
     // Build application with routes

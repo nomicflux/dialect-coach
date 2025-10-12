@@ -5,17 +5,19 @@ use rig::completion::Prompt;
 use std::sync::Arc;
 
 use crate::qdrant_service::QdrantService;
+use crate::embedding_service::EmbeddingService;
 
 /// Agent service for AI-powered dialect coaching
 pub struct AgentService {
     client: rig::providers::anthropic::Client,
     model_name: String,
     qdrant: Arc<QdrantService>,
+    embeddings: Arc<EmbeddingService>,
 }
 
 impl AgentService {
     /// Create new agent service from environment variables
-    pub fn from_env(qdrant: Arc<QdrantService>) -> Result<Self> {
+    pub fn from_env(qdrant: Arc<QdrantService>, embeddings: Arc<EmbeddingService>) -> Result<Self> {
         let api_key = std::env::var("ANTHROPIC_API_KEY")
             .context("ANTHROPIC_API_KEY environment variable not set")?;
         let model_name = std::env::var("ANTHROPIC_MODEL")
@@ -31,6 +33,7 @@ impl AgentService {
             client,
             model_name,
             qdrant,
+            embeddings,
         })
     }
 
@@ -41,12 +44,41 @@ impl AgentService {
         dialect: Dialect,
         conversation_history: &[String],
     ) -> Result<String> {
-        // TODO: Generate embedding for user message
-        // For now, we'll skip RAG and use direct agent response
-        // In production, we need to:
-        // 1. Generate embedding for user_message
-        // 2. Call self.qdrant.search_dialect_examples(embedding, dialect, 5)
-        // 3. Include examples in prompt
+        // Step 1: Generate embedding for user message
+        tracing::debug!("Generating embedding for user message");
+        let query_embedding = self
+            .embeddings
+            .embed_text(user_message)
+            .context("Failed to generate embedding for user message")?;
+
+        // Step 2: Search for relevant dialect examples
+        tracing::debug!("Searching for dialect examples in Qdrant");
+        let examples = self
+            .qdrant
+            .search_dialect_examples(query_embedding, dialect, 5)
+            .await
+            .context("Failed to search dialect examples")?;
+
+        // Step 3: Build RAG context from examples
+        let rag_context = if examples.is_empty() {
+            String::new()
+        } else {
+            let examples_text: Vec<String> = examples
+                .iter()
+                .map(|doc| format!("- \"{}\"", doc.content))
+                .collect();
+
+            format!(
+                "\n\nHere are some authentic {} examples from real speakers:\n{}",
+                dialect.name(),
+                examples_text.join("\n")
+            )
+        };
+
+        tracing::info!(
+            "Found {} dialect examples for query",
+            examples.len()
+        );
 
         // Build conversation context
         let history_context = if conversation_history.is_empty() {
@@ -58,14 +90,14 @@ impl AgentService {
             )
         };
 
-        // Build system prompt with dialect coaching instructions
+        // Build system prompt with dialect coaching instructions + RAG examples
         let system_content = format!(
             "You are a dialect coach specializing in {}. \
             Your role is to help users practice and improve their skills in this specific dialect. \
             Respond naturally in {}, providing corrections and suggestions when appropriate. \
-            Keep responses conversational and encouraging.{}",
+            Keep responses conversational and encouraging.{}{}", dialect.name(),
             dialect.name(),
-            dialect.name(),
+            rag_context,
             history_context
         );
 

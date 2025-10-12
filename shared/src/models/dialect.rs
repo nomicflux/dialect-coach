@@ -69,6 +69,31 @@ impl Dialect {
         }
     }
 
+    /// Get the machine-readable identifier (matches serde name)
+    /// Used for database storage and filtering
+    pub fn id(&self) -> &'static str {
+        match self {
+            Self::SpanishMexican => "spanish_mexican",
+            Self::SpanishCastilian => "spanish_castilian",
+            Self::SpanishArgentinian => "spanish_argentinian",
+            Self::SpanishCaribbean => "spanish_caribbean",
+            Self::SpanishChilean => "spanish_chilean",
+            Self::SpanishColombian => "spanish_colombian",
+
+            Self::ArabicEgyptian => "arabic_egyptian",
+            Self::ArabicLevantine => "arabic_levantine",
+            Self::ArabicGulf => "arabic_gulf",
+            Self::ArabicMaghrebi => "arabic_maghrebi",
+            Self::ArabicIraqi => "arabic_iraqi",
+
+            Self::FrenchQuebecois => "french_quebecois",
+            Self::FrenchParisian => "french_parisian",
+            Self::FrenchSwiss => "french_swiss",
+            Self::FrenchBelgian => "french_belgian",
+            Self::FrenchAfrican => "french_african",
+        }
+    }
+
     /// Get the human-readable name of the dialect
     pub fn name(&self) -> &'static str {
         match self {

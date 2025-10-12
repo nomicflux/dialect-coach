@@ -52,9 +52,9 @@ enum Commands {
         #[arg(short, long)]
         input: String,
 
-        /// Qdrant server URL
-        #[arg(short, long, default_value = "http://localhost:6334")]
-        url: String,
+        /// Qdrant server URL (can also use QDRANT_URL env var)
+        #[arg(short, long)]
+        url: Option<String>,
 
         /// Qdrant API key (optional, can also use QDRANT_API_KEY env var)
         #[arg(short = 'k', long)]
@@ -67,6 +67,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load .env file if it exists
+    dotenvy::dotenv().ok();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -101,9 +104,18 @@ async fn main() -> Result<()> {
             println!("\n✓ Processing completed successfully");
         }
         Commands::Upload { input, url, api_key } => {
+            // Get URL from argument or environment
+            let qdrant_url = url
+                .or_else(|| std::env::var("QDRANT_URL").ok())
+                .context("QDRANT_URL must be provided via --url flag or QDRANT_URL environment variable")?;
+
+            // Get API key from argument or environment
+            let qdrant_api_key = api_key
+                .or_else(|| std::env::var("QDRANT_API_KEY").ok());
+
             println!("Uploading documents to Qdrant:");
             println!("  Input: {}", input);
-            println!("  Qdrant URL: {}\n", url);
+            println!("  Qdrant URL: {}\n", qdrant_url);
 
             // Load documents from JSONL file
             println!("Loading documents from {}...", input);
@@ -111,10 +123,10 @@ async fn main() -> Result<()> {
             println!("Loaded {} documents\n", documents.len());
 
             // Connect to Qdrant and upload
-            let qdrant = if let Some(key) = api_key {
-                qdrant::QdrantService::new_with_api_key(&url, &key).await?
+            let qdrant = if let Some(key) = qdrant_api_key {
+                qdrant::QdrantService::new_with_api_key(&qdrant_url, &key).await?
             } else {
-                qdrant::QdrantService::new(&url).await?
+                qdrant::QdrantService::new(&qdrant_url).await?
             };
 
             println!("Uploading to Qdrant...");

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument};
 use qdrant_client::Qdrant;
-use qdrant_client::qdrant::{Condition, Filter, Match, SearchPointsBuilder};
+use qdrant_client::qdrant::{Condition, Filter, SearchPointsBuilder, CreateFieldIndexCollectionBuilder, FieldType};
 
 const COLLECTION_NAME: &str = "dialect_documents";
 
@@ -41,7 +41,7 @@ impl QdrantService {
         limit: usize,
     ) -> Result<Vec<DialectDocument>> {
         // Build filter for dialect
-        let filter = Filter::must([Condition::matches("dialect", dialect.name().to_string())]);
+        let filter = Filter::must([Condition::matches("dialect", dialect.id().to_string())]);
 
         let search_result = self
             .client
@@ -112,6 +112,25 @@ impl QdrantService {
             );
         }
 
+        Ok(())
+    }
+
+    /// Create field index for filtering
+    pub async fn create_field_index(&self, field_name: &str) -> Result<()> {
+        tracing::info!("Creating field index for '{}'", field_name);
+
+        self.client
+            .create_field_index(
+                CreateFieldIndexCollectionBuilder::new(
+                    COLLECTION_NAME,
+                    field_name,
+                    FieldType::Keyword,
+                ),
+            )
+            .await
+            .context("Failed to create field index")?;
+
+        tracing::info!("Successfully created field index for '{}'", field_name);
         Ok(())
     }
 }

@@ -8,14 +8,20 @@ mod agent_service;
 #[path = "../src/qdrant_service.rs"]
 mod qdrant_service;
 
+#[path = "../src/embedding_service.rs"]
+mod embedding_service;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Load .env
     dotenvy::dotenv().ok();
 
     // Initialize services
+    println!("Initializing services...");
     let qdrant = qdrant_service::QdrantService::from_env().await?;
-    let agent = agent_service::AgentService::from_env(Arc::new(qdrant))?;
+    let embeddings = embedding_service::EmbeddingService::new()?;
+    let agent = agent_service::AgentService::from_env(Arc::new(qdrant), Arc::new(embeddings))?;
+    println!("Services initialized!\n");
 
     println!("Testing Rig Agent with different dialects...\n");
     println!("{}", "=".repeat(80));

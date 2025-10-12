@@ -25,6 +25,9 @@ tower-http = { version = "0.6", features = ["cors", "fs"] }
 # AI & RAG
 rig-core = "0.8"
 
+# Embeddings
+fastembed = "4.2"
+
 # Vector store
 qdrant-client = "1.13"
 
