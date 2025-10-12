@@ -1,0 +1,23 @@
+/target
+Cargo.lock
+
+# WASM build outputs
+/frontend/pkg
+/frontend/dist
+
+# Corpus data (can be large)
+/corpus-processor/data/**/*.csv
+/corpus-processor/data/**/*.json
+/corpus-processor/data/**/*.txt
+!/corpus-processor/data/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,33 @@
+[package]
+name = "dialect-coach-backend"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "backend"
+path = "src/main.rs"
+
+[dependencies]
+dialect-coach-shared = { path = "../shared" }
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+
+# Web server & WebSocket
+axum = { version = "0.8", features = ["ws", "macros"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+
+# AI & RAG
+rig-core = "0.8"
+
+# Vector store
+qdrant-client = "1.13"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
