@@ -1,0 +1,29 @@
+[package]
+name = "corpus-processor"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "corpus-processor"
+path = "src/main.rs"
+
+[dependencies]
+dialect-coach-shared = { path = "../shared" }
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Embeddings
+fastembed = "4.2"
+
+# Vector store
+qdrant-client = "1.13"
+
+# File I/O
+csv = "1.3"
+walkdir = "2.5"
