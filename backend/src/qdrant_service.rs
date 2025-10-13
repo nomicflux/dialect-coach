@@ -53,9 +53,100 @@ impl QdrantService {
             .await
             .context("Failed to search Qdrant")?;
 
+        let documents = self.parse_search_results(search_result.result, dialect)?;
+
+        tracing::info!(
+            "Found {} dialect examples for {}",
+            documents.len(),
+            dialect.name()
+        );
+
+        Ok(documents)
+    }
+
+    /// Get random dialect samples filtered by formality
+    pub async fn random_dialect_samples(
+        &self,
+        dialect: Dialect,
+        formality_levels: Vec<dialect_coach_shared::Formality>,
+        limit: usize,
+    ) -> Result<Vec<DialectDocument>> {
+        use qdrant_client::qdrant::ScrollPointsBuilder;
+
+        // Build filter - just dialect for now (formality filtering can be added later)
+        let filter = Filter::must([Condition::matches("dialect", dialect.id().to_string())]);
+
+        // Use scroll to get random samples
+        let scroll_result = self
+            .client
+            .scroll(
+                ScrollPointsBuilder::new(COLLECTION_NAME)
+                    .filter(filter)
+                    .limit(limit as u32)
+                    .with_payload(true),
+            )
+            .await
+            .context("Failed to scroll Qdrant for random samples")?;
+
+        // Parse retrieved points
+        let mut documents = Vec::new();
+        for point in scroll_result.result {
+            let payload = point.payload;
+
+            let content = payload
+                .get("content")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+
+            let formality = payload
+                .get("formality")
+                .and_then(|v| v.as_str())
+                .and_then(|s| {
+                    let s = s.as_ref();
+                    match s {
+                        "Formal" => Some(dialect_coach_shared::Formality::Formal),
+                        "Casual" => Some(dialect_coach_shared::Formality::Casual),
+                        "Slang" => Some(dialect_coach_shared::Formality::Slang),
+                        _ => None,
+                    }
+                });
+
+            // Filter by formality if specified
+            if !formality_levels.is_empty() {
+                if let Some(f) = formality {
+                    if !formality_levels.contains(&f) {
+                        continue;
+                    }
+                }
+            }
+
+            documents.push(DialectDocument {
+                content,
+                dialect,
+                formality,
+                embedding: Vec::new(),
+            });
+        }
+
+        tracing::info!(
+            "Retrieved {} random dialect samples for {} with formality filters",
+            documents.len(),
+            dialect.name()
+        );
+
+        Ok(documents)
+    }
+
+    /// Parse Qdrant search results into DialectDocuments
+    fn parse_search_results(
+        &self,
+        results: Vec<qdrant_client::qdrant::ScoredPoint>,
+        dialect: Dialect,
+    ) -> Result<Vec<DialectDocument>> {
         let mut documents = Vec::new();
 
-        for point in search_result.result {
+        for point in results {
             let payload = point.payload;
 
             // Extract fields from payload
@@ -81,17 +172,11 @@ impl QdrantService {
 
             documents.push(DialectDocument {
                 content,
-                dialect, // Use the dialect we're filtering for
+                dialect,
                 formality,
-                embedding: Vec::new(), // Don't need embeddings in results
+                embedding: Vec::new(),
             });
         }
-
-        tracing::info!(
-            "Found {} dialect examples for {}",
-            documents.len(),
-            dialect.name()
-        );
 
         Ok(documents)
     }
