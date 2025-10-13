@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use log::{info, error};
 
-use crate::services::websocket::WebSocketService;
+use crate::services::websocket::{WebSocketService, ConnectionState};
 use crate::components::{ChatWindow, InputBox};
 
 // Reducer for messages to handle state updates properly
@@ -55,7 +55,7 @@ pub fn app() -> Html {
     // Session state
     let session_id = use_state(|| Uuid::new_v4());
     let messages = use_reducer(MessagesState::default);
-    let is_connected = use_state(|| false);
+    let connection_state = use_state(|| ConnectionState::Disconnected);
     let is_loading = use_state(|| false);
     let error_message = use_state(|| Option::<String>::None);
 
@@ -65,7 +65,7 @@ pub fn app() -> Html {
     // Initialize WebSocket on mount
     {
         let ws_service = ws_service.clone();
-        let is_connected = is_connected.clone();
+        let connection_state = connection_state.clone();
         let messages = messages.clone();
         let error_message = error_message.clone();
         let is_loading = is_loading.clone();
@@ -77,17 +77,13 @@ pub fn app() -> Html {
                 let mut ws = ws_service.borrow_mut();
 
                 // Set up callbacks
-                let is_connected_clone = is_connected.clone();
                 ws.set_on_open(Callback::from(move |_| {
                     info!("WebSocket opened");
-                    is_connected_clone.set(true);
                 }));
 
-                let is_connected_clone = is_connected.clone();
                 let error_message_clone = error_message.clone();
                 ws.set_on_close(Callback::from(move |_| {
                     info!("WebSocket closed");
-                    is_connected_clone.set(false);
                     error_message_clone.set(Some("Connection closed".to_string()));
                 }));
 
@@ -103,6 +99,26 @@ pub fn app() -> Html {
                     info!("Received message from: {}", msg.participant_id);
                     is_loading_clone.set(false);
                     messages_dispatcher.dispatch(MessagesAction::Add(msg));
+                }));
+
+                // Set up state change callback
+                let connection_state_clone = connection_state.clone();
+                let ws_service_clone = ws_service.clone();
+                ws.set_on_state_change(Callback::from(move |new_state| {
+                    info!("Connection state changed to: {:?}", new_state);
+                    connection_state_clone.set(new_state);
+
+                    // Handle reconnecting state - the WebSocketService will attempt
+                    // automatic reconnection, but we need to trigger it from the app layer
+                    // since we can't easily call methods from within the async task
+                    if matches!(new_state, ConnectionState::Reconnecting) {
+                        // Schedule a reconnect attempt
+                        let ws_clone = ws_service_clone.clone();
+                        gloo::timers::callback::Timeout::new(100, move || {
+                            info!("Triggering reconnection from app layer");
+                            ws_clone.borrow_mut().reconnect();
+                        }).forget();
+                    }
                 }));
 
                 // Connect
@@ -251,10 +267,12 @@ pub fn app() -> Html {
 
                 // Connection status
                 <div class="connection-status">
-                    {if *is_connected {
-                        html! { <span class="status-connected">{"● Connected"}</span> }
-                    } else {
-                        html! { <span class="status-disconnected">{"○ Disconnected"}</span> }
+                    {match *connection_state {
+                        ConnectionState::Connected => html! { <span class="status-connected">{"● Connected"}</span> },
+                        ConnectionState::Connecting => html! { <span class="status-connecting">{"⟳ Connecting..."}</span> },
+                        ConnectionState::Reconnecting => html! { <span class="status-reconnecting">{"⟳ Reconnecting..."}</span> },
+                        ConnectionState::Disconnected => html! { <span class="status-disconnected">{"○ Disconnected"}</span> },
+                        ConnectionState::Failed => html! { <span class="status-failed">{"✖ Connection Failed"}</span> },
                     }}
                 </div>
             </header>
@@ -320,7 +338,7 @@ pub fn app() -> Html {
 
                 // Chat interface
                 <ChatWindow messages={messages.messages.clone()} is_loading={*is_loading} />
-                <InputBox on_send={on_send_message} disabled={!*is_connected} />
+                <InputBox on_send={on_send_message} disabled={!matches!(*connection_state, ConnectionState::Connected)} />
             </main>
         </div>
     }
