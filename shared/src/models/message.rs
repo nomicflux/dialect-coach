@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use super::{Formality, TeachingMode};
 
 /// A message in a chat session
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -29,6 +30,12 @@ pub struct MessageMetadata {
 
     /// Any grammar corrections or suggestions
     pub corrections: Vec<Correction>,
+
+    /// Desired formality level for agent responses
+    pub formality: Option<Formality>,
+
+    /// Teaching mode for agent behavior
+    pub teaching_mode: Option<TeachingMode>,
 
     /// Additional key-value metadata
     pub extra: HashMap<String, String>,

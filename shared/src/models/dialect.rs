@@ -143,6 +143,36 @@ impl Dialect {
         }
     }
 
+    /// Parse BCP-47 language tag to Dialect
+    /// Examples: "es-AR" → SpanishArgentinian, "es-CO" → SpanishColombian
+    pub fn from_bcp47(tag: &str) -> Option<Self> {
+        match tag {
+            // Spanish dialects
+            "es-AR" => Some(Self::SpanishArgentinian),
+            "es-CO" => Some(Self::SpanishColombian),
+            "es-PR" | "es-CU" | "es-DO" => Some(Self::SpanishCaribbean),
+            "es-MX" => Some(Self::SpanishMexican),
+            "es-ES" => Some(Self::SpanishCastilian),
+            "es-CL" => Some(Self::SpanishChilean),
+
+            // Arabic dialects
+            "ar-EG" => Some(Self::ArabicEgyptian),
+            "ar-LB" | "ar-SY" | "ar-JO" | "ar-PS" => Some(Self::ArabicLevantine),
+            "ar-SA" | "ar-AE" | "ar-KW" | "ar-QA" | "ar-BH" | "ar-OM" => Some(Self::ArabicGulf),
+            "ar-MA" | "ar-DZ" | "ar-TN" | "ar-LY" => Some(Self::ArabicMaghrebi),
+            "ar-IQ" => Some(Self::ArabicIraqi),
+
+            // French dialects
+            "fr-CA" => Some(Self::FrenchQuebecois),
+            "fr-FR" => Some(Self::FrenchParisian),
+            "fr-CH" => Some(Self::FrenchSwiss),
+            "fr-BE" => Some(Self::FrenchBelgian),
+            "fr-CI" | "fr-SN" | "fr-CM" => Some(Self::FrenchAfrican),
+
+            _ => None,
+        }
+    }
+
     /// Get all dialects for a specific language
     pub fn for_language(language: Language) -> Vec<Dialect> {
         match language {

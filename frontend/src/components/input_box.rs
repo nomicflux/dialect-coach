@@ -3,6 +3,8 @@ use yew::prelude::*;
 #[derive(Properties, PartialEq)]
 pub struct InputBoxProps {
     pub on_send: Callback<String>,
+    #[prop_or(false)]
+    pub disabled: bool,
 }
 
 #[function_component(InputBox)]
@@ -12,8 +14,8 @@ pub fn input_box(props: &InputBoxProps) -> Html {
     let on_input = {
         let input_value = input_value.clone();
         Callback::from(move |e: InputEvent| {
-            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                input_value.set(input.value());
+            if let Some(textarea) = e.target_dyn_into::<web_sys::HtmlTextAreaElement>() {
+                input_value.set(textarea.value());
             }
         })
     };
@@ -33,13 +35,14 @@ pub fn input_box(props: &InputBoxProps) -> Html {
 
     html! {
         <form class="input-box" onsubmit={on_submit}>
-            <input
-                type="text"
-                placeholder="Type a message..."
+            <textarea
+                placeholder={if props.disabled { "Connecting..." } else { "Type a message..." }}
                 value={(*input_value).clone()}
                 oninput={on_input}
+                disabled={props.disabled}
+                rows="3"
             />
-            <button type="submit">{"Send"}</button>
+            <button type="submit" disabled={props.disabled}>{"Send"}</button>
         </form>
     }
 }

@@ -1,4 +1,4 @@
-use crate::models::{ChatSession, Message, Participant, AgentType};
+use crate::models::{ChatSession, Message, AgentType};
 
 /// Pure function: Add a message to a session (returns new session)
 /// Following functional programming principles for easier testing

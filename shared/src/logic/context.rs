@@ -18,7 +18,6 @@ pub fn build_conversation_context(session: &ChatSession, max_messages: usize) ->
         .join("\n")
 }
 
-/// Build a prompt for an agent given the conversation context
 pub fn build_agent_prompt(
     agent: &Participant,
     session: &ChatSession,
@@ -27,9 +26,10 @@ pub fn build_agent_prompt(
     let context = build_conversation_context(session, 10);
 
     format!(
-        "You are {}. Respond naturally in character.\n\nConversation so far:\n{}\n\nRespond to the latest message.",
+        "You are {}. Respond naturally in character.\n\nConversation so far:\n{}\n\nRespond to latest user message: {}",
         agent.name,
-        context
+        context,
+        user_message.content
     )
 }
 
