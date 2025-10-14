@@ -1,8 +1,8 @@
-// Service modules - to be implemented
+// Service modules
 pub mod websocket;
 pub mod speech;
 pub mod persistence;
 
 pub use websocket::WebSocketService;
-pub use speech::SpeechService;
+pub use speech::{SpeechSynthesisService, SpeechRecognitionService};
 pub use persistence::PersistenceService;

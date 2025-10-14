@@ -1,11 +1,11 @@
 # Dialect Coach - TODO List
 
-Last Updated: 2025-10-12
+Last Updated: 2025-10-13
 
 ## 🔴 CRITICAL (Do Immediately)
 
-### 1. Test WebSocket Connectivity ❌
-**Status**: Never tested, blocking all frontend development
+### 1. Test WebSocket Connectivity ✅
+**Status**: COMPLETED 2025-10-13
 **Priority**: CRITICAL
 **Estimate**: 30 minutes
 
@@ -26,19 +26,12 @@ Last Updated: 2025-10-12
 5. Verify agent response is received
 6. Check trace logs in backend stderr
 
-**Success criteria**:
-- Connection established without errors
-- Backend trace shows "[WEBSOCKET] Upgrade request received!"
-- Message parsed successfully
-- Agent generates response
-- Response sent back through WebSocket
-
-**Blockers**: None
+**Result**: ✅ All success criteria met. Connection works perfectly with automatic reconnection.
 
 ---
 
-### 2. Implement Frontend WebSocket Service ❌
-**Status**: 9-line placeholder
+### 2. Implement Frontend WebSocket Service ✅
+**Status**: COMPLETED 2025-10-13 (324 lines implemented)
 **Priority**: CRITICAL (blocks all frontend functionality)
 **Estimate**: 2-3 hours
 **File**: `frontend/src/services/websocket.rs`
@@ -76,16 +69,12 @@ impl WebSocketService {
 - `wasm_bindgen::JsCast` for event handling
 - `gloo_timers::callback::Timeout` for reconnection
 
-**Testing**:
-- Manual test with backend running
-- Send message and verify response
-
-**Blockers**: Need Task #1 (WebSocket testing) completed first
+**Result**: ✅ Fully implemented with ConnectionState, reconnection logic, and message queueing.
 
 ---
 
-### 3. Integrate WebSocket with App Component ❌
-**Status**: app.rs has placeholder "Chat interface coming soon..."
+### 3. Integrate WebSocket with App Component ✅
+**Status**: COMPLETED 2025-10-13
 **Priority**: CRITICAL
 **Estimate**: 2-3 hours
 **File**: `frontend/src/app.rs`
@@ -141,14 +130,14 @@ html! {
 }
 ```
 
-**Blockers**: Need Task #2 (WebSocket service) completed first
+**Result**: ✅ Full integration with use_reducer for state management and automatic reconnection handling.
 
 ---
 
 ## 🟠 HIGH PRIORITY (Core Functionality)
 
-### 4. Implement ChatWindow Component ❌
-**Status**: 11-line placeholder
+### 4. Implement ChatWindow Component ✅
+**Status**: COMPLETED 2025-10-13
 **Priority**: HIGH
 **Estimate**: 1-2 hours
 **File**: `frontend/src/components/chat_window.rs`
@@ -197,79 +186,76 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
 }
 ```
 
-**Blockers**: None (MessageBubble already exists)
+**Result**: ✅ Fully functional with auto-scroll, empty state, and loading indicators.
 
 ---
 
-### 5. Implement Speech Synthesis Service ❌
+## 🔴 PHASE 5: SPEECH INTEGRATION (CURRENT)
+
+### 5a. Implement Speech Synthesis Service (TTS) ❌
 **Status**: 9-line placeholder
-**Priority**: HIGH (key differentiator)
+**Priority**: CRITICAL (key differentiator)
 **Estimate**: 2-3 hours
 **File**: `frontend/src/services/speech.rs`
 
 **Requirements**:
-1. Wrap Web Speech API's SpeechSynthesis
-2. Select voice by BCP-47 language tag
-3. Speak agent responses automatically (optional)
-4. Manual speak button for any message
-5. Handle voice loading (voices may not be available immediately)
+1. Wrap SpeechSynthesis API from web_sys
+2. Implement voice selection by BCP-47 language tag (es-MX, ar-EG, fr-FR)
+3. Add speak() method with language and voice selection
+4. Handle voice loading (voices may not be immediately available)
+5. Add stop() and pause() methods
+6. Error handling for unsupported browsers
 
-**Interface design**:
+**Interface**:
 ```rust
-pub struct SpeechService {
-    synth: SpeechSynthesis,
-    voices: Vec<SpeechSynthesisVoice>,
+pub struct SpeechSynthesisService {
+    synth: web_sys::SpeechSynthesis,
+    current_language: String,
 }
 
-impl SpeechService {
-    pub fn new() -> Result<Self>;
-    pub fn speak(&self, text: &str, language_code: &str);
+impl SpeechSynthesisService {
+    pub fn new() -> Result<Self, String>;
+    pub fn speak(&self, text: &str, language_code: &str) -> Result<(), String>;
     pub fn stop(&self);
-    fn select_voice(&self, language_code: &str) -> Option<SpeechSynthesisVoice>;
+    pub fn get_voices_for_language(&self, language_code: &str) -> Vec<SpeechSynthesisVoice>;
 }
 ```
 
 **Voice selection logic**:
-- Match exact language code (e.g., "es-MX" → Mexican Spanish voice)
+- Match exact BCP-47 tag (e.g., "es-MX" → Mexican Spanish voice)
 - Fallback to language prefix (e.g., "es-MX" → any "es-" voice)
 - Fallback to default voice
 
-**Dependencies already available**:
-- `web_sys::SpeechSynthesis`
-- `web_sys::SpeechSynthesisUtterance`
-- `web_sys::SpeechSynthesisVoice`
-
-**Integration points**:
-- ChatWindow: Add speaker icon to each MessageBubble
-- SpeechControls: Add "Read aloud" toggle
+**Browser compatibility**: Check for window.speechSynthesis support
 
 **Blockers**: None
 
 ---
 
-### 6. Implement Speech Recognition Service ❌
+### 5b. Implement Speech Recognition Service (STT) ❌
 **Status**: 9-line placeholder
-**Priority**: HIGH (key differentiator)
+**Priority**: CRITICAL (key differentiator)
 **Estimate**: 3-4 hours
 **File**: `frontend/src/services/speech.rs`
 
 **Requirements**:
-1. Wrap Web Speech API's SpeechRecognition
-2. Set language by BCP-47 tag
-3. Use continuous recognition mode
+1. Wrap SpeechRecognition API from web_sys
+2. Configure language by BCP-47 tag
+3. Continuous recognition mode
 4. Handle interim results (show "..." while speaking)
-5. Return final transcripts via callback
+5. Final result callback
+6. Error handling (no-speech, permission denied, etc.)
 
-**Interface design**:
+**Interface**:
 ```rust
 pub struct SpeechRecognitionService {
-    recognition: SpeechRecognition,
+    recognition: web_sys::SpeechRecognition,
     is_listening: bool,
 }
 
 impl SpeechRecognitionService {
-    pub fn new(language_code: &str, on_result: Callback<String>) -> Result<Self>;
-    pub fn start(&mut self);
+    pub fn new(language_code: &str) -> Result<Self, String>;
+    pub fn start(&mut self, on_result: Callback<String>, on_interim: Callback<String>) -> Result<(), String>;
     pub fn stop(&mut self);
 }
 ```
@@ -279,18 +265,68 @@ impl SpeechRecognitionService {
 - `onerror`: Log error, stop recognition
 - `onend`: Set is_listening = false
 
-**Dependencies already available**:
-- `web_sys::SpeechRecognition`
-- `web_sys::SpeechRecognitionEvent`
-- `web_sys::SpeechRecognitionResult`
-
-**Integration points**:
-- SpeechControls: Toggle button to start/stop
-- Visual indicator when listening
+**Requirements**: HTTPS or localhost (already satisfied)
 
 **Blockers**: None
 
-**Note**: Speech Recognition API requires HTTPS or localhost (already satisfied)
+---
+
+### 5c. Wire SpeechControls Component ❌
+**Status**: UI exists, needs API integration
+**Priority**: CRITICAL
+**Estimate**: 2 hours
+**File**: `frontend/src/components/speech_controls.rs`
+
+**Requirements**:
+1. Initialize SpeechRecognitionService on mount
+2. Connect microphone button to start/stop recognition
+3. Show visual feedback when listening (animated icon)
+4. Display interim results in UI
+5. Call on_speech callback with final transcript
+6. Handle errors gracefully (show error message)
+
+**Integration point**: Pass callback from App component
+
+**Blockers**: Need Task 5b (STT service) completed first
+
+---
+
+### 5d. Add Speech Features to App Component ❌
+**Status**: Not started
+**Priority**: CRITICAL
+**Estimate**: 2 hours
+**File**: `frontend/src/app.rs`
+
+**Requirements**:
+1. Add SpeechSynthesisService to app state
+2. Add SpeechControls component to UI
+3. Create callback for voice input (same as text send)
+4. Mark messages with is_speech:true metadata
+5. Optional: Auto-play agent responses
+6. Update service when dialect changes
+
+**State additions**:
+- `speech_synth_service: Option<SpeechSynthesisService>`
+- `auto_play: bool` (toggle for auto-reading agent responses)
+
+**Blockers**: Need Tasks 5a-5c completed first
+
+---
+
+### 5e. Add Speech Indicators ❌
+**Status**: Not started
+**Priority**: MEDIUM
+**Estimate**: 1 hour
+**File**: `frontend/src/components/message_bubble.rs`
+
+**Requirements**:
+1. Show microphone icon for messages sent via voice (is_speech: true)
+2. Show speaker icon/button to read message aloud
+3. Add onclick handler to trigger TTS
+
+**UI**: Small icon badge on message bubble
+
+**Blockers**: Need Task 5a (TTS service) completed first
 
 ---
 
@@ -619,31 +655,40 @@ Database: dialect_coach
 
 ## Progress Tracking
 
-**Last updated**: 2025-10-12
+**Last updated**: 2025-10-13
 
-### Sprint 1: Core Functionality (Current)
-- [ ] Task 1: Test WebSocket connectivity
-- [ ] Task 2: Implement WebSocket service
-- [ ] Task 3: Integrate WebSocket with app
-- [ ] Task 4: Implement ChatWindow
-- [ ] Task 5: Implement speech synthesis
-- [ ] Task 6: Implement speech recognition
+### Sprint 1: Core Functionality ✅ COMPLETED
+- [✅] Task 1: Test WebSocket connectivity
+- [✅] Task 2: Implement WebSocket service
+- [✅] Task 3: Integrate WebSocket with app
+- [✅] Task 4: Implement ChatWindow
+- [✅] Phase 4: Implement reconnection logic
 
-**Goal**: Working end-to-end chat with speech I/O
-**Estimate**: 15-20 hours
+**Result**: Working end-to-end chat with automatic reconnection
+**Completed**: 2025-10-13
+
+### Sprint 2: Speech Integration (CURRENT)
+- [ ] Task 5a: Implement speech synthesis (TTS)
+- [ ] Task 5b: Implement speech recognition (STT)
+- [ ] Task 5c: Wire SpeechControls component
+- [ ] Task 5d: Add speech features to App
+- [ ] Task 5e: Add speech indicators to MessageBubble
+
+**Goal**: Voice input and output for dialect practice
+**Estimate**: 10-12 hours
 **Target date**: TBD
 
-### Sprint 2: Polish & UX
+### Sprint 3: Polish & UX
 - [ ] Task 7: Add CSS styling
-- [ ] Task 8: Add loading states
-- [ ] Task 9: Add error messages
+- [ ] Task 8: Enhanced loading states
+- [ ] Task 9: Better error messages
 - [ ] Task 10: Implement session persistence
 
 **Goal**: Production-ready UI/UX
 **Estimate**: 8-10 hours
 **Target date**: TBD
 
-### Sprint 3: Code Quality
+### Sprint 4: Code Quality
 - [ ] Task 11: Remove dead code warnings
 - [ ] Task 12: Fix compiler warnings
 - [ ] Task 13: Add frontend unit tests
@@ -654,7 +699,7 @@ Database: dialect_coach
 **Target date**: TBD
 
 ### Future Sprints: Production Readiness
-- [ ] Task 15-20: Security, monitoring, deployment
+- [ ] Tasks 15-20: Security, monitoring, deployment
 
 **Goal**: Production deployment
 **Estimate**: 5-10 days

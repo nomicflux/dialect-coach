@@ -45,6 +45,8 @@ web-sys = { version = "0.3", features = [
     "SpeechSynthesis",
     "SpeechSynthesisUtterance",
     "SpeechSynthesisVoice",
+    "SpeechSynthesisEvent",
+    "SpeechSynthesisErrorEvent",
     "SpeechRecognition",
     "SpeechRecognitionEvent",
     "SpeechRecognitionResult",

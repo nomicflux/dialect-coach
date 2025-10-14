@@ -8,6 +8,8 @@ use super::MessageBubble;
 pub struct ChatWindowProps {
     pub messages: Vec<Message>,
     pub is_loading: bool,
+    #[prop_or_default]
+    pub on_replay_message: Option<Callback<Message>>,
 }
 
 #[function_component(ChatWindow)]
@@ -44,6 +46,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                 <MessageBubble
                                     message={msg.clone()}
                                     is_own_message={is_own}
+                                    on_replay={props.on_replay_message.clone()}
                                 />
                             }
                         })}

@@ -6,7 +6,8 @@ use std::cell::RefCell;
 use log::{info, error};
 
 use crate::services::websocket::{WebSocketService, ConnectionState};
-use crate::components::{ChatWindow, InputBox};
+use crate::services::speech::SpeechSynthesisService;
+use crate::components::{ChatWindow, InputBox, SpeechControls};
 
 // Reducer for messages to handle state updates properly
 #[derive(Clone, PartialEq)]
@@ -62,6 +63,17 @@ pub fn app() -> Html {
     // WebSocket service (wrapped in Rc<RefCell<>> for interior mutability)
     let ws_service = use_state(|| Rc::new(RefCell::new(WebSocketService::new("ws://localhost:3000/ws"))));
 
+    // Speech synthesis service for TTS
+    let tts_service = use_state(|| {
+        match SpeechSynthesisService::new() {
+            Ok(service) => Some(Rc::new(RefCell::new(service))),
+            Err(e) => {
+                error!("Failed to initialize TTS service: {}", e);
+                None
+            }
+        }
+    });
+
     // Initialize WebSocket on mount
     {
         let ws_service = ws_service.clone();
@@ -69,6 +81,7 @@ pub fn app() -> Html {
         let messages = messages.clone();
         let error_message = error_message.clone();
         let is_loading = is_loading.clone();
+        let tts_service = tts_service.clone();
 
         use_effect_with((), move |_| {
             info!("Initializing WebSocket connection");
@@ -95,9 +108,22 @@ pub fn app() -> Html {
 
                 let messages_dispatcher = messages.dispatcher();
                 let is_loading_clone = is_loading.clone();
+                let tts_service_clone = tts_service.clone();
                 ws.set_on_message(Callback::from(move |msg: Message| {
                     info!("Received message from: {}", msg.participant_id);
                     is_loading_clone.set(false);
+
+                    // Speak agent messages automatically
+                    if msg.participant_id != "user" {
+                        if let Some(tts) = tts_service_clone.as_ref() {
+                            let language_code = msg.language.clone();
+                            let text = msg.content.clone();
+                            if let Err(e) = tts.borrow().speak(&text, &language_code) {
+                                error!("Failed to speak message: {}", e);
+                            }
+                        }
+                    }
+
                     messages_dispatcher.dispatch(MessagesAction::Add(msg));
                 }));
 
@@ -259,6 +285,22 @@ pub fn app() -> Html {
         })
     };
 
+    // Handle TTS replay for messages
+    let on_replay_message = {
+        let tts_service = tts_service.clone();
+
+        Callback::from(move |msg: Message| {
+            info!("Replaying message: {}", msg.content);
+            if let Some(tts) = tts_service.as_ref() {
+                let language_code = msg.language.clone();
+                let text = msg.content.clone();
+                if let Err(e) = tts.borrow().speak(&text, &language_code) {
+                    error!("Failed to replay message: {}", e);
+                }
+            }
+        })
+    };
+
     html! {
         <div class="app-container">
             <header class="app-header">
@@ -337,7 +379,15 @@ pub fn app() -> Html {
                 }}
 
                 // Chat interface
-                <ChatWindow messages={messages.messages.clone()} is_loading={*is_loading} />
+                <ChatWindow
+                    messages={messages.messages.clone()}
+                    is_loading={*is_loading}
+                    on_replay_message={Some(on_replay_message.clone())}
+                />
+                <SpeechControls
+                    on_speech={on_send_message.clone()}
+                    language_code={(*selected_dialect).bcp47_tag().to_string()}
+                />
                 <InputBox on_send={on_send_message} disabled={!matches!(*connection_state, ConnectionState::Connected)} />
             </main>
         </div>
