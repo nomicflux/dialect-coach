@@ -79,15 +79,23 @@ async fn main() -> Result<()> {
         .context("Failed to initialize agent service")?;
     eprintln!("[MAIN] Agent service initialized");
 
-    // Initialize TTS service
+    // Initialize TTS service (optional - continue if it fails)
     eprintln!("[MAIN] Initializing TTS service...");
-    let tts_provider = tts_service::AzureTtsProvider::from_env()
-        .context("Failed to initialize TTS service - check environment variables")?;
-    let tts_service = tts_service::TtsService::new(Arc::new(tts_provider));
-    let tts_state = tts_handler::TtsState {
-        service: Arc::new(tts_service),
+    let tts_state = match tts_service::AzureTtsProvider::from_env() {
+        Ok(tts_provider) => {
+            let tts_service = tts_service::TtsService::new(Arc::new(tts_provider));
+            eprintln!("[MAIN] TTS service initialized successfully");
+            tracing::info!("TTS service is available");
+            Some(tts_handler::TtsState {
+                service: Arc::new(tts_service),
+            })
+        }
+        Err(e) => {
+            eprintln!("[MAIN] WARNING: TTS service initialization failed: {}", e);
+            tracing::warn!("TTS service initialization failed: {}. TTS endpoints will return errors.", e);
+            None
+        }
     };
-    eprintln!("[MAIN] TTS service initialized");
 
     let state = AppState {
         qdrant,
@@ -97,19 +105,33 @@ async fn main() -> Result<()> {
     };
     eprintln!("[MAIN] Application state created");
 
-    // Build TTS router with its own state
-    let tts_router = Router::new()
-        .route("/synthesize", post(tts_handler::synthesize_handler))
-        .route("/voices", get(tts_handler::voices_handler))
-        .route("/status", get(tts_handler::status_handler))
-        .route("/cache", delete(tts_handler::clear_cache_handler))
-        .with_state(tts_state);
-
     // Build main application with routes
-    let app = Router::new()
+    let mut app = Router::new()
         .route("/health", get(health_check))
-        .route("/ws", get(websocket::websocket_handler))
-        .nest("/api/tts", tts_router)
+        .route("/ws", get(websocket::websocket_handler));
+
+    // Add TTS routes only if TTS service is available
+    if let Some(tts_state) = tts_state {
+        let tts_router = Router::new()
+            .route("/synthesize", post(tts_handler::synthesize_handler))
+            .route("/voices", get(tts_handler::voices_handler))
+            .route("/status", get(tts_handler::status_handler))
+            .route("/cache", delete(tts_handler::clear_cache_handler))
+            .with_state(tts_state);
+        app = app.nest("/api/tts", tts_router);
+        eprintln!("[MAIN] TTS endpoints added to router");
+    } else {
+        // Add fallback TTS endpoints that return service unavailable
+        let fallback_router = Router::new()
+            .route("/synthesize", post(tts_handler::tts_unavailable_handler))
+            .route("/voices", get(tts_handler::tts_unavailable_handler))
+            .route("/status", get(tts_handler::tts_unavailable_handler))
+            .route("/cache", delete(tts_handler::tts_unavailable_handler));
+        app = app.nest("/api/tts", fallback_router);
+        eprintln!("[MAIN] TTS endpoints added with 'service unavailable' fallback");
+    }
+
+    let app = app
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
@@ -137,5 +159,6 @@ async fn main() -> Result<()> {
 /// Health check endpoint
 async fn health_check() -> impl IntoResponse {
     eprintln!("[HEALTH] Handler called");
+    // Note: We could enhance this to include TTS status in the future
     (StatusCode::OK, "OK")
 }

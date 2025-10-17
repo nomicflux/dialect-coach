@@ -177,3 +177,17 @@ impl IntoResponse for TtsErrorResponse {
         (self.status, body).into_response()
     }
 }
+
+/// Fallback handler for when TTS service is not available
+pub async fn tts_unavailable_handler() -> impl IntoResponse {
+    #[derive(Serialize)]
+    struct ErrorBody {
+        error: String,
+    }
+
+    let body = Json(ErrorBody {
+        error: "TTS service is not available. Please check server logs.".to_string(),
+    });
+
+    (StatusCode::SERVICE_UNAVAILABLE, body)
+}

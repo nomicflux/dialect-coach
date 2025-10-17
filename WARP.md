@@ -104,7 +104,9 @@ ANTHROPIC_API_KEY=your_anthropic_key
 # Backend - Optional
 ANTHROPIC_MODEL=claude-3-5-sonnet-20241022  # defaults to claude-3.5-sonnet
 RUST_LOG=debug  # for verbose logging
-AZURE_SPEECH_KEY=your_azure_speech_key  # for Azure TTS (Phase 5)
+
+# TTS - Optional (graceful degradation)
+AZURE_SPEECH_KEY=your_azure_speech_key  # Azure TTS will be unavailable if not set
 AZURE_SPEECH_REGION=your_azure_region  # e.g., eastus, westus2
 ```
 
@@ -193,6 +195,11 @@ websocat ws://localhost:3000/ws
 - Backend startup: ~5 seconds (Fastembed model loading)
 - Response latency: ~2.5-6 seconds (embedding + Qdrant + Claude)
 - Memory usage: ~500MB (Fastembed model in memory)
+
+### Graceful Degradation
+- **TTS Service**: If Azure TTS credentials are missing/invalid, backend continues running
+- **TTS Endpoints**: Return HTTP 503 (Service Unavailable) when TTS is not configured
+- **Core Chat**: WebSocket and AI chat functionality works independently of TTS
 
 ## Security Notes
 
