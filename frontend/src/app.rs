@@ -332,6 +332,22 @@ pub fn app() -> Html {
         })
     };
     
+    // Handle dialect cycling - quick switch between dialects within current language
+    let on_dialect_cycle = {
+        let selected_language = selected_language.clone();
+        let selected_dialect = selected_dialect.clone();
+        
+        Callback::from(move |_| {
+            let current_dialects = Dialect::for_language(*selected_language);
+            let current_index = current_dialects.iter().position(|d| d == &*selected_dialect).unwrap_or(0);
+            let next_index = (current_index + 1) % current_dialects.len();
+            let next_dialect = current_dialects[next_index];
+            
+            info!("Cycling dialect: {} -> {}", selected_dialect.name(), next_dialect.name());
+            selected_dialect.set(next_dialect);
+        })
+    };
+    
     // Handle prompt button clicks - AI translate then populate input field
     let on_prompt_click = {
         let input_prompt_value = input_prompt_value.clone();
@@ -426,6 +442,7 @@ pub fn app() -> Html {
                         <SpeechControls
                             on_speech={on_send_message.clone()}
                             language_code={(*selected_dialect).bcp47_tag().to_string()}
+                            on_dialect_cycle={Some(on_dialect_cycle.clone())}
                         />
                         <InputBox 
                             on_send={{

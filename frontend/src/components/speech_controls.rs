@@ -8,6 +8,8 @@ use yew::prelude::*;
 pub struct SpeechControlsProps {
     pub on_speech: Callback<String>,
     pub language_code: String,
+    #[prop_or_default]
+    pub on_dialect_cycle: Option<Callback<()>>,
 }
 
 #[function_component(SpeechControls)]
@@ -68,7 +70,18 @@ pub fn speech_controls(props: &SpeechControlsProps) -> Html {
             <button onclick={toggle_listening} class={if *is_listening { "listening" } else { "" }}>
                 {if *is_listening { "🎤 Listening..." } else { "🎤 Speak" }}
             </button>
-            <span class="language-indicator">{&props.language_code}</span>
+            <button class="language-indicator clickable" 
+                    onclick={{
+                        let on_dialect_cycle = props.on_dialect_cycle.clone();
+                        Callback::from(move |_| {
+                            if let Some(callback) = &on_dialect_cycle {
+                                callback.emit(());
+                            }
+                        })
+                    }}
+                    title="Click to cycle through dialects">
+                {&props.language_code}
+            </button>
         </div>
     }
 }
