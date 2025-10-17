@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument, Formality, TeachingMode};
 use rig::completion::Prompt;
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
+use std::error::Error;
 use std::sync::Arc;
 
 use crate::embedding_service::EmbeddingService;
@@ -253,7 +254,7 @@ impl AgentService {
                 dialect.name()
             ),
             Formality::Casual => format!(
-                "You are a native {} speaker chatting naturally with organic use of dialect",
+                "You are a native {} speaker speaking naturally and conversationally",
                 dialect.name()
             ),
             Formality::DialectRich => format!(
@@ -269,10 +270,10 @@ impl AgentService {
         // Adapt teaching instructions based on teaching mode
         let teaching_rules = match teaching_mode {
             TeachingMode::Immersive => {
-                "3. IMMERSIVE MODE: Just chat naturally - don't explain or correct unless explicitly asked"
+                "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections"
             }
             TeachingMode::Corrective => {
-                "3. CORRECTIVE MODE: If you notice grammar or usage errors, gently point them out and suggest corrections"
+                "3. CORRECTIVE MODE: Point out grammar or usage errors simply and clearly, then provide the correction"
             }
             TeachingMode::Explanatory => {
                 "3. EXPLANATORY MODE: Provide brief explanations of interesting grammar, idioms, or cultural context when relevant"
@@ -312,14 +313,25 @@ impl AgentService {
             .agent(&self.model_name)
             .preamble(&system_content)
             .max_tokens(max_tokens)
-            .temperature(1.1)
+            .temperature(1.0)
             .build();
 
         // Generate response
-        let response = agent
+        tracing::info!("Sending prompt to Claude: {}", user_message);
+        let response = match agent
             .prompt(user_message)
             .await
-            .context("Failed to get completion from Claude")?;
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                tracing::error!("Claude API error details: {:?}", e);
+                tracing::error!("Claude API error source: {:?}", e.source());
+                return Err(anyhow::Error::from(e).context("Failed to get completion from Claude"));
+            }
+        };
+        
+        tracing::info!("Raw Claude response: {:?}", response);
+        tracing::info!("Claude response length: {} chars", response.len());
 
         tracing::info!(
             "Generated response for dialect {} ({} chars)",

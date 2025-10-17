@@ -212,10 +212,13 @@ impl fmt::Display for Dialect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Formality {
+    #[serde(rename = "formal")]
     Formal,
+    #[serde(rename = "casual")]
     Casual,
     #[serde(rename = "dialect_rich")]
     DialectRich,
+    #[serde(rename = "slang")]
     Slang,
 }
 
@@ -243,10 +246,13 @@ pub struct DialectConfig {
 #[serde(rename_all = "lowercase")]
 pub enum TeachingMode {
     /// Immersive: Only speak in target dialect, no corrections
+    #[serde(rename = "immersive")]
     Immersive,
     /// Corrective: Point out mistakes and provide corrections
+    #[serde(rename = "corrective")]
     Corrective,
     /// Explanatory: Explain grammar, usage, and cultural context
+    #[serde(rename = "explanatory")]
     Explanatory,
 }
 
