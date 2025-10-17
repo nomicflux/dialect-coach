@@ -1,0 +1,308 @@
+/* App Layout Structure */
+
+/* Main container - centers content with responsive padding */
+.container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--s-4);
+  width: 100%;
+}
+
+/* App shell - full height layout */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header - clean and minimal */
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid rgba(78, 205, 196, 0.08);
+  padding: var(--s-4) 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.app-header .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.app-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--coral);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.app-subtitle {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  margin: var(--s-1) 0 0 0;
+  font-weight: 400;
+}
+
+/* Connection status indicator */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.status-connected { color: var(--status-connected); }
+.status-connecting { color: var(--status-connecting); }
+.status-reconnecting { color: var(--status-connecting); }
+.status-disconnected { color: var(--status-disconnected); }
+.status-failed { color: var(--status-error); }
+
+/* Main content area */
+.app-main {
+  flex: 1;
+  display: grid;
+  gap: var(--s-6);
+  padding: var(--s-6) 0;
+  min-height: 0; /* Important for flex children to shrink */
+}
+
+/* Card system - soft, welcoming surfaces */
+.card {
+  background: var(--surface-raised);
+  border-radius: var(--r-l);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  position: relative;
+}
+
+.card--chat {
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.card--panel {
+  padding: var(--s-5);
+}
+
+.card--compact {
+  padding: var(--s-4);
+}
+
+/* Panel toggle button - floating action style */
+.panel-toggle {
+  position: fixed;
+  bottom: var(--s-6);
+  right: var(--s-4);
+  z-index: 200;
+  
+  background: var(--teal);
+  color: white;
+  border-radius: var(--r-pill);
+  padding: var(--s-3) var(--s-5);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: var(--shadow-float);
+  
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  
+  transition: transform var(--dur-fast) var(--ease-out),
+              background-color var(--dur-fast) var(--ease-out);
+}
+
+.panel-toggle:hover {
+  transform: translateY(-2px);
+  background: var(--coral);
+}
+
+.panel-toggle:active {
+  transform: translateY(0);
+}
+
+/* Configuration panel - mobile-first drawer */
+.panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 300;
+  
+  background: var(--surface);
+  border-radius: var(--r-l) var(--r-l) 0 0;
+  box-shadow: var(--shadow-float);
+  
+  max-height: 75vh;
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+  
+  transition: transform var(--dur-slow) var(--ease-emph),
+              opacity var(--dur-med) var(--ease-out);
+}
+
+.panel[data-open="true"] {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.panel-header {
+  padding: var(--s-4) var(--s-5) var(--s-2) var(--s-5);
+  border-bottom: 1px solid rgba(78, 205, 196, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+.panel-close {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-lg);
+  transition: background-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+}
+
+.panel-close:hover {
+  background: rgba(255, 107, 107, 0.1);
+  color: var(--coral);
+}
+
+.panel-content {
+  padding: var(--s-5);
+  overflow-y: auto;
+  max-height: calc(75vh - 80px); /* Account for header */
+}
+
+/* Panel backdrop */
+.panel-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 250;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-med) var(--ease-out);
+}
+
+.panel-backdrop[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Error banner */
+.error-banner {
+  background: rgba(245, 101, 101, 0.1);
+  border: 1px solid rgba(245, 101, 101, 0.2);
+  color: var(--status-error);
+  padding: var(--s-4);
+  border-radius: var(--r-m);
+  margin-bottom: var(--s-5);
+  font-size: var(--text-sm);
+}
+
+/* Loading states */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-8);
+  color: var(--ink-soft);
+}
+
+.loading.active {
+  display: flex;
+}
+
+/* Responsive layout adjustments */
+@media (min-width: 768px) {
+  .app-main {
+    grid-template-columns: 1fr;
+    gap: var(--s-7);
+  }
+  
+  .panel-toggle {
+    position: relative;
+    bottom: auto;
+    right: auto;
+    margin-left: auto;
+  }
+  
+  /* Desktop panel as side drawer */
+  .panel {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: auto;
+    width: var(--panel-width);
+    max-height: 100vh;
+    border-radius: 0;
+    transform: translateX(100%);
+  }
+  
+  .panel[data-open="true"] {
+    transform: translateX(0);
+  }
+  
+  .panel-content {
+    max-height: calc(100vh - 80px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-header {
+    padding: var(--s-5) 0;
+  }
+  
+  .app-main {
+    gap: var(--s-8);
+    padding: var(--s-8) 0;
+  }
+  
+  .card--chat {
+    padding: var(--s-6);
+    min-height: 500px;
+  }
+  
+  /* Two-column layout when panel is open */
+  .app-main[data-panel-open="true"] {
+    grid-template-columns: 1fr 400px;
+    gap: var(--s-7);
+  }
+  
+  .panel[data-desktop="true"] {
+    position: relative;
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
+    width: auto;
+    border-radius: var(--r-l);
+    box-shadow: var(--shadow-soft);
+  }
+}

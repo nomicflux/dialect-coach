@@ -59,6 +59,10 @@ pub fn app() -> Html {
     let connection_state = use_state(|| ConnectionState::Disconnected);
     let is_loading = use_state(|| false);
     let error_message = use_state(|| Option::<String>::None);
+    
+    // UI state
+    let panel_open = use_state(|| false);
+    let input_prompt_value = use_state(|| Option::<String>::None);
 
     // WebSocket service (wrapped in Rc<RefCell<>> for interior mutability)
     let ws_service = use_state(|| {
@@ -322,96 +326,177 @@ pub fn app() -> Html {
             }
         })
     };
+    
+    // Handle prompt button clicks - populate input field
+    let on_prompt_click = {
+        let input_prompt_value = input_prompt_value.clone();
+        
+        Callback::from(move |prompt_text: String| {
+            info!("Prompt clicked: {}", prompt_text);
+            input_prompt_value.set(Some(prompt_text));
+        })
+    };
 
     html! {
-        <div class="app-container">
+        <div class="app">
             <header class="app-header">
-                <h1>{"Dialect Coach"}</h1>
-                <p>{"Practice Spanish, Arabic, and French dialects with AI agents"}</p>
-
-                // Connection status
-                <div class="connection-status">
-                    {match *connection_state {
-                        ConnectionState::Connected => html! { <span class="status-connected">{"● Connected"}</span> },
-                        ConnectionState::Connecting => html! { <span class="status-connecting">{"⟳ Connecting..."}</span> },
-                        ConnectionState::Reconnecting => html! { <span class="status-reconnecting">{"⟳ Reconnecting..."}</span> },
-                        ConnectionState::Disconnected => html! { <span class="status-disconnected">{"○ Disconnected"}</span> },
-                        ConnectionState::Failed => html! { <span class="status-failed">{"✖ Connection Failed"}</span> },
-                    }}
+                <div class="container">
+                    <div>
+                        <h1 class="app-title">{"🎯 Dialect Coach"}</h1>
+                        <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p>
+                    </div>
+                    
+                    // Connection status
+                    <div class="connection-status">
+                        {match *connection_state {
+                            ConnectionState::Connected => html! { <span class="status-connected">{"● Ready to chat!"}</span> },
+                            ConnectionState::Connecting => html! { <span class="status-connecting">{"⟳ Connecting..."}</span> },
+                            ConnectionState::Reconnecting => html! { <span class="status-reconnecting">{"⟳ Reconnecting..."}</span> },
+                            ConnectionState::Disconnected => html! { <span class="status-disconnected">{"○ Disconnected"}</span> },
+                            ConnectionState::Failed => html! { <span class="status-failed">{"✖ Connection Failed"}</span> },
+                        }}
+                    </div>
                 </div>
             </header>
 
             <main class="app-main">
-                <div class="configuration-panel">
-                    <div class="config-row">
-                        <div class="language-selection">
-                            <label>{"Language: "}</label>
-                            <select onchange={on_language_change}>
-                                <option value="spanish" selected=true>{"Spanish"}</option>
-                                <option value="arabic">{"Arabic"}</option>
-                                <option value="french">{"French"}</option>
-                            </select>
-                        </div>
+                <div class="container">
+                    // Main chat card
+                    <div class="card card--chat" id="main-chat">
+                        // Error display
+                        {if let Some(err) = (*error_message).as_ref() {
+                            html! {
+                                <div class="error-banner">
+                                    {format!("⚠️ {}", err)}
+                                </div>
+                            }
+                        } else {
+                            html! {}
+                        }}
 
-                        <div class="dialect-selection">
-                            <label>{"Dialect: "}</label>
-                            <select onchange={on_dialect_change}>
-                                {for Dialect::for_language(*selected_language).iter().map(|dialect| {
-                                    let is_selected = *dialect == *selected_dialect;
-                                    html! {
-                                        <option value={dialect.id()} selected={is_selected}>
-                                            {dialect.name()}
-                                        </option>
-                                    }
-                                })}
-                            </select>
-                        </div>
+                        // Chat interface
+                        <ChatWindow
+                            messages={messages.messages.clone()}
+                            is_loading={*is_loading}
+                            on_replay_message={Some(on_replay_message.clone())}
+                            on_prompt_click={Some(on_prompt_click.clone())}
+                        />
+                        <SpeechControls
+                            on_speech={on_send_message.clone()}
+                            language_code={(*selected_dialect).bcp47_tag().to_string()}
+                        />
+                        <InputBox 
+                            on_send={{
+                                let input_prompt_value = input_prompt_value.clone();
+                                let on_send_message = on_send_message.clone();
+                                Callback::from(move |content: String| {
+                                    // Clear the prompt value after use
+                                    input_prompt_value.set(None);
+                                    on_send_message.emit(content);
+                                })
+                            }}
+                            disabled={!matches!(*connection_state, ConnectionState::Connected)}
+                            external_value={(*input_prompt_value).clone()}
+                        />
                     </div>
+                    
+                    // Floating panel toggle button
+                    <button class="panel-toggle" onclick={{
+                        let panel_open = panel_open.clone();
+                        Callback::from(move |_| {
+                            panel_open.set(!*panel_open);
+                        })
+                    }}>
+                        <span>{"⚙️"}</span>
+                        <span>{"Practice Settings"}</span>
+                    </button>
+                </div>
+                
+                // Configuration panel (collapsible)
+                <div class="panel" data-open={if *panel_open { "true" } else { "false" }}>
+                    <div class="panel-header">
+                        <h3 class="panel-title">{"Practice Settings"}</h3>
+                        <button class="panel-close" onclick={{
+                            let panel_open = panel_open.clone();
+                            Callback::from(move |_| {
+                                panel_open.set(false);
+                            })
+                        }}>
+                            {"×"}
+                        </button>
+                    </div>
+                    
+                    <div class="panel-content">
+                        <div class="panel-section">
+                            <h4 class="panel-section-title">{"Language & Dialect"}</h4>
+                            <div class="panel-section-description">{"Choose your target language and regional variety"}</div>
+                            
+                            <div class="field-group">
+                                <div class="panel-field">
+                                    <label for="language-select">{"Language"}</label>
+                                    <select id="language-select" onchange={on_language_change}>
+                                        <option value="spanish" selected=true>{"Spanish"}</option>
+                                        <option value="arabic">{"Arabic"}</option>
+                                        <option value="french">{"French"}</option>
+                                    </select>
+                                </div>
 
-                    <div class="config-row">
-                        <div class="formality-selection">
-                            <label>{"Formality: "}</label>
-                            <select onchange={on_formality_change}>
-                                <option value="formal">{"Formal"}</option>
-                                <option value="casual" selected=true>{"Casual"}</option>
-                                <option value="dialect_rich">{"Dialect-Rich"}</option>
-                                <option value="slang">{"Slang"}</option>
-                            </select>
+                                <div class="panel-field">
+                                    <label for="dialect-select">{"Dialect"}</label>
+                                    <select id="dialect-select" onchange={on_dialect_change}>
+                                        {for Dialect::for_language(*selected_language).iter().map(|dialect| {
+                                            let is_selected = *dialect == *selected_dialect;
+                                            html! {
+                                                <option value={dialect.id()} selected={is_selected}>
+                                                    {dialect.name()}
+                                                </option>
+                                            }
+                                        })}
+                                    </select>
+                                    <div class="field-help field-help--info">
+                                        {"Regional variety affects accent, vocabulary, and expressions"}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                        
+                        <div class="panel-section">
+                            <h4 class="panel-section-title">{"Conversation Style"}</h4>
+                            
+                            <div class="field-group">
+                                <div class="panel-field">
+                                    <label for="formality-select">{"Formality Level"}</label>
+                                    <select id="formality-select" onchange={on_formality_change}>
+                                        <option value="formal">{"Formal"}</option>
+                                        <option value="casual" selected=true>{"Casual"}</option>
+                                        <option value="dialect_rich">{"Dialect-Rich"}</option>
+                                        <option value="slang">{"Slang"}</option>
+                                    </select>
+                                </div>
 
-                        <div class="teaching-mode-selection">
-                            <label>{"Teaching Mode: "}</label>
-                            <select onchange={on_teaching_mode_change}>
-                                <option value="immersive" selected=true>{"Immersive"}</option>
-                                <option value="corrective">{"Corrective"}</option>
-                                <option value="explanatory">{"Explanatory"}</option>
-                            </select>
+                                <div class="panel-field">
+                                    <label for="teaching-mode-select">{"Teaching Mode"}</label>
+                                    <select id="teaching-mode-select" onchange={on_teaching_mode_change}>
+                                        <option value="immersive" selected=true>{"Immersive"}</option>
+                                        <option value="corrective">{"Corrective"}</option>
+                                        <option value="explanatory">{"Explanatory"}</option>
+                                    </select>
+                                    <div class="field-help">
+                                        {"Immersive keeps conversations flowing naturally"}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                // Error display
-                {if let Some(err) = (*error_message).as_ref() {
-                    html! {
-                        <div class="error-banner">
-                            {format!("Error: {}", err)}
-                        </div>
-                    }
-                } else {
-                    html! {}
-                }}
-
-                // Chat interface
-                <ChatWindow
-                    messages={messages.messages.clone()}
-                    is_loading={*is_loading}
-                    on_replay_message={Some(on_replay_message.clone())}
-                />
-                <SpeechControls
-                    on_speech={on_send_message.clone()}
-                    language_code={(*selected_dialect).bcp47_tag().to_string()}
-                />
-                <InputBox on_send={on_send_message} disabled={!matches!(*connection_state, ConnectionState::Connected)} />
+                // Panel backdrop
+                <div class="panel-backdrop" data-open={if *panel_open { "true" } else { "false" }} onclick={{
+                    let panel_open = panel_open.clone();
+                    Callback::from(move |_| {
+                        panel_open.set(false);
+                    })
+                }}></div>
             </main>
         </div>
     }

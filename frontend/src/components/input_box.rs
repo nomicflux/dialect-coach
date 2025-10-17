@@ -5,11 +5,25 @@ pub struct InputBoxProps {
     pub on_send: Callback<String>,
     #[prop_or(false)]
     pub disabled: bool,
+    #[prop_or_default]
+    pub external_value: Option<String>,
 }
 
 #[function_component(InputBox)]
 pub fn input_box(props: &InputBoxProps) -> Html {
     let input_value = use_state(String::new);
+    
+    // Update input value if external value is provided
+    {
+        let input_value = input_value.clone();
+        let external_value = props.external_value.clone();
+        use_effect_with(external_value, move |external_val| {
+            if let Some(value) = external_val {
+                input_value.set(value.clone());
+            }
+            || ()
+        });
+    }
 
     let on_input = {
         let input_value = input_value.clone();
@@ -34,15 +48,19 @@ pub fn input_box(props: &InputBoxProps) -> Html {
     };
 
     html! {
-        <form class="input-box" onsubmit={on_submit}>
+        <form class="composer" onsubmit={on_submit}>
             <textarea
-                placeholder={if props.disabled { "Connecting..." } else { "Type a message..." }}
+                class="composer-input"
+                placeholder={if props.disabled { "Connecting..." } else { "Practice a phrase… try '¿Cómo te llamas?'" }}
                 value={(*input_value).clone()}
                 oninput={on_input}
                 disabled={props.disabled}
                 rows="3"
+                aria-label="Type your message here. Press Enter to send, Shift+Enter for new line."
             />
-            <button type="submit" disabled={props.disabled}>{"Send"}</button>
+            <div class="composer-actions">
+                <button type="submit" class="btn btn--primary" disabled={props.disabled}>{"Send"}</button>
+            </div>
         </form>
     }
 }
