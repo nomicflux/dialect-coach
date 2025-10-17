@@ -258,7 +258,7 @@ async fn random_dialect_samples(
 
 ### 5. Frontend Application (`frontend/src/app.rs`) ✅
 
-**Status**: Fully functional with TTS, missing STT integration
+**Status**: Fully functional with complete TTS and STT integration
 
 #### State Management (Lines 46-80)
 
@@ -360,6 +360,25 @@ if msg.participant_id != "user" {
 - WebKit prefix support (Safari)
 - Toggle button: "🎤 Speak" / "🎤 Listening..."
 - Transcripts sent as user messages via `on_speech` callback
+
+#### SpeechControls Component (`speech_controls.rs`) ✅
+
+**Status**: Complete implementation with 75 lines
+
+**Architecture**:
+1. Lines 16-24: Initializes `SpeechRecognitionService` with `language_code` prop
+2. Lines 15: State tracking for `is_listening` boolean
+3. Lines 26-64: `toggle_listening` callback:
+   - Calls `start_listening()` with callbacks on toggle on
+   - Final transcript callback emits via `on_speech` prop (sent as user message)
+   - Error and end callbacks for proper state management
+   - Calls `stop_listening()` on toggle off
+4. Lines 66-74: Renders toggle button with dynamic text ("🎤 Speak" / "🎤 Listening...")
+
+**Integration**:
+- Rendered in `app.rs:408-411`
+- Receives `on_speech={on_send_message.clone()}` - transcripts sent as messages
+- Receives `language_code={(*selected_dialect).bcp47_tag().to_string()}` - dialect-aware STT
 
 #### Persistence Service (`persistence.rs`) ❌
 
@@ -597,16 +616,11 @@ HtmlAudioElement.play()
 
 ### Feature Gaps
 
-1. **Speech Recognition (STT)** - HIGH PRIORITY
-   - API fully implemented in `SpeechRecognitionService`
-   - Not wired to `SpeechControls` component
-   - Missing: State management in `app.rs`, callback integration
-
-2. **IndexedDB Persistence** - MEDIUM PRIORITY
+1. **IndexedDB Persistence** - MEDIUM PRIORITY
    - Only 9-line placeholder
    - Would enable: Conversation history, offline support, preferences storage
 
-3. **Authentication** - PRODUCTION BLOCKER
+2. **Authentication** - PRODUCTION BLOCKER
    - No user accounts
    - No API rate limiting
    - No session security
@@ -668,6 +682,7 @@ HtmlAudioElement.play()
 - [✅] Qdrant vector database
 - [✅] Frontend chat interface
 - [✅] TTS with Azure Neural voices
+- [✅] STT with Web Speech API
 - [✅] Auto-reconnection
 - [✅] Dialect/formality/teaching mode selection
 
@@ -675,7 +690,6 @@ HtmlAudioElement.play()
 
 | Feature | Priority | Estimate | Blocker? |
 |---------|----------|----------|----------|
-| Speech Recognition (STT) | HIGH | 6-8 hours | No |
 | Authentication (JWT) | CRITICAL | 1-2 days | **YES** |
 | Rate Limiting | CRITICAL | 1 day | **YES** |
 | CORS Restriction | CRITICAL | 30 min | **YES** |
@@ -800,21 +814,7 @@ let tts_provider = tts_service::AzureTtsProvider::from_env()
 
 ## Future Enhancements
 
-### Phase 6: Speech Recognition Integration
-
-**Scope**: Wire existing STT API to UI
-
-**Tasks**:
-1. Update `app.rs` to initialize `SpeechRecognitionService`
-2. Add state for interim transcripts (`is_listening`, `interim_text`)
-3. Wire `SpeechControls` component callbacks
-4. Display interim results in UI (grayed out)
-5. Mark messages with `is_speech: true` metadata
-6. Add microphone icon to speech-based messages
-
-**Estimated**: 6-8 hours
-
-### Phase 7: IndexedDB Persistence
+### Phase 6: IndexedDB Persistence
 
 **Scope**: Offline conversation history
 
@@ -837,7 +837,7 @@ Database: dialect_coach
 
 **Estimated**: 3-4 hours
 
-### Phase 8: Production Hardening
+### Phase 7: Production Hardening
 
 **Authentication**:
 - JWT tokens via Auth0 or Firebase Auth
@@ -872,16 +872,15 @@ Database: dialect_coach
 ### Weaknesses
 
 1. **No Authentication**: Security risk for production
-2. **Missing STT Integration**: Core feature not wired
-3. **No Tests**: Risky for refactoring
-4. **No Session Cleanup**: Memory leak potential
-5. **Development CORS**: Allows any origin
+2. **No Tests**: Risky for refactoring
+3. **No Session Cleanup**: Memory leak potential
+4. **Development CORS**: Allows any origin
 
 ### Recommendation
 
 **For MVP Launch**:
-1. ✅ Current state is sufficient for **internal demo/testing**
-2. ⚠️ Add STT integration (6-8 hours) for **full feature set**
+1. ✅ Current state has **complete feature set** including TTS and STT
+2. ✅ Suitable for **internal demo and user testing**
 3. ❌ **Do NOT** deploy to production without authentication + rate limiting
 
 **Timeline to Production**:
@@ -890,7 +889,7 @@ Database: dialect_coach
 - **2 weeks**: Load testing, security audit, deployment docs
 
 **Immediate Next Steps**:
-1. Wire SpeechRecognitionService to SpeechControls (HIGH PRIORITY)
-2. Implement JWT authentication (CRITICAL for production)
+1. Implement JWT authentication (CRITICAL for production)
+2. Add rate limiting (CRITICAL for production)
 3. Add integration tests for WebSocket flow
 4. Set up staging environment with production-like settings
