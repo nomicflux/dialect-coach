@@ -1,6 +1,7 @@
 mod agent_service;
 mod embedding_service;
 mod qdrant_service;
+mod translation_handler;
 mod tts_handler;
 mod tts_service;
 mod websocket;
@@ -108,7 +109,8 @@ async fn main() -> Result<()> {
     // Build main application with routes
     let mut app = Router::new()
         .route("/health", get(health_check))
-        .route("/ws", get(websocket::websocket_handler));
+        .route("/ws", get(websocket::websocket_handler))
+        .route("/api/translate", post(translation_handler::translate_handler));
 
     // Add TTS routes only if TTS service is available
     if let Some(tts_state) = tts_state {

@@ -1,6 +1,7 @@
 use super::Language;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 
 /// Specific dialects within each language
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -200,11 +201,45 @@ impl Dialect {
             ],
         }
     }
+
+    /// Parse from serde ID format ("spanish_mexican", "arabic_egyptian", etc.)
+    /// This is the canonical string format for database storage and serialization
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "spanish_mexican" => Some(Self::SpanishMexican),
+            "spanish_castilian" => Some(Self::SpanishCastilian),
+            "spanish_argentinian" => Some(Self::SpanishArgentinian),
+            "spanish_caribbean" => Some(Self::SpanishCaribbean),
+            "spanish_chilean" => Some(Self::SpanishChilean),
+            "spanish_colombian" => Some(Self::SpanishColombian),
+            "arabic_egyptian" => Some(Self::ArabicEgyptian),
+            "arabic_levantine" => Some(Self::ArabicLevantine),
+            "arabic_gulf" => Some(Self::ArabicGulf),
+            "arabic_maghrebi" => Some(Self::ArabicMaghrebi),
+            "arabic_iraqi" => Some(Self::ArabicIraqi),
+            "french_quebecois" => Some(Self::FrenchQuebecois),
+            "french_parisian" => Some(Self::FrenchParisian),
+            "french_swiss" => Some(Self::FrenchSwiss),
+            "french_belgian" => Some(Self::FrenchBelgian),
+            "french_african" => Some(Self::FrenchAfrican),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for Dialect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
+    }
+}
+
+/// FromStr implementation for Dialect - ONLY accepts serde ID format
+/// This enforces that string parsing uses the canonical database format
+impl FromStr for Dialect {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_id(s).ok_or_else(|| format!("Invalid dialect ID: '{}'. Use serde ID format like 'spanish_mexican'.", s))
     }
 }
 
@@ -220,6 +255,55 @@ pub enum Formality {
     DialectRich,
     #[serde(rename = "slang")]
     Slang,
+}
+
+impl Formality {
+    /// Get the serde ID for this formality level
+    /// This is the canonical string format for database storage and serialization
+    pub fn id(&self) -> &'static str {
+        match self {
+            Self::Formal => "formal",
+            Self::Casual => "casual",
+            Self::DialectRich => "dialect_rich",
+            Self::Slang => "slang",
+        }
+    }
+
+    /// Get the human-readable name of the formality level
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Formal => "Formal",
+            Self::Casual => "Casual",
+            Self::DialectRich => "Dialect-Rich",
+            Self::Slang => "Slang",
+        }
+    }
+
+    /// Parse from serde ID format ("formal", "casual", "dialect_rich", "slang")
+    /// This is the canonical string format for database storage and serialization
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "formal" => Some(Self::Formal),
+            "casual" => Some(Self::Casual),
+            "dialect_rich" => Some(Self::DialectRich),
+            "slang" => Some(Self::Slang),
+            _ => None,
+        }
+    }
+}
+
+impl FromStr for Formality {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_id(s).ok_or_else(|| format!("Invalid formality ID: '{}'. Use serde ID format like 'casual' or 'dialect_rich'.", s))
+    }
+}
+
+impl fmt::Display for Formality {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
 }
 
 /// Register (style) of language

@@ -7,6 +7,7 @@ use yew::prelude::*;
 
 use crate::components::{ChatWindow, InputBox, SpeechControls};
 use crate::services::speech::{CloudTtsService, SpeechSynthesisService};
+use crate::services::translation::TranslationService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
 
 // Reducer for messages to handle state updates properly
@@ -63,6 +64,7 @@ pub fn app() -> Html {
     // UI state
     let panel_open = use_state(|| false);
     let input_prompt_value = use_state(|| Option::<String>::None);
+    let translating_button = use_state(|| Option::<String>::None);
 
     // WebSocket service (wrapped in Rc<RefCell<>> for interior mutability)
     let ws_service = use_state(|| {
@@ -74,6 +76,9 @@ pub fn app() -> Html {
     // Cloud TTS service
     let neural_tts_service =
         use_state(|| Some(Rc::new(CloudTtsService::new("http://localhost:3000"))));
+
+    // Translation service
+    let translation_service = use_state(|| Rc::new(TranslationService::new("http://localhost:3000")));
 
     // Keep browser TTS as fallback (for speech controls)
     let tts_service = use_state(|| match SpeechSynthesisService::new() {
@@ -327,13 +332,48 @@ pub fn app() -> Html {
         })
     };
     
-    // Handle prompt button clicks - populate input field
+    // Handle prompt button clicks - AI translate then populate input field
     let on_prompt_click = {
         let input_prompt_value = input_prompt_value.clone();
+        let translation_service = translation_service.clone();
+        let selected_dialect = selected_dialect.clone();
+        let formality = formality.clone();
+        let error_message = error_message.clone();
+        let translating_button = translating_button.clone();
         
-        Callback::from(move |prompt_text: String| {
-            info!("Prompt clicked: {}", prompt_text);
-            input_prompt_value.set(Some(prompt_text));
+        Callback::from(move |(button_id, english_phrase): (String, String)| {
+            info!("Translating prompt from button '{}': {}", button_id, english_phrase);
+            
+            let input_prompt_value = input_prompt_value.clone();
+            let translation_service = translation_service.clone();
+            let selected_dialect = selected_dialect.clone();
+            let formality = formality.clone();
+            let error_message = error_message.clone();
+            let translating_button = translating_button.clone();
+            let english_phrase_clone = english_phrase.clone();
+            let button_id_clone = button_id.clone();
+            
+            // Set loading state for specific button
+            translating_button.set(Some(button_id));
+            error_message.set(None);
+            
+            // Start async translation
+            wasm_bindgen_futures::spawn_local(async move {
+                match translation_service.translate_phrase(&english_phrase, *selected_dialect, Some(*formality)).await {
+                    Ok(translated) => {
+                        info!("Translation success: '{}' -> '{}'", english_phrase_clone, translated);
+                        input_prompt_value.set(Some(translated));
+                        translating_button.set(None);
+                    }
+                    Err(e) => {
+                        error!("Translation failed: {}", e);
+                        // Fallback to English phrase on error
+                        input_prompt_value.set(Some(english_phrase_clone));
+                        error_message.set(Some(format!("Translation failed, using English phrase: {}", e)));
+                        translating_button.set(None);
+                    }
+                }
+            });
         })
     };
 
@@ -380,6 +420,8 @@ pub fn app() -> Html {
                             is_loading={*is_loading}
                             on_replay_message={Some(on_replay_message.clone())}
                             on_prompt_click={Some(on_prompt_click.clone())}
+                            translating_button={(*translating_button).clone()}
+                            formality={*formality}
                         />
                         <SpeechControls
                             on_speech={on_send_message.clone()}

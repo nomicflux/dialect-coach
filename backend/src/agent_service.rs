@@ -342,6 +342,30 @@ impl AgentService {
         Ok(response)
     }
 
+    /// Simple translation without RAG - for fast prompt translation
+    pub async fn generate_simple_translation(
+        &self,
+        prompt: &str,
+        _dialect: Dialect,
+        _formality: Formality,
+    ) -> Result<String> {
+        // Create a lightweight agent for translation only
+        let agent = self
+            .client
+            .agent(&self.model_name)
+            .max_tokens(64)  // Keep translations short
+            .temperature(0.7)
+            .build();
+
+        // Generate translation
+        let response = agent
+            .prompt(prompt)
+            .await
+            .context("Failed to get translation from Claude")?;
+
+        Ok(response)
+    }
+
     /// Get dialect examples from RAG (utility function for testing)
     pub async fn get_dialect_examples(
         &self,

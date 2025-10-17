@@ -1,4 +1,4 @@
-use dialect_coach_shared::models::Message;
+use dialect_coach_shared::models::{Message, Formality};
 use web_sys::HtmlElement;
 use yew::prelude::*;
 
@@ -11,7 +11,31 @@ pub struct ChatWindowProps {
     #[prop_or_default]
     pub on_replay_message: Option<Callback<Message>>,
     #[prop_or_default]
-    pub on_prompt_click: Option<Callback<String>>,
+    pub on_prompt_click: Option<Callback<(String, String)>>, // (button_id, phrase)
+    #[prop_or_default]
+    pub translating_button: Option<String>, // Track which specific button is translating
+    pub formality: Formality,
+}
+
+fn get_context_aware_prompt(prompt_type: &str, formality: Formality) -> &'static str {
+    match (prompt_type, formality) {
+        ("greeting", Formality::Formal) => "Good day, how are you doing?",
+        ("greeting", Formality::Casual) => "Hello, how are you?",
+        ("greeting", Formality::DialectRich) => "Hey there, what's up?",
+        ("greeting", Formality::Slang) => "Yo, what's good?",
+        
+        ("weather", Formality::Formal) => "What is the weather forecast for today?",
+        ("weather", Formality::Casual) => "What's the weather like today?",
+        ("weather", Formality::DialectRich) => "How's it looking outside?",
+        ("weather", Formality::Slang) => "What's the weather doing?",
+        
+        ("food", Formality::Formal) => "I would like to place an order, please",
+        ("food", Formality::Casual) => "I'd like to order some food",
+        ("food", Formality::DialectRich) => "Can I get something to eat?",
+        ("food", Formality::Slang) => "What's good to eat here?",
+        
+        _ => "Hello, how are you?", // fallback
+    }
 }
 
 #[function_component(ChatWindow)]
@@ -41,30 +65,75 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                             <h3 class="empty-title">{"Ready to practice!"}</h3>
                             <p class="empty-body">{"Start a conversation to practice your dialect. Try one of these:"}</p>
                             <div class="prompt-list">
-                                <button class="prompt-item" onclick={{
+                                <button class="prompt-item" 
+                                        disabled={props.translating_button.is_some()}
+                                        onclick={{
                                     let on_prompt_click = props.on_prompt_click.clone();
+                                    let formality = props.formality;
                                     Callback::from(move |_| {
                                         if let Some(callback) = &on_prompt_click {
-                                            callback.emit("Greet me in Mexican Spanish".to_string());
+                                            let prompt = get_context_aware_prompt("greeting", formality);
+                                            callback.emit(("greeting".to_string(), prompt.to_string()));
                                         }
                                     })
-                                }}>{"Greet me in Mexican Spanish"}</button>
-                                <button class="prompt-item" onclick={{
+                                }}>
+                                    {if props.translating_button.as_ref() == Some(&"greeting".to_string()) { 
+                                        "Translating..." 
+                                    } else { 
+                                        match props.formality {
+                                            Formality::Formal => "Good day, how are you doing?",
+                                            Formality::Casual => "Hello, how are you?", 
+                                            Formality::DialectRich => "Hey there, what's up?",
+                                            Formality::Slang => "Yo, what's good?",
+                                        }
+                                    }}
+                                </button>
+                                <button class="prompt-item" 
+                                        disabled={props.translating_button.is_some()}
+                                        onclick={{
                                     let on_prompt_click = props.on_prompt_click.clone();
+                                    let formality = props.formality;
                                     Callback::from(move |_| {
                                         if let Some(callback) = &on_prompt_click {
-                                            callback.emit("Ask about the weather".to_string());
+                                            let prompt = get_context_aware_prompt("weather", formality);
+                                            callback.emit(("weather".to_string(), prompt.to_string()));
                                         }
                                     })
-                                }}>{"Ask about the weather"}</button>
-                                <button class="prompt-item" onclick={{
+                                }}>
+                                    {if props.translating_button.as_ref() == Some(&"weather".to_string()) { 
+                                        "Translating..." 
+                                    } else { 
+                                        match props.formality {
+                                            Formality::Formal => "What is the weather forecast for today?",
+                                            Formality::Casual => "What's the weather like today?",
+                                            Formality::DialectRich => "How's it looking outside?", 
+                                            Formality::Slang => "What's the weather doing?",
+                                        }
+                                    }}
+                                </button>
+                                <button class="prompt-item" 
+                                        disabled={props.translating_button.is_some()}
+                                        onclick={{
                                     let on_prompt_click = props.on_prompt_click.clone();
+                                    let formality = props.formality;
                                     Callback::from(move |_| {
                                         if let Some(callback) = &on_prompt_click {
-                                            callback.emit("Order food at a restaurant".to_string());
+                                            let prompt = get_context_aware_prompt("food", formality);
+                                            callback.emit(("food".to_string(), prompt.to_string()));
                                         }
                                     })
-                                }}>{"Order food at a restaurant"}</button>
+                                }}>
+                                    {if props.translating_button.as_ref() == Some(&"food".to_string()) { 
+                                        "Translating..." 
+                                    } else { 
+                                        match props.formality {
+                                            Formality::Formal => "I would like to place an order, please",
+                                            Formality::Casual => "I'd like to order some food",
+                                            Formality::DialectRich => "Can I get something to eat?",
+                                            Formality::Slang => "What's good to eat here?",
+                                        }
+                                    }}
+                                </button>
                             </div>
                         </div>
                     }

@@ -150,35 +150,11 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Parse language and dialect strings into Dialect enum
-fn parse_dialect(language: &str, dialect_name: &str) -> Result<Dialect> {
-    // Parse language
-    let lang = match language.to_lowercase().as_str() {
-        "spanish" | "es" => Language::Spanish,
-        "arabic" | "ar" => Language::Arabic,
-        "french" | "fr" => Language::French,
-        _ => anyhow::bail!(
-            "Unknown language: {}. Use 'list' command to see available languages",
-            language
-        ),
-    };
-
-    // Find matching dialect
-    let dialects = Dialect::for_language(lang);
-    let dialect_lower = dialect_name.to_lowercase();
-
-    for dialect in dialects {
-        let name_lower = dialect.name().to_lowercase();
-        if name_lower.contains(&dialect_lower) || dialect_lower.contains(&name_lower) {
-            return Ok(dialect);
-        }
-    }
-
-    anyhow::bail!(
-        "Unknown dialect '{}' for language '{}'. Use 'list' command to see available dialects",
-        dialect_name,
-        language
-    )
+/// Parse dialect string - ONLY accepts canonical serde ID format
+fn parse_dialect(_language: &str, dialect_name: &str) -> Result<Dialect> {
+    // Use ONLY the canonical serde ID format parsing
+    dialect_name.parse::<Dialect>()
+        .map_err(|e| anyhow::anyhow!("Invalid dialect: {}. {}", dialect_name, e))
 }
 
 /// Load DialectDocuments from JSONL file
