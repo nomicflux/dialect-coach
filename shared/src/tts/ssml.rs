@@ -25,7 +25,8 @@ impl SsmlBuilder {
 
     /// Add plain text (will be XML-escaped)
     pub fn add_text<S: Into<String>>(mut self, text: S) -> Self {
-        self.elements.push(SsmlElement::Text(escape_xml(text.into())));
+        self.elements
+            .push(SsmlElement::Text(escape_xml(text.into())));
         self
     }
 
@@ -148,7 +149,11 @@ impl SsmlBuilder {
     ///     .add_say_as("5551234567", "telephone")
     ///     .build();
     /// ```
-    pub fn add_say_as<S: Into<String>, I: Into<String>>(mut self, text: S, interpret_as: I) -> Self {
+    pub fn add_say_as<S: Into<String>, I: Into<String>>(
+        mut self,
+        text: S,
+        interpret_as: I,
+    ) -> Self {
         self.elements.push(SsmlElement::SayAs {
             text: escape_xml(text.into()),
             interpret_as: interpret_as.into(),
@@ -158,13 +163,15 @@ impl SsmlBuilder {
 
     /// Add a paragraph break
     pub fn add_paragraph<S: Into<String>>(mut self, text: S) -> Self {
-        self.elements.push(SsmlElement::Paragraph(escape_xml(text.into())));
+        self.elements
+            .push(SsmlElement::Paragraph(escape_xml(text.into())));
         self
     }
 
     /// Add a sentence break
     pub fn add_sentence<S: Into<String>>(mut self, text: S) -> Self {
-        self.elements.push(SsmlElement::Sentence(escape_xml(text.into())));
+        self.elements
+            .push(SsmlElement::Sentence(escape_xml(text.into())));
         self
     }
 
@@ -239,7 +246,10 @@ impl Prosody {
 enum SsmlElement {
     Text(String),
     Break(String),
-    Emphasis { text: String, level: String },
+    Emphasis {
+        text: String,
+        level: String,
+    },
     Prosody {
         text: String,
         rate: Option<String>,
@@ -267,7 +277,12 @@ impl fmt::Display for SsmlElement {
             Self::Emphasis { text, level } => {
                 write!(f, "<emphasis level=\"{}\">{}</emphasis>", level, text)
             }
-            Self::Prosody { text, rate, pitch, volume } => {
+            Self::Prosody {
+                text,
+                rate,
+                pitch,
+                volume,
+            } => {
                 write!(f, "<prosody")?;
                 if let Some(r) = rate {
                     write!(f, " rate=\"{}\"", r)?;
@@ -280,11 +295,23 @@ impl fmt::Display for SsmlElement {
                 }
                 write!(f, ">{}</prosody>", text)
             }
-            Self::Phoneme { text, phoneme, alphabet } => {
-                write!(f, "<phoneme alphabet=\"{}\" ph=\"{}\">{}</phoneme>", alphabet, phoneme, text)
+            Self::Phoneme {
+                text,
+                phoneme,
+                alphabet,
+            } => {
+                write!(
+                    f,
+                    "<phoneme alphabet=\"{}\" ph=\"{}\">{}</phoneme>",
+                    alphabet, phoneme, text
+                )
             }
             Self::SayAs { text, interpret_as } => {
-                write!(f, "<say-as interpret-as=\"{}\">{}</say-as>", interpret_as, text)
+                write!(
+                    f,
+                    "<say-as interpret-as=\"{}\">{}</say-as>",
+                    interpret_as, text
+                )
             }
             Self::Paragraph(text) => write!(f, "<p>{}</p>", text),
             Self::Sentence(text) => write!(f, "<s>{}</s>", text),
@@ -307,9 +334,7 @@ mod tests {
 
     #[test]
     fn test_simple_text() {
-        let ssml = SsmlBuilder::new()
-            .add_text("Hello World")
-            .build();
+        let ssml = SsmlBuilder::new().add_text("Hello World").build();
         assert_eq!(ssml, "<speak>Hello World</speak>");
     }
 
@@ -318,7 +343,10 @@ mod tests {
         let ssml = SsmlBuilder::new()
             .add_text("Test <tag> & \"quotes\"")
             .build();
-        assert_eq!(ssml, "<speak>Test &lt;tag&gt; &amp; &quot;quotes&quot;</speak>");
+        assert_eq!(
+            ssml,
+            "<speak>Test &lt;tag&gt; &amp; &quot;quotes&quot;</speak>"
+        );
     }
 
     #[test]
@@ -336,18 +364,21 @@ mod tests {
         let ssml = SsmlBuilder::new()
             .add_emphasis("very important", "strong")
             .build();
-        assert_eq!(ssml, "<speak><emphasis level=\"strong\">very important</emphasis></speak>");
+        assert_eq!(
+            ssml,
+            "<speak><emphasis level=\"strong\">very important</emphasis></speak>"
+        );
     }
 
     #[test]
     fn test_prosody() {
         let ssml = SsmlBuilder::new()
-            .add_prosody(
-                "Speak slowly",
-                Prosody::new().rate("slow").pitch("low")
-            )
+            .add_prosody("Speak slowly", Prosody::new().rate("slow").pitch("low"))
             .build();
-        assert_eq!(ssml, "<speak><prosody rate=\"slow\" pitch=\"low\">Speak slowly</prosody></speak>");
+        assert_eq!(
+            ssml,
+            "<speak><prosody rate=\"slow\" pitch=\"low\">Speak slowly</prosody></speak>"
+        );
     }
 
     #[test]
@@ -355,7 +386,10 @@ mod tests {
         let ssml = SsmlBuilder::new()
             .add_phoneme("Oaxaca", "waˈhaka", "ipa")
             .build();
-        assert_eq!(ssml, "<speak><phoneme alphabet=\"ipa\" ph=\"waˈhaka\">Oaxaca</phoneme></speak>");
+        assert_eq!(
+            ssml,
+            "<speak><phoneme alphabet=\"ipa\" ph=\"waˈhaka\">Oaxaca</phoneme></speak>"
+        );
     }
 
     #[test]
@@ -363,7 +397,10 @@ mod tests {
         let ssml = SsmlBuilder::new()
             .add_say_as("5551234567", "telephone")
             .build();
-        assert_eq!(ssml, "<speak><say-as interpret-as=\"telephone\">5551234567</say-as></speak>");
+        assert_eq!(
+            ssml,
+            "<speak><say-as interpret-as=\"telephone\">5551234567</say-as></speak>"
+        );
     }
 
     #[test]
@@ -372,7 +409,10 @@ mod tests {
             .add_paragraph("First paragraph.")
             .add_paragraph("Second paragraph.")
             .build();
-        assert_eq!(ssml, "<speak><p>First paragraph.</p><p>Second paragraph.</p></speak>");
+        assert_eq!(
+            ssml,
+            "<speak><p>First paragraph.</p><p>Second paragraph.</p></speak>"
+        );
     }
 
     #[test]
@@ -383,13 +423,15 @@ mod tests {
             .add_break("300ms")
             .add_prosody(
                 "where the food is amazing",
-                Prosody::new().rate("slow").volume("loud")
+                Prosody::new().rate("slow").volume("loud"),
             )
             .build();
 
         assert!(ssml.contains("<emphasis level=\"moderate\">Mexico</emphasis>"));
         assert!(ssml.contains("<break time=\"300ms\"/>"));
-        assert!(ssml.contains("<prosody rate=\"slow\" volume=\"loud\">where the food is amazing</prosody>"));
+        assert!(ssml.contains(
+            "<prosody rate=\"slow\" volume=\"loud\">where the food is amazing</prosody>"
+        ));
     }
 
     #[test]

@@ -1,6 +1,6 @@
+use super::Language;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use super::Language;
 
 /// Specific dialects within each language
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -131,8 +131,8 @@ impl Dialect {
 
             Self::ArabicEgyptian => "ar-EG",
             Self::ArabicLevantine => "ar-LB", // Lebanese as representative
-            Self::ArabicGulf => "ar-SA", // Saudi as representative
-            Self::ArabicMaghrebi => "ar-MA", // Moroccan as representative
+            Self::ArabicGulf => "ar-SA",      // Saudi as representative
+            Self::ArabicMaghrebi => "ar-MA",  // Moroccan as representative
             Self::ArabicIraqi => "ar-IQ",
 
             Self::FrenchQuebecois => "fr-CA",

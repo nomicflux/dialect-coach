@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument};
 use qdrant_client::Qdrant;
-use qdrant_client::qdrant::{Condition, Filter, SearchPointsBuilder, CreateFieldIndexCollectionBuilder, FieldType};
+use qdrant_client::qdrant::{
+    Condition, CreateFieldIndexCollectionBuilder, FieldType, Filter, SearchPointsBuilder,
+};
 use rand::seq::SliceRandom;
 
 const COLLECTION_NAME: &str = "dialect_documents";
@@ -26,8 +28,7 @@ impl QdrantService {
 
     /// Create from environment variables
     pub async fn from_env() -> Result<Self> {
-        let url = std::env::var("QDRANT_URL")
-            .context("QDRANT_URL environment variable not set")?;
+        let url = std::env::var("QDRANT_URL").context("QDRANT_URL environment variable not set")?;
         let api_key = std::env::var("QDRANT_API_KEY")
             .context("QDRANT_API_KEY environment variable not set")?;
 
@@ -115,12 +116,11 @@ impl QdrantService {
                 });
 
             // Filter by formality if specified
-            if !formality_levels.is_empty() {
-                if let Some(f) = formality {
-                    if !formality_levels.contains(&f) {
-                        continue;
-                    }
-                }
+            if !formality_levels.is_empty()
+                && let Some(f) = formality
+                && !formality_levels.contains(&f)
+            {
+                continue;
             }
 
             documents.push(DialectDocument {
@@ -211,13 +211,11 @@ impl QdrantService {
         tracing::info!("Creating field index for '{}'", field_name);
 
         self.client
-            .create_field_index(
-                CreateFieldIndexCollectionBuilder::new(
-                    COLLECTION_NAME,
-                    field_name,
-                    FieldType::Keyword,
-                ),
-            )
+            .create_field_index(CreateFieldIndexCollectionBuilder::new(
+                COLLECTION_NAME,
+                field_name,
+                FieldType::Keyword,
+            ))
             .await
             .context("Failed to create field index")?;
 

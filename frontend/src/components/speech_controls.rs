@@ -1,8 +1,8 @@
-use yew::prelude::*;
-use std::rc::Rc;
-use std::cell::RefCell;
-use log::{info, error};
 use crate::services::speech::SpeechRecognitionService;
+use log::{error, info};
+use std::cell::RefCell;
+use std::rc::Rc;
+use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct SpeechControlsProps {
@@ -13,15 +13,15 @@ pub struct SpeechControlsProps {
 #[function_component(SpeechControls)]
 pub fn speech_controls(props: &SpeechControlsProps) -> Html {
     let is_listening = use_state(|| false);
-    let stt_service = use_state(|| {
-        match SpeechRecognitionService::new(&props.language_code) {
+    let stt_service = use_state(
+        || match SpeechRecognitionService::new(&props.language_code) {
             Ok(service) => Some(Rc::new(RefCell::new(service))),
             Err(e) => {
                 error!("Failed to initialize STT service: {}", e);
                 None
             }
-        }
-    });
+        },
+    );
 
     let toggle_listening = {
         let is_listening = is_listening.clone();

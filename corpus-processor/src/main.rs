@@ -93,25 +93,22 @@ async fn main() -> Result<()> {
             let dialect_enum = parse_dialect(&language, &dialect)?;
 
             // Process the corpus
-            processor::process_corpus(
-                &input,
-                &output,
-                dialect_enum,
-                chunk_size,
-                overlap,
-            )?;
+            processor::process_corpus(&input, &output, dialect_enum, chunk_size, overlap)?;
 
             println!("\n✓ Processing completed successfully");
         }
-        Commands::Upload { input, url, api_key } => {
+        Commands::Upload {
+            input,
+            url,
+            api_key,
+        } => {
             // Get URL from argument or environment
-            let qdrant_url = url
-                .or_else(|| std::env::var("QDRANT_URL").ok())
-                .context("QDRANT_URL must be provided via --url flag or QDRANT_URL environment variable")?;
+            let qdrant_url = url.or_else(|| std::env::var("QDRANT_URL").ok()).context(
+                "QDRANT_URL must be provided via --url flag or QDRANT_URL environment variable",
+            )?;
 
             // Get API key from argument or environment
-            let qdrant_api_key = api_key
-                .or_else(|| std::env::var("QDRANT_API_KEY").ok());
+            let qdrant_api_key = api_key.or_else(|| std::env::var("QDRANT_API_KEY").ok());
 
             println!("Uploading documents to Qdrant:");
             println!("  Input: {}", input);
@@ -160,7 +157,10 @@ fn parse_dialect(language: &str, dialect_name: &str) -> Result<Dialect> {
         "spanish" | "es" => Language::Spanish,
         "arabic" | "ar" => Language::Arabic,
         "french" | "fr" => Language::French,
-        _ => anyhow::bail!("Unknown language: {}. Use 'list' command to see available languages", language),
+        _ => anyhow::bail!(
+            "Unknown language: {}. Use 'list' command to see available languages",
+            language
+        ),
     };
 
     // Find matching dialect
@@ -183,8 +183,8 @@ fn parse_dialect(language: &str, dialect_name: &str) -> Result<Dialect> {
 
 /// Load DialectDocuments from JSONL file
 fn load_documents_from_jsonl(path: &str) -> Result<Vec<DialectDocument>> {
-    let content = fs::read_to_string(path)
-        .context(format!("Failed to read JSONL file: {}", path))?;
+    let content =
+        fs::read_to_string(path).context(format!("Failed to read JSONL file: {}", path))?;
 
     let mut documents = Vec::new();
 

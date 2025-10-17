@@ -12,8 +12,7 @@ impl EmbeddingService {
         println!("Loading multilingual embedding model...");
 
         let model = TextEmbedding::try_new(
-            InitOptions::new(EmbeddingModel::MultilingualE5Base)
-                .with_show_download_progress(true),
+            InitOptions::new(EmbeddingModel::MultilingualE5Base).with_show_download_progress(true),
         )
         .context("Failed to initialize embedding model")?;
 

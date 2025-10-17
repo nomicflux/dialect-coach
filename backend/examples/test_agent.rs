@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dialect_coach_shared::Dialect;
+use dialect_coach_shared::{Dialect, Formality, TeachingMode};
 use std::sync::Arc;
 
 #[path = "../src/agent_service.rs"]
@@ -33,6 +33,8 @@ async fn main() -> Result<()> {
         .generate_response(
             "Hola, ¿cómo estás? Quiero aprender argentino.",
             Dialect::SpanishArgentinian,
+            Formality::Casual,
+            TeachingMode::Immersive,
             &[],
         )
         .await?;
@@ -46,6 +48,8 @@ async fn main() -> Result<()> {
         .generate_response(
             "¿Qué tal? Me gustaría practicar colombiano.",
             Dialect::SpanishColombian,
+            Formality::Casual,
+            TeachingMode::Immersive,
             &[],
         )
         .await?;
@@ -59,6 +63,8 @@ async fn main() -> Result<()> {
         .generate_response(
             "Wepa! Quiero hablar como boricua.",
             Dialect::SpanishCaribbean,
+            Formality::Slang,
+            TeachingMode::Immersive,
             &[],
         )
         .await?;
@@ -76,6 +82,8 @@ async fn main() -> Result<()> {
         .generate_response(
             "Estoy bien también. ¿Podés enseñarme más frases argentinas?",
             Dialect::SpanishArgentinian,
+            Formality::Casual,
+            TeachingMode::Explanatory,
             &history,
         )
         .await?;

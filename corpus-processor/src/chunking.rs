@@ -39,7 +39,8 @@ pub fn chunk_text(text: &str, config: &ChunkConfig) -> Result<Vec<String>> {
         }
 
         // Check if adding this sentence would exceed max size
-        if !current_chunk.is_empty() && current_chunk.len() + sentence.len() > config.max_chunk_size {
+        if !current_chunk.is_empty() && current_chunk.len() + sentence.len() > config.max_chunk_size
+        {
             // Save current chunk
             chunks.push(current_chunk.trim().to_string());
 
@@ -74,7 +75,7 @@ fn split_into_sentences(text: &str) -> Vec<&str> {
         // Simple sentence boundary detection
         if matches!(c, '.' | '!' | '?' | '؟' | '。') {
             // Look ahead to see if this is really end of sentence
-            let next_chars: String = text[i+1..].chars().take(2).collect();
+            let next_chars: String = text[i + 1..].chars().take(2).collect();
             if next_chars.starts_with(char::is_whitespace) || next_chars.is_empty() {
                 sentences.push(text[start..=i].trim());
                 start = i + 1;
@@ -134,7 +135,8 @@ mod tests {
             max_chunk_size: 50,
             overlap: 10,
         };
-        let text = "This is the first sentence. This is the second sentence. This is the third sentence.";
+        let text =
+            "This is the first sentence. This is the second sentence. This is the third sentence.";
         let chunks = chunk_text(text, &config).unwrap();
         assert!(chunks.len() > 1);
 

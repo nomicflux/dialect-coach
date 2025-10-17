@@ -1,6 +1,6 @@
+use super::{Message, Participant};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::{Message, Participant};
 
 /// WebSocket events for real-time communication
 #[derive(Debug, Clone, Serialize, Deserialize)]

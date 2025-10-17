@@ -1,22 +1,22 @@
-mod websocket;
-mod qdrant_service;
 mod agent_service;
 mod embedding_service;
-mod tts_service;
+mod qdrant_service;
 mod tts_handler;
+mod tts_service;
+mod websocket;
 
 use anyhow::{Context, Result};
 use axum::{
-    routing::{get, post, delete},
     Router,
-    response::IntoResponse,
     http::StatusCode,
+    response::IntoResponse,
+    routing::{delete, get, post},
 };
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_http::cors::{CorsLayer, Any};
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
@@ -42,16 +42,12 @@ async fn main() -> Result<()> {
     eprintln!("[MAIN] Initializing tracing...");
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| {
-                    eprintln!("[MAIN] Using default log level: debug");
-                    "debug".into()
-                }),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                eprintln!("[MAIN] Using default log level: debug");
+                "debug".into()
+            }),
         )
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_writer(std::io::stderr)
-        )
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
         .init();
     eprintln!("[MAIN] Tracing initialized");
 

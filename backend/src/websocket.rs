@@ -1,70 +1,19 @@
 use axum::{
     extract::{
-        ws::{Message as WsMessage, WebSocket, WebSocketUpgrade},
         State,
+        ws::{Message as WsMessage, WebSocket, WebSocketUpgrade},
     },
     response::Response,
 };
-use dialect_coach_shared::{Message, Dialect, Formality, TeachingMode};
+use dialect_coach_shared::{Dialect, Formality, Message, TeachingMode};
 use futures_util::{SinkExt, StreamExt};
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::AppState;
 
-/// Connection state manager
-#[derive(Clone)]
-pub struct ConnectionState {
-    /// Active connections: session_id -> sender channel
-    connections: Arc<Mutex<HashMap<Uuid, mpsc::UnboundedSender<String>>>>,
-}
-
-impl ConnectionState {
-    pub fn new() -> Self {
-        Self {
-            connections: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    /// Add a new connection
-    pub async fn add_connection(&self, session_id: Uuid, tx: mpsc::UnboundedSender<String>) {
-        let mut connections = self.connections.lock().await;
-        connections.insert(session_id, tx);
-        tracing::info!("New connection added: {} (total: {})", session_id, connections.len());
-    }
-
-    /// Remove a connection
-    pub async fn remove_connection(&self, session_id: &Uuid) {
-        let mut connections = self.connections.lock().await;
-        connections.remove(session_id);
-        tracing::info!("Connection removed: {} (total: {})", session_id, connections.len());
-    }
-
-    /// Broadcast message to all connections except sender
-    pub async fn broadcast(&self, sender_id: &Uuid, message: &str) {
-        let connections = self.connections.lock().await;
-        for (id, tx) in connections.iter() {
-            if id != sender_id && let Err(e) = tx.send(message.to_string()) {
-                tracing::warn!("Failed to send message to {}: {}", id, e);
-            }
-        }
-    }
-
-    /// Get connection count
-    pub async fn connection_count(&self) -> usize {
-        self.connections.lock().await.len()
-    }
-}
-
 /// WebSocket handler
-pub async fn websocket_handler(
-    State(state): State<AppState>,
-    ws: WebSocketUpgrade,
-) -> Response {
+pub async fn websocket_handler(State(state): State<AppState>, ws: WebSocketUpgrade) -> Response {
     eprintln!("[WEBSOCKET] Upgrade request received!");
     tracing::info!("WebSocket upgrade request received");
     let response = ws.on_upgrade(move |socket| handle_socket(socket, state));
@@ -112,8 +61,10 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 // Parse and validate message
                 match serde_json::from_str::<Message>(&text) {
                     Ok(parsed_msg) => {
-                        eprintln!("[WEBSOCKET] Parsed message from {} in session {}: '{}'",
-                            parsed_msg.participant_id, parsed_msg.session_id, parsed_msg.content);
+                        eprintln!(
+                            "[WEBSOCKET] Parsed message from {} in session {}: '{}'",
+                            parsed_msg.participant_id, parsed_msg.session_id, parsed_msg.content
+                        );
                         tracing::info!(
                             "Valid message from {} in session {}: '{}'",
                             parsed_msg.participant_id,
@@ -124,20 +75,39 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         // Parse dialect from BCP-47 language tag
                         let dialect = match Dialect::from_bcp47(&parsed_msg.language) {
                             Some(d) => {
-                                eprintln!("[WEBSOCKET] Parsed dialect: {} from language tag: {}", d.name(), parsed_msg.language);
-                                tracing::info!("Parsed dialect: {} from language tag: {}", d.name(), parsed_msg.language);
+                                eprintln!(
+                                    "[WEBSOCKET] Parsed dialect: {} from language tag: {}",
+                                    d.name(),
+                                    parsed_msg.language
+                                );
+                                tracing::info!(
+                                    "Parsed dialect: {} from language tag: {}",
+                                    d.name(),
+                                    parsed_msg.language
+                                );
                                 d
                             }
                             None => {
-                                eprintln!("[WEBSOCKET] ERROR: Unsupported language tag: {}", parsed_msg.language);
-                                tracing::error!("Unsupported language tag: {}", parsed_msg.language);
+                                eprintln!(
+                                    "[WEBSOCKET] ERROR: Unsupported language tag: {}",
+                                    parsed_msg.language
+                                );
+                                tracing::error!(
+                                    "Unsupported language tag: {}",
+                                    parsed_msg.language
+                                );
                                 let error_msg = Message::new(
                                     parsed_msg.session_id,
                                     "system".to_string(),
-                                    format!("Unsupported language/dialect: {}", parsed_msg.language),
+                                    format!(
+                                        "Unsupported language/dialect: {}",
+                                        parsed_msg.language
+                                    ),
                                     parsed_msg.language.clone(),
                                 );
-                                if let Ok(error_json) = serde_json::to_string(&error_msg) && let Err(e) = tx.send(error_json) {
+                                if let Ok(error_json) = serde_json::to_string(&error_msg)
+                                    && let Err(e) = tx.send(error_json)
+                                {
                                     tracing::error!("Failed to send error message: {}", e);
                                 }
                                 continue;
@@ -146,7 +116,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
                         // Get or create session history
                         let mut histories = state.session_histories.lock().await;
-                        let history = histories.entry(parsed_msg.session_id)
+                        let history = histories
+                            .entry(parsed_msg.session_id)
                             .or_insert_with(Vec::new);
 
                         // Add user message to history
@@ -154,7 +125,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
                         // Keep only last 20 messages to avoid unbounded growth
                         if history.len() > 20 {
-                            history.drain(0..history.len()-20);
+                            history.drain(0..history.len() - 20);
                         }
 
                         // Clone history for agent call
@@ -163,23 +134,46 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
                         // Extract formality and teaching mode from metadata (with defaults)
                         let formality = parsed_msg.metadata.formality.unwrap_or(Formality::Casual);
-                        let teaching_mode = parsed_msg.metadata.teaching_mode.unwrap_or(TeachingMode::Immersive);
+                        let teaching_mode = parsed_msg
+                            .metadata
+                            .teaching_mode
+                            .unwrap_or(TeachingMode::Immersive);
 
                         // Call agent with RAG
-                        eprintln!("[WEBSOCKET] Calling agent for dialect {} ({:?}, {:?}) with {} history messages",
-                            dialect.name(), formality, teaching_mode, history_vec.len());
-                        tracing::info!("Calling agent for dialect {} ({:?}, {:?}) with {} history messages",
-                            dialect.name(), formality, teaching_mode, history_vec.len());
-                        match state.agent.generate_response(
-                            &parsed_msg.content,
-                            dialect,
+                        eprintln!(
+                            "[WEBSOCKET] Calling agent for dialect {} ({:?}, {:?}) with {} history messages",
+                            dialect.name(),
                             formality,
                             teaching_mode,
-                            &history_vec,
-                        ).await {
+                            history_vec.len()
+                        );
+                        tracing::info!(
+                            "Calling agent for dialect {} ({:?}, {:?}) with {} history messages",
+                            dialect.name(),
+                            formality,
+                            teaching_mode,
+                            history_vec.len()
+                        );
+                        match state
+                            .agent
+                            .generate_response(
+                                &parsed_msg.content,
+                                dialect,
+                                formality,
+                                teaching_mode,
+                                &history_vec,
+                            )
+                            .await
+                        {
                             Ok(agent_response) => {
-                                eprintln!("[WEBSOCKET] Agent generated response ({} chars)", agent_response.len());
-                                tracing::info!("Agent generated response ({} chars)", agent_response.len());
+                                eprintln!(
+                                    "[WEBSOCKET] Agent generated response ({} chars)",
+                                    agent_response.len()
+                                );
+                                tracing::info!(
+                                    "Agent generated response ({} chars)",
+                                    agent_response.len()
+                                );
 
                                 // Add agent response to history
                                 let mut histories = state.session_histories.lock().await;
@@ -202,13 +196,19 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                         eprintln!("[WEBSOCKET] Sending response to client");
                                         tracing::debug!("Sending response: {}", response_json);
                                         if let Err(e) = tx.send(response_json) {
-                                            tracing::error!("Failed to send response to client: {}", e);
+                                            tracing::error!(
+                                                "Failed to send response to client: {}",
+                                                e
+                                            );
                                             break;
                                         }
                                         eprintln!("[WEBSOCKET] Response queued successfully");
                                     }
                                     Err(e) => {
-                                        tracing::error!("Failed to serialize response message: {}", e);
+                                        tracing::error!(
+                                            "Failed to serialize response message: {}",
+                                            e
+                                        );
                                     }
                                 }
                             }
@@ -221,15 +221,24 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     format!("Error generating response: {}", e),
                                     parsed_msg.language.clone(),
                                 );
-                                if let Ok(error_json) = serde_json::to_string(&error_msg) && let Err(e) = tx.send(error_json) {
+                                if let Ok(error_json) = serde_json::to_string(&error_msg)
+                                    && let Err(e) = tx.send(error_json)
+                                {
                                     tracing::error!("Failed to send error message: {}", e);
                                 }
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("[WEBSOCKET] ERROR: Failed to parse message JSON: {}. Raw message: {}", e, text);
-                        tracing::error!("Failed to parse message JSON: {}. Raw message: {}", e, text);
+                        eprintln!(
+                            "[WEBSOCKET] ERROR: Failed to parse message JSON: {}. Raw message: {}",
+                            e, text
+                        );
+                        tracing::error!(
+                            "Failed to parse message JSON: {}. Raw message: {}",
+                            e,
+                            text
+                        );
                     }
                 }
             } else if let WsMessage::Close(_) = msg {
@@ -262,21 +271,6 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn test_connection_state_add_remove() {
-        let state = ConnectionState::new();
-        let session_id = Uuid::new_v4();
-        let (tx, _rx) = mpsc::unbounded_channel();
-
-        assert_eq!(state.connection_count().await, 0);
-
-        state.add_connection(session_id, tx).await;
-        assert_eq!(state.connection_count().await, 1);
-
-        state.remove_connection(&session_id).await;
-        assert_eq!(state.connection_count().await, 0);
-    }
 
     #[tokio::test]
     async fn test_message_parsing() {

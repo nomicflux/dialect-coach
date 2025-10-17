@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use super::{Dialect, Formality};
+use serde::{Deserialize, Serialize};
 
 /// A document from a dialect corpus, used for RAG retrieval
 #[derive(Debug, Clone, Serialize, Deserialize)]

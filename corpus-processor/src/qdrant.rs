@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::DialectDocument;
-use qdrant_client::{Qdrant, Payload};
 use qdrant_client::qdrant::{
-    CreateCollectionBuilder, Distance, VectorParamsBuilder, PointStruct, UpsertPointsBuilder, PointId,
+    CreateCollectionBuilder, Distance, PointId, PointStruct, UpsertPointsBuilder,
+    VectorParamsBuilder,
 };
+use qdrant_client::{Payload, Qdrant};
 use uuid::Uuid;
 
 const COLLECTION_NAME: &str = "dialect_documents";
@@ -23,9 +24,7 @@ impl QdrantService {
             builder = builder.api_key(api_key);
         }
 
-        let client = builder
-            .build()
-            .context("Failed to connect to Qdrant")?;
+        let client = builder.build().context("Failed to connect to Qdrant")?;
 
         Ok(Self { client })
     }
@@ -140,7 +139,10 @@ impl QdrantService {
 
         println!("\nCollection Info:");
         println!("  Name: {}", COLLECTION_NAME);
-        println!("  Points count: {:?}", collection_info.result.map(|r| r.points_count));
+        println!(
+            "  Points count: {:?}",
+            collection_info.result.map(|r| r.points_count)
+        );
 
         Ok(())
     }

@@ -1,13 +1,13 @@
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::{SpeechSynthesis, SpeechSynthesisUtterance, SpeechSynthesisVoice, HtmlAudioElement};
-use yew::Callback;
-use log::{info, warn, error};
-use std::rc::Rc;
-use std::cell::RefCell;
-use serde::{Serialize, Deserialize};
-use gloo_net::http::Request;
 use dialect_coach_shared::tts::TtsRequest;
+use gloo_net::http::Request;
+use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
+use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
+use web_sys::{HtmlAudioElement, SpeechSynthesis, SpeechSynthesisUtterance, SpeechSynthesisVoice};
+use yew::Callback;
 
 /// Speech Synthesis Service for Text-to-Speech
 pub struct SpeechSynthesisService {
@@ -19,8 +19,7 @@ pub struct SpeechSynthesisService {
 impl SpeechSynthesisService {
     /// Create a new speech synthesis service
     pub fn new() -> Result<Self, String> {
-        let window = web_sys::window()
-            .ok_or("No window object available")?;
+        let window = web_sys::window().ok_or("No window object available")?;
 
         let synth = window
             .speech_synthesis()
@@ -62,7 +61,10 @@ impl SpeechSynthesisService {
                 }
                 *voices_clone2.borrow_mut() = voices_vec;
                 *voices_loaded_clone2.borrow_mut() = true;
-                info!("Loaded {} voices via voiceschanged event", available_voices.length());
+                info!(
+                    "Loaded {} voices via voiceschanged event",
+                    available_voices.length()
+                );
             }) as Box<dyn FnMut()>);
 
             synth.set_onvoiceschanged(Some(closure.as_ref().unchecked_ref()));
@@ -105,10 +107,18 @@ impl SpeechSynthesisService {
         }
 
         if !exact_matches.is_empty() {
-            info!("Found {} exact voice matches for {}", exact_matches.len(), language_code);
+            info!(
+                "Found {} exact voice matches for {}",
+                exact_matches.len(),
+                language_code
+            );
             exact_matches
         } else if !prefix_matches.is_empty() {
-            info!("Found {} prefix voice matches for {}", prefix_matches.len(), language_prefix);
+            info!(
+                "Found {} prefix voice matches for {}",
+                prefix_matches.len(),
+                language_prefix
+            );
             prefix_matches
         } else {
             warn!("No voices found for language: {}", language_code);
@@ -133,7 +143,10 @@ impl SpeechSynthesisService {
         }
 
         // Otherwise, return the first matching voice
-        info!("Selected first available voice: {}", matching_voices[0].name());
+        info!(
+            "Selected first available voice: {}",
+            matching_voices[0].name()
+        );
         Some(matching_voices[0].clone())
     }
 
@@ -160,7 +173,10 @@ impl SpeechSynthesisService {
             utterance.set_voice(Some(&voice));
             info!("Speaking with voice: {} ({})", voice.name(), voice.lang());
         } else {
-            warn!("No specific voice found, using browser default for {}", language_code);
+            warn!(
+                "No specific voice found, using browser default for {}",
+                language_code
+            );
         }
 
         // Set speech parameters
@@ -170,7 +186,11 @@ impl SpeechSynthesisService {
 
         // Speak
         self.synth.speak(&utterance);
-        info!("Started speaking: {} chars in {}", text.len(), language_code);
+        info!(
+            "Started speaking: {} chars in {}",
+            text.len(),
+            language_code
+        );
 
         Ok(())
     }
@@ -223,18 +243,23 @@ impl SpeechSynthesisService {
         }
 
         if let Some(callback) = on_error {
-            let closure = Closure::wrap(Box::new(move |event: web_sys::SpeechSynthesisErrorEvent| {
-                // SpeechSynthesisErrorEvent.error() may not be available, use type instead
-                let error_msg = format!("Speech synthesis error: {:?}", event.type_());
-                callback.emit(error_msg);
-            }) as Box<dyn FnMut(_)>);
+            let closure =
+                Closure::wrap(Box::new(move |event: web_sys::SpeechSynthesisErrorEvent| {
+                    // SpeechSynthesisErrorEvent.error() may not be available, use type instead
+                    let error_msg = format!("Speech synthesis error: {:?}", event.type_());
+                    callback.emit(error_msg);
+                }) as Box<dyn FnMut(_)>);
             utterance.set_onerror(Some(closure.as_ref().unchecked_ref()));
             closure.forget();
         }
 
         // Speak
         self.synth.speak(&utterance);
-        info!("Started speaking with callbacks: {} chars in {}", text.len(), language_code);
+        info!(
+            "Started speaking with callbacks: {} chars in {}",
+            text.len(),
+            language_code
+        );
 
         Ok(())
     }
@@ -287,8 +312,7 @@ pub struct SpeechRecognitionService {
 impl SpeechRecognitionService {
     /// Create a new speech recognition service
     pub fn new(language_code: &str) -> Result<Self, String> {
-        let window = web_sys::window()
-            .ok_or("No window object available")?;
+        let window = web_sys::window().ok_or("No window object available")?;
 
         // Try to get SpeechRecognition (webkit prefix for Safari)
         let recognition = if let Some(speech_recognition_constructor) =
@@ -307,10 +331,13 @@ impl SpeechRecognitionService {
                 .and_then(|val| val.dyn_into::<js_sys::Function>().ok())
         {
             // WebKit prefixed API (Safari)
-            js_sys::Reflect::construct(&webkit_speech_recognition_constructor, &js_sys::Array::new())
-                .ok()
-                .and_then(|val| val.dyn_into::<web_sys::SpeechRecognition>().ok())
-                .ok_or("Failed to construct webkitSpeechRecognition")?
+            js_sys::Reflect::construct(
+                &webkit_speech_recognition_constructor,
+                &js_sys::Array::new(),
+            )
+            .ok()
+            .and_then(|val| val.dyn_into::<web_sys::SpeechRecognition>().ok())
+            .ok_or("Failed to construct webkitSpeechRecognition")?
         } else {
             return Err("SpeechRecognition API not supported in this browser".to_string());
         };
@@ -330,8 +357,9 @@ impl SpeechRecognitionService {
     /// Check if speech recognition is supported
     pub fn is_supported() -> bool {
         if let Some(window) = web_sys::window() {
-            js_sys::Reflect::has(&window, &JsValue::from_str("SpeechRecognition")).unwrap_or(false) ||
-            js_sys::Reflect::has(&window, &JsValue::from_str("webkitSpeechRecognition")).unwrap_or(false)
+            js_sys::Reflect::has(&window, &JsValue::from_str("SpeechRecognition")).unwrap_or(false)
+                || js_sys::Reflect::has(&window, &JsValue::from_str("webkitSpeechRecognition"))
+                    .unwrap_or(false)
         } else {
             false
         }
@@ -356,25 +384,27 @@ impl SpeechRecognitionService {
         // Set up result handler
         let on_result_clone = on_result.clone();
         let on_interim_clone = on_interim.clone();
-        let result_closure = Closure::wrap(Box::new(move |event: web_sys::SpeechRecognitionEvent| {
-            if let Some(results) = event.results() {
-                // Get the latest result
-                if let Some(result) = results.get(results.length() - 1) {
-                    if let Some(alternative) = result.get(0) {
-                        let transcript = alternative.transcript();
+        let result_closure =
+            Closure::wrap(Box::new(move |event: web_sys::SpeechRecognitionEvent| {
+                if let Some(results) = event.results() {
+                    // Get the latest result
+                    if let Some(result) = results.get(results.length() - 1) {
+                        if let Some(alternative) = result.get(0) {
+                            let transcript = alternative.transcript();
 
-                        if result.is_final() {
-                            info!("Final transcript: {}", transcript);
-                            on_result_clone.emit(transcript);
-                        } else if let Some(interim_callback) = &on_interim_clone {
-                            info!("Interim transcript: {}", transcript);
-                            interim_callback.emit(transcript);
+                            if result.is_final() {
+                                info!("Final transcript: {}", transcript);
+                                on_result_clone.emit(transcript);
+                            } else if let Some(interim_callback) = &on_interim_clone {
+                                info!("Interim transcript: {}", transcript);
+                                interim_callback.emit(transcript);
+                            }
                         }
                     }
                 }
-            }
-        }) as Box<dyn FnMut(_)>);
-        self.recognition.set_onresult(Some(result_closure.as_ref().unchecked_ref()));
+            }) as Box<dyn FnMut(_)>);
+        self.recognition
+            .set_onresult(Some(result_closure.as_ref().unchecked_ref()));
         result_closure.forget();
 
         // Set up error handler
@@ -389,7 +419,8 @@ impl SpeechRecognitionService {
                 error!("{}", error_msg);
                 error_callback.emit(error_msg);
             }) as Box<dyn FnMut(_)>);
-            self.recognition.set_onerror(Some(error_closure.as_ref().unchecked_ref()));
+            self.recognition
+                .set_onerror(Some(error_closure.as_ref().unchecked_ref()));
             error_closure.forget();
         }
 
@@ -403,11 +434,13 @@ impl SpeechRecognitionService {
                 callback.emit(());
             }
         }) as Box<dyn FnMut(_)>);
-        self.recognition.set_onend(Some(end_closure.as_ref().unchecked_ref()));
+        self.recognition
+            .set_onend(Some(end_closure.as_ref().unchecked_ref()));
         end_closure.forget();
 
         // Start recognition
-        self.recognition.start()
+        self.recognition
+            .start()
             .map_err(|e| format!("Failed to start speech recognition: {:?}", e))?;
 
         Ok(())
@@ -442,7 +475,6 @@ impl SpeechRecognitionService {
         self.recognition.set_lang(language_code);
     }
 }
-
 
 /// Response from cloud TTS synthesis
 #[derive(Deserialize)]
@@ -480,7 +512,11 @@ impl CloudTtsService {
             return Err("Cannot speak empty text".to_string());
         }
 
-        info!("Synthesizing speech with backend TTS: {} chars, voice: {}", text.len(), voice_id);
+        info!(
+            "Synthesizing speech with backend TTS: {} chars, voice: {}",
+            text.len(),
+            voice_id
+        );
 
         // Build request
         let request = TtsRequest {
@@ -511,7 +547,10 @@ impl CloudTtsService {
             .await
             .map_err(|e| format!("Failed to parse TTS response: {}", e))?;
 
-        info!("Received {} ms of audio from backend TTS", tts_response.duration_ms);
+        info!(
+            "Received {} ms of audio from backend TTS",
+            tts_response.duration_ms
+        );
 
         // Play the audio
         self.play_audio_base64(&tts_response.audio_base64).await?;
@@ -527,9 +566,9 @@ impl CloudTtsService {
             audio.set_src(&data_url);
 
             // Play the audio
-            let play_promise = audio.play().map_err(|e| {
-                format!("Failed to play audio: {:?}", e)
-            })?;
+            let play_promise = audio
+                .play()
+                .map_err(|e| format!("Failed to play audio: {:?}", e))?;
 
             // Wait for playback to complete (convert promise to future)
             wasm_bindgen_futures::JsFuture::from(play_promise)

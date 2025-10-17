@@ -1,6 +1,6 @@
-use yew::prelude::*;
 use dialect_coach_shared::models::Message;
 use web_sys::HtmlElement;
+use yew::prelude::*;
 
 use super::MessageBubble;
 

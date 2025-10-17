@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use std::collections::HashMap;
 use super::{Formality, TeachingMode};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// A message in a chat session
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

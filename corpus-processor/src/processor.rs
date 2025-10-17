@@ -3,7 +3,7 @@ use dialect_coach_shared::{Dialect, DialectDocument};
 use std::fs;
 use std::path::Path;
 
-use crate::chunking::{chunk_text, ChunkConfig};
+use crate::chunking::{ChunkConfig, chunk_text};
 use crate::embeddings::EmbeddingService;
 use crate::loaders::load_corpus;
 
@@ -16,8 +16,10 @@ pub fn process_corpus(
     overlap: usize,
 ) -> Result<()> {
     // Create output directory if it doesn't exist
-    fs::create_dir_all(output_path)
-        .context(format!("Failed to create output directory: {}", output_path))?;
+    fs::create_dir_all(output_path).context(format!(
+        "Failed to create output directory: {}",
+        output_path
+    ))?;
 
     // Load corpus documents
     println!("Loading corpus from {}...", input_path);
@@ -72,7 +74,11 @@ pub fn process_corpus(
     println!("Saving processed documents...");
     save_documents(&processed_documents, output_path)?;
 
-    println!("Saved {} documents to {}", processed_documents.len(), output_path);
+    println!(
+        "Saved {} documents to {}",
+        processed_documents.len(),
+        output_path
+    );
 
     Ok(())
 }
@@ -88,11 +94,8 @@ fn chunk_documents(
         let chunks = chunk_text(&doc.content, config)?;
 
         for chunk_content in chunks {
-            let chunk_doc = DialectDocument::new(
-                chunk_content,
-                doc.dialect.clone(),
-                doc.formality.clone(),
-            );
+            let chunk_doc =
+                DialectDocument::new(chunk_content, doc.dialect.clone(), doc.formality.clone());
             chunked.push(chunk_doc);
         }
     }
@@ -109,13 +112,14 @@ fn save_documents(documents: &[DialectDocument], output_path: &str) -> Result<()
     let mut lines = Vec::new();
 
     for doc in documents {
-        let json = serde_json::to_string(doc)
-            .context("Failed to serialize document")?;
+        let json = serde_json::to_string(doc).context("Failed to serialize document")?;
         lines.push(json);
     }
 
-    fs::write(&jsonl_path, lines.join("\n"))
-        .context(format!("Failed to write JSONL file: {}", jsonl_path.display()))?;
+    fs::write(&jsonl_path, lines.join("\n")).context(format!(
+        "Failed to write JSONL file: {}",
+        jsonl_path.display()
+    ))?;
 
     // Also save metadata summary
     let metadata_path = output_dir.join("metadata.json");
@@ -128,10 +132,12 @@ fn save_documents(documents: &[DialectDocument], output_path: &str) -> Result<()
 
     fs::write(
         &metadata_path,
-        serde_json::to_string_pretty(&metadata)
-            .context("Failed to serialize metadata")?,
+        serde_json::to_string_pretty(&metadata).context("Failed to serialize metadata")?,
     )
-    .context(format!("Failed to write metadata file: {}", metadata_path.display()))?;
+    .context(format!(
+        "Failed to write metadata file: {}",
+        metadata_path.display()
+    ))?;
 
     Ok(())
 }

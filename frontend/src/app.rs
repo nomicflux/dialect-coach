@@ -1,13 +1,13 @@
-use yew::prelude::*;
-use dialect_coach_shared::models::{Language, Dialect, Message, Formality, TeachingMode};
-use uuid::Uuid;
-use std::rc::Rc;
+use dialect_coach_shared::models::{Dialect, Formality, Language, Message, TeachingMode};
+use log::{error, info};
 use std::cell::RefCell;
-use log::{info, error};
+use std::rc::Rc;
+use uuid::Uuid;
+use yew::prelude::*;
 
-use crate::services::websocket::{WebSocketService, ConnectionState};
-use crate::services::speech::{SpeechSynthesisService, CloudTtsService};
 use crate::components::{ChatWindow, InputBox, SpeechControls};
+use crate::services::speech::{CloudTtsService, SpeechSynthesisService};
+use crate::services::websocket::{ConnectionState, WebSocketService};
 
 // Reducer for messages to handle state updates properly
 #[derive(Clone, PartialEq)]
@@ -61,21 +61,22 @@ pub fn app() -> Html {
     let error_message = use_state(|| Option::<String>::None);
 
     // WebSocket service (wrapped in Rc<RefCell<>> for interior mutability)
-    let ws_service = use_state(|| Rc::new(RefCell::new(WebSocketService::new("ws://localhost:3000/ws"))));
-
-    // Cloud TTS service
-    let neural_tts_service = use_state(|| {
-        Some(Rc::new(CloudTtsService::new("http://localhost:3000")))
+    let ws_service = use_state(|| {
+        Rc::new(RefCell::new(WebSocketService::new(
+            "ws://localhost:3000/ws",
+        )))
     });
 
+    // Cloud TTS service
+    let neural_tts_service =
+        use_state(|| Some(Rc::new(CloudTtsService::new("http://localhost:3000"))));
+
     // Keep browser TTS as fallback (for speech controls)
-    let tts_service = use_state(|| {
-        match SpeechSynthesisService::new() {
-            Ok(service) => Some(Rc::new(RefCell::new(service))),
-            Err(e) => {
-                error!("Failed to initialize browser TTS service: {}", e);
-                None
-            }
+    let tts_service = use_state(|| match SpeechSynthesisService::new() {
+        Ok(service) => Some(Rc::new(RefCell::new(service))),
+        Err(e) => {
+            error!("Failed to initialize browser TTS service: {}", e);
+            None
         }
     });
 
@@ -156,7 +157,8 @@ pub fn app() -> Html {
                         gloo::timers::callback::Timeout::new(100, move || {
                             info!("Triggering reconnection from app layer");
                             ws_clone.borrow_mut().reconnect();
-                        }).forget();
+                        })
+                        .forget();
                     }
                 }));
 

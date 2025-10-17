@@ -1,13 +1,13 @@
 use dialect_coach_shared::Message;
+use futures_channel::mpsc;
+use futures_util::{SinkExt, StreamExt};
 use gloo_net::websocket::{Message as WsMessage, futures::WebSocket};
 use gloo_timers::callback::Timeout;
-use std::rc::Rc;
+use log::{error, info, warn};
 use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
 use yew::Callback;
-use futures_util::{SinkExt, StreamExt};
-use futures_channel::mpsc;
-use log::{info, error, warn};
 
 /// Connection state for the WebSocket
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,7 +116,10 @@ impl WebSocketService {
     fn set_state(&self, new_state: ConnectionState) {
         let old_state = *self.state.borrow();
         if old_state != new_state {
-            info!("Connection state changed: {:?} -> {:?}", old_state, new_state);
+            info!(
+                "Connection state changed: {:?} -> {:?}",
+                old_state, new_state
+            );
             *self.state.borrow_mut() = new_state;
             self.on_state_change.emit(new_state);
         }
@@ -242,7 +245,10 @@ impl WebSocketService {
                 let delay = (reconnection_config.initial_delay_ms * (1 << (attempt - 1)))
                     .min(reconnection_config.max_delay_ms);
 
-                info!("Reconnecting in {}ms (attempt {}/{})", delay, attempt, reconnection_config.max_attempts);
+                info!(
+                    "Reconnecting in {}ms (attempt {}/{})",
+                    delay, attempt, reconnection_config.max_attempts
+                );
 
                 *state.borrow_mut() = ConnectionState::Reconnecting;
                 on_state_change.emit(ConnectionState::Reconnecting);
@@ -273,7 +279,10 @@ impl WebSocketService {
             let delay = (self.reconnection_config.initial_delay_ms * (1 << (attempt - 1)))
                 .min(self.reconnection_config.max_delay_ms);
 
-            info!("Scheduling reconnection in {}ms (attempt {}/{})", delay, attempt, self.reconnection_config.max_attempts);
+            info!(
+                "Scheduling reconnection in {}ms (attempt {}/{})",
+                delay, attempt, self.reconnection_config.max_attempts
+            );
 
             self.set_state(ConnectionState::Reconnecting);
 
@@ -300,7 +309,8 @@ impl WebSocketService {
         info!("Sending message: {} bytes", json.len());
 
         if let Some(sender) = self.sender.borrow().as_ref() {
-            sender.unbounded_send(json)
+            sender
+                .unbounded_send(json)
                 .map_err(|e| format!("Failed to send message: {}", e))?;
             Ok(())
         } else {

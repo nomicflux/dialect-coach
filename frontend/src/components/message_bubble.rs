@@ -1,5 +1,5 @@
-use yew::prelude::*;
 use dialect_coach_shared::models::Message;
+use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct MessageBubbleProps {

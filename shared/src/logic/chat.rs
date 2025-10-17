@@ -1,4 +1,4 @@
-use crate::models::{ChatSession, Message, AgentType};
+use crate::models::{AgentType, ChatSession, Message};
 
 /// Pure function: Add a message to a session (returns new session)
 /// Following functional programming principles for easier testing
@@ -8,11 +8,7 @@ pub fn add_message_pure(mut session: ChatSession, message: Message) -> ChatSessi
 }
 
 /// Check if an agent should respond to a message
-pub fn should_agent_respond(
-    session: &ChatSession,
-    agent_id: &str,
-    message: &Message,
-) -> bool {
+pub fn should_agent_respond(session: &ChatSession, agent_id: &str, message: &Message) -> bool {
     // Don't respond to own messages
     if message.participant_id == agent_id {
         return false;
@@ -53,7 +49,7 @@ pub fn should_agent_respond(
     // (This can be enhanced with more sophisticated logic)
     match agent.agent_type() {
         Some(AgentType::DialectCoach) => true, // Primary coach always responds
-        _ => false, // Other agents wait to be mentioned
+        _ => false,                            // Other agents wait to be mentioned
     }
 }
 
@@ -70,7 +66,7 @@ pub fn agents_to_respond(session: &ChatSession, message: &Message) -> Vec<String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{SessionConfig, DialectConfig, Dialect, Language, Formality, TeachingMode};
+    use crate::models::{Dialect, DialectConfig, Formality, Language, SessionConfig, TeachingMode};
     use uuid::Uuid;
 
     fn create_test_session() -> ChatSession {

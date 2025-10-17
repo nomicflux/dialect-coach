@@ -1,5 +1,5 @@
+use super::{Dialect, DialectConfig};
 use serde::{Deserialize, Serialize};
-use super::{DialectConfig, Dialect};
 
 /// A participant in a chat session (human user or AI agent)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,15 +96,12 @@ impl Participant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Language, Formality, TeachingMode};
+    use crate::models::{Formality, Language, TeachingMode};
 
     #[test]
     fn test_human_participant() {
-        let p = Participant::new_human(
-            "h1".to_string(),
-            "Alice".to_string(),
-            "user123".to_string(),
-        );
+        let p =
+            Participant::new_human("h1".to_string(), "Alice".to_string(), "user123".to_string());
 
         assert_eq!(p.id, "h1");
         assert_eq!(p.name, "Alice");

@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument, Formality, TeachingMode};
-use rig::providers::anthropic::{ClientBuilder, CLAUDE_3_5_SONNET};
 use rig::completion::Prompt;
+use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
 use std::sync::Arc;
 
-use crate::qdrant_service::QdrantService;
 use crate::embedding_service::EmbeddingService;
+use crate::qdrant_service::QdrantService;
 
 /// Agent service for AI-powered dialect coaching
 pub struct AgentService {
@@ -20,8 +20,8 @@ impl AgentService {
     pub fn from_env(qdrant: Arc<QdrantService>, embeddings: Arc<EmbeddingService>) -> Result<Self> {
         let api_key = std::env::var("ANTHROPIC_API_KEY")
             .context("ANTHROPIC_API_KEY environment variable not set")?;
-        let model_name = std::env::var("ANTHROPIC_MODEL")
-            .unwrap_or_else(|_| CLAUDE_3_5_SONNET.to_string());
+        let model_name =
+            std::env::var("ANTHROPIC_MODEL").unwrap_or_else(|_| CLAUDE_3_5_SONNET.to_string());
 
         let client = ClientBuilder::new(&api_key)
             .anthropic_version("2023-06-01")
@@ -56,13 +56,23 @@ impl AgentService {
                 .rev()
                 .cloned()
                 .collect();
-            format!("{}\n\nCurrent message: {}", recent_history.join("\n"), user_message)
+            format!(
+                "{}\n\nCurrent message: {}",
+                recent_history.join("\n"),
+                user_message
+            )
         } else {
             user_message.to_string()
         };
 
-        tracing::debug!("Enhanced query with {} history messages",
-            if conversation_history.len() >= 2 { "recent" } else { "no" });
+        tracing::debug!(
+            "Enhanced query with {} history messages",
+            if conversation_history.len() >= 2 {
+                "recent"
+            } else {
+                "no"
+            }
+        );
 
         // Step 2: Generate embeddings for multi-vector retrieval (Option D)
         tracing::debug!("Generating embeddings for multi-vector retrieval");
@@ -136,11 +146,7 @@ impl AgentService {
         };
         let random_samples = self
             .qdrant
-            .random_dialect_samples(
-                dialect,
-                sample_formalities,
-                15,
-            )
+            .random_dialect_samples(dialect, sample_formalities, 15)
             .await
             .context("Failed to get random samples")?;
 
@@ -242,10 +248,22 @@ impl AgentService {
         // Build system prompt - EXAMPLES FIRST, then instructions
         // Adapt role description based on formality
         let role_desc = match formality {
-            Formality::Formal => format!("You are a native {} speaker communicating in a professional, polite manner", dialect.name()),
-            Formality::Casual => format!("You are a native {} speaker chatting naturally with organic use of dialect", dialect.name()),
-            Formality::DialectRich => format!("You are a native {} speaker actively showcasing distinctive dialect features and expressions", dialect.name()),
-            Formality::Slang => format!("You are a native {} speaker using informal slang and colloquialisms", dialect.name()),
+            Formality::Formal => format!(
+                "You are a native {} speaker communicating in a professional, polite manner",
+                dialect.name()
+            ),
+            Formality::Casual => format!(
+                "You are a native {} speaker chatting naturally with organic use of dialect",
+                dialect.name()
+            ),
+            Formality::DialectRich => format!(
+                "You are a native {} speaker actively showcasing distinctive dialect features and expressions",
+                dialect.name()
+            ),
+            Formality::Slang => format!(
+                "You are a native {} speaker using informal slang and colloquialisms",
+                dialect.name()
+            ),
         };
 
         // Adapt teaching instructions based on teaching mode
@@ -337,11 +355,10 @@ mod tests {
 
         let qdrant_url = std::env::var("QDRANT_URL").unwrap();
         let qdrant_key = std::env::var("QDRANT_API_KEY").unwrap();
-        let qdrant = QdrantService::new(&qdrant_url, &qdrant_key)
-            .await
-            .unwrap();
+        let qdrant = QdrantService::new(&qdrant_url, &qdrant_key).await.unwrap();
+        let embeddings = EmbeddingService::new().unwrap();
 
-        let agent = AgentService::from_env(Arc::new(qdrant)).unwrap();
+        let agent = AgentService::from_env(Arc::new(qdrant), Arc::new(embeddings)).unwrap();
         assert!(!agent.model_name.is_empty());
     }
 }

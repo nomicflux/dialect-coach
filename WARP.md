@@ -186,7 +186,6 @@ websocat ws://localhost:3000/ws
 ## Known Issues
 
 ### Build Warnings
-- Backend: Dead code in `websocket.rs` (ConnectionState broadcast feature)
 - Shared: Unused imports in `chat.rs` and `context.rs`
 - Frontend: Trunk artifact name ambiguity between "dialect_coach_frontend" and "dialect-coach-frontend"
 

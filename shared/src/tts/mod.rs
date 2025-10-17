@@ -194,8 +194,14 @@ pub fn generate_cache_key(request: &TtsRequest) -> String {
     request.ssml.hash(&mut hasher);
 
     // Convert rate/pitch to deterministic strings
-    let rate_str = request.rate.map(|r| format!("{:.2}", r)).unwrap_or_default();
-    let pitch_str = request.pitch.map(|p| format!("{:.2}", p)).unwrap_or_default();
+    let rate_str = request
+        .rate
+        .map(|r| format!("{:.2}", r))
+        .unwrap_or_default();
+    let pitch_str = request
+        .pitch
+        .map(|p| format!("{:.2}", p))
+        .unwrap_or_default();
     rate_str.hash(&mut hasher);
     pitch_str.hash(&mut hasher);
 

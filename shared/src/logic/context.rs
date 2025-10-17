@@ -27,9 +27,7 @@ pub fn build_agent_prompt(
 
     format!(
         "You are {}. Respond naturally in character.\n\nConversation so far:\n{}\n\nRespond to latest user message: {}",
-        agent.name,
-        context,
-        user_message.content
+        agent.name, context, user_message.content
     )
 }
 
@@ -51,7 +49,9 @@ pub fn truncate_to_tokens(text: &str, max_tokens: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{SessionConfig, Dialect, Language, DialectConfig, AgentType, Formality, TeachingMode};
+    use crate::models::{
+        AgentType, Dialect, DialectConfig, Formality, Language, SessionConfig, TeachingMode,
+    };
 
     #[test]
     fn test_build_conversation_context() {

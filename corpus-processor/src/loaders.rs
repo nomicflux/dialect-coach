@@ -21,10 +21,7 @@ pub fn load_corpus(input_path: &str, dialect: Dialect) -> Result<Vec<DialectDocu
 
 /// Load a single corpus file
 fn load_single_file(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>> {
-    let extension = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or("");
+    let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
     match extension {
         "txt" => load_text_file(path, dialect),
@@ -49,11 +46,19 @@ fn load_directory(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>>
         if entry.file_type().is_file() {
             match load_single_file(entry.path(), dialect.clone()) {
                 Ok(docs) => {
-                    println!("  Loaded {} documents from {}", docs.len(), entry.path().display());
+                    println!(
+                        "  Loaded {} documents from {}",
+                        docs.len(),
+                        entry.path().display()
+                    );
                     documents.extend(docs);
                 }
                 Err(e) => {
-                    eprintln!("  Warning: Failed to load {}: {}", entry.path().display(), e);
+                    eprintln!(
+                        "  Warning: Failed to load {}: {}",
+                        entry.path().display(),
+                        e
+                    );
                 }
             }
         }
@@ -64,8 +69,8 @@ fn load_directory(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>>
 
 /// Load plain text file - one document per file
 fn load_text_file(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>> {
-    let content = fs::read_to_string(path)
-        .context(format!("Failed to read file: {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).context(format!("Failed to read file: {}", path.display()))?;
 
     if content.trim().is_empty() {
         return Ok(Vec::new());
@@ -145,8 +150,7 @@ fn load_json_file(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>>
     let content = fs::read_to_string(path)
         .context(format!("Failed to read JSON file: {}", path.display()))?;
 
-    let json: serde_json::Value = serde_json::from_str(&content)
-        .context("Failed to parse JSON")?;
+    let json: serde_json::Value = serde_json::from_str(&content).context("Failed to parse JSON")?;
 
     let mut documents = Vec::new();
 

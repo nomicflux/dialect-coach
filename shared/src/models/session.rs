@@ -1,7 +1,7 @@
+use super::{Dialect, Language, Message, Participant};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use super::{Message, Participant, Dialect, Language};
 
 /// A chat session with one or more participants
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,7 +99,7 @@ impl ChatSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Formality, TeachingMode, DialectConfig, AgentType};
+    use crate::models::{AgentType, DialectConfig, Formality, TeachingMode};
 
     #[test]
     fn test_new_session() {
@@ -114,11 +114,8 @@ mod tests {
     #[test]
     fn test_add_participant() {
         let mut session = ChatSession::new("Test".to_string(), SessionConfig::default());
-        let participant = Participant::new_human(
-            "h1".to_string(),
-            "Alice".to_string(),
-            "user1".to_string(),
-        );
+        let participant =
+            Participant::new_human("h1".to_string(), "Alice".to_string(), "user1".to_string());
 
         session.add_participant(participant);
         assert_eq!(session.participants.len(), 1);

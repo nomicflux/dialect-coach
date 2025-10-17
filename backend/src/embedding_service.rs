@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use fastembed::{TextEmbedding, InitOptions, EmbeddingModel};
+use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 
 /// Embedding service using Fastembed
 pub struct EmbeddingService {
@@ -12,8 +12,7 @@ impl EmbeddingService {
         tracing::info!("Initializing Fastembed model (MultilingualE5Base)...");
 
         let model = TextEmbedding::try_new(
-            InitOptions::new(EmbeddingModel::MultilingualE5Base)
-                .with_show_download_progress(true),
+            InitOptions::new(EmbeddingModel::MultilingualE5Base).with_show_download_progress(true),
         )
         .context("Failed to initialize Fastembed model")?;
 

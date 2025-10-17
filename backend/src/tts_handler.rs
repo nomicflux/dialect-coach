@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use dialect_coach_shared::tts::{TtsRequest, TtsResponse, VoiceInfo};
 use serde::Serialize;
@@ -33,7 +33,7 @@ pub async fn synthesize_handler(
         .service
         .synthesize(request)
         .await
-        .map_err(|e| TtsErrorResponse::from_tts_error(e))?;
+        .map_err(TtsErrorResponse::from_tts_error)?;
 
     Ok(Json(response))
 }
@@ -50,7 +50,7 @@ pub async fn voices_handler(
         .service
         .get_voices(&params.language_code)
         .await
-        .map_err(|e| TtsErrorResponse::from_tts_error(e))?;
+        .map_err(TtsErrorResponse::from_tts_error)?;
 
     Ok(Json(VoicesResponse { voices }))
 }
