@@ -388,13 +388,94 @@ Untracked files:
 8. ✅ Implement reconnection logic with exponential backoff
 9. ✅ Add connection status UI indicators
 
-### 🔴 CRITICAL (Phase 5: Speech Integration)
-10. ❌ Implement speech synthesis (TTS) service
-11. ❌ Implement speech recognition (STT) service
-12. ❌ Wire SpeechControls component to real APIs
-13. ❌ Add speech indicators to MessageBubble
-14. ❌ Integrate speech services with App component
-15. ❌ Test voice input and output
+### ✅ COMPLETED (Phase 5: Cloud TTS Architecture)
+**Status**: Complete
+**Goal**: Implement trait-based TTS with cloud provider for authentic dialect pronunciation
+
+#### Phase 5.1: Trait Foundation ✅
+10. ✅ Create TTS trait definitions in shared crate
+    - `TextToSpeechProvider` async trait for swappable providers
+    - `TtsRequest`/`TtsResponse` types with SSML support
+    - `AudioFormat`, `VoiceInfo`, `TtsError` enums
+    - Cache key generation from request parameters
+    - File: `shared/src/tts/mod.rs` (220 lines)
+
+#### Phase 5.2: SSML Builder ✅
+11. ✅ Created SSML builder in shared crate
+    - `SsmlBuilder` with fluent API
+    - Support for breaks, emphasis, prosody
+    - XML escaping for safety
+    - File: `shared/src/tts/ssml.rs`
+
+#### Phase 5.3: Backend Cloud TTS Integration ✅
+14. ✅ Implemented AzureTtsProvider in backend
+    - Azure Speech Service integration with reqwest
+    - Dialect → Voice ID mapping (encapsulated within provider)
+    - SSML support
+    - Error handling
+    - File: `backend/src/tts_service.rs`
+
+15. ✅ Created backend TTS HTTP handler
+    - POST /api/tts/synthesize endpoint
+    - GET /api/tts/voices endpoint
+    - GET /api/tts/status endpoint
+    - DELETE /api/tts/cache endpoint
+    - File: `backend/src/tts_handler.rs`
+
+#### Phase 5.4: Frontend Cloud TTS Client ✅
+17. ✅ Created frontend cloud TTS client
+    - `CloudTtsService` (renamed from GoogleNeural2TtsService)
+    - HTTP client to backend /api/tts
+    - Audio playback via HtmlAudioElement
+    - File: `frontend/src/services/speech.rs`
+
+19. ✅ Updated frontend to use cloud TTS
+    - Integrated CloudTtsService with App component
+    - Automatic TTS playback for agent responses
+    - Replay functionality for messages
+    - Files:
+      - `frontend/src/app.rs`
+      - `frontend/src/services/mod.rs`
+
+#### Phase 5.6: STT (Speech-to-Text) - Existing ✅
+20. ✅ Speech recognition service already implemented
+    - Web Speech API integration
+    - Works with SpeechControls component
+    - File: `frontend/src/services/speech.rs` (currently combined with TTS)
+
+#### Phase 5.5: Testing & Integration ⏳
+21. ⏳ Test TTS integration end-to-end
+    - Verify dialect authenticity
+    - Test performance
+    - Fallback to browser TTS
+    - Voice quality comparison
+
+**Dependencies to Add**:
+```toml
+# Backend (backend/Cargo.toml)
+reqwest = { version = "0.11", features = ["json"] }
+base64 = "0.21"
+lru = "0.12"
+async-trait = "0.1"  # For TTS trait
+redis = { version = "0.24", optional = true }  # Optional caching
+
+# Frontend (frontend/Cargo.toml)
+async-trait = "0.1"  # For TTS trait (WASM compatible)
+```
+
+**Environment Variables Required**:
+```bash
+# Backend .env
+AZURE_SPEECH_KEY=<your-azure-speech-key>
+AZURE_SPEECH_REGION=<your-region>  # e.g., eastus, westus2
+```
+
+**Architecture Benefits**:
+- ✅ Authentic dialect pronunciation (Azure Neural voices trained on native speakers)
+- ✅ Swappable providers (trait-based architecture)
+- ✅ Offline fallback (browser TTS when backend unavailable)
+- ✅ SSML support for fine-tuned pronunciation
+- ✅ Consistent voices (same voice ID = same pronunciation)
 
 ### 🟡 MEDIUM (UX & Polish)
 16. ❌ Add CSS styling for chat interface

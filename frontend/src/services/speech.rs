@@ -1,10 +1,13 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{SpeechSynthesis, SpeechSynthesisUtterance, SpeechSynthesisVoice};
+use web_sys::{SpeechSynthesis, SpeechSynthesisUtterance, SpeechSynthesisVoice, HtmlAudioElement};
 use yew::Callback;
 use log::{info, warn, error};
 use std::rc::Rc;
 use std::cell::RefCell;
+use serde::{Serialize, Deserialize};
+use gloo_net::http::Request;
+use dialect_coach_shared::tts::TtsRequest;
 
 /// Speech Synthesis Service for Text-to-Speech
 pub struct SpeechSynthesisService {
@@ -437,5 +440,124 @@ impl SpeechRecognitionService {
     pub fn set_language(&mut self, language_code: &str) {
         info!("Changing speech recognition language to: {}", language_code);
         self.recognition.set_lang(language_code);
+    }
+}
+
+
+/// Response from cloud TTS synthesis
+#[derive(Deserialize)]
+struct TtsSynthesizeResponse {
+    audio_base64: String,
+    duration_ms: u32,
+}
+
+/// Cloud TTS Service - calls backend /api/tts/synthesize endpoint
+pub struct CloudTtsService {
+    backend_url: String,
+    audio_element: Option<HtmlAudioElement>,
+}
+
+impl CloudTtsService {
+    /// Create a new cloud TTS service
+    pub fn new(backend_url: &str) -> Self {
+        // Create an audio element for playback
+        let audio_element = HtmlAudioElement::new().ok();
+
+        Self {
+            backend_url: backend_url.to_string(),
+            audio_element,
+        }
+    }
+
+    /// Synthesize and play speech using backend TTS
+    pub async fn speak(
+        &self,
+        text: &str,
+        voice_id: &str,
+        language_code: &str,
+    ) -> Result<(), String> {
+        if text.is_empty() {
+            return Err("Cannot speak empty text".to_string());
+        }
+
+        info!("Synthesizing speech with backend TTS: {} chars, voice: {}", text.len(), voice_id);
+
+        // Build request
+        let request = TtsRequest {
+            text: text.to_string(),
+            language_code: language_code.to_string(),
+            voice_id: Some(voice_id.to_string()),
+            ssml: false,
+            rate: Some(0.9), // Slightly slower for learning
+            pitch: None,
+            volume_gain_db: None,
+        };
+
+        // Call backend API
+        let url = format!("{}/api/tts/synthesize", self.backend_url);
+        let response = Request::post(&url)
+            .json(&request)
+            .map_err(|e| format!("Failed to build request: {}", e))?
+            .send()
+            .await
+            .map_err(|e| format!("Failed to call TTS API: {}", e))?;
+
+        if !response.ok() {
+            return Err(format!("TTS API error: {}", response.status()));
+        }
+
+        let tts_response: TtsSynthesizeResponse = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse TTS response: {}", e))?;
+
+        info!("Received {} ms of audio from backend TTS", tts_response.duration_ms);
+
+        // Play the audio
+        self.play_audio_base64(&tts_response.audio_base64).await?;
+
+        Ok(())
+    }
+
+    /// Play base64-encoded MP3 audio
+    async fn play_audio_base64(&self, audio_base64: &str) -> Result<(), String> {
+        if let Some(audio) = &self.audio_element {
+            // Convert base64 to data URL
+            let data_url = format!("data:audio/mp3;base64,{}", audio_base64);
+            audio.set_src(&data_url);
+
+            // Play the audio
+            let play_promise = audio.play().map_err(|e| {
+                format!("Failed to play audio: {:?}", e)
+            })?;
+
+            // Wait for playback to complete (convert promise to future)
+            wasm_bindgen_futures::JsFuture::from(play_promise)
+                .await
+                .map_err(|e| format!("Audio playback failed: {:?}", e))?;
+
+            info!("Audio playback started successfully");
+            Ok(())
+        } else {
+            Err("Audio element not available".to_string())
+        }
+    }
+
+    /// Stop playback immediately
+    pub fn stop(&self) {
+        if let Some(audio) = &self.audio_element {
+            audio.pause().ok();
+            audio.set_current_time(0.0);
+            info!("Stopped TTS playback");
+        }
+    }
+
+    /// Check if currently playing
+    pub fn is_playing(&self) -> bool {
+        if let Some(audio) = &self.audio_element {
+            !audio.paused()
+        } else {
+            false
+        }
     }
 }

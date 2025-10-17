@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument};
 use qdrant_client::Qdrant;
 use qdrant_client::qdrant::{Condition, Filter, SearchPointsBuilder, CreateFieldIndexCollectionBuilder, FieldType};
+use rand::seq::SliceRandom;
 
 const COLLECTION_NAME: &str = "dialect_documents";
 
@@ -107,6 +108,7 @@ impl QdrantService {
                     match s {
                         "Formal" => Some(dialect_coach_shared::Formality::Formal),
                         "Casual" => Some(dialect_coach_shared::Formality::Casual),
+                        "DialectRich" => Some(dialect_coach_shared::Formality::DialectRich),
                         "Slang" => Some(dialect_coach_shared::Formality::Slang),
                         _ => None,
                     }
@@ -128,6 +130,9 @@ impl QdrantService {
                 embedding: Vec::new(),
             });
         }
+
+        // Shuffle to make results actually random
+        documents.shuffle(&mut rand::thread_rng());
 
         tracing::info!(
             "Retrieved {} random dialect samples for {} with formality filters",
@@ -165,6 +170,7 @@ impl QdrantService {
                     match s {
                         "Formal" => Some(dialect_coach_shared::Formality::Formal),
                         "Casual" => Some(dialect_coach_shared::Formality::Casual),
+                        "DialectRich" => Some(dialect_coach_shared::Formality::DialectRich),
                         "Slang" => Some(dialect_coach_shared::Formality::Slang),
                         _ => None,
                     }

@@ -34,6 +34,21 @@ qdrant-client = "1.13"
 # Async utilities
 futures-util = "0.3"
 
+# HTTP client for Google TTS API
+reqwest = { version = "0.12", features = ["json"] }
+
+# Base64 encoding for audio data
+base64 = "0.22"
+
+# async-trait for TTS provider trait
+async-trait = "0.1"
+
+# LRU cache for TTS responses
+lru = "0.12"
+
+# Random number generation for shuffling
+rand = "0.8"
+
 # Environment
 dotenvy = "0.15"
 

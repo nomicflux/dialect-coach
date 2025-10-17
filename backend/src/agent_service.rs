@@ -77,6 +77,7 @@ impl AgentService {
         let formality_str = match formality {
             Formality::Formal => "formal polite",
             Formality::Casual => "casual conversational",
+            Formality::DialectRich => "dialect-rich colloquial",
             Formality::Slang => "slang informal",
         };
         let style_query = format!("{} response in {}", formality_str, dialect.name());
@@ -129,8 +130,9 @@ impl AgentService {
         // Select formality levels for random sampling based on requested formality
         let sample_formalities = match formality {
             Formality::Formal => vec![Formality::Formal, Formality::Casual],
-            Formality::Casual => vec![Formality::Casual, Formality::Slang],
-            Formality::Slang => vec![Formality::Slang, Formality::Casual],
+            Formality::Casual => vec![Formality::Casual, Formality::DialectRich],
+            Formality::DialectRich => vec![Formality::DialectRich, Formality::Slang],
+            Formality::Slang => vec![Formality::Slang, Formality::DialectRich],
         };
         let random_samples = self
             .qdrant
@@ -195,6 +197,7 @@ impl AgentService {
         let formality_label = match formality {
             Formality::Formal => "FORMAL",
             Formality::Casual => "CASUAL",
+            Formality::DialectRich => "DIALECT-RICH",
             Formality::Slang => "SLANG",
         };
 
@@ -240,7 +243,8 @@ impl AgentService {
         // Adapt role description based on formality
         let role_desc = match formality {
             Formality::Formal => format!("You are a native {} speaker communicating in a professional, polite manner", dialect.name()),
-            Formality::Casual => format!("You are a native {} speaker chatting casually with a friend", dialect.name()),
+            Formality::Casual => format!("You are a native {} speaker chatting naturally with organic use of dialect", dialect.name()),
+            Formality::DialectRich => format!("You are a native {} speaker actively showcasing distinctive dialect features and expressions", dialect.name()),
             Formality::Slang => format!("You are a native {} speaker using informal slang and colloquialisms", dialect.name()),
         };
 
@@ -277,12 +281,20 @@ impl AgentService {
             dialect.name()
         );
 
+        // Set max tokens based on teaching mode
+        let max_tokens = match teaching_mode {
+            TeachingMode::Immersive => 128,
+            TeachingMode::Corrective => 256,
+            TeachingMode::Explanatory => 512,
+        };
+
         // Create agent with preamble
         let agent = self
             .client
             .agent(&self.model_name)
             .preamble(&system_content)
-            .max_tokens(1024)
+            .max_tokens(max_tokens)
+            .temperature(1.1)
             .build();
 
         // Generate response

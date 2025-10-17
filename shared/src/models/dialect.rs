@@ -214,6 +214,8 @@ impl fmt::Display for Dialect {
 pub enum Formality {
     Formal,
     Casual,
+    #[serde(rename = "dialect_rich")]
+    DialectRich,
     Slang,
 }
 

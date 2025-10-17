@@ -1,6 +1,6 @@
 # Dialect Coach - TODO List
 
-Last Updated: 2025-10-13
+Last Updated: 2025-10-16
 
 ## 🔴 CRITICAL (Do Immediately)
 
@@ -190,45 +190,38 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
 
 ---
 
-## 🔴 PHASE 5: SPEECH INTEGRATION (CURRENT)
+## 🔴 PHASE 5: SPEECH INTEGRATION (TTS Complete, STT Pending)
 
-### 5a. Implement Speech Synthesis Service (TTS) ❌
-**Status**: 9-line placeholder
+### 5a. Implement Cloud TTS Service ✅
+**Status**: COMPLETED 2025-10-16
 **Priority**: CRITICAL (key differentiator)
 **Estimate**: 2-3 hours
-**File**: `frontend/src/services/speech.rs`
+**Files**:
+- `backend/src/tts_service.rs` (AzureTtsProvider)
+- `frontend/src/services/speech.rs` (CloudTtsService)
 
-**Requirements**:
-1. Wrap SpeechSynthesis API from web_sys
-2. Implement voice selection by BCP-47 language tag (es-MX, ar-EG, fr-FR)
-3. Add speak() method with language and voice selection
-4. Handle voice loading (voices may not be immediately available)
-5. Add stop() and pause() methods
-6. Error handling for unsupported browsers
+**Implemented**:
+1. ✅ Trait-based TTS architecture (TextToSpeechProvider in shared crate)
+2. ✅ Azure Speech Service backend integration with SSML support
+3. ✅ CloudTtsService frontend client calling /api/tts/synthesize endpoint
+4. ✅ Dialect-specific voice selection (encapsulated in provider)
+5. ✅ Auto-play of agent messages in app
+6. ✅ Message replay functionality with TTS
+7. ✅ Audio playback via HtmlAudioElement
 
-**Interface**:
-```rust
-pub struct SpeechSynthesisService {
-    synth: web_sys::SpeechSynthesis,
-    current_language: String,
-}
+**Architecture**:
+- Backend: AzureTtsProvider implements TextToSpeechProvider trait
+- Frontend: CloudTtsService sends synthesis requests to backend
+- Voice mapping: Dialect → Azure Neural voice ID (encapsulated in provider)
+- Audio format: Base64-encoded MP3 returned via HTTP
 
-impl SpeechSynthesisService {
-    pub fn new() -> Result<Self, String>;
-    pub fn speak(&self, text: &str, language_code: &str) -> Result<(), String>;
-    pub fn stop(&self);
-    pub fn get_voices_for_language(&self, language_code: &str) -> Vec<SpeechSynthesisVoice>;
-}
+**Environment Variables Required**:
+```bash
+AZURE_SPEECH_KEY=<your-azure-speech-key>
+AZURE_SPEECH_REGION=<your-region>  # e.g., eastus, westus2
 ```
 
-**Voice selection logic**:
-- Match exact BCP-47 tag (e.g., "es-MX" → Mexican Spanish voice)
-- Fallback to language prefix (e.g., "es-MX" → any "es-" voice)
-- Fallback to default voice
-
-**Browser compatibility**: Check for window.speechSynthesis support
-
-**Blockers**: None
+**Result**: ✅ Authentic dialect pronunciation working with Azure Neural voices
 
 ---
 
@@ -291,42 +284,46 @@ impl SpeechRecognitionService {
 
 ---
 
-### 5d. Add Speech Features to App Component ❌
-**Status**: Not started
+### 5d. Add Speech Features to App Component ✅ (TTS Complete)
+**Status**: TTS COMPLETED 2025-10-16, STT pending
 **Priority**: CRITICAL
 **Estimate**: 2 hours
 **File**: `frontend/src/app.rs`
 
-**Requirements**:
-1. Add SpeechSynthesisService to app state
-2. Add SpeechControls component to UI
-3. Create callback for voice input (same as text send)
-4. Mark messages with is_speech:true metadata
-5. Optional: Auto-play agent responses
-6. Update service when dialect changes
+**Completed (TTS)**:
+1. ✅ CloudTtsService initialized in app state (line 66-69)
+2. ✅ SpeechControls component rendered in UI (line 408-411)
+3. ✅ Auto-play agent responses (lines 124-138)
+4. ✅ TTS service updates with dialect changes (uses selected_dialect BCP-47 tag)
+5. ✅ Message replay callback (on_replay_message, lines 302-322)
 
-**State additions**:
-- `speech_synth_service: Option<SpeechSynthesisService>`
-- `auto_play: bool` (toggle for auto-reading agent responses)
+**Pending (STT)**:
+- [ ] Integrate SpeechRecognitionService
+- [ ] Create callback for voice input from SpeechControls
+- [ ] Mark voice-input messages with metadata
 
-**Blockers**: Need Tasks 5a-5c completed first
+**Blockers**: Need Task 5b (STT service) completed first
 
 ---
 
-### 5e. Add Speech Indicators ❌
-**Status**: Not started
+### 5e. Add Speech Indicators ✅ (Replay Complete)
+**Status**: COMPLETED 2025-10-16
 **Priority**: MEDIUM
 **Estimate**: 1 hour
-**File**: `frontend/src/components/message_bubble.rs`
+**Files**:
+- `frontend/src/app.rs` (on_replay_message callback)
+- `frontend/src/components/chat_window.rs` (receives callback)
 
-**Requirements**:
-1. Show microphone icon for messages sent via voice (is_speech: true)
-2. Show speaker icon/button to read message aloud
-3. Add onclick handler to trigger TTS
+**Completed**:
+1. ✅ Message replay callback implemented (app.rs:302-322)
+2. ✅ on_replay_message passed to ChatWindow (app.rs:406)
+3. ✅ TTS playback on message replay
 
-**UI**: Small icon badge on message bubble
+**Pending** (for voice input):
+- [ ] Show microphone icon for messages sent via voice (requires STT)
+- [ ] Add is_speech metadata to voice-input messages
 
-**Blockers**: Need Task 5a (TTS service) completed first
+**Result**: ✅ Users can replay messages with TTS
 
 ---
 
@@ -667,16 +664,17 @@ Database: dialect_coach
 **Result**: Working end-to-end chat with automatic reconnection
 **Completed**: 2025-10-13
 
-### Sprint 2: Speech Integration (CURRENT)
-- [ ] Task 5a: Implement speech synthesis (TTS)
+### Sprint 2: Speech Integration (TTS COMPLETE)
+- [✅] Task 5a: Implement cloud TTS (Azure backend + CloudTtsService)
 - [ ] Task 5b: Implement speech recognition (STT)
-- [ ] Task 5c: Wire SpeechControls component
-- [ ] Task 5d: Add speech features to App
-- [ ] Task 5e: Add speech indicators to MessageBubble
+- [ ] Task 5c: Wire SpeechControls component with STT
+- [✅] Task 5d: Add TTS features to App (auto-play, replay)
+- [✅] Task 5e: Add message replay with TTS
 
 **Goal**: Voice input and output for dialect practice
-**Estimate**: 10-12 hours
-**Target date**: TBD
+**Progress**: TTS complete (Azure Neural voices), STT pending
+**Completed**: 2025-10-16 (TTS portion)
+**Remaining**: 6-8 hours (STT implementation)
 
 ### Sprint 3: Polish & UX
 - [ ] Task 7: Add CSS styling

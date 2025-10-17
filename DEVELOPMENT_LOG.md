@@ -1,6 +1,83 @@
 # Dialect Coach - Development Log
 
-## Session: 2025-10-13 (Current)
+## Session: 2025-10-16 (Current)
+
+### Phase 5: Azure TTS Migration ✅ COMPLETED
+
+**Goal**: Implement cloud TTS with Azure Speech Service for authentic dialect pronunciation
+
+**Why Azure Instead of Google Neural2**:
+- Google Neural2 TTS **does not support dialectical voices** for Spanish (only es-ES and es-US)
+- Azure Speech Service has dedicated Neural voices for:
+  - es-MX (Mexican Spanish - DaliaNeural)
+  - es-AR (Argentinian Spanish - ElenaNeural)
+  - es-CU (Caribbean Spanish - BelkysNeural)
+  - es-CO (Colombian Spanish - SalomeNeural)
+  - es-CL (Chilean Spanish - CatalinaNeural)
+  - es-ES (Castilian Spanish - ElviraNeural)
+
+**Critical Architecture Fix**: Trait Encapsulation
+- **Problem**: Originally added `voice_id()` method to shared `Dialect` enum, violating trait abstraction
+- **Solution**: Moved all provider-specific logic (voice mapping) inside each TTS provider implementation
+- **Result**: Clean separation - shared code has NO mention of Google or Azure
+
+#### Files Modified
+
+**Backend**:
+1. `backend/src/tts_service.rs`
+   - Added `AzureTtsProvider` struct (lines 288-393)
+   - Implemented `map_language_to_voice()` private method for voice ID mapping
+   - Built SSML request format for Azure API
+   - Error handling with `TtsError::AuthenticationFailed`
+
+2. `backend/src/main.rs`
+   - Line 88: Changed from `GoogleTtsProvider::from_env()` to `AzureTtsProvider::from_env()`
+   - Line 89: Generic error message (no provider-specific strings)
+
+**Frontend**:
+3. `frontend/src/services/speech.rs`
+   - Renamed `GoogleNeural2TtsService` → `CloudTtsService` (lines 455-563)
+   - Removed all "Google" and "Azure" references from comments
+   - Generic "backend TTS" or "cloud TTS" terminology
+
+4. `frontend/src/services/mod.rs`
+   - Line 7: Export `CloudTtsService` instead of `GoogleNeural2TtsService`
+
+5. `frontend/src/app.rs`
+   - Line 9: Import `CloudTtsService`
+   - Lines 66-68: Comment says "Cloud TTS service", uses `CloudTtsService::new()`
+   - Lines 124-134, 302-317: Removed "Azure" from comments/logs, use generic "TTS"
+
+**Shared**:
+6. `shared/src/models/dialect.rs`
+   - **REMOVED**: `voice_id()` function entirely (violated encapsulation)
+   - **KEPT**: `bcp47_tag()` for generic language/region codes
+
+#### Environment Variables
+
+Changed from:
+```bash
+GOOGLE_TTS_API_KEY=<key>
+```
+
+To:
+```bash
+AZURE_SPEECH_KEY=<subscription-key>
+AZURE_SPEECH_REGION=<region>  # e.g., eastus
+```
+
+#### Architecture Principles Enforced
+
+1. **Provider Encapsulation**: Voice IDs, API formats, and provider-specific logic ONLY exist inside the provider implementation
+2. **Generic Interfaces**: All code outside providers uses generic terminology ("TTS", "cloud TTS")
+3. **Swappable Providers**: Trait-based design allows switching providers without changing shared code
+4. **Error Transparency**: Provider errors bubble up without generic wrapping (except for context)
+
+**Status**: ✅ Complete - All code and documentation updated
+
+---
+
+## Session: 2025-10-13
 
 ### Phase 3: Frontend WebSocket Implementation ✅ COMPLETED
 

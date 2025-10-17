@@ -20,6 +20,7 @@ Cargo.lock
 .fastembed_cache/
 
 .env
+.*key
 
 # IDE
 .idea/

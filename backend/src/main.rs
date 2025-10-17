@@ -2,10 +2,12 @@ mod websocket;
 mod qdrant_service;
 mod agent_service;
 mod embedding_service;
+mod tts_service;
+mod tts_handler;
 
 use anyhow::{Context, Result};
 use axum::{
-    routing::get,
+    routing::{get, post, delete},
     Router,
     response::IntoResponse,
     http::StatusCode,
@@ -81,6 +83,16 @@ async fn main() -> Result<()> {
         .context("Failed to initialize agent service")?;
     eprintln!("[MAIN] Agent service initialized");
 
+    // Initialize TTS service
+    eprintln!("[MAIN] Initializing TTS service...");
+    let tts_provider = tts_service::AzureTtsProvider::from_env()
+        .context("Failed to initialize TTS service - check environment variables")?;
+    let tts_service = tts_service::TtsService::new(Arc::new(tts_provider));
+    let tts_state = tts_handler::TtsState {
+        service: Arc::new(tts_service),
+    };
+    eprintln!("[MAIN] TTS service initialized");
+
     let state = AppState {
         qdrant,
         agent: Arc::new(agent),
@@ -89,10 +101,19 @@ async fn main() -> Result<()> {
     };
     eprintln!("[MAIN] Application state created");
 
-    // Build application with routes
+    // Build TTS router with its own state
+    let tts_router = Router::new()
+        .route("/synthesize", post(tts_handler::synthesize_handler))
+        .route("/voices", get(tts_handler::voices_handler))
+        .route("/status", get(tts_handler::status_handler))
+        .route("/cache", delete(tts_handler::clear_cache_handler))
+        .with_state(tts_state);
+
+    // Build main application with routes
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(websocket::websocket_handler))
+        .nest("/api/tts", tts_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
@@ -102,7 +123,7 @@ async fn main() -> Result<()> {
         )
         .with_state(state);
 
-    eprintln!("[MAIN] Router built with health and ws routes");
+    eprintln!("[MAIN] Router built with health, ws, and TTS routes");
 
     // Start server
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));

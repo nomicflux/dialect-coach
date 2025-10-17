@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use log::{info, error};
 
 use crate::services::websocket::{WebSocketService, ConnectionState};
-use crate::services::speech::SpeechSynthesisService;
+use crate::services::speech::{SpeechSynthesisService, CloudTtsService};
 use crate::components::{ChatWindow, InputBox, SpeechControls};
 
 // Reducer for messages to handle state updates properly
@@ -63,12 +63,17 @@ pub fn app() -> Html {
     // WebSocket service (wrapped in Rc<RefCell<>> for interior mutability)
     let ws_service = use_state(|| Rc::new(RefCell::new(WebSocketService::new("ws://localhost:3000/ws"))));
 
-    // Speech synthesis service for TTS
+    // Cloud TTS service
+    let neural_tts_service = use_state(|| {
+        Some(Rc::new(CloudTtsService::new("http://localhost:3000")))
+    });
+
+    // Keep browser TTS as fallback (for speech controls)
     let tts_service = use_state(|| {
         match SpeechSynthesisService::new() {
             Ok(service) => Some(Rc::new(RefCell::new(service))),
             Err(e) => {
-                error!("Failed to initialize TTS service: {}", e);
+                error!("Failed to initialize browser TTS service: {}", e);
                 None
             }
         }
@@ -82,6 +87,8 @@ pub fn app() -> Html {
         let error_message = error_message.clone();
         let is_loading = is_loading.clone();
         let tts_service = tts_service.clone();
+        let neural_tts_service = neural_tts_service.clone();
+        let selected_dialect = selected_dialect.clone();
 
         use_effect_with((), move |_| {
             info!("Initializing WebSocket connection");
@@ -108,19 +115,25 @@ pub fn app() -> Html {
 
                 let messages_dispatcher = messages.dispatcher();
                 let is_loading_clone = is_loading.clone();
-                let tts_service_clone = tts_service.clone();
+                let neural_tts_clone = neural_tts_service.clone();
+                let selected_dialect_clone = selected_dialect.clone();
                 ws.set_on_message(Callback::from(move |msg: Message| {
                     info!("Received message from: {}", msg.participant_id);
                     is_loading_clone.set(false);
 
-                    // Speak agent messages automatically
+                    // Speak agent messages automatically with TTS
                     if msg.participant_id != "user" {
-                        if let Some(tts) = tts_service_clone.as_ref() {
-                            let language_code = msg.language.clone();
+                        if let Some(neural_tts) = neural_tts_clone.as_ref() {
                             let text = msg.content.clone();
-                            if let Err(e) = tts.borrow().speak(&text, &language_code) {
-                                error!("Failed to speak message: {}", e);
-                            }
+                            let language_code = (*selected_dialect_clone).bcp47_tag().to_string();
+                            let tts = neural_tts.clone();
+
+                            // Spawn async task to call TTS
+                            wasm_bindgen_futures::spawn_local(async move {
+                                if let Err(e) = tts.speak(&text, "", &language_code).await {
+                                    error!("Failed to speak message with TTS: {}", e);
+                                }
+                            });
                         }
                     }
 
@@ -259,6 +272,7 @@ pub fn app() -> Html {
                 let f = match value.as_str() {
                     "formal" => Formality::Formal,
                     "casual" => Formality::Casual,
+                    "dialect_rich" => Formality::DialectRich,
                     "slang" => Formality::Slang,
                     _ => Formality::Casual,
                 };
@@ -287,16 +301,22 @@ pub fn app() -> Html {
 
     // Handle TTS replay for messages
     let on_replay_message = {
-        let tts_service = tts_service.clone();
+        let neural_tts = neural_tts_service.clone();
+        let selected_dialect = selected_dialect.clone();
 
         Callback::from(move |msg: Message| {
-            info!("Replaying message: {}", msg.content);
-            if let Some(tts) = tts_service.as_ref() {
-                let language_code = msg.language.clone();
+            info!("Replaying message with TTS: {}", msg.content);
+            if let Some(tts) = neural_tts.as_ref() {
                 let text = msg.content.clone();
-                if let Err(e) = tts.borrow().speak(&text, &language_code) {
-                    error!("Failed to replay message: {}", e);
-                }
+                let language_code = (*selected_dialect).bcp47_tag().to_string();
+                let tts_clone = tts.clone();
+
+                // Spawn async task to call TTS
+                wasm_bindgen_futures::spawn_local(async move {
+                    if let Err(e) = tts_clone.speak(&text, "", &language_code).await {
+                        error!("Failed to replay message with TTS: {}", e);
+                    }
+                });
             }
         })
     };
@@ -352,6 +372,7 @@ pub fn app() -> Html {
                             <select onchange={on_formality_change}>
                                 <option value="formal">{"Formal"}</option>
                                 <option value="casual" selected=true>{"Casual"}</option>
+                                <option value="dialect_rich">{"Dialect-Rich"}</option>
                                 <option value="slang">{"Slang"}</option>
                             </select>
                         </div>
