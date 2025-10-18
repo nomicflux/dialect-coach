@@ -11,8 +11,8 @@
 
 ## Non-Negotiables
 
-1. **RAG-only, no training**: This tool prepares RAG documents for Qdrant upload. It does NOT train AI models.
-2. **Never create train/ directories**: Any code path creating a train/ directory is a bug.
+1. **RAG-only, ABSOLUTELY NO TRAINING**: This tool prepares RAG documents for Qdrant upload. It does NOT train AI models. ANY mention of training concepts (train/, training, model training, etc.) in code, comments, documentation, or directory names is STRICTLY PROHIBITED.
+2. **Never create train/ directories or use training terminology**: Any code path creating a train/ directory or using training concepts is a critical bug.
 3. **Canonical corpus input directory**: `corpus-data` (hyphen, not underscore)
 4. **Preserve downloads**: Never delete anything in `corpus-downloads/`; copy/sync into `corpus-data/` for processing
 5. **No random changes**: Only make changes based on specific test failures
@@ -25,13 +25,17 @@
 - **Default behavior**: When no `--input` specified, default to `./corpus-data/`
 - **Legacy directories that must NOT be used by default**:
   - `corpus-downloads/` (preserved but rejected as input with helpful error)
-  - Any directory containing `train/` (explicitly rejected)
+  - Any directory containing `train/` or ANY training-related terminology (explicitly rejected)
   - `corpus_data/` (underscore version - redirect to hyphen version)
 
 ### Output Directory Rules  
-- **Default output**: Change from generic `output/` to `processed/` 
-- **Never create**: Any directory named or containing `train/`
-- **Structure**: Output files named by dialect ID (e.g., `spanish_mexican.jsonl`)
+- **Default output**: Change from generic `output/` to follow existing pattern: `corpus-data/{language}/{dialect}/processed/`
+- **Never create**: Any directory named or containing `train/` or ANY training terminology
+- **Structure**: Files follow existing pattern - dialect-specific directories with processed/ subdirs
+- **Examples**: 
+  - `corpus-data/arabic/egyptian/processed/arabic_egyptian.jsonl`
+  - `corpus-data/french/african/processed/documents.jsonl`
+  - Matches existing: `corpus-data/argentinian/processed/`, `corpus-data/colombian/processed/`
 
 ### Migration Approach
 - **Sync script**: `tools/sync_corpus_downloads_to_data.sh`
@@ -44,10 +48,11 @@
   - Clear error messages guide users to sync script
 
 ### Enforcement Strategy
-1. **Path validation function** - centralized input path checking
+1. **Path validation function** - centralized input path checking, rejects ANY training terminology
 2. **Startup validation** - check and reject problematic paths early
-3. **Test guardrails** - tests fail if `train/` directories created
-4. **Documentation** - clear messaging about RAG-only purpose
+3. **Test guardrails** - tests MUST fail if ANY training concepts (train/, training, etc.) are found
+4. **Code scanning** - grep for training terminology in CI pipeline
+5. **Documentation** - clear messaging about RAG-only purpose, ZERO tolerance for training concepts
 
 ## How to Restart From Scratch
 
@@ -109,9 +114,11 @@ cargo test -p corpus-processor 2>&1 | tee docs/recovery/test_run_$(date +%Y%m%d_
 
 **Key findings**:
 - ❌ **No default corpus directory** - input path is required, no default to corpus-data
-- ❌ **Generic output default** - defaults to "output" not a structured path
-- ✅ **No hardcoded train/ paths found** in source code
+- ❌ **Generic output default** - defaults to "output" not corpus-data/{language}/{dialect}/processed
+- ✅ **No hardcoded training paths found** in source code (CRITICAL to maintain)
 - ❌ **No corpus-downloads rejection** - accepts any input path
+- ❌ **No training terminology validation** - must add checks to reject ALL training concepts
+- ✅ **Existing structure understood** - follows corpus-data/{language}/{dialect}/processed/ pattern
 
 ### Dependencies
 - **CLI**: clap 4.5, dotenvy 0.15

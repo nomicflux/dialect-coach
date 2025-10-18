@@ -36,7 +36,9 @@
 - [x] Document authoritative policy in recovery log
 - [x] Define enforcement approach (tests-first)
 - [x] Plan error messages for corpus-downloads rejection
-- [x] Design guardrail tests for train/ detection
+- [x] Design guardrail tests for ANY training terminology detection
+- [x] Move processed files to proper dialect structure (corpus-data/{language}/{dialect}/processed/)
+- [x] Strengthen training prohibition to cover ALL training concepts, not just train/
 
 ### 📋 Task 3: Crate Audit
 **Owner**: Main Agent (completed directly)  
@@ -62,10 +64,12 @@
 **Key Audit Results**:
 - ✅ Builds successfully with 1 dead code warning
 - ❌ No default input directory (--input required)
-- ❌ Generic "output" default instead of structured path
-- ✅ No hardcoded train/ paths found
+- ❌ Generic "output" default instead of corpus-data/{language}/{dialect}/processed
+- ✅ No hardcoded training paths found (CRITICAL to maintain)
 - ❌ No corpus-downloads path validation
+- ❌ No training terminology validation (must add)
 - ✅ Good existing test foundation (7 integration tests)
+- ✅ Processed files moved to proper dialect structure (corpus-data/{language}/{dialect}/processed/)
 
 ---
 
