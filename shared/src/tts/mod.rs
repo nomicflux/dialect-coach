@@ -1,5 +1,3 @@
-pub mod ssml;
-
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -9,9 +7,6 @@ pub trait TextToSpeechProvider: Send + Sync {
     /// Synthesize speech from text
     async fn synthesize(&self, request: TtsRequest) -> Result<TtsResponse, TtsError>;
 
-    /// Get available voices for a language
-    async fn get_voices(&self, language_code: &str) -> Result<Vec<VoiceInfo>, TtsError>;
-
     /// Get the provider name (e.g., "Google Neural2", "Browser", "Azure")
     fn provider_name(&self) -> &'static str;
 }
@@ -19,26 +14,14 @@ pub trait TextToSpeechProvider: Send + Sync {
 /// Request for text-to-speech synthesis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TtsRequest {
-    /// Text to synthesize (plain text or SSML)
+    /// Text to synthesize
     pub text: String,
 
     /// BCP-47 language code (e.g., "es-MX", "ar-EG", "fr-CA")
     pub language_code: String,
 
-    /// Optional specific voice ID (provider-dependent)
-    pub voice_id: Option<String>,
-
-    /// Whether text contains SSML markup
-    pub ssml: bool,
-
     /// Speech rate (0.25-4.0, default 1.0)
     pub rate: Option<f32>,
-
-    /// Pitch adjustment (-20.0 to 20.0, default 0.0)
-    pub pitch: Option<f32>,
-
-    /// Volume gain in dB (-96.0 to 16.0, default 0.0)
-    pub volume_gain_db: Option<f32>,
 }
 
 impl TtsRequest {
@@ -47,35 +30,13 @@ impl TtsRequest {
         Self {
             text,
             language_code,
-            voice_id: None,
-            ssml: false,
             rate: None,
-            pitch: None,
-            volume_gain_db: None,
         }
-    }
-
-    /// Set a specific voice ID
-    pub fn with_voice(mut self, voice_id: String) -> Self {
-        self.voice_id = Some(voice_id);
-        self
-    }
-
-    /// Mark text as SSML
-    pub fn with_ssml(mut self) -> Self {
-        self.ssml = true;
-        self
     }
 
     /// Set speech rate
     pub fn with_rate(mut self, rate: f32) -> Self {
         self.rate = Some(rate);
-        self
-    }
-
-    /// Set pitch
-    pub fn with_pitch(mut self, pitch: f32) -> Self {
-        self.pitch = Some(pitch);
         self
     }
 }
@@ -190,20 +151,13 @@ pub fn generate_cache_key(request: &TtsRequest) -> String {
     let mut hasher = DefaultHasher::new();
     request.text.hash(&mut hasher);
     request.language_code.hash(&mut hasher);
-    request.voice_id.hash(&mut hasher);
-    request.ssml.hash(&mut hasher);
 
     // Convert rate/pitch to deterministic strings
     let rate_str = request
         .rate
         .map(|r| format!("{:.2}", r))
         .unwrap_or_default();
-    let pitch_str = request
-        .pitch
-        .map(|p| format!("{:.2}", p))
-        .unwrap_or_default();
     rate_str.hash(&mut hasher);
-    pitch_str.hash(&mut hasher);
 
     format!("tts:{:x}", hasher.finish())
 }

@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use dialect_coach_shared::tts::{TtsRequest, TtsResponse, VoiceInfo};
+use dialect_coach_shared::tts::{TtsRequest};
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -17,12 +17,19 @@ pub struct TtsState {
     pub service: Arc<TtsService>,
 }
 
+/// Response format for TTS API (frontend expects base64)
+#[derive(Debug, Serialize)]
+pub struct TtsSynthesizeApiResponse {
+    pub audio_base64: String,
+    pub duration_ms: u32,
+}
+
 /// POST /api/tts/synthesize
 /// Synthesize speech from text
 pub async fn synthesize_handler(
     State(state): State<TtsState>,
     Json(request): Json<TtsRequest>,
-) -> Result<Json<TtsResponse>, TtsErrorResponse> {
+) -> Result<Json<TtsSynthesizeApiResponse>, TtsErrorResponse> {
     info!(
         "TTS synthesize request: {} chars in {}",
         request.text.len(),
@@ -35,24 +42,15 @@ pub async fn synthesize_handler(
         .await
         .map_err(TtsErrorResponse::from_tts_error)?;
 
-    Ok(Json(response))
-}
+    // Convert binary audio data to base64 for frontend
+    let audio_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &response.audio_data);
 
-/// GET /api/tts/voices?language_code=es-MX
-/// Get available voices for a language
-pub async fn voices_handler(
-    State(state): State<TtsState>,
-    axum::extract::Query(params): axum::extract::Query<VoicesQuery>,
-) -> Result<Json<VoicesResponse>, TtsErrorResponse> {
-    info!("TTS voices request for: {}", params.language_code);
+    let api_response = TtsSynthesizeApiResponse {
+        audio_base64,
+        duration_ms: response.duration_ms,
+    };
 
-    let voices = state
-        .service
-        .get_voices(&params.language_code)
-        .await
-        .map_err(TtsErrorResponse::from_tts_error)?;
-
-    Ok(Json(VoicesResponse { voices }))
+    Ok(Json(api_response))
 }
 
 /// GET /api/tts/status
@@ -80,16 +78,6 @@ pub async fn clear_cache_handler(State(state): State<TtsState>) -> Json<ClearCac
 }
 
 // Request/Response types
-
-#[derive(Debug, serde::Deserialize)]
-pub struct VoicesQuery {
-    pub language_code: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct VoicesResponse {
-    pub voices: Vec<VoiceInfo>,
-}
 
 #[derive(Debug, Serialize)]
 pub struct TtsStatusResponse {

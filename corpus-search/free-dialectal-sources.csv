@@ -1,0 +1,4 @@
+dialect_bcp47,dataset_name,source_link,license,notes
+ar-TN,Tunisian_MSA,https://openslr.org/46/,Apache 2.0,Tunisian Arabic with conversational prompts
+fr-CI/SN/CM,African Accented French,https://openslr.org/57/,Apache 2.0,African French varieties with transcripts
+fr-FR,CFPP2000 Paris French,http://cfpp2000.univ-paris3.fr/,Creative Commons BY 3.0,Parisian French conversational transcripts

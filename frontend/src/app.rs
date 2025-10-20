@@ -60,7 +60,7 @@ pub fn app() -> Html {
     let connection_state = use_state(|| ConnectionState::Disconnected);
     let is_loading = use_state(|| false);
     let error_message = use_state(|| Option::<String>::None);
-    
+
     // UI state
     let panel_open = use_state(|| false);
     let input_prompt_value = use_state(|| Option::<String>::None);
@@ -78,7 +78,8 @@ pub fn app() -> Html {
         use_state(|| Some(Rc::new(CloudTtsService::new("http://localhost:3000"))));
 
     // Translation service
-    let translation_service = use_state(|| Rc::new(TranslationService::new("http://localhost:3000")));
+    let translation_service =
+        use_state(|| Rc::new(TranslationService::new("http://localhost:3000")));
 
     // Keep browser TTS as fallback (for speech controls)
     let tts_service = use_state(|| match SpeechSynthesisService::new() {
@@ -303,6 +304,7 @@ pub fn app() -> Html {
                     "immersive" => TeachingMode::Immersive,
                     "corrective" => TeachingMode::Corrective,
                     "explanatory" => TeachingMode::Explanatory,
+                    "interleaved" => TeachingMode::Interleaved,
                     _ => TeachingMode::Immersive,
                 };
                 teaching_mode.set(tm);
@@ -331,23 +333,30 @@ pub fn app() -> Html {
             }
         })
     };
-    
+
     // Handle dialect cycling - quick switch between dialects within current language
     let on_dialect_cycle = {
         let selected_language = selected_language.clone();
         let selected_dialect = selected_dialect.clone();
-        
+
         Callback::from(move |_| {
             let current_dialects = Dialect::for_language(*selected_language);
-            let current_index = current_dialects.iter().position(|d| d == &*selected_dialect).unwrap_or(0);
+            let current_index = current_dialects
+                .iter()
+                .position(|d| d == &*selected_dialect)
+                .unwrap_or(0);
             let next_index = (current_index + 1) % current_dialects.len();
             let next_dialect = current_dialects[next_index];
-            
-            info!("Cycling dialect: {} -> {}", selected_dialect.name(), next_dialect.name());
+
+            info!(
+                "Cycling dialect: {} -> {}",
+                selected_dialect.name(),
+                next_dialect.name()
+            );
             selected_dialect.set(next_dialect);
         })
     };
-    
+
     // Handle prompt button clicks - AI translate then populate input field
     let on_prompt_click = {
         let input_prompt_value = input_prompt_value.clone();
@@ -356,10 +365,13 @@ pub fn app() -> Html {
         let formality = formality.clone();
         let error_message = error_message.clone();
         let translating_button = translating_button.clone();
-        
+
         Callback::from(move |(button_id, english_phrase): (String, String)| {
-            info!("Translating prompt from button '{}': {}", button_id, english_phrase);
-            
+            info!(
+                "Translating prompt from button '{}': {}",
+                button_id, english_phrase
+            );
+
             let input_prompt_value = input_prompt_value.clone();
             let translation_service = translation_service.clone();
             let selected_dialect = selected_dialect.clone();
@@ -368,16 +380,22 @@ pub fn app() -> Html {
             let translating_button = translating_button.clone();
             let english_phrase_clone = english_phrase.clone();
             let button_id_clone = button_id.clone();
-            
+
             // Set loading state for specific button
             translating_button.set(Some(button_id));
             error_message.set(None);
-            
+
             // Start async translation
             wasm_bindgen_futures::spawn_local(async move {
-                match translation_service.translate_phrase(&english_phrase, *selected_dialect, Some(*formality)).await {
+                match translation_service
+                    .translate_phrase(&english_phrase, *selected_dialect, Some(*formality))
+                    .await
+                {
                     Ok(translated) => {
-                        info!("Translation success: '{}' -> '{}'", english_phrase_clone, translated);
+                        info!(
+                            "Translation success: '{}' -> '{}'",
+                            english_phrase_clone, translated
+                        );
                         input_prompt_value.set(Some(translated));
                         translating_button.set(None);
                     }
@@ -385,7 +403,10 @@ pub fn app() -> Html {
                         error!("Translation failed: {}", e);
                         // Fallback to English phrase on error
                         input_prompt_value.set(Some(english_phrase_clone));
-                        error_message.set(Some(format!("Translation failed, using English phrase: {}", e)));
+                        error_message.set(Some(format!(
+                            "Translation failed, using English phrase: {}",
+                            e
+                        )));
                         translating_button.set(None);
                     }
                 }
@@ -401,7 +422,7 @@ pub fn app() -> Html {
                         <h1 class="app-title">{"🎯 Dialect Coach"}</h1>
                         <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p>
                     </div>
-                    
+
                     // Connection status
                     <div class="connection-status">
                         {match *connection_state {
@@ -444,7 +465,7 @@ pub fn app() -> Html {
                             language_code={(*selected_dialect).bcp47_tag().to_string()}
                             on_dialect_cycle={Some(on_dialect_cycle.clone())}
                         />
-                        <InputBox 
+                        <InputBox
                             on_send={{
                                 let input_prompt_value = input_prompt_value.clone();
                                 let on_send_message = on_send_message.clone();
@@ -458,7 +479,7 @@ pub fn app() -> Html {
                             external_value={(*input_prompt_value).clone()}
                         />
                     </div>
-                    
+
                     // Floating panel toggle button
                     <button class="panel-toggle" onclick={{
                         let panel_open = panel_open.clone();
@@ -470,7 +491,7 @@ pub fn app() -> Html {
                         <span>{"Practice Settings"}</span>
                     </button>
                 </div>
-                
+
                 // Configuration panel (collapsible)
                 <div class="panel" data-open={if *panel_open { "true" } else { "false" }}>
                     <div class="panel-header">
@@ -484,12 +505,12 @@ pub fn app() -> Html {
                             {"×"}
                         </button>
                     </div>
-                    
+
                     <div class="panel-content">
                         <div class="panel-section">
                             <h4 class="panel-section-title">{"Language & Dialect"}</h4>
                             <div class="panel-section-description">{"Choose your target language and regional variety"}</div>
-                            
+
                             <div class="field-group">
                                 <div class="panel-field">
                                     <label for="language-select">{"Language"}</label>
@@ -518,10 +539,10 @@ pub fn app() -> Html {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="panel-section">
                             <h4 class="panel-section-title">{"Conversation Style"}</h4>
-                            
+
                             <div class="field-group">
                                 <div class="panel-field">
                                     <label for="formality-select">{"Formality Level"}</label>
@@ -539,9 +560,10 @@ pub fn app() -> Html {
                                         <option value="immersive" selected=true>{"Immersive"}</option>
                                         <option value="corrective">{"Corrective"}</option>
                                         <option value="explanatory">{"Explanatory"}</option>
+                                        <option value="interleaved">{"Interleaved"}</option>
                                     </select>
                                     <div class="field-help">
-                                        {"Immersive keeps conversations flowing naturally"}
+                                        {"Immersive keeps conversations flowing naturally. Corrective corrects users mistakes. Explanatory gives detailed explanations. Interleaved lets the user use their target language along with their source language, and the app will help translate it."}
                                     </div>
                                 </div>
                             </div>

@@ -13,8 +13,8 @@ pub enum Dialect {
     SpanishCastilian,
     #[serde(rename = "spanish_argentinian")]
     SpanishArgentinian,
-    #[serde(rename = "spanish_caribbean")]
-    SpanishCaribbean,
+    #[serde(rename = "spanish_cuban")]
+    SpanishCuban,
     #[serde(rename = "spanish_chilean")]
     SpanishChilean,
     #[serde(rename = "spanish_colombian")]
@@ -52,7 +52,7 @@ impl Dialect {
             Self::SpanishMexican
             | Self::SpanishCastilian
             | Self::SpanishArgentinian
-            | Self::SpanishCaribbean
+            | Self::SpanishCuban
             | Self::SpanishChilean
             | Self::SpanishColombian => Language::Spanish,
 
@@ -77,7 +77,7 @@ impl Dialect {
             Self::SpanishMexican => "spanish_mexican",
             Self::SpanishCastilian => "spanish_castilian",
             Self::SpanishArgentinian => "spanish_argentinian",
-            Self::SpanishCaribbean => "spanish_caribbean",
+            Self::SpanishCuban => "spanish_cuban",
             Self::SpanishChilean => "spanish_chilean",
             Self::SpanishColombian => "spanish_colombian",
 
@@ -101,7 +101,7 @@ impl Dialect {
             Self::SpanishMexican => "Mexican Spanish",
             Self::SpanishCastilian => "Castilian Spanish",
             Self::SpanishArgentinian => "Argentinian Spanish",
-            Self::SpanishCaribbean => "Caribbean Spanish",
+            Self::SpanishCuban => "Cuban Spanish",
             Self::SpanishChilean => "Chilean Spanish",
             Self::SpanishColombian => "Colombian Spanish",
 
@@ -126,7 +126,7 @@ impl Dialect {
             Self::SpanishMexican => "es-MX",
             Self::SpanishCastilian => "es-ES",
             Self::SpanishArgentinian => "es-AR",
-            Self::SpanishCaribbean => "es-CU", // Cuban as representative
+            Self::SpanishCuban => "es-CU",
             Self::SpanishChilean => "es-CL",
             Self::SpanishColombian => "es-CO",
 
@@ -151,7 +151,7 @@ impl Dialect {
             // Spanish dialects
             "es-AR" => Some(Self::SpanishArgentinian),
             "es-CO" => Some(Self::SpanishColombian),
-            "es-PR" | "es-CU" | "es-DO" => Some(Self::SpanishCaribbean),
+            "es-CU" => Some(Self::SpanishCuban),
             "es-MX" => Some(Self::SpanishMexican),
             "es-ES" => Some(Self::SpanishCastilian),
             "es-CL" => Some(Self::SpanishChilean),
@@ -181,7 +181,7 @@ impl Dialect {
                 Self::SpanishMexican,
                 Self::SpanishCastilian,
                 Self::SpanishArgentinian,
-                Self::SpanishCaribbean,
+                Self::SpanishCuban,
                 Self::SpanishChilean,
                 Self::SpanishColombian,
             ],
@@ -209,7 +209,7 @@ impl Dialect {
             "spanish_mexican" => Some(Self::SpanishMexican),
             "spanish_castilian" => Some(Self::SpanishCastilian),
             "spanish_argentinian" => Some(Self::SpanishArgentinian),
-            "spanish_caribbean" => Some(Self::SpanishCaribbean),
+            "spanish_cuban" => Some(Self::SpanishCuban),
             "spanish_chilean" => Some(Self::SpanishChilean),
             "spanish_colombian" => Some(Self::SpanishColombian),
             "arabic_egyptian" => Some(Self::ArabicEgyptian),
@@ -239,7 +239,12 @@ impl FromStr for Dialect {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_id(s).ok_or_else(|| format!("Invalid dialect ID: '{}'. Use serde ID format like 'spanish_mexican'.", s))
+        Self::from_id(s).ok_or_else(|| {
+            format!(
+                "Invalid dialect ID: '{}'. Use serde ID format like 'spanish_mexican'.",
+                s
+            )
+        })
     }
 }
 
@@ -296,7 +301,12 @@ impl FromStr for Formality {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_id(s).ok_or_else(|| format!("Invalid formality ID: '{}'. Use serde ID format like 'casual' or 'dialect_rich'.", s))
+        Self::from_id(s).ok_or_else(|| {
+            format!(
+                "Invalid formality ID: '{}'. Use serde ID format like 'casual' or 'dialect_rich'.",
+                s
+            )
+        })
     }
 }
 
@@ -329,15 +339,16 @@ pub struct DialectConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TeachingMode {
-    /// Immersive: Only speak in target dialect, no corrections
     #[serde(rename = "immersive")]
     Immersive,
-    /// Corrective: Point out mistakes and provide corrections
     #[serde(rename = "corrective")]
     Corrective,
-    /// Explanatory: Explain grammar, usage, and cultural context
     #[serde(rename = "explanatory")]
     Explanatory,
+    #[serde(rename = "interleaved")]
+    Interleaved,
+    #[serde(rename = "debug")]
+    Debug,
 }
 
 impl Default for DialectConfig {

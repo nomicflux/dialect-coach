@@ -12,7 +12,7 @@ pub struct InputBoxProps {
 #[function_component(InputBox)]
 pub fn input_box(props: &InputBoxProps) -> Html {
     let input_value = use_state(String::new);
-    
+
     // Update input value if external value is provided
     {
         let input_value = input_value.clone();

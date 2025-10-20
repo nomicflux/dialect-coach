@@ -1,0 +1,8 @@
+dialect_bcp47,dataset_name,source_link,license,pricing,notes
+ar-TN,Tunisian_MSA,https://openslr.org/46/,Apache 2.0,Free,Tunisian Arabic from Tunis - conversational prompts and recited speech with transcripts
+fr-CI/SN/CM,African Accented French,https://openslr.org/57/,Apache 2.0,Free,African French from Cameroon/Chad/Congo/Gabon/Niger - 22 hours with transcripts
+fr-FR,CFPP2000 Paris French,http://cfpp2000.univ-paris3.fr/,Creative Commons BY 3.0,Free,Parisian French - 32 interviews with transcripts
+fr-CA,Quebecois Canadian French HF,https://huggingface.co/datasets/rishabbahal/quebecois_canadian_french_dataset,Apache 2.0,Free,Quebec French audio chunks with transcriptions - 6.7k samples
+ar-EG,Egyptian Arabic Conversations HF,https://huggingface.co/datasets/kokojake/oasst2_egyptian_arabic_convs,Apache 2.0,Free,Egyptian Arabic conversational data - 2.5k conversations
+ar-EG,CALLHOME Egyptian Arabic,https://catalog.ldc.upenn.edu/LDC97S45 + LDC97T19,LDC License,Membership required - pricing unknown,Egyptian Colloquial Arabic (Cairene) - 120 telephone conversations with transcripts
+fr-CA,CALLFRIEND Canadian French,https://catalog.ldc.upenn.edu/LDC96S48,LDC License,Membership required - pricing unknown,Quebec French - 60 telephone conversations

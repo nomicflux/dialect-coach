@@ -1,0 +1,197 @@
+{
+  "metadata": {
+    "last_updated": "2025-01-18T01:02:47Z",
+    "version": "1.0.0",
+    "description": "Authoritative inventory of available dialect corpora for the dialect-coach application"
+  },
+  "configured_dialects": {
+    "spanish_mexican": {
+      "name": "Mexican Spanish",
+      "bcp47": "es-MX", 
+      "status": "UNKNOWN - NEED TO VERIFY",
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": null,
+      "notes": "You mentioned we had this before - need to verify"
+    },
+    "spanish_castilian": {
+      "name": "Castilian Spanish", 
+      "bcp47": "es-ES",
+      "status": "NO_DATA",
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": null,
+      "notes": "No corpus found on HuggingFace"
+    },
+    "spanish_argentinian": {
+      "name": "Argentinian Spanish",
+      "bcp47": "es-AR", 
+      "status": "UNKNOWN - NEED TO VERIFY",
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": null,
+      "notes": "You mentioned we had this before - need to verify"
+    },
+    "spanish_caribbean": {
+      "name": "Caribbean Spanish",
+      "bcp47": "es-CU",
+      "status": "UNKNOWN - NEED TO VERIFY", 
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": null,
+      "notes": "You mentioned we had Cuban Spanish before - need to verify"
+    },
+    "spanish_chilean": {
+      "name": "Chilean Spanish",
+      "bcp47": "es-CL",
+      "status": "GATED",
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": "jorgeortizfuentes/chilean-spanish-corpus",
+      "notes": "Large dataset available but requires HuggingFace authentication"
+    },
+    "spanish_colombian": {
+      "name": "Colombian Spanish", 
+      "bcp47": "es-CO",
+      "status": "AUDIO_ONLY",
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": "ylacombe/google-colombian-spanish",
+      "notes": "Audio dataset, requires torchcodec for text extraction"
+    },
+    "arabic_egyptian": {
+      "name": "Egyptian Arabic",
+      "bcp47": "ar-EG",
+      "status": "AVAILABLE",
+      "corpus_file": "egyptian_arabic.txt",
+      "size_mb": 698.0,
+      "entries": 728337,
+      "source": "SaiedAlshahrani/Egyptian_Arabic_Wikipedia_20230101",
+      "notes": "Wikipedia articles in Egyptian Arabic - high quality"
+    },
+    "arabic_levantine": {
+      "name": "Levantine Arabic",
+      "bcp47": "ar-LB", 
+      "status": "AVAILABLE",
+      "corpus_file": "levantine_arabic.txt",
+      "size_mb": 19.0,
+      "entries": 223146,
+      "source": "Omartificial-Intelligence-Space/FineWeb2-North-Levantine-Arabic",
+      "notes": "Web-scraped North Levantine Arabic"
+    },
+    "arabic_gulf": {
+      "name": "Gulf Arabic",
+      "bcp47": "ar-SA",
+      "status": "AVAILABLE", 
+      "corpus_file": "gulf_arabic.txt",
+      "size_mb": 26.0,
+      "entries": 107966,
+      "source": "AhmedSSabir/Gulf-Arabic-Tweets-2018-2020",
+      "notes": "Twitter data from Gulf region 2018-2020"
+    },
+    "arabic_maghrebi": {
+      "name": "Maghrebi Arabic",
+      "bcp47": "ar-MA",
+      "status": "AVAILABLE",
+      "corpus_file": "moroccan_darija.txt", 
+      "size_mb": 460.0,
+      "entries": 3580846,
+      "source": "DRAGOO/dataset_dyal_darija",
+      "notes": "Massive Moroccan Darija corpus - represents Maghrebi dialect"
+    },
+    "arabic_iraqi": {
+      "name": "Iraqi Arabic",
+      "bcp47": "ar-IQ",
+      "status": "NO_DATA",
+      "corpus_file": null,
+      "size_mb": null, 
+      "entries": null,
+      "source": null,
+      "notes": "No datasets found on HuggingFace for Iraqi Arabic"
+    },
+    "french_quebecois": {
+      "name": "Quebec French",
+      "bcp47": "fr-CA",
+      "status": "AVAILABLE",
+      "corpus_file": "quebec_french.txt",
+      "size_mb": 0.5,
+      "entries": 6737,
+      "source": "rishabbahal/quebecois_canadian_french_dataset", 
+      "notes": "Speech transcripts of Canadian French - natural spoken dialect"
+    },
+    "french_parisian": {
+      "name": "Parisian French",
+      "bcp47": "fr-FR",
+      "status": "NO_DATA",
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": null,
+      "notes": "No specific Parisian French dialect corpus found"
+    },
+    "french_swiss": {
+      "name": "Swiss French", 
+      "bcp47": "fr-CH",
+      "status": "NO_DATA",
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": null,
+      "notes": "No Swiss French dialect corpus found"
+    },
+    "french_belgian": {
+      "name": "Belgian French",
+      "bcp47": "fr-BE",
+      "status": "NO_DATA", 
+      "corpus_file": null,
+      "size_mb": null,
+      "entries": null,
+      "source": null,
+      "notes": "No Belgian French dialect corpus found"
+    },
+    "french_african": {
+      "name": "African French",
+      "bcp47": "fr-CI",
+      "status": "AVAILABLE",
+      "corpus_file": "african_french.txt",
+      "size_mb": 1.3,
+      "entries": 13500,
+      "source": "African_Accented_French transcripts",
+      "notes": "West African French speech transcripts"
+    }
+  },
+  "summary": {
+    "total_configured": 16,
+    "available": 6,
+    "no_data": 6,
+    "unknown_need_verify": 3,
+    "gated": 1,
+    "audio_only": 1,
+    "available_dialects": [
+      "arabic_egyptian",
+      "arabic_levantine", 
+      "arabic_gulf",
+      "arabic_maghrebi",
+      "french_quebecois",
+      "french_african"
+    ],
+    "missing_dialects": [
+      "spanish_mexican",
+      "spanish_argentinian", 
+      "spanish_caribbean",
+      "spanish_castilian",
+      "spanish_chilean",
+      "spanish_colombian",
+      "arabic_iraqi", 
+      "french_parisian",
+      "french_swiss",
+      "french_belgian"
+    ]
+  }
+}

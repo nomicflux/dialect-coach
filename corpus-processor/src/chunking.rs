@@ -69,23 +69,48 @@ pub fn chunk_text(text: &str, config: &ChunkConfig) -> Result<Vec<String>> {
 /// Split text into sentences (basic implementation)
 fn split_into_sentences(text: &str) -> Vec<&str> {
     let mut sentences = Vec::new();
-    let mut start = 0;
+    let mut start_idx = 0; // Track character index, not byte position
+    let char_indices: Vec<(usize, char)> = text.char_indices().collect();
 
-    for (i, c) in text.char_indices() {
+    for (idx, (_byte_pos, c)) in char_indices.iter().enumerate() {
         // Simple sentence boundary detection
         if matches!(c, '.' | '!' | '?' | '؟' | '。') {
             // Look ahead to see if this is really end of sentence
-            let next_chars: String = text[i + 1..].chars().take(2).collect();
-            if next_chars.starts_with(char::is_whitespace) || next_chars.is_empty() {
-                sentences.push(text[start..=i].trim());
-                start = i + 1;
+            let next_char_exists = idx + 1 < char_indices.len();
+            let is_sentence_end = if next_char_exists {
+                let next_char = char_indices[idx + 1].1;
+                next_char.is_whitespace()
+            } else {
+                true // End of text
+            };
+
+            if is_sentence_end {
+                // Extract sentence using character indices - find the END of this character
+                let start_byte = char_indices[start_idx].0;
+                let end_byte = if idx + 1 < char_indices.len() {
+                    char_indices[idx + 1].0 // Start of next character
+                } else {
+                    text.len() // End of text
+                };
+                let sentence = text[start_byte..end_byte].trim();
+                if !sentence.is_empty() {
+                    sentences.push(sentence);
+                }
+
+                // Move start to the next character after current sentence
+                start_idx = idx + 1;
+                // Skip whitespace characters
+                while start_idx < char_indices.len() && char_indices[start_idx].1.is_whitespace() {
+                    start_idx += 1;
+                }
             }
         }
     }
 
     // Add remaining text as final sentence
-    if start < text.len() {
-        let remaining = text[start..].trim();
+    if start_idx < char_indices.len() {
+        let start_byte = char_indices[start_idx].0;
+        let remaining = text[start_byte..].trim();
         if !remaining.is_empty() {
             sentences.push(remaining);
         }
@@ -96,16 +121,30 @@ fn split_into_sentences(text: &str) -> Vec<&str> {
 
 /// Extract the last N characters for overlap with next chunk
 fn extract_overlap(text: &str, overlap_size: usize) -> String {
-    if text.len() <= overlap_size {
+    let char_count = text.chars().count();
+    if char_count <= overlap_size {
         return text.to_string();
     }
 
-    // Try to break at word boundary
-    let start = text.len() - overlap_size;
-    if let Some(pos) = text[start..].find(char::is_whitespace) {
-        text[start + pos..].trim().to_string()
+    // Calculate character-based start position
+    let char_start = char_count - overlap_size;
+
+    // Convert to byte position safely
+    let mut byte_start = 0;
+
+    for (char_pos, (byte_pos, _)) in text.char_indices().enumerate() {
+        if char_pos == char_start {
+            byte_start = byte_pos;
+            break;
+        }
+    }
+
+    // Try to break at word boundary from the character-safe position
+    let remaining_text = &text[byte_start..];
+    if let Some(pos) = remaining_text.find(char::is_whitespace) {
+        remaining_text[pos..].trim().to_string()
     } else {
-        text[start..].to_string()
+        remaining_text.to_string()
     }
 }
 

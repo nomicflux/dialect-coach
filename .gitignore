@@ -17,6 +17,8 @@ Cargo.lock
 /corpus-data/**/*.json
 /corpus-data/**/*.jsonl
 /corpus-data/**/*.txt
+/corpus-data/**/*.wav
+/corpus-downloads
 .fastembed_cache/
 
 .env

@@ -6,24 +6,51 @@ use std::path::Path;
 use crate::chunking::{ChunkConfig, chunk_text};
 use crate::embeddings::EmbeddingService;
 use crate::loaders::load_corpus;
+use crate::test_seams::EmbeddingProvider;
 
-/// Process a corpus: load, chunk, embed, and save
-pub fn process_corpus(
+/// Process a corpus: load, chunk, embed, and save (with dependency injection)
+pub fn process_corpus_with_embedder<E: EmbeddingProvider>(
     input_path: &str,
     output_path: &str,
     dialect: Dialect,
     chunk_size: usize,
     overlap: usize,
+    embedding_service: &E,
 ) -> Result<()> {
     // Create output directory if it doesn't exist
     fs::create_dir_all(output_path).context(format!(
         "Failed to create output directory: {}",
         output_path
     ))?;
+    
+    // Check if already processed (look for any .jsonl file in output directory)
+    let output_dir = std::path::Path::new(output_path);
+    if output_dir.exists() {
+        let existing_files: Vec<_> = std::fs::read_dir(output_dir)?
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry.path().extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext == "jsonl")
+                    .unwrap_or(false)
+            })
+            .collect();
+            
+        if !existing_files.is_empty() {
+            let existing_file = &existing_files[0];
+            let metadata = existing_file.metadata()?;
+            let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+            
+            println!("  ⚠️  Already processed file found: {} ({:.1}MB)", 
+                     existing_file.file_name().to_string_lossy(), size_mb);
+            println!("  📝 Use 'rm -rf {}' to reprocess if needed", output_path);
+            return Ok(());
+        }
+    }
 
     // Load corpus documents
     println!("Loading corpus from {}...", input_path);
-    let raw_documents = load_corpus(input_path, dialect.clone())?;
+    let raw_documents = load_corpus(input_path, dialect)?;
     println!("Loaded {} documents", raw_documents.len());
 
     if raw_documents.is_empty() {
@@ -31,24 +58,43 @@ pub fn process_corpus(
         return Ok(());
     }
 
-    // Chunk documents
+    // Chunk documents with progress
     println!("Chunking documents...");
     let chunk_config = ChunkConfig {
         max_chunk_size: chunk_size,
         overlap,
     };
+    
+    // Estimate chunks based on total content size
+    let total_chars: usize = raw_documents.iter().map(|d| d.content.len()).sum();
+    let estimated_chunks = total_chars / chunk_size + raw_documents.len();
+    println!("  📏 Estimated chunks: ~{} (from {:.1}MB of content)", estimated_chunks, total_chars as f64 / (1024.0 * 1024.0));
+    
     let chunked_documents = chunk_documents(raw_documents, &chunk_config)?;
-    println!("Created {} chunks", chunked_documents.len());
+    println!("  ✅ Created {} chunks (actual)", chunked_documents.len());
 
-    // Initialize embedding service
-    let embedding_service = EmbeddingService::new()?;
-
-    // Generate embeddings in batches
-    println!("Generating embeddings...");
-    let batch_size = 32;
+    // Generate embeddings in batches with detailed progress
+    let total_chunks = chunked_documents.len();
+    
+    // Adaptive batch size based on dataset size - larger batches for big datasets
+    let batch_size = if total_chunks > 10000 {
+        64  // Larger batches for big datasets (2x faster)
+    } else if total_chunks > 1000 {
+        48  // Medium batch size
+    } else {
+        32  // Default batch size for small datasets
+    };
+    
+    let total_batches = total_chunks.div_ceil(batch_size);
+    
+    println!("Generating embeddings for {} chunks in {} batches...", total_chunks, total_batches);
+    println!("⏱️  Estimated time: ~{} minutes for large files", (total_batches * 2) / 60);
+    
     let mut processed_documents = Vec::new();
+    let start_time = std::time::Instant::now();
 
     for (batch_idx, chunk) in chunked_documents.chunks(batch_size).enumerate() {
+        let batch_start = std::time::Instant::now();
         let texts: Vec<String> = chunk.iter().map(|doc| doc.content.clone()).collect();
 
         let embeddings = embedding_service
@@ -62,29 +108,77 @@ pub fn process_corpus(
             processed_documents.push(processed_doc);
         }
 
+        let batch_duration = batch_start.elapsed();
+        let elapsed_total = start_time.elapsed();
+        let progress_percent = ((batch_idx + 1) as f64 / total_batches as f64) * 100.0;
+        
+        // Calculate ETA
+        let avg_batch_time = elapsed_total.as_secs_f64() / (batch_idx + 1) as f64;
+        let remaining_batches = total_batches - (batch_idx + 1);
+        let eta_seconds = avg_batch_time * remaining_batches as f64;
+        let eta_mins = eta_seconds / 60.0;
+        
         println!(
-            "  Processed batch {}/{} ({} documents)",
+            "  📊 Batch {}/{} ({:.1}%) | Batch: {:.2}s | Total: {:.1}m | ETA: {:.1}m | {} docs",
             batch_idx + 1,
-            (chunked_documents.len() + batch_size - 1) / batch_size,
+            total_batches,
+            progress_percent,
+            batch_duration.as_secs_f64(),
+            elapsed_total.as_secs_f64() / 60.0,
+            eta_mins,
             processed_documents.len()
         );
+        
+        // Print milestone updates
+        if (batch_idx + 1) % 100 == 0 || batch_idx + 1 == total_batches {
+            println!("    🎯 Milestone: {}/{} batches completed ({:.1}%)", 
+                batch_idx + 1, total_batches, progress_percent);
+        }
     }
 
     // Save processed documents
     println!("Saving processed documents...");
+    let save_start = std::time::Instant::now();
     save_documents(&processed_documents, output_path)?;
+    let save_duration = save_start.elapsed();
+    
+    let total_duration = start_time.elapsed();
+    let file_size_mb = std::fs::metadata(
+        std::path::Path::new(output_path)
+            .join(format!("{}.jsonl", dialect.id()))
+    )?.len() as f64 / (1024.0 * 1024.0);
 
-    println!(
-        "Saved {} documents to {}",
-        processed_documents.len(),
-        output_path
-    );
+    println!("\n✅ PROCESSING COMPLETE");
+    println!("  Documents: {}", processed_documents.len());
+    println!("  Output size: {:.1}MB", file_size_mb);
+    println!("  Total time: {:.1} minutes", total_duration.as_secs_f64() / 60.0);
+    println!("  Save time: {:.2}s", save_duration.as_secs_f64());
+    println!("  Output: {}", output_path);
 
     Ok(())
 }
 
+/// Process a corpus: load, chunk, embed, and save (convenience wrapper)
+pub fn process_corpus(
+    input_path: &str,
+    output_path: &str,
+    dialect: Dialect,
+    chunk_size: usize,
+    overlap: usize,
+) -> Result<()> {
+    let embedding_service = EmbeddingService::new()?;
+    process_corpus_with_embedder(
+        input_path,
+        output_path,
+        dialect,
+        chunk_size,
+        overlap,
+        &embedding_service,
+    )
+}
+
 /// Chunk documents into smaller pieces
-fn chunk_documents(
+pub fn chunk_documents(
     documents: Vec<DialectDocument>,
     config: &ChunkConfig,
 ) -> Result<Vec<DialectDocument>> {
@@ -95,7 +189,7 @@ fn chunk_documents(
 
         for chunk_content in chunks {
             let chunk_doc =
-                DialectDocument::new(chunk_content, doc.dialect.clone(), doc.formality.clone());
+                DialectDocument::new(chunk_content, doc.dialect, doc.formality);
             chunked.push(chunk_doc);
         }
     }
@@ -104,11 +198,18 @@ fn chunk_documents(
 }
 
 /// Save documents to output directory
-fn save_documents(documents: &[DialectDocument], output_path: &str) -> Result<()> {
+pub fn save_documents(documents: &[DialectDocument], output_path: &str) -> Result<()> {
     let output_dir = Path::new(output_path);
 
-    // Save as a single JSONL file (JSON Lines format)
-    let jsonl_path = output_dir.join("documents.jsonl");
+    // Get dialect name from first document for filename
+    let dialect_filename = if let Some(first_doc) = documents.first() {
+        format!("{}.jsonl", first_doc.dialect.id())
+    } else {
+        "documents.jsonl".to_string()
+    };
+
+    // Save as a single JSONL file (JSON Lines format) with dialect-specific name
+    let jsonl_path = output_dir.join(&dialect_filename);
     let mut lines = Vec::new();
 
     for doc in documents {
@@ -121,8 +222,13 @@ fn save_documents(documents: &[DialectDocument], output_path: &str) -> Result<()
         jsonl_path.display()
     ))?;
 
-    // Also save metadata summary
-    let metadata_path = output_dir.join("metadata.json");
+    // Also save metadata summary with dialect-specific name
+    let metadata_filename = if let Some(first_doc) = documents.first() {
+        format!("{}_metadata.json", first_doc.dialect.id())
+    } else {
+        "metadata.json".to_string()
+    };
+    let metadata_path = output_dir.join(&metadata_filename);
     let metadata = serde_json::json!({
         "total_documents": documents.len(),
         "dialect": documents.first().map(|d| d.dialect.name()),
@@ -143,9 +249,10 @@ fn save_documents(documents: &[DialectDocument], output_path: &str) -> Result<()
 }
 
 /// Count formality distribution
-fn count_formality(documents: &[DialectDocument]) -> serde_json::Value {
+pub fn count_formality(documents: &[DialectDocument]) -> serde_json::Value {
     let mut formal = 0;
     let mut casual = 0;
+    let mut dialect_rich = 0;
     let mut slang = 0;
     let mut unspecified = 0;
 
@@ -153,6 +260,7 @@ fn count_formality(documents: &[DialectDocument]) -> serde_json::Value {
         match doc.formality {
             Some(dialect_coach_shared::Formality::Formal) => formal += 1,
             Some(dialect_coach_shared::Formality::Casual) => casual += 1,
+            Some(dialect_coach_shared::Formality::DialectRich) => dialect_rich += 1,
             Some(dialect_coach_shared::Formality::Slang) => slang += 1,
             None => unspecified += 1,
         }
@@ -161,6 +269,7 @@ fn count_formality(documents: &[DialectDocument]) -> serde_json::Value {
     serde_json::json!({
         "formal": formal,
         "casual": casual,
+        "dialect_rich": dialect_rich,
         "slang": slang,
         "unspecified": unspecified,
     })

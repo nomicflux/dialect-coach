@@ -66,8 +66,16 @@ cargo test -p dialect-coach-backend
 # Run shared library tests
 cargo test -p dialect-coach-shared
 
+# Run corpus-processor tests (offline, deterministic)
+cargo test -p corpus-processor
+
 # Run ignored tests that require credentials
 cargo test -p dialect-coach-backend -- --ignored
+
+# Record new Qdrant API cassettes (manual, requires live instance)
+export QDRANT_URL=https://your-instance.cloud.qdrant.io:6334
+export QDRANT_API_KEY=your_qdrant_key  
+cargo run --bin record_qdrant_cassettes
 ```
 
 ## Architecture Overview

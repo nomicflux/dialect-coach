@@ -1,0 +1,214 @@
+use dialect_coach_shared::tts::{
+    AudioFormat, TextToSpeechProvider, TtsError, TtsRequest, TtsResponse,
+};
+use reqwest::Client;
+
+pub struct AzureTtsProvider {
+    client: Client,
+    subscription_key: String,
+    endpoint: String,
+}
+
+impl AzureTtsProvider {
+    pub fn new(subscription_key: String, region: String) -> Self {
+        let endpoint = format!(
+            "https://{}.tts.speech.microsoft.com/cognitiveservices/v1",
+            region
+        );
+        Self {
+            client: Client::new(),
+            subscription_key,
+            endpoint,
+        }
+    }
+
+    pub fn from_env() -> Result<Self, TtsError> {
+        let subscription_key =
+            std::env::var("AZURE_SPEECH_KEY").map_err(|_| TtsError::AuthenticationFailed)?;
+        let region =
+            std::env::var("AZURE_SPEECH_REGION").map_err(|_| TtsError::AuthenticationFailed)?;
+
+        if subscription_key.is_empty() || region.is_empty() {
+            return Err(TtsError::AuthenticationFailed);
+        }
+
+        Ok(Self::new(subscription_key, region))
+    }
+
+    fn map_language_to_voice(language_code: &str) -> &'static str {
+        match language_code {
+            // Spanish dialects - VERIFIED 2025-10-19
+            "es-MX" => "es-MX-DaliaNeural",      // ✅ VERIFIED
+            "es-ES" => "es-ES-ElviraNeural",     // ✅ VERIFIED
+            "es-AR" => "es-AR-ElenaNeural",      // ✅ VERIFIED
+            "es-CU" => "es-CU-BelkysNeural",     // ✅ VERIFIED
+            "es-CL" => "es-CL-CatalinaNeural",   // ✅ VERIFIED
+            "es-CO" => "es-CO-SalomeNeural",     // ✅ VERIFIED
+
+            // Arabic dialects - VERIFIED 2025-10-19
+            "ar-EG" => "ar-EG-SalmaNeural",      // ✅ VERIFIED
+            "ar-LB" => "ar-LB-LaylaNeural",      // ✅ VERIFIED
+            "ar-SA" => "ar-SA-ZariyahNeural",    // ✅ VERIFIED
+            "ar-MA" => "ar-MA-MounaNeural",      // ✅ VERIFIED
+            "ar-IQ" => "ar-IQ-RanaNeural",       // ✅ VERIFIED
+
+            // French dialects - VERIFIED 2025-10-19
+            "fr-CA" => "fr-CA-SylvieNeural",     // ✅ VERIFIED
+            "fr-FR" => "fr-FR-DeniseNeural",     // ✅ VERIFIED
+            "fr-CH" => "fr-CH-ArianeNeural",     // ✅ VERIFIED
+            "fr-BE" => "fr-BE-CharlineNeural",   // ✅ VERIFIED
+            // "fr-CI" => "fr-CI-AkanNeural",    // ❌ REMOVED - Voice does not exist in Azure API
+
+            // Fallback to known working voice
+            _ => "en-US-AriaNeural",               // This is confirmed to exist
+        }
+    }
+
+    fn build_ssml(&self, request: &TtsRequest) -> String {
+        let rate_str = request
+            .rate
+            .map(|r| format!(" rate='{}'", r))
+            .unwrap_or_default();
+        let voice_name = Self::map_language_to_voice(&request.language_code);
+
+        format!(
+            "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{}'>\n\
+                <voice name='{}'>\n\
+                    <prosody{}{}>{}</prosody>\n\
+                </voice>\n\
+            </speak>",
+            request.language_code, voice_name, rate_str, "0.0Hz", request.text
+        )
+    }
+}
+
+#[async_trait::async_trait]
+impl TextToSpeechProvider for AzureTtsProvider {
+    async fn synthesize(&self, request: TtsRequest) -> Result<TtsResponse, TtsError> {
+        let ssml = self.build_ssml(&request);
+
+        let response = self
+            .client
+            .post(&self.endpoint)
+            .header("Ocp-Apim-Subscription-Key", &self.subscription_key)
+            .header("Content-Type", "application/ssml+xml")
+            .header(
+                "X-Microsoft-OutputFormat",
+                "audio-24khz-48kbitrate-mono-mp3",
+            )
+            .header("User-Agent", "dialect-coach")
+            .body(ssml)
+            .send()
+            .await
+            .map_err(|e| TtsError::NetworkError(format!("Request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return match status.as_u16() {
+                401 | 403 => Err(TtsError::AuthenticationFailed),
+                429 => Err(TtsError::QuotaExceeded),
+                400 => Err(TtsError::InvalidRequest(error_body)),
+                _ => Err(TtsError::NetworkError(format!(
+                    "HTTP {}: {}",
+                    status, error_body
+                ))),
+            };
+        }
+
+        let audio_data = response
+            .bytes()
+            .await
+            .map_err(|e| TtsError::Unknown(format!("Failed to read response: {}", e)))?
+            .to_vec();
+
+        let estimated_duration_ms =
+            (request.text.len() as f32 / 5.0 / 150.0 * 60.0 * 1000.0) as u32;
+
+        Ok(TtsResponse {
+            audio_data,
+            audio_format: AudioFormat::Mp3,
+            duration_ms: estimated_duration_ms,
+            cache_key: dialect_coach_shared::tts::generate_cache_key(&request),
+        })
+    }
+
+    fn provider_name(&self) -> &'static str {
+        "Azure Neural"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+
+    #[tokio::test]
+    #[ignore] // Run with: cargo test -p dialect-coach-backend -- --ignored
+    async fn test_verify_voices_against_azure_api() {
+        // This test verifies all mapped voices exist in Azure's live API
+        // Requires AZURE_SPEECH_REGION and AZURE_SPEECH_KEY environment variables
+        let region = env::var("AZURE_SPEECH_REGION")
+            .expect("AZURE_SPEECH_REGION must be set to run this test");
+        let key = env::var("AZURE_SPEECH_KEY")
+            .expect("AZURE_SPEECH_KEY must be set to run this test");
+
+        let client = reqwest::Client::new();
+        let url = format!("https://{}.tts.speech.microsoft.com/cognitiveservices/voices/list", region);
+
+        let response = client
+            .get(&url)
+            .header("Ocp-Apim-Subscription-Key", &key)
+            .send()
+            .await
+            .expect("Failed to call Azure voices API");
+
+        assert!(response.status().is_success(), "Azure API call failed: {}", response.status());
+
+        let voices: Vec<serde_json::Value> = response
+            .json()
+            .await
+            .expect("Failed to parse Azure voices JSON");
+
+        // Extract all voice short names for lookup
+        let voice_names: std::collections::HashSet<String> = voices
+            .iter()
+            .filter_map(|v| v["ShortName"].as_str())
+            .map(|s| s.to_string())
+            .collect();
+
+        // Test all voices in our mapping
+        let test_cases = [
+            ("es-MX", "es-MX-DaliaNeural"),
+            ("es-ES", "es-ES-ElviraNeural"),
+            ("es-AR", "es-AR-ElenaNeural"),
+            ("es-CU", "es-CU-BelkysNeural"),
+            ("es-CL", "es-CL-CatalinaNeural"),
+            ("es-CO", "es-CO-SalomeNeural"),
+            ("ar-EG", "ar-EG-SalmaNeural"),
+            ("ar-LB", "ar-LB-LaylaNeural"),
+            ("ar-SA", "ar-SA-ZariyahNeural"),
+            ("ar-MA", "ar-MA-MounaNeural"),
+            ("ar-IQ", "ar-IQ-RanaNeural"),
+            ("fr-CA", "fr-CA-SylvieNeural"),
+            ("fr-FR", "fr-FR-DeniseNeural"),
+            ("fr-CH", "fr-CH-ArianeNeural"),
+            ("fr-BE", "fr-BE-CharlineNeural"),
+            // Note: fr-CI is deliberately excluded as it doesn't exist in Azure
+        ];
+
+        for (locale, expected_voice) in test_cases {
+            let mapped_voice = AzureTtsProvider::map_language_to_voice(locale);
+            assert_eq!(mapped_voice, expected_voice, "Voice mapping mismatch for locale {}", locale);
+
+            assert!(voice_names.contains(expected_voice),
+                "Voice '{}' for locale '{}' not found in Azure API. Available voices: {:?}",
+                expected_voice, locale, voice_names.iter().take(5).collect::<Vec<_>>()
+            );
+        }
+
+        println!("✅ All {} voice mappings verified against Azure API", test_cases.len());
+    }
+}

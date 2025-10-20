@@ -76,15 +76,19 @@
 ## Phase 2: Test Architecture
 
 ### 📋 Task 4: Acceptance Criteria Definition
-**Owner**: TestArchitectAgent (to be created)  
-**Status**: 📋 **TODO**  
+**Owner**: Main Agent  
+**Status**: ✅ **DONE**  
+**Started**: 2025-10-18T20:26:33Z  
+**Completed**: 2025-10-18T20:26:33Z  
 **Dependencies**: Task 3 ✅
 
 **Coverage targets**:
-- [ ] 90% line coverage minimum on corpus-processor
-- [ ] Unit tests for all concerns listed in requirements
-- [ ] Integration tests (offline with mocks)
-- [ ] Optional integration tests (real services, ignored by default)
+- [x] 90% line coverage minimum on corpus-processor
+- [x] Unit tests for all concerns listed in requirements
+- [x] Integration tests (offline with mocks)
+- [x] Optional integration tests (real services, ignored by default)
+- [x] Directory policy tests (critical for training prohibition)
+- [x] Code scanning tests for training terminology
 
 ### 📋 Task 5: Test Seams Design
 **Owner**: TestArchitectAgent  

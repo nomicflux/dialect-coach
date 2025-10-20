@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize)]
 struct TranslateRequest {
     phrase: String,
-    dialect: String,    // Will send canonical serde ID format
-    formality: Option<String>,  // Will send canonical serde ID format
+    dialect: String,           // Will send canonical serde ID format
+    formality: Option<String>, // Will send canonical serde ID format
 }
 
 #[derive(Deserialize)]
@@ -39,12 +39,12 @@ impl TranslationService {
         // Use ONLY canonical serde ID formats
         let request_body = TranslateRequest {
             phrase: phrase.to_string(),
-            dialect: dialect.id().to_string(),  // Canonical serde ID format
-            formality: formality.map(|f| f.id().to_string()),  // Canonical serde ID format
+            dialect: dialect.id().to_string(), // Canonical serde ID format
+            formality: formality.map(|f| f.id().to_string()), // Canonical serde ID format
         };
 
         let url = format!("{}/api/translate", self.base_url);
-        
+
         let response = Request::post(&url)
             .json(&request_body)?
             .send()
@@ -66,7 +66,9 @@ impl TranslationService {
         if !translate_response.success {
             return Err(anyhow::anyhow!(
                 "Translation failed: {}",
-                translate_response.error.unwrap_or_else(|| "Unknown error".to_string())
+                translate_response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             ));
         }
 
@@ -108,7 +110,11 @@ mod tests {
             };
 
             let json = serde_json::to_string(&request).unwrap();
-            assert!(json.contains(expected_id), "JSON should contain {}", expected_id);
+            assert!(
+                json.contains(expected_id),
+                "JSON should contain {}",
+                expected_id
+            );
         }
     }
 
@@ -129,7 +135,11 @@ mod tests {
             };
 
             let json = serde_json::to_string(&request).unwrap();
-            assert!(json.contains(expected_id), "JSON should contain {}", expected_id);
+            assert!(
+                json.contains(expected_id),
+                "JSON should contain {}",
+                expected_id
+            );
         }
     }
 
@@ -155,12 +165,12 @@ mod tests {
         // Verify that we always use canonical serde ID formats
         let service = TranslationService::new("http://localhost:3000");
         assert_eq!(service.base_url, "http://localhost:3000");
-        
+
         // Test that dialect.id() returns canonical format
         assert_eq!(Dialect::SpanishMexican.id(), "spanish_mexican");
         assert_eq!(Dialect::ArabicEgyptian.id(), "arabic_egyptian");
         assert_eq!(Dialect::FrenchParisian.id(), "french_parisian");
-        
+
         // Test that formality.id() returns canonical format
         assert_eq!(Formality::Formal.id(), "formal");
         assert_eq!(Formality::Casual.id(), "casual");

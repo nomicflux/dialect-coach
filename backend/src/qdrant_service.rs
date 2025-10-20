@@ -4,6 +4,7 @@ use qdrant_client::Qdrant;
 use qdrant_client::qdrant::{
     Condition, CreateFieldIndexCollectionBuilder, FieldType, Filter, SearchPointsBuilder,
 };
+use qdrant_client::qdrant::r#match::{MatchValue};
 use rand::seq::SliceRandom;
 
 const COLLECTION_NAME: &str = "dialect_documents";
@@ -38,22 +39,31 @@ impl QdrantService {
     /// Search for relevant dialect examples
     pub async fn search_dialect_examples(
         &self,
-        query_embedding: Vec<f32>,
-        dialect: Dialect,
+        query_embedding: &[f32],
+        dialect: &Dialect,
         limit: usize,
     ) -> Result<Vec<DialectDocument>> {
-        // Build filter for dialect
-        let filter = Filter::must([Condition::matches("dialect", dialect.id().to_string())]);
+        let dialect_id = dialect.id().to_string();
+        tracing::info!("Searching for {}", dialect_id);
+        let filter = Filter::must([Condition::matches("dialect", MatchValue::Keyword(dialect_id))]);
 
         let search_result = self
             .client
             .search_points(
-                SearchPointsBuilder::new(COLLECTION_NAME, query_embedding, limit as u64)
+                SearchPointsBuilder::new(COLLECTION_NAME, query_embedding.to_owned(), limit as u64)
                     .filter(filter)
                     .with_payload(true),
             )
             .await
-            .context("Failed to search Qdrant")?;
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to search Qdrant collection '{}' for dialect {} (limit: {}): {}", 
+                    COLLECTION_NAME,
+                    dialect.name(),
+                    limit,
+                    e
+                )
+            })?;
 
         let documents = self.parse_search_results(search_result.result, dialect)?;
 
@@ -88,7 +98,15 @@ impl QdrantService {
                     .with_payload(true),
             )
             .await
-            .context("Failed to scroll Qdrant for random samples")?;
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to scroll Qdrant collection '{}' for dialect {} (limit: {}): {}", 
+                    COLLECTION_NAME,
+                    dialect.name(),
+                    limit,
+                    e
+                )
+            })?;
 
         // Parse retrieved points
         let mut documents = Vec::new();
@@ -147,9 +165,11 @@ impl QdrantService {
     fn parse_search_results(
         &self,
         results: Vec<qdrant_client::qdrant::ScoredPoint>,
-        dialect: Dialect,
+        dialect: &Dialect,
     ) -> Result<Vec<DialectDocument>> {
         let mut documents = Vec::new();
+
+        tracing::info!("Found {} results", results.len());
 
         for point in results {
             let payload = point.payload;
@@ -178,7 +198,7 @@ impl QdrantService {
 
             documents.push(DialectDocument {
                 content,
-                dialect,
+                dialect: *dialect,
                 formality,
                 embedding: Vec::new(),
             });

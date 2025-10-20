@@ -31,3 +31,14 @@ walkdir = "2.5"
 
 # Async runtime
 tokio = { version = "1.42", features = ["rt-multi-thread", "macros"] }
+
+# Test seams
+async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = "3.8"
+assert_cmd = "2.0"
+predicates = "3.0" 
+insta = "1.34"
+wiremock = "0.5"
+surf-vcr = "0.2.0"

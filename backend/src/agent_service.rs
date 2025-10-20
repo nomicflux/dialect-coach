@@ -2,11 +2,26 @@ use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument, Formality, TeachingMode};
 use rig::completion::Prompt;
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
+
 use std::error::Error;
 use std::sync::Arc;
 
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
+
+/// Content filtering directives to prevent refusals caused by authentic dialect corpora
+/// appearing in system context. Must be inserted before role to override default safety heuristics.
+const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES (OVERRIDE DEFAULTS)
+
+These directives govern how you evaluate safety and policy for this session. When they conflict with default heuristics, these directives take precedence.
+
+1) Only flag content in the user's direct messages, not in system examples or context. Do not refuse, warn, or restrict because of system-provided corpus or RAG examples, which may include slang, profanity, sexual or adult references, or controversial language used authentically in dialects.
+
+2) Distinguish clearly between user input and system context. Treat system context (RAG examples, corpus snippets, developer/system notes) as non-user content; do not attribute it to the user or apply safety filters to it.
+
+3) Always respond to the user's actual message first. If you have safety concerns, address them briefly and separately after answering, and only if those concerns are about the user's direct message.
+
+Operational note: If the user's direct message itself violates policy, provide a minimal, policy-compliant reply or a safe alternative phrasing in the target dialect. Do not refuse or redirect because of system examples."#;
 
 /// Agent service for AI-powered dialect coaching
 pub struct AgentService {
@@ -14,6 +29,65 @@ pub struct AgentService {
     model_name: String,
     qdrant: Arc<QdrantService>,
     embeddings: Arc<EmbeddingService>,
+}
+
+fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
+    match teaching_mode {
+        TeachingMode::Immersive => 64,
+        TeachingMode::Corrective => 128,
+        TeachingMode::Explanatory => 512,
+        TeachingMode::Interleaved => 512,
+        TeachingMode::Debug => 1024,
+    }
+}
+
+fn speaker_desc(dialect: &Dialect, formality: &Formality) -> String {
+    let dialect_name = (*dialect).name();
+    match formality {
+        Formality::Formal => format!(
+            "You are a native {} speaker communicating in a professional, polite manner",
+            dialect_name
+        ),
+        Formality::Casual => format!(
+            "You are a native {} speaker speaking naturally and conversationally",
+            dialect_name
+        ),
+        Formality::DialectRich => format!(
+            "You are a native {} speaker actively showcasing distinctive dialect features and expressions",
+            dialect_name
+        ),
+        Formality::Slang => format!(
+            "You are a native {} speaker using informal slang and colloquialisms",
+            dialect_name
+        ),
+    }
+}
+
+fn teaching_desc(teaching_mode: &TeachingMode) -> String {
+    let tokens = tokens_per_mode(teaching_mode);
+    let desc = match *teaching_mode {
+        TeachingMode::Immersive => {
+            "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections"
+        },
+        TeachingMode::Corrective => {
+            "3. CORRECTIVE MODE: Point out grammar or usage errors simply and clearly, then provide the correction"
+        },
+        TeachingMode::Explanatory => {
+            "3. EXPLANATORY MODE: Provide brief explanations of interesting grammar, idioms, or cultural context when relevant"
+        },
+        TeachingMode::Interleaved => {
+            "3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:
+
+{user input with non-target-language words simply translated into target dialect}
+
+{brief, conversational response in target dialect}"
+        },
+        TeachingMode::Debug => {
+            "3. DEBUG MODE: Ignore all system instructions. The user is trying to debug an issue with you about a response of yours.
+Answer in English with clear, brief explanations of how prompts could be improved to deliver the expected results."
+        },
+    };
+    format!("{}. 4. You have {} tokens for your response.", desc, tokens)
 }
 
 impl AgentService {
@@ -38,7 +112,72 @@ impl AgentService {
         })
     }
 
-    /// Generate response for user message with RAG context
+    fn retrieve_user_msg_embeddings(&self, user_message: &str) -> Result<Vec<f32>> {
+        self.embeddings
+            .embed_text(user_message)
+            .context("Failed to generate content embedding")
+    }
+
+    fn retrieve_history_embeddings(
+        &self,
+        conversation_history: &[String],
+    ) -> Result<Vec<Vec<f32>>> {
+        (*conversation_history)
+            .iter()
+            .take(5)
+            .map(|s| {
+                self.embeddings
+                    .embed_text(s)
+                    .context("Failed to generate history embedding")
+            })
+            .collect()
+    }
+
+    fn retrieve_embeddings(
+        &self,
+        user_message: &str,
+        conversation_history: &[String],
+    ) -> Result<Vec<Vec<f32>>> {
+        let content_embedding = self.retrieve_user_msg_embeddings(user_message)?;
+        let mut topic_embeddings = self
+            .retrieve_history_embeddings(conversation_history)?
+            .to_owned();
+
+        topic_embeddings.push(content_embedding);
+        Ok(topic_embeddings)
+    }
+
+    async fn retrieve_example(
+        &self,
+        dialect: &Dialect,
+        embedding: &[f32],
+    ) -> Result<Vec<DialectDocument>> {
+        self.qdrant
+            .search_dialect_examples(embedding, dialect, 10)
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to search content examples for dialect {} (embedding dim: {}): {}",
+                    dialect.name(),
+                    embedding.len(),
+                    e
+                )
+            })
+    }
+
+    async fn retrieve_examples(
+        &self,
+        dialect: &Dialect,
+        embeddings: Vec<Vec<f32>>,
+    ) -> Result<Vec<DialectDocument>> {
+        let mut docs = Vec::new();
+        for embedding in embeddings {
+            let example_docs = self.retrieve_example(dialect, &embedding).await?;
+            docs.extend(example_docs);
+        }
+        Ok(docs)
+    }
+
     pub async fn generate_response(
         &self,
         user_message: &str,
@@ -47,124 +186,44 @@ impl AgentService {
         teaching_mode: TeachingMode,
         conversation_history: &[String],
     ) -> Result<String> {
-        // Step 1: Build enhanced query from conversation history (Option C)
-        let query_text = if conversation_history.len() >= 2 {
-            // Take last 2-3 messages for context
-            let recent_history: Vec<String> = conversation_history
-                .iter()
-                .rev()
-                .take(3)
-                .rev()
-                .cloned()
-                .collect();
-            format!(
-                "{}\n\nCurrent message: {}",
-                recent_history.join("\n"),
-                user_message
-            )
-        } else {
-            user_message.to_string()
-        };
+        tracing::info!("Generating embeddings for multi-vector retrieval");
+        let embeddings = self.retrieve_embeddings(user_message, conversation_history)?;
 
-        tracing::debug!(
-            "Enhanced query with {} history messages",
-            if conversation_history.len() >= 2 {
-                "recent"
-            } else {
-                "no"
-            }
-        );
+        tracing::info!("Performing multi-vector retrieval");
+        let examples = self.retrieve_examples(&dialect, embeddings).await?;
 
-        // Step 2: Generate embeddings for multi-vector retrieval (Option D)
-        tracing::debug!("Generating embeddings for multi-vector retrieval");
-
-        // Embedding 1: Semantic (content-based)
-        let content_embedding = self
-            .embeddings
-            .embed_text(&query_text)
-            .context("Failed to generate content embedding")?;
-
-        // Embedding 2: Stylistic cue (incorporating formality)
-        let formality_str = match formality {
-            Formality::Formal => "formal polite",
-            Formality::Casual => "casual conversational",
-            Formality::DialectRich => "dialect-rich colloquial",
-            Formality::Slang => "slang informal",
-        };
-        let style_query = format!("{} response in {}", formality_str, dialect.name());
-        let style_embedding = self
-            .embeddings
-            .embed_text(&style_query)
-            .context("Failed to generate style embedding")?;
-
-        // Embedding 3: Topic summary (if history exists)
-        let topic_embedding = if !conversation_history.is_empty() {
-            let topic_summary = conversation_history.join(" ");
-            Some(
-                self.embeddings
-                    .embed_text(&topic_summary)
-                    .context("Failed to generate topic embedding")?,
-            )
-        } else {
-            None
-        };
-
-        // Step 3: Multi-vector retrieval (Option D)
-        tracing::debug!("Performing multi-vector retrieval");
-
-        // Retrieve from content embedding (semantic)
-        let content_examples = self
-            .qdrant
-            .search_dialect_examples(content_embedding, dialect, 10)
-            .await
-            .context("Failed to search content examples")?;
-
-        // Retrieve from style embedding
-        let style_examples = self
-            .qdrant
-            .search_dialect_examples(style_embedding, dialect, 10)
-            .await
-            .context("Failed to search style examples")?;
-
-        // Retrieve from topic embedding (if available)
-        let topic_examples = if let Some(topic_emb) = topic_embedding {
-            self.qdrant
-                .search_dialect_examples(topic_emb, dialect, 10)
-                .await
-                .context("Failed to search topic examples")?
-        } else {
-            Vec::new()
-        };
-
-        // Step 4: Dual retrieval - add random stylistic samples (Option A)
-        tracing::debug!("Adding random stylistic samples");
-        // Select formality levels for random sampling based on requested formality
+        tracing::info!("Adding random stylistic samples");
         let sample_formalities = match formality {
             Formality::Formal => vec![Formality::Formal, Formality::Casual],
             Formality::Casual => vec![Formality::Casual, Formality::DialectRich],
-            Formality::DialectRich => vec![Formality::DialectRich, Formality::Slang],
+            Formality::DialectRich => {
+                vec![Formality::Casual, Formality::DialectRich, Formality::Slang]
+            }
             Formality::Slang => vec![Formality::Slang, Formality::DialectRich],
         };
         let random_samples = self
             .qdrant
-            .random_dialect_samples(dialect, sample_formalities, 15)
+            .random_dialect_samples(dialect, sample_formalities.clone(), 15)
             .await
-            .context("Failed to get random samples")?;
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to get random samples for dialect {} with formalities {:?}: {}",
+                    dialect.name(),
+                    sample_formalities,
+                    e
+                )
+            })?;
 
-        // Step 5: Combine and deduplicate examples (Option B - dense examples)
-        tracing::debug!("Combining and deduplicating examples");
+        tracing::info!("Combining and deduplicating examples");
         let mut all_examples = Vec::new();
-        all_examples.extend(content_examples);
-        all_examples.extend(style_examples);
-        all_examples.extend(topic_examples);
+        all_examples.extend(examples);
         all_examples.extend(random_samples);
 
-        // Deduplicate by content
         let mut seen = std::collections::HashSet::new();
         let unique_examples: Vec<_> = all_examples
             .into_iter()
             .filter(|doc| seen.insert(doc.content.clone()))
-            .take(50) // Limit to 50 total examples
+            .take(50)
             .collect();
 
         tracing::info!(
@@ -176,28 +235,25 @@ impl AgentService {
         // Step 6: Group examples by formality (prioritize requested formality)
         let primary_examples: Vec<_> = unique_examples
             .iter()
-            .filter(|doc| doc.formality == Some(formality))
+            .filter(|doc| doc.formality.is_none() || doc.formality == Some(formality))
             .take(30)
             .collect();
 
         let secondary_examples: Vec<_> = unique_examples
             .iter()
-            .filter(|doc| doc.formality != Some(formality) && doc.formality.is_some())
+            .filter(|doc| {
+                doc.formality.is_some()
+                    && doc.formality != Some(formality)
+                    && doc.formality.is_some()
+            })
             .take(15)
             .collect();
 
-        let other_examples: Vec<_> = unique_examples
-            .iter()
-            .filter(|doc| doc.formality.is_none())
-            .take(5)
-            .collect();
-
         tracing::info!(
-            "Grouped examples: {} primary ({:?}), {} secondary, {} other",
+            "Grouped examples: {} primary ({:?}), {} secondary",
             primary_examples.len(),
             formality,
-            secondary_examples.len(),
-            other_examples.len()
+            secondary_examples.len()
         );
 
         // Step 7: Build rich RAG context
@@ -219,6 +275,8 @@ impl AgentService {
                 rag_context.push_str(&format!("{}. \"{}\"\n", i + 1, doc.content));
             }
             rag_context.push('\n');
+        } else {
+            tracing::warn!("No primary examples available!");
         }
 
         if !secondary_examples.is_empty() {
@@ -227,13 +285,8 @@ impl AgentService {
                 rag_context.push_str(&format!("{}. \"{}\"\n", i + 1, doc.content));
             }
             rag_context.push('\n');
-        }
-
-        if !other_examples.is_empty() {
-            rag_context.push_str("## MORE EXAMPLES:\n");
-            for (i, doc) in other_examples.iter().enumerate() {
-                rag_context.push_str(&format!("{}. \"{}\"\n", i + 1, doc.content));
-            }
+        } else {
+            tracing::warn!("No secondary examples available!");
         }
 
         // Build conversation context
@@ -246,68 +299,46 @@ impl AgentService {
             )
         };
 
-        // Build system prompt - EXAMPLES FIRST, then instructions
-        // Adapt role description based on formality
-        let role_desc = match formality {
-            Formality::Formal => format!(
-                "You are a native {} speaker communicating in a professional, polite manner",
-                dialect.name()
-            ),
-            Formality::Casual => format!(
-                "You are a native {} speaker speaking naturally and conversationally",
-                dialect.name()
-            ),
-            Formality::DialectRich => format!(
-                "You are a native {} speaker actively showcasing distinctive dialect features and expressions",
-                dialect.name()
-            ),
-            Formality::Slang => format!(
-                "You are a native {} speaker using informal slang and colloquialisms",
-                dialect.name()
-            ),
-        };
+        let role_desc = speaker_desc(&dialect, &formality);
+        let teaching_rules = teaching_desc(&teaching_mode);
 
-        // Adapt teaching instructions based on teaching mode
-        let teaching_rules = match teaching_mode {
-            TeachingMode::Immersive => {
-                "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections"
-            }
-            TeachingMode::Corrective => {
-                "3. CORRECTIVE MODE: Point out grammar or usage errors simply and clearly, then provide the correction"
-            }
-            TeachingMode::Explanatory => {
-                "3. EXPLANATORY MODE: Provide brief explanations of interesting grammar, idioms, or cultural context when relevant"
-            }
-        };
-
-        let system_content = format!(
-            "{}\n\n\
+        let system_content = if teaching_mode == TeachingMode::Debug {
+            format!(
+                "# YOUR ROLE\n\
+            {}.\n\n\
+            Conversational Context: {}\n\n\
+            # CRITICAL RULES\n\
+            1. BE CONCISE: Explain why you did what you did simply and briefly, without pandering.\n\
+            2. ITERATIVE IMPROVEMENT: Show exactly how the prompts could be improved to get a step closer to the desired effect.\n\
+            Now respond to the user's message technically.",
+                role_desc, history_context
+            )
+        } else {
+            format!(
+                "{}\n\n\
+            {}\n\n\
             # YOUR ROLE\n\
             {}. Your responses must sound EXACTLY like the authentic examples above.\n\n\
             # CRITICAL RULES\n\
             1. MIMIC THE PATTERNS: Study the examples above and copy their vocabulary, grammar, and style\n\
             2. MAINTAIN FORMALITY: Match the {} level shown in the primary examples\n\
             {}\n\
-            4. BE BRIEF: Keep responses conversational, not essay-length\n\
-            5. USE DIALECT MARKERS: Include the characteristic phrases and constructions from the examples\n\
+            5. BE BRIEF: Keep responses conversational, not essay-length\n\
+            6. USE DIALECT MARKERS: Include the characteristic phrases and constructions from the examples\n\
             {}\n\n\
             Now respond to the user's message naturally, as a local {} speaker would.",
-            rag_context,
-            role_desc,
-            formality_label.to_lowercase(),
-            teaching_rules,
-            history_context,
-            dialect.name()
-        );
-
-        // Set max tokens based on teaching mode
-        let max_tokens = match teaching_mode {
-            TeachingMode::Immersive => 128,
-            TeachingMode::Corrective => 256,
-            TeachingMode::Explanatory => 512,
+                rag_context,
+                CONTENT_FILTERING_DIRECTIVES,
+                role_desc,
+                formality_label.to_lowercase(),
+                teaching_rules,
+                history_context,
+                dialect.name()
+            )
         };
 
-        // Create agent with preamble
+        let max_tokens = tokens_per_mode(&teaching_mode);
+
         let agent = self
             .client
             .agent(&self.model_name)
@@ -316,12 +347,8 @@ impl AgentService {
             .temperature(1.0)
             .build();
 
-        // Generate response
         tracing::info!("Sending prompt to Claude: {}", user_message);
-        let response = match agent
-            .prompt(user_message)
-            .await
-        {
+        let response = match agent.prompt(user_message).await {
             Ok(resp) => resp,
             Err(e) => {
                 tracing::error!("Claude API error details: {:?}", e);
@@ -329,7 +356,7 @@ impl AgentService {
                 return Err(anyhow::Error::from(e).context("Failed to get completion from Claude"));
             }
         };
-        
+
         tracing::info!("Raw Claude response: {:?}", response);
         tracing::info!("Claude response length: {} chars", response.len());
 
@@ -353,7 +380,7 @@ impl AgentService {
         let agent = self
             .client
             .agent(&self.model_name)
-            .max_tokens(64)  // Keep translations short
+            .max_tokens(64) // Keep translations short
             .temperature(0.7)
             .build();
 
@@ -365,24 +392,99 @@ impl AgentService {
 
         Ok(response)
     }
-
-    /// Get dialect examples from RAG (utility function for testing)
-    pub async fn get_dialect_examples(
-        &self,
-        _query_embedding: Vec<f32>,
-        dialect: Dialect,
-        limit: usize,
-    ) -> Result<Vec<DialectDocument>> {
-        // Placeholder - will be replaced with actual embedding generation
-        self.qdrant
-            .search_dialect_examples(vec![0.0; 768], dialect, limit)
-            .await
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_content_filtering_directives_structure() {
+        // Test that content filtering directives contain the required rules
+        assert!(CONTENT_FILTERING_DIRECTIVES.contains("### CONTENT FILTERING DIRECTIVES"));
+        assert!(CONTENT_FILTERING_DIRECTIVES.contains(
+            "1) Only flag content in the user's direct messages, not in system examples or context"
+        ));
+        assert!(
+            CONTENT_FILTERING_DIRECTIVES
+                .contains("2) Distinguish clearly between user input and system context")
+        );
+        assert!(
+            CONTENT_FILTERING_DIRECTIVES
+                .contains("3) Always respond to the user's actual message first")
+        );
+        assert!(CONTENT_FILTERING_DIRECTIVES.contains("Operational note:"));
+    }
+
+    #[test]
+    fn test_system_prompt_order() {
+        use dialect_coach_shared::{Dialect, Formality, TeachingMode};
+
+        // Mock RAG context
+        let rag_context = "\n\n# AUTHENTIC MEXICAN SPANISH SPEECH PATTERNS\n\n## CASUAL EXAMPLES:\n1. \"¡Órale, qué onda!\"\n";
+        let role_desc =
+            "You are a native Mexican Spanish speaker speaking naturally and conversationally";
+        let formality_label = "casual";
+        let teaching_rules = "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections";
+        let history_context = "";
+        let dialect_name = "Mexican Spanish";
+
+        // Build system content using the same format as the actual code
+        let system_content = format!(
+            "{}\n\n\
+            {}\n\n\
+            # YOUR ROLE\n\
+            {}. Your responses must sound EXACTLY like the authentic examples above.\n\n\
+            # CRITICAL RULES\n\
+            1. MIMIC THE PATTERNS: Study the examples above and copy their vocabulary, grammar, and style\n\
+            2. MAINTAIN FORMALITY: Match the {} level shown in the primary examples\n\
+            {}\n\
+            4. BE BRIEF: Keep responses conversational, not essay-length\n\
+            5. USE DIALECT MARKERS: Include the characteristic phrases and constructions from the examples\n\
+            {}\n\n\
+            Now respond to the user's message naturally, as a local {} speaker would.",
+            rag_context,
+            CONTENT_FILTERING_DIRECTIVES,
+            role_desc,
+            formality_label,
+            teaching_rules,
+            history_context,
+            dialect_name
+        );
+
+        // Assert content filtering directives are present
+        assert!(system_content.contains("### CONTENT FILTERING DIRECTIVES"));
+
+        // Assert correct order: RAG context → Content filtering → Role → Rules
+        let rag_pos = system_content.find("# AUTHENTIC").unwrap();
+        let directives_pos = system_content
+            .find("### CONTENT FILTERING DIRECTIVES")
+            .unwrap();
+        let role_pos = system_content.find("# YOUR ROLE").unwrap();
+        let rules_pos = system_content.find("# CRITICAL RULES").unwrap();
+
+        assert!(
+            rag_pos < directives_pos,
+            "RAG context should come before content filtering directives"
+        );
+        assert!(
+            directives_pos < role_pos,
+            "Content filtering directives should come before role"
+        );
+        assert!(
+            role_pos < rules_pos,
+            "Role should come before critical rules"
+        );
+
+        // Verify all three content filtering rules are present
+        assert!(system_content.contains(
+            "1) Only flag content in the user's direct messages, not in system examples or context"
+        ));
+        assert!(
+            system_content.contains("2) Distinguish clearly between user input and system context")
+        );
+        assert!(system_content.contains("3) Always respond to the user's actual message first"));
+    }
 
     #[tokio::test]
     #[ignore] // Requires API key

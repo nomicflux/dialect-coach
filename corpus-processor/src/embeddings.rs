@@ -1,3 +1,4 @@
+use crate::test_seams::EmbeddingProvider;
 use anyhow::{Context, Result};
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 
@@ -30,18 +31,15 @@ impl EmbeddingService {
 
         Ok(embeddings)
     }
+}
 
-    /// Generate embedding for a single text
-    pub fn embed_one(&self, text: String) -> Result<Vec<f32>> {
-        let mut embeddings = self.embed_batch(vec![text])?;
-
-        embeddings
-            .pop()
-            .context("Expected embedding but got empty result")
+// Implement EmbeddingProvider trait for dependency injection
+impl EmbeddingProvider for EmbeddingService {
+    fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        self.embed_batch(texts)
     }
 
-    /// Get the dimension of embeddings produced by this model
-    pub fn dimension(&self) -> usize {
+    fn dimension(&self) -> usize {
         // MultilingualE5Base produces 768-dimensional embeddings
         768
     }
@@ -52,15 +50,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_embed_single_text() {
-        let service = EmbeddingService::new().unwrap();
-        let embedding = service.embed_one("Hello world".to_string()).unwrap();
-
-        assert_eq!(embedding.len(), service.dimension());
-        assert!(embedding.iter().any(|&x| x != 0.0));
-    }
-
-    #[test]
     fn test_embed_batch() {
         let service = EmbeddingService::new().unwrap();
         let texts = vec!["First text".to_string(), "Second text".to_string()];
@@ -68,7 +57,13 @@ mod tests {
 
         assert_eq!(embeddings.len(), 2);
         for embedding in embeddings {
-            assert_eq!(embedding.len(), service.dimension());
+            assert_eq!(embedding.len(), 768); // MultilingualE5Base dimension
         }
+    }
+
+    #[test]
+    fn test_dimension() {
+        let service = EmbeddingService::new().unwrap();
+        assert_eq!(service.dimension(), 768);
     }
 }

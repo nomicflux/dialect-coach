@@ -1,10 +1,5 @@
 use anyhow::{Context, Result};
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use dialect_coach_shared::models::{Dialect, Formality};
 use serde::{Deserialize, Serialize};
 
@@ -13,8 +8,8 @@ use crate::AppState;
 #[derive(Deserialize)]
 pub struct TranslateRequest {
     pub phrase: String,
-    pub dialect: String,  // Will be parsed using canonical Dialect::from_str()
-    pub formality: Option<String>,  // Will be parsed using canonical Formality::from_str()
+    pub dialect: String, // Will be parsed using canonical Dialect::from_str()
+    pub formality: Option<String>, // Will be parsed using canonical Formality::from_str()
 }
 
 #[derive(Serialize)]
@@ -29,7 +24,11 @@ pub async fn translate_handler(
     State(state): State<AppState>,
     Json(request): Json<TranslateRequest>,
 ) -> impl IntoResponse {
-    tracing::info!("Translation request: {} -> {}", request.phrase, request.dialect);
+    tracing::info!(
+        "Translation request: {} -> {}",
+        request.phrase,
+        request.dialect
+    );
 
     // Parse dialect using canonical method
     let dialect = match request.dialect.parse::<Dialect>() {
@@ -70,7 +69,11 @@ pub async fn translate_handler(
     // Translate the phrase
     match translate_phrase(&state, &request.phrase, dialect, formality).await {
         Ok(translated) => {
-            tracing::info!("Translation success: '{}' -> '{}'", request.phrase, translated);
+            tracing::info!(
+                "Translation success: '{}' -> '{}'",
+                request.phrase,
+                translated
+            );
             (
                 StatusCode::OK,
                 Json(TranslateResponse {
@@ -124,7 +127,8 @@ async fn translate_phrase(
         .context("Failed to translate phrase")?;
 
     // Clean up the response (remove quotes, extra whitespace)
-    let cleaned = response.trim()
+    let cleaned = response
+        .trim()
         .trim_matches('"')
         .trim_matches('\'')
         .trim()
@@ -145,11 +149,24 @@ mod tests {
             dialect: "spanish_mexican".to_string(),
             formality: Some("casual".to_string()),
         };
-        
+
         assert!(request.dialect.parse::<Dialect>().is_ok());
-        assert_eq!(request.dialect.parse::<Dialect>().unwrap(), Dialect::SpanishMexican);
-        assert!(request.formality.as_ref().unwrap().parse::<Formality>().is_ok());
-        assert_eq!(request.formality.unwrap().parse::<Formality>().unwrap(), Formality::Casual);
+        assert_eq!(
+            request.dialect.parse::<Dialect>().unwrap(),
+            Dialect::SpanishMexican
+        );
+        assert!(
+            request
+                .formality
+                .as_ref()
+                .unwrap()
+                .parse::<Formality>()
+                .is_ok()
+        );
+        assert_eq!(
+            request.formality.unwrap().parse::<Formality>().unwrap(),
+            Formality::Casual
+        );
 
         // Test invalid dialect parsing
         let invalid_request = TranslateRequest {
@@ -157,7 +174,7 @@ mod tests {
             dialect: "invalid_dialect".to_string(),
             formality: None,
         };
-        
+
         assert!(invalid_request.dialect.parse::<Dialect>().is_err());
     }
 
@@ -166,7 +183,7 @@ mod tests {
         // Test all dialect variants can be parsed using canonical format
         let test_cases = vec![
             "spanish_mexican",
-            "spanish_castilian", 
+            "spanish_castilian",
             "arabic_egyptian",
             "arabic_levantine",
             "french_parisian",
@@ -182,16 +199,15 @@ mod tests {
     #[test]
     fn test_all_supported_formalities() {
         // Test all formality variants can be parsed using canonical format
-        let test_cases = vec![
-            "formal",
-            "casual",
-            "dialect_rich",
-            "slang",
-        ];
+        let test_cases = vec!["formal", "casual", "dialect_rich", "slang"];
 
         for formality_str in test_cases {
             let result = formality_str.parse::<Formality>();
-            assert!(result.is_ok(), "Failed to parse formality: {}", formality_str);
+            assert!(
+                result.is_ok(),
+                "Failed to parse formality: {}",
+                formality_str
+            );
         }
     }
 
@@ -200,28 +216,28 @@ mod tests {
         let phrase = "Hello, how are you?";
         let dialect = Dialect::SpanishMexican;
         let formality = Formality::Casual;
-        
+
         // Test prompt generation doesn't panic and includes expected elements
         let formality_desc = match formality {
             Formality::Casual => "casual and conversational",
             _ => panic!("Unexpected formality in test"),
         };
-        
-        let expected_elements = vec![
-            phrase,
-            dialect.name(),
-            formality_desc,
-        ];
-        
+
+        let expected_elements = vec![phrase, dialect.name(), formality_desc];
+
         let prompt = format!(
             "Translate this English phrase into authentic {} speech, making it sound {}:\n\n\"{}\"\n\nReturn ONLY the translation, nothing else.",
             dialect.name(),
             formality_desc,
             phrase
         );
-        
+
         for element in expected_elements {
-            assert!(prompt.contains(element), "Prompt missing element: {}", element);
+            assert!(
+                prompt.contains(element),
+                "Prompt missing element: {}",
+                element
+            );
         }
     }
 }

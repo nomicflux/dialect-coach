@@ -70,7 +70,7 @@ pub fn speech_controls(props: &SpeechControlsProps) -> Html {
             <button onclick={toggle_listening} class={if *is_listening { "listening" } else { "" }}>
                 {if *is_listening { "🎤 Listening..." } else { "🎤 Speak" }}
             </button>
-            <button class="language-indicator clickable" 
+            <button class="language-indicator clickable"
                     onclick={{
                         let on_dialect_cycle = props.on_dialect_cycle.clone();
                         Callback::from(move |_| {

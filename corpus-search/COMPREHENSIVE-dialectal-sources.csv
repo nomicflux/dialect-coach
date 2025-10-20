@@ -1,0 +1,15 @@
+dialect_bcp47,dataset_name,source_link,license,pricing,size,notes
+ar-TN,Tunisian_MSA,https://openslr.org/46/,Apache 2.0,Free,11.2 hours,Tunisian Arabic from Tunis - conversational prompts and recited speech with transcripts
+fr-CI/SN/CM,African Accented French,https://openslr.org/57/,Apache 2.0,Free,22 hours,African French from Cameroon/Chad/Congo/Gabon/Niger with transcripts
+fr-FR,CFPP2000 Paris French,http://cfpp2000.univ-paris3.fr/,Creative Commons BY 3.0,Free,32 interviews,Parisian French conversational corpus with transcriptions
+fr-CA,Quebecois Canadian French HF,https://huggingface.co/datasets/rishabbahal/quebecois_canadian_french_dataset,Apache 2.0,Free,6.7k samples,Quebec French audio chunks with transcriptions
+ar-EG,Egyptian Arabic Conversations HF,https://huggingface.co/datasets/kokojake/oasst2_egyptian_arabic_convs,Apache 2.0,Free,2.5k conversations,Egyptian Arabic conversational data
+ar-SA,Gulf Arabic Tweets HF,https://huggingface.co/datasets/AhmedSSabir/Gulf-Arabic-Tweets-2018-2020,Apache 2.0,Free,108k tweets,Gulf Arabic social media content from 2018-2020
+ar-MA,Darija (Moroccan) HF,https://huggingface.co/datasets/arbml/darija,Apache 2.0,Free,7.3k sentences,Moroccan Darija with English translations
+ar-MA,Moroccan Arabic Wikipedia HF,https://huggingface.co/datasets/SaiedAlshahrani/Moroccan_Arabic_Wikipedia_20230101_nobots,Apache 2.0,Free,4.7k articles,Moroccan Arabic Wikipedia content
+ar-MA,DarijaBridge HF,https://huggingface.co/datasets/M-A-D/DarijaBridge,Apache 2.0,Free,1.24M samples,Large Moroccan Darija dataset
+ar-MA,Darija-English HF,https://huggingface.co/datasets/imomayiz/darija-english,Apache 2.0,Free,87.8k pairs,Darija-English translation pairs
+ar-MA,Darija Stories HF,https://huggingface.co/datasets/alielfilali01/Darija-Stories-Dataset,Apache 2.0,Free,6.14k stories,Moroccan Darija stories dataset
+ar-DZ,Algerian Arabic HF,https://huggingface.co/datasets/ranim/Algerian-Arabic,Custom license,Free,1.5k comments,Algerian Arabic sentiment comments - requires attribution to RANIM
+ar-EG,CALLHOME Egyptian Arabic,https://catalog.ldc.upenn.edu/LDC97S45 + LDC97T19,LDC License,Membership required,120 conversations,Egyptian Colloquial Arabic (Cairene) telephone conversations with transcripts
+fr-CA,CALLFRIEND Canadian French,https://catalog.ldc.upenn.edu/LDC96S48,LDC License,Membership required,60 conversations,Quebec French telephone conversations
