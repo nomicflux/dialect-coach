@@ -28,9 +28,7 @@ impl MessagesState {
     fn push_message(&self, msg: Message) -> Self {
         let mut msgs = self.messages.clone();
         msgs.push(msg);
-        Self {
-            messages: msgs,
-        }
+        Self { messages: msgs }
     }
 }
 
@@ -50,12 +48,41 @@ impl Default for LanguageChoices {
 }
 
 impl LanguageChoices {
+    fn default_dialect(lang: Language) -> Dialect {
+        match lang {
+            Language::Spanish => Dialect::SpanishCuban,
+            Language::Arabic => Dialect::ArabicEgyptian,
+            Language::French => Dialect::FrenchParisian,
+        }
+    }
+
     fn with_language(&self, language: Language) -> Self {
-        Self { selected_language: language, ..self.clone() }
+        if self.selected_language == language {
+            self.clone()
+        } else {
+            Self {
+                selected_language: language,
+                selected_dialect: Self::default_dialect(language),
+            }
+        }
     }
 
     fn with_dialect(&self, dialect: Dialect) -> Self {
-        Self { selected_dialect: dialect, ..self.clone() }
+        Self {
+            selected_dialect: dialect,
+            ..self.clone()
+        }
+    }
+
+    fn rotate_dialect(&self) -> Self {
+        let current_dialects = Dialect::for_language(self.selected_language);
+        let current_index = current_dialects
+            .iter()
+            .position(|d| *d == self.selected_dialect)
+            .unwrap_or(0);
+        let next_index = (current_index + 1) % current_dialects.len();
+        let next_dialect = current_dialects[next_index];
+        self.with_dialect(next_dialect)
     }
 }
 
@@ -76,11 +103,17 @@ impl Default for LanguageManner {
 
 impl LanguageManner {
     fn with_formality(&self, formality: Formality) -> Self {
-        Self { formality, ..self.clone() }
+        Self {
+            formality,
+            ..self.clone()
+        }
     }
 
     fn with_teaching_mode(&self, teaching_mode: TeachingMode) -> Self {
-        Self { teaching_mode, ..self.clone() }
+        Self {
+            teaching_mode,
+            ..self.clone()
+        }
     }
 }
 
@@ -91,6 +124,12 @@ enum AppStateAction {
     SetError(String),
     ClearError,
     SetConnectionState(ConnectionState),
+    ChangeDialect(Dialect),
+    RotateDialect,
+    ChangeLanguage(Language),
+    ChangeFormality(Formality),
+    ChangeTeachingMode(TeachingMode),
+    Speak(Message),
 }
 
 #[derive(Clone)]
@@ -98,6 +137,8 @@ struct AppState {
     session_id: Uuid,
     messages: MessagesState,
     connection_state: ConnectionState,
+    language_choices: LanguageChoices,
+    language_manner: LanguageManner,
     is_loading: bool,
     error_message: Option<String>,
     ws_service: Rc<RefCell<WebSocketService>>,
@@ -111,6 +152,8 @@ impl Default for AppState {
             session_id: Uuid::new_v4(),
             messages: MessagesState::default(),
             connection_state: ConnectionState::Disconnected,
+            language_choices: LanguageChoices::default(),
+            language_manner: LanguageManner::default(),
             is_loading: false,
             error_message: None,
             ws_service: Rc::new(RefCell::new(WebSocketService::new(
@@ -128,10 +171,35 @@ impl AppState {
         match action {
             AppStateAction::AddMessage(msg) => next.messages = self.messages.push_message(msg),
             AppStateAction::SetLoading => next.is_loading = true,
-            AppStateAction::LoadingComplete => next. is_loading = false,
+            AppStateAction::LoadingComplete => next.is_loading = false,
             AppStateAction::SetError(msg) => next.error_message = Some(msg),
             AppStateAction::ClearError => next.error_message = None,
             AppStateAction::SetConnectionState(conn_state) => next.connection_state = conn_state,
+            AppStateAction::ChangeDialect(dialect) => {
+                next.language_choices = next.language_choices.with_dialect(dialect)
+            }
+            AppStateAction::RotateDialect => {
+                next.language_choices = next.language_choices.rotate_dialect()
+            }
+            AppStateAction::ChangeLanguage(language) => {
+                next.language_choices = next.language_choices.with_language(language)
+            }
+            AppStateAction::ChangeFormality(formality) => {
+                next.language_manner = next.language_manner.with_formality(formality)
+            }
+            AppStateAction::ChangeTeachingMode(tm) => {
+                next.language_manner = next.language_manner.with_teaching_mode(tm)
+            }
+            AppStateAction::Speak(msg) => {
+                let tts_service = next.tts_service.clone();
+                let language_code = next.language_choices.selected_dialect.bcp47_tag().to_string();
+                let text = msg.content.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    if let Some(tts) = tts_service && let Err(e) = tts.speak(&text, &language_code).await {
+                        error!("Failed to replay message with TTS: {}", e);
+                    }
+                });
+            }
         };
         next
     }
@@ -194,17 +262,192 @@ impl Reducible for UIState {
     }
 }
 
+fn on_send_message(app_state: UseReducerHandle<AppState>) -> Callback<String> {
+    let app_state = app_state.clone();
+
+    Callback::from(move |content: String| {
+        info!("Sending message: {}", content);
+
+        // Create message with metadata
+        let mut msg = Message::new(
+            (*app_state).session_id,
+            "user".to_string(),
+            content,
+            (*app_state)
+                .language_choices
+                .selected_dialect
+                .bcp47_tag()
+                .to_string(),
+        );
+
+        // Set formality and teaching mode in metadata
+        msg.metadata.formality = Some((*app_state).language_manner.formality);
+        msg.metadata.teaching_mode = Some((*app_state).language_manner.teaching_mode);
+
+        // Add to local messages
+        app_state.dispatch(AppStateAction::AddMessage(msg.clone()));
+
+        // Send through WebSocket
+        match app_state.ws_service.borrow().send_message(&msg) {
+            Ok(_) => {
+                info!("Message sent successfully");
+                app_state.dispatch(AppStateAction::SetLoading);
+                app_state.dispatch(AppStateAction::ClearError);
+            }
+            Err(e) => {
+                error!("Failed to send message: {}", e);
+                app_state.dispatch(AppStateAction::SetError(format!("Failed to send: {}", e)));
+            }
+        }
+    })
+}
+
+fn on_prompt_click(
+    app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>,
+) -> Callback<(String, String)> {
+    let app_state = app_state.clone();
+    let ui_state = ui_state.clone();
+
+    Callback::from(move |(button_id, english_phrase): (String, String)| {
+        info!(
+            "Translating prompt from button '{}': {}",
+            button_id, english_phrase
+        );
+
+        // Set loading state for specific button
+        ui_state.dispatch(UIStateAction::PushTranslatingButton(button_id));
+        app_state.dispatch(AppStateAction::ClearError);
+
+        let ui_state = ui_state.clone();
+        let app_state = app_state.clone();
+
+        // Start async translation
+        wasm_bindgen_futures::spawn_local(async move {
+            match app_state
+                .translation_service
+                .translate_phrase(
+                    &english_phrase,
+                    (*app_state).language_choices.selected_dialect,
+                    Some((*app_state).language_manner.formality),
+                )
+                .await
+            {
+                Ok(translated) => {
+                    info!(
+                        "Translation success: '{}' -> '{}'",
+                        english_phrase, translated
+                    );
+                    ui_state.dispatch(UIStateAction::EnterInputPrompt(translated));
+                    ui_state.dispatch(UIStateAction::ClearTranslatingButton);
+                }
+                Err(e) => {
+                    error!("Translation failed: {}", e);
+                    // Fallback to English phrase on error
+                    ui_state.dispatch(UIStateAction::EnterInputPrompt(english_phrase));
+                    app_state.dispatch(AppStateAction::SetError(format!(
+                        "Translation failed, using English phrase: {}",
+                        e
+                    )));
+                    ui_state.dispatch(UIStateAction::ClearTranslatingButton);
+                }
+            }
+        });
+    })
+}
+
+fn on_language_change(app_state: UseReducerHandle<AppState>) -> Callback<Event> {
+    let app_state = app_state.clone();
+    Callback::from(move |e: Event| {
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
+            let value = select.value();
+            let lang = match value.as_str() {
+                "spanish" => Language::Spanish,
+                "arabic" => Language::Arabic,
+                "french" => Language::French,
+                _ => Language::Spanish,
+            };
+            app_state.dispatch(AppStateAction::ChangeLanguage(lang));
+        }
+    })
+}
+
+fn on_dialect_change(app_state: UseReducerHandle<AppState>) -> Callback<Event> {
+    let app_state = app_state.clone();
+    Callback::from(move |e: Event| {
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
+            let value = select.value();
+
+            // Get all dialects for current language and find matching one
+            let dialects = Dialect::for_language((*app_state).language_choices.selected_language);
+            if let Some(dialect) = dialects.iter().find(|d| d.id() == value) {
+                app_state.dispatch(AppStateAction::ChangeDialect(dialect.clone()));
+            }
+        }
+    })
+}
+
+fn on_formality_change(app_state: UseReducerHandle<AppState>) -> Callback<Event> {
+    let app_state = app_state.clone();
+
+    Callback::from(move |e: Event| {
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
+            let value = select.value();
+            let f = match value.as_str() {
+                "formal" => Formality::Formal,
+                "casual" => Formality::Casual,
+                "dialect_rich" => Formality::DialectRich,
+                "slang" => Formality::Slang,
+                _ => Formality::Casual,
+            };
+            app_state.dispatch(AppStateAction::ChangeFormality(f));
+        }
+    })
+}
+
+fn on_teaching_mode_change(app_state: UseReducerHandle<AppState>) -> Callback<Event> {
+    let app_state = app_state.clone();
+
+    Callback::from(move |e: Event| {
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
+            let value = select.value();
+            let tm = match value.as_str() {
+                "immersive" => TeachingMode::Immersive,
+                "corrective" => TeachingMode::Corrective,
+                "explanatory" => TeachingMode::Explanatory,
+                "interleaved" => TeachingMode::Interleaved,
+                "debug" => TeachingMode::Debug,
+                _ => TeachingMode::Immersive,
+            };
+            app_state.dispatch(AppStateAction::ChangeTeachingMode(tm));
+        }
+    })
+}
+
+fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Message> {
+    let app_state = app_state.clone();
+
+    Callback::from(move |msg: Message| {
+        info!("Replaying message with TTS: {}", msg.content);
+        app_state.dispatch(AppStateAction::Speak(msg));
+    })
+}
+
+fn on_dialect_cycle(app_state: UseReducerHandle<AppState>) -> Callback<()> {
+    let app_state = app_state.clone();
+
+    Callback::from(move |_| {
+        app_state.dispatch(AppStateAction::RotateDialect);
+    })
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
-    let language_dialect = use_state(LanguageChoices::default);
-    let language_manner = use_state(LanguageManner::default);
     let app_state = use_reducer(AppState::default);
     let ui_state = use_reducer(UIState::default);
 
     {
         let app_state = app_state.clone();
-        let language_dialect = language_dialect.clone();
-
         use_effect_with((), move |_| {
             info!("Initializing WebSocket connection");
 
@@ -233,24 +476,8 @@ pub fn app() -> Html {
                     info!("Received message from: {}", msg.participant_id);
                     asc.dispatch(AppStateAction::LoadingComplete);
 
-                    // Speak agent messages automatically with TTS
                     if msg.participant_id != "user" {
-                        if let Some(neural_tts) = (*asc).tts_service.as_ref() {
-                            info!(
-                                "Synthesizing from dialect {}",
-                                (*language_dialect).selected_dialect
-                            );
-                            let text = msg.content.clone();
-                            let language_code = (*language_dialect).selected_dialect.bcp47_tag().to_string();
-                            let tts = neural_tts.clone();
-
-                            // Spawn async task to call TTS
-                            wasm_bindgen_futures::spawn_local(async move {
-                                if let Err(e) = tts.speak(&text, "", &language_code).await {
-                                    error!("Failed to speak message with TTS: {}", e);
-                                }
-                            });
-                        }
+                        asc.dispatch(AppStateAction::Speak(msg.clone()));
                     }
 
                     asc.dispatch(AppStateAction::AddMessage(msg));
@@ -287,230 +514,6 @@ pub fn app() -> Html {
             }
         });
     }
-
-    // Handle sending messages
-    let on_send_message = {
-        let app_state = app_state.clone();
-        let language_dialect = language_dialect.clone();
-        let language_manner = language_manner.clone();
-
-        Callback::from(move |content: String| {
-            info!("Sending message: {}", content);
-
-            // Create message with metadata
-            let mut msg = Message::new(
-                (*app_state).session_id,
-                "user".to_string(),
-                content,
-                (*language_dialect).selected_dialect.bcp47_tag().to_string(),
-            );
-
-            // Set formality and teaching mode in metadata
-            msg.metadata.formality = Some((*language_manner).formality);
-            msg.metadata.teaching_mode = Some((*language_manner).teaching_mode);
-
-            // Add to local messages
-            app_state
-                .dispatch(AppStateAction::AddMessage(msg.clone()));
-
-            // Send through WebSocket
-            match app_state.ws_service.borrow().send_message(&msg) {
-                Ok(_) => {
-                    info!("Message sent successfully");
-                    app_state.dispatch(AppStateAction::SetLoading);
-                    app_state.dispatch(AppStateAction::ClearError);
-                }
-                Err(e) => {
-                    error!("Failed to send message: {}", e);
-                    app_state.dispatch(AppStateAction::SetError(format!("Failed to send: {}", e)));
-                }
-            }
-        })
-    };
-
-    // Handle language change
-    let on_language_change = {
-        let language_dialect = language_dialect.clone();
-
-        Callback::from(move |e: Event| {
-            if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-                let value = select.value();
-                let lang = match value.as_str() {
-                    "spanish" => Language::Spanish,
-                    "arabic" => Language::Arabic,
-                    "french" => Language::French,
-                    _ => Language::Spanish,
-                };
-                language_dialect.set(language_dialect.with_language(lang));
-
-                // Update dialect to match language
-                let default_dialect = match lang {
-                    Language::Spanish => Dialect::SpanishCuban,
-                    Language::Arabic => Dialect::ArabicEgyptian,
-                    Language::French => Dialect::FrenchParisian,
-                };
-                language_dialect.set(language_dialect.with_dialect(default_dialect));
-            }
-        })
-    };
-
-    // Handle dialect change
-    let on_dialect_change = {
-        let language_dialect = language_dialect.clone();
-
-        Callback::from(move |e: Event| {
-            if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-                let value = select.value();
-
-                // Get all dialects for current language and find matching one
-                let dialects = Dialect::for_language((*language_dialect).selected_language);
-                if let Some(dialect) = dialects.iter().find(|d| d.id() == value) {
-                    language_dialect.set(language_dialect.with_dialect(dialect.clone()));
-                }
-            }
-        })
-    };
-
-    // Handle formality change
-    let on_formality_change = {
-        let language_manner = language_manner.clone();
-
-        Callback::from(move |e: Event| {
-            if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-                let value = select.value();
-                let f = match value.as_str() {
-                    "formal" => Formality::Formal,
-                    "casual" => Formality::Casual,
-                    "dialect_rich" => Formality::DialectRich,
-                    "slang" => Formality::Slang,
-                    _ => Formality::Casual,
-                };
-                language_manner.set(language_manner.with_formality(f));
-            }
-        })
-    };
-
-    // Handle teaching mode change
-    let on_teaching_mode_change = {
-        let language_manner = language_manner.clone();
-
-        Callback::from(move |e: Event| {
-            if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-                let value = select.value();
-                let tm = match value.as_str() {
-                    "immersive" => TeachingMode::Immersive,
-                    "corrective" => TeachingMode::Corrective,
-                    "explanatory" => TeachingMode::Explanatory,
-                    "interleaved" => TeachingMode::Interleaved,
-                    "debug" => TeachingMode::Debug,
-                    _ => TeachingMode::Immersive,
-                };
-                language_manner.set(language_manner.with_teaching_mode(tm));
-            }
-        })
-    };
-
-    // Handle TTS replay for messages
-    let on_replay_message = {
-        let app_state = app_state.clone();
-        let language_dialect = language_dialect.clone();
-
-        Callback::from(move |msg: Message| {
-            info!("Replaying message with TTS: {}", msg.content);
-            if let Some(tts) = (*app_state).tts_service.as_ref() {
-                let text = msg.content.clone();
-                let language_code = ((*language_dialect).selected_dialect)
-                    .bcp47_tag()
-                    .to_string();
-                let tts_clone = tts.clone();
-
-                // Spawn async task to call TTS
-                wasm_bindgen_futures::spawn_local(async move {
-                    if let Err(e) = tts_clone.speak(&text, "", &language_code).await {
-                        error!("Failed to replay message with TTS: {}", e);
-                    }
-                });
-            }
-        })
-    };
-
-    // Handle dialect cycling - quick switch between dialects within current language
-    let on_dialect_cycle = {
-        let language_dialect = language_dialect.clone();
-
-        Callback::from(move |_| {
-            let current_dialects = Dialect::for_language((*language_dialect).selected_language);
-            let current_index = current_dialects
-                .iter()
-                .position(|d| d == &(*language_dialect).selected_dialect)
-                .unwrap_or(0);
-            let next_index = (current_index + 1) % current_dialects.len();
-            let next_dialect = current_dialects[next_index];
-
-            info!(
-                "Cycling dialect: {} -> {}",
-                language_dialect.selected_dialect.name(),
-                next_dialect.name()
-            );
-            language_dialect.set(language_dialect.with_dialect(next_dialect));
-        })
-    };
-
-    // Handle prompt button clicks - AI translate then populate input field
-    let on_prompt_click = {
-        let language_dialect = language_dialect.clone();
-        let language_manner = language_manner.clone();
-        let app_state = app_state.clone();
-        let ui_state = ui_state.clone();
-
-        Callback::from(move |(button_id, english_phrase): (String, String)| {
-            info!(
-                "Translating prompt from button '{}': {}",
-                button_id, english_phrase
-            );
-
-            // Set loading state for specific button
-            ui_state.dispatch(UIStateAction::PushTranslatingButton(button_id));
-            app_state.dispatch(AppStateAction::ClearError);
-
-            let ui_state = ui_state.clone();
-            let app_state = app_state.clone();
-            let language_dialect = language_dialect.clone();
-            let language_manner = language_manner.clone();
-
-            // Start async translation
-            wasm_bindgen_futures::spawn_local(async move {
-                match app_state
-                    .translation_service
-                    .translate_phrase(
-                        &english_phrase,
-                        (*language_dialect).selected_dialect,
-                        Some((*language_manner).formality),
-                    )
-                    .await
-                {
-                    Ok(translated) => {
-                        info!(
-                            "Translation success: '{}' -> '{}'",
-                            english_phrase, translated
-                        );
-                        ui_state.dispatch(UIStateAction::EnterInputPrompt(translated));
-                        ui_state.dispatch(UIStateAction::ClearTranslatingButton);
-                    }
-                    Err(e) => {
-                        error!("Translation failed: {}", e);
-                        // Fallback to English phrase on error
-                        ui_state.dispatch(UIStateAction::EnterInputPrompt(english_phrase));
-                        app_state.dispatch(AppStateAction::SetError(format!(
-                            "Translation failed, using English phrase: {}",
-                            e
-                        )));
-                        ui_state.dispatch(UIStateAction::ClearTranslatingButton);
-                    }
-                }
-            });
-        })
-    };
 
     html! {
         <div class="app">
@@ -553,24 +556,24 @@ pub fn app() -> Html {
                         <ChatWindow
                             messages={(*app_state).messages.messages.clone()}
                             is_loading={(*app_state).is_loading}
-                            on_replay_message={Some(on_replay_message.clone())}
-                            on_prompt_click={Some(on_prompt_click.clone())}
+                            on_replay_message={Some(on_replay_message(app_state.clone()))}
+                            on_prompt_click={Some(on_prompt_click(app_state.clone(), ui_state.clone()))}
                             translating_button={((*ui_state).translating_button).clone()}
-                            formality={(*language_manner).formality}
+                            formality={(*app_state).language_manner.formality}
                         />
                         <SpeechControls
-                            on_speech={on_send_message.clone()}
-                            language_code={(*language_dialect).selected_dialect.bcp47_tag().to_string()}
-                            on_dialect_cycle={Some(on_dialect_cycle.clone())}
+                            on_speech={on_send_message(app_state.clone())}
+                            language_code={(*app_state).language_choices.selected_dialect.bcp47_tag().to_string()}
+                            on_dialect_cycle={Some(on_dialect_cycle(app_state.clone()))}
                         />
                         <InputBox
                             on_send={{
                                 let ui_state = ui_state.clone();
-                                let on_send_message = on_send_message.clone();
+                                let send_message = on_send_message(app_state.clone());
                                 Callback::from(move |content: String| {
                                     // Clear the prompt value after use
                                     ui_state.dispatch(UIStateAction::ClearInputPrompt);
-                                    on_send_message.emit(content);
+                                    send_message.emit(content);
                                 })
                             }}
                             disabled={!matches!((*app_state).connection_state, ConnectionState::Connected)}
@@ -616,7 +619,7 @@ pub fn app() -> Html {
                             <div class="field-group">
                                 <div class="panel-field">
                                     <label for="language-select">{"Language"}</label>
-                                    <select id="language-select" onchange={on_language_change}>
+                                    <select id="language-select" onchange={on_language_change(app_state.clone())}>
                                         <option value="spanish" selected=true>{"Spanish"}</option>
                                         <option value="arabic">{"Arabic"}</option>
                                         <option value="french">{"French"}</option>
@@ -625,9 +628,9 @@ pub fn app() -> Html {
 
                                 <div class="panel-field">
                                     <label for="dialect-select">{"Dialect"}</label>
-                                    <select id="dialect-select" onchange={on_dialect_change}>
-                                        {for Dialect::for_language((*language_dialect).selected_language).iter().map(|dialect| {
-                                            let is_selected = *dialect == (*language_dialect).selected_dialect;
+                                    <select id="dialect-select" onchange={on_dialect_change(app_state.clone())}>
+                                        {for Dialect::for_language((*app_state).language_choices.selected_language).iter().map(|dialect| {
+                                            let is_selected = *dialect == (*app_state).language_choices.selected_dialect;
                                             html! {
                                                 <option value={dialect.id()} selected={is_selected}>
                                                     {dialect.name()}
@@ -648,7 +651,7 @@ pub fn app() -> Html {
                             <div class="field-group">
                                 <div class="panel-field">
                                     <label for="formality-select">{"Formality Level"}</label>
-                                    <select id="formality-select" onchange={on_formality_change}>
+                                    <select id="formality-select" onchange={on_formality_change(app_state.clone())}>
                                         <option value="formal">{"Formal"}</option>
                                         <option value="casual" selected=true>{"Casual"}</option>
                                         <option value="dialect_rich">{"Dialect-Rich"}</option>
@@ -658,7 +661,7 @@ pub fn app() -> Html {
 
                                 <div class="panel-field">
                                     <label for="teaching-mode-select">{"Teaching Mode"}</label>
-                                    <select id="teaching-mode-select" onchange={on_teaching_mode_change}>
+                                    <select id="teaching-mode-select" onchange={on_teaching_mode_change(app_state.clone())}>
                                         <option value="immersive" selected=true>{"Immersive"}</option>
                                         <option value="corrective">{"Corrective"}</option>
                                         <option value="explanatory">{"Explanatory"}</option>

@@ -211,7 +211,6 @@ impl CloudTtsService {
     pub async fn speak(
         &self,
         text: &str,
-        voice_id: &str,
         language_code: &str,
     ) -> Result<(), String> {
         if text.is_empty() {
@@ -219,9 +218,8 @@ impl CloudTtsService {
         }
 
         info!(
-            "Synthesizing speech with backend TTS: {} chars, voice: {}",
-            text.len(),
-            voice_id
+            "Synthesizing speech with backend TTS: {}",
+            text,
         );
 
         // Build request
