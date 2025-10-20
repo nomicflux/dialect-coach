@@ -6,7 +6,7 @@ use uuid::Uuid;
 use yew::prelude::*;
 
 use crate::components::{ChatWindow, InputBox, SpeechControls};
-use crate::services::speech::{CloudTtsService, SpeechSynthesisService};
+use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
 
@@ -24,119 +24,224 @@ impl Default for MessagesState {
     }
 }
 
-impl Reducible for MessagesState {
-    type Action = MessagesAction;
-
-    fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
-        match action {
-            MessagesAction::Add(msg) => {
-                let mut messages = self.messages.clone();
-                messages.push(msg);
-                Rc::new(Self { messages })
-            }
-            MessagesAction::Clear => Rc::new(Self::default()),
+impl MessagesState {
+    fn push_message(&self, msg: Message) -> Self {
+        let mut msgs = self.messages.clone();
+        msgs.push(msg);
+        Self {
+            messages: msgs,
         }
     }
 }
 
-enum MessagesAction {
-    Add(Message),
-    Clear,
+#[derive(Clone)]
+struct LanguageChoices {
+    selected_language: Language,
+    selected_dialect: Dialect,
+}
+
+impl Default for LanguageChoices {
+    fn default() -> Self {
+        Self {
+            selected_language: Language::Spanish,
+            selected_dialect: Dialect::SpanishCuban,
+        }
+    }
+}
+
+impl LanguageChoices {
+    fn with_language(&self, language: Language) -> Self {
+        Self { selected_language: language, ..self.clone() }
+    }
+
+    fn with_dialect(&self, dialect: Dialect) -> Self {
+        Self { selected_dialect: dialect, ..self.clone() }
+    }
+}
+
+#[derive(Clone)]
+struct LanguageManner {
+    formality: Formality,
+    teaching_mode: TeachingMode,
+}
+
+impl Default for LanguageManner {
+    fn default() -> Self {
+        Self {
+            formality: Formality::Casual,
+            teaching_mode: TeachingMode::Immersive,
+        }
+    }
+}
+
+impl LanguageManner {
+    fn with_formality(&self, formality: Formality) -> Self {
+        Self { formality, ..self.clone() }
+    }
+
+    fn with_teaching_mode(&self, teaching_mode: TeachingMode) -> Self {
+        Self { teaching_mode, ..self.clone() }
+    }
+}
+
+enum AppStateAction {
+    AddMessage(Message),
+    SetLoading,
+    LoadingComplete,
+    SetError(String),
+    ClearError,
+    SetConnectionState(ConnectionState),
+}
+
+#[derive(Clone)]
+struct AppState {
+    session_id: Uuid,
+    messages: MessagesState,
+    connection_state: ConnectionState,
+    is_loading: bool,
+    error_message: Option<String>,
+    ws_service: Rc<RefCell<WebSocketService>>,
+    tts_service: Option<Rc<CloudTtsService>>,
+    translation_service: Rc<TranslationService>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            session_id: Uuid::new_v4(),
+            messages: MessagesState::default(),
+            connection_state: ConnectionState::Disconnected,
+            is_loading: false,
+            error_message: None,
+            ws_service: Rc::new(RefCell::new(WebSocketService::new(
+                "ws://localhost:3000/ws",
+            ))),
+            tts_service: Some(Rc::new(CloudTtsService::new("http://localhost:3000"))),
+            translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
+        }
+    }
+}
+
+impl AppState {
+    pub fn apply_action(&self, action: AppStateAction) -> Self {
+        let mut next = self.clone();
+        match action {
+            AppStateAction::AddMessage(msg) => next.messages = self.messages.push_message(msg),
+            AppStateAction::SetLoading => next.is_loading = true,
+            AppStateAction::LoadingComplete => next. is_loading = false,
+            AppStateAction::SetError(msg) => next.error_message = Some(msg),
+            AppStateAction::ClearError => next.error_message = None,
+            AppStateAction::SetConnectionState(conn_state) => next.connection_state = conn_state,
+        };
+        next
+    }
+}
+
+impl Reducible for AppState {
+    type Action = AppStateAction;
+
+    fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
+        self.apply_action(action).into()
+    }
+}
+
+enum UIStateAction {
+    OpenPanel,
+    ClosePanel,
+    EnterInputPrompt(String),
+    ClearInputPrompt,
+    PushTranslatingButton(String),
+    ClearTranslatingButton,
+}
+
+#[derive(Clone)]
+struct UIState {
+    panel_open: bool,
+    input_prompt_value: Option<String>,
+    translating_button: Option<String>,
+}
+
+impl Default for UIState {
+    fn default() -> Self {
+        Self {
+            panel_open: false,
+            input_prompt_value: None,
+            translating_button: None,
+        }
+    }
+}
+
+impl UIState {
+    fn apply_action(&self, action: UIStateAction) -> Self {
+        let mut next = self.clone();
+        match action {
+            UIStateAction::OpenPanel => next.panel_open = true,
+            UIStateAction::ClosePanel => next.panel_open = false,
+            UIStateAction::EnterInputPrompt(input) => next.input_prompt_value = Some(input),
+            UIStateAction::ClearInputPrompt => next.input_prompt_value = None,
+            UIStateAction::PushTranslatingButton(msg) => next.translating_button = Some(msg),
+            UIStateAction::ClearTranslatingButton => next.translating_button = None,
+        };
+        next
+    }
+}
+
+impl Reducible for UIState {
+    type Action = UIStateAction;
+
+    fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
+        self.clone().to_owned().apply_action(action).into()
+    }
 }
 
 #[function_component(App)]
 pub fn app() -> Html {
-    // Language and dialect selection
-    let selected_language = use_state(|| Language::Spanish);
-    let selected_dialect = use_state(|| Dialect::SpanishMexican);
+    let language_dialect = use_state(LanguageChoices::default);
+    let language_manner = use_state(LanguageManner::default);
+    let app_state = use_reducer(AppState::default);
+    let ui_state = use_reducer(UIState::default);
 
-    // Formality and teaching mode
-    let formality = use_state(|| Formality::Casual);
-    let teaching_mode = use_state(|| TeachingMode::Immersive);
-
-    // Session state
-    let session_id = use_state(|| Uuid::new_v4());
-    let messages = use_reducer(MessagesState::default);
-    let connection_state = use_state(|| ConnectionState::Disconnected);
-    let is_loading = use_state(|| false);
-    let error_message = use_state(|| Option::<String>::None);
-
-    // UI state
-    let panel_open = use_state(|| false);
-    let input_prompt_value = use_state(|| Option::<String>::None);
-    let translating_button = use_state(|| Option::<String>::None);
-
-    // WebSocket service (wrapped in Rc<RefCell<>> for interior mutability)
-    let ws_service = use_state(|| {
-        Rc::new(RefCell::new(WebSocketService::new(
-            "ws://localhost:3000/ws",
-        )))
-    });
-
-    // Cloud TTS service
-    let neural_tts_service =
-        use_state(|| Some(Rc::new(CloudTtsService::new("http://localhost:3000"))));
-
-    // Translation service
-    let translation_service =
-        use_state(|| Rc::new(TranslationService::new("http://localhost:3000")));
-
-    // Keep browser TTS as fallback (for speech controls)
-    let tts_service = use_state(|| match SpeechSynthesisService::new() {
-        Ok(service) => Some(Rc::new(RefCell::new(service))),
-        Err(e) => {
-            error!("Failed to initialize browser TTS service: {}", e);
-            None
-        }
-    });
-
-    // Initialize WebSocket on mount
     {
-        let ws_service = ws_service.clone();
-        let connection_state = connection_state.clone();
-        let messages = messages.clone();
-        let error_message = error_message.clone();
-        let is_loading = is_loading.clone();
-        let tts_service = tts_service.clone();
-        let neural_tts_service = neural_tts_service.clone();
-        let selected_dialect = selected_dialect.clone();
+        let app_state = app_state.clone();
+        let language_dialect = language_dialect.clone();
 
         use_effect_with((), move |_| {
             info!("Initializing WebSocket connection");
 
             {
-                let mut ws = ws_service.borrow_mut();
+                let mut ws = (*app_state).ws_service.borrow_mut();
 
                 // Set up callbacks
                 ws.set_on_open(Callback::from(move |_| {
                     info!("WebSocket opened");
                 }));
 
-                let error_message_clone = error_message.clone();
+                let asc = app_state.clone();
                 ws.set_on_close(Callback::from(move |_| {
                     info!("WebSocket closed");
-                    error_message_clone.set(Some("Connection closed".to_string()));
+                    asc.dispatch(AppStateAction::SetError("Connection closed".to_string()));
                 }));
 
-                let error_message_clone = error_message.clone();
+                let asc = app_state.clone();
                 ws.set_on_error(Callback::from(move |err| {
                     error!("WebSocket error: {}", err);
-                    error_message_clone.set(Some(err));
+                    asc.dispatch(AppStateAction::SetError(err));
                 }));
 
-                let messages_dispatcher = messages.dispatcher();
-                let is_loading_clone = is_loading.clone();
-                let neural_tts_clone = neural_tts_service.clone();
-                let selected_dialect_clone = selected_dialect.clone();
+                let asc = app_state.clone();
                 ws.set_on_message(Callback::from(move |msg: Message| {
                     info!("Received message from: {}", msg.participant_id);
-                    is_loading_clone.set(false);
+                    asc.dispatch(AppStateAction::LoadingComplete);
 
                     // Speak agent messages automatically with TTS
                     if msg.participant_id != "user" {
-                        if let Some(neural_tts) = neural_tts_clone.as_ref() {
+                        if let Some(neural_tts) = (*asc).tts_service.as_ref() {
+                            info!(
+                                "Synthesizing from dialect {}",
+                                (*language_dialect).selected_dialect
+                            );
                             let text = msg.content.clone();
-                            let language_code = (*selected_dialect_clone).bcp47_tag().to_string();
+                            let language_code = (*language_dialect).selected_dialect.bcp47_tag().to_string();
                             let tts = neural_tts.clone();
 
                             // Spawn async task to call TTS
@@ -148,22 +253,20 @@ pub fn app() -> Html {
                         }
                     }
 
-                    messages_dispatcher.dispatch(MessagesAction::Add(msg));
+                    asc.dispatch(AppStateAction::AddMessage(msg));
                 }));
 
-                // Set up state change callback
-                let connection_state_clone = connection_state.clone();
-                let ws_service_clone = ws_service.clone();
+                let asc = app_state.clone();
                 ws.set_on_state_change(Callback::from(move |new_state| {
                     info!("Connection state changed to: {:?}", new_state);
-                    connection_state_clone.set(new_state);
+                    asc.dispatch(AppStateAction::SetConnectionState(new_state));
 
                     // Handle reconnecting state - the WebSocketService will attempt
                     // automatic reconnection, but we need to trigger it from the app layer
                     // since we can't easily call methods from within the async task
                     if matches!(new_state, ConnectionState::Reconnecting) {
                         // Schedule a reconnect attempt
-                        let ws_clone = ws_service_clone.clone();
+                        let ws_clone = (*asc).ws_service.clone();
                         gloo::timers::callback::Timeout::new(100, move || {
                             info!("Triggering reconnection from app layer");
                             ws_clone.borrow_mut().reconnect();
@@ -177,7 +280,7 @@ pub fn app() -> Html {
             } // Drop the borrow here
 
             // Cleanup on unmount
-            let ws_service_clone = ws_service.clone();
+            let ws_service_clone = (*app_state).ws_service.clone();
             move || {
                 info!("Disconnecting WebSocket");
                 ws_service_clone.borrow_mut().disconnect();
@@ -187,43 +290,39 @@ pub fn app() -> Html {
 
     // Handle sending messages
     let on_send_message = {
-        let ws_service = ws_service.clone();
-        let session_id = session_id.clone();
-        let selected_dialect = selected_dialect.clone();
-        let formality = formality.clone();
-        let teaching_mode = teaching_mode.clone();
-        let messages = messages.clone();
-        let is_loading = is_loading.clone();
-        let error_message = error_message.clone();
+        let app_state = app_state.clone();
+        let language_dialect = language_dialect.clone();
+        let language_manner = language_manner.clone();
 
         Callback::from(move |content: String| {
             info!("Sending message: {}", content);
 
             // Create message with metadata
             let mut msg = Message::new(
-                *session_id,
+                (*app_state).session_id,
                 "user".to_string(),
                 content,
-                (*selected_dialect).bcp47_tag().to_string(),
+                (*language_dialect).selected_dialect.bcp47_tag().to_string(),
             );
 
             // Set formality and teaching mode in metadata
-            msg.metadata.formality = Some(*formality);
-            msg.metadata.teaching_mode = Some(*teaching_mode);
+            msg.metadata.formality = Some((*language_manner).formality);
+            msg.metadata.teaching_mode = Some((*language_manner).teaching_mode);
 
             // Add to local messages
-            messages.dispatch(MessagesAction::Add(msg.clone()));
+            app_state
+                .dispatch(AppStateAction::AddMessage(msg.clone()));
 
             // Send through WebSocket
-            match ws_service.borrow().send_message(&msg) {
+            match app_state.ws_service.borrow().send_message(&msg) {
                 Ok(_) => {
                     info!("Message sent successfully");
-                    is_loading.set(true);
-                    error_message.set(None);
+                    app_state.dispatch(AppStateAction::SetLoading);
+                    app_state.dispatch(AppStateAction::ClearError);
                 }
                 Err(e) => {
                     error!("Failed to send message: {}", e);
-                    error_message.set(Some(format!("Failed to send: {}", e)));
+                    app_state.dispatch(AppStateAction::SetError(format!("Failed to send: {}", e)));
                 }
             }
         })
@@ -231,8 +330,7 @@ pub fn app() -> Html {
 
     // Handle language change
     let on_language_change = {
-        let selected_language = selected_language.clone();
-        let selected_dialect = selected_dialect.clone();
+        let language_dialect = language_dialect.clone();
 
         Callback::from(move |e: Event| {
             if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
@@ -243,32 +341,31 @@ pub fn app() -> Html {
                     "french" => Language::French,
                     _ => Language::Spanish,
                 };
-                selected_language.set(lang);
+                language_dialect.set(language_dialect.with_language(lang));
 
                 // Update dialect to match language
                 let default_dialect = match lang {
-                    Language::Spanish => Dialect::SpanishMexican,
+                    Language::Spanish => Dialect::SpanishCuban,
                     Language::Arabic => Dialect::ArabicEgyptian,
                     Language::French => Dialect::FrenchParisian,
                 };
-                selected_dialect.set(default_dialect);
+                language_dialect.set(language_dialect.with_dialect(default_dialect));
             }
         })
     };
 
     // Handle dialect change
     let on_dialect_change = {
-        let selected_dialect = selected_dialect.clone();
-        let selected_language = selected_language.clone();
+        let language_dialect = language_dialect.clone();
 
         Callback::from(move |e: Event| {
             if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
                 let value = select.value();
 
                 // Get all dialects for current language and find matching one
-                let dialects = Dialect::for_language(*selected_language);
+                let dialects = Dialect::for_language((*language_dialect).selected_language);
                 if let Some(dialect) = dialects.iter().find(|d| d.id() == value) {
-                    selected_dialect.set(*dialect);
+                    language_dialect.set(language_dialect.with_dialect(dialect.clone()));
                 }
             }
         })
@@ -276,7 +373,7 @@ pub fn app() -> Html {
 
     // Handle formality change
     let on_formality_change = {
-        let formality = formality.clone();
+        let language_manner = language_manner.clone();
 
         Callback::from(move |e: Event| {
             if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
@@ -288,14 +385,14 @@ pub fn app() -> Html {
                     "slang" => Formality::Slang,
                     _ => Formality::Casual,
                 };
-                formality.set(f);
+                language_manner.set(language_manner.with_formality(f));
             }
         })
     };
 
     // Handle teaching mode change
     let on_teaching_mode_change = {
-        let teaching_mode = teaching_mode.clone();
+        let language_manner = language_manner.clone();
 
         Callback::from(move |e: Event| {
             if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
@@ -305,23 +402,26 @@ pub fn app() -> Html {
                     "corrective" => TeachingMode::Corrective,
                     "explanatory" => TeachingMode::Explanatory,
                     "interleaved" => TeachingMode::Interleaved,
+                    "debug" => TeachingMode::Debug,
                     _ => TeachingMode::Immersive,
                 };
-                teaching_mode.set(tm);
+                language_manner.set(language_manner.with_teaching_mode(tm));
             }
         })
     };
 
     // Handle TTS replay for messages
     let on_replay_message = {
-        let neural_tts = neural_tts_service.clone();
-        let selected_dialect = selected_dialect.clone();
+        let app_state = app_state.clone();
+        let language_dialect = language_dialect.clone();
 
         Callback::from(move |msg: Message| {
             info!("Replaying message with TTS: {}", msg.content);
-            if let Some(tts) = neural_tts.as_ref() {
+            if let Some(tts) = (*app_state).tts_service.as_ref() {
                 let text = msg.content.clone();
-                let language_code = (*selected_dialect).bcp47_tag().to_string();
+                let language_code = ((*language_dialect).selected_dialect)
+                    .bcp47_tag()
+                    .to_string();
                 let tts_clone = tts.clone();
 
                 // Spawn async task to call TTS
@@ -336,35 +436,32 @@ pub fn app() -> Html {
 
     // Handle dialect cycling - quick switch between dialects within current language
     let on_dialect_cycle = {
-        let selected_language = selected_language.clone();
-        let selected_dialect = selected_dialect.clone();
+        let language_dialect = language_dialect.clone();
 
         Callback::from(move |_| {
-            let current_dialects = Dialect::for_language(*selected_language);
+            let current_dialects = Dialect::for_language((*language_dialect).selected_language);
             let current_index = current_dialects
                 .iter()
-                .position(|d| d == &*selected_dialect)
+                .position(|d| d == &(*language_dialect).selected_dialect)
                 .unwrap_or(0);
             let next_index = (current_index + 1) % current_dialects.len();
             let next_dialect = current_dialects[next_index];
 
             info!(
                 "Cycling dialect: {} -> {}",
-                selected_dialect.name(),
+                language_dialect.selected_dialect.name(),
                 next_dialect.name()
             );
-            selected_dialect.set(next_dialect);
+            language_dialect.set(language_dialect.with_dialect(next_dialect));
         })
     };
 
     // Handle prompt button clicks - AI translate then populate input field
     let on_prompt_click = {
-        let input_prompt_value = input_prompt_value.clone();
-        let translation_service = translation_service.clone();
-        let selected_dialect = selected_dialect.clone();
-        let formality = formality.clone();
-        let error_message = error_message.clone();
-        let translating_button = translating_button.clone();
+        let language_dialect = language_dialect.clone();
+        let language_manner = language_manner.clone();
+        let app_state = app_state.clone();
+        let ui_state = ui_state.clone();
 
         Callback::from(move |(button_id, english_phrase): (String, String)| {
             info!(
@@ -372,42 +469,43 @@ pub fn app() -> Html {
                 button_id, english_phrase
             );
 
-            let input_prompt_value = input_prompt_value.clone();
-            let translation_service = translation_service.clone();
-            let selected_dialect = selected_dialect.clone();
-            let formality = formality.clone();
-            let error_message = error_message.clone();
-            let translating_button = translating_button.clone();
-            let english_phrase_clone = english_phrase.clone();
-            let button_id_clone = button_id.clone();
-
             // Set loading state for specific button
-            translating_button.set(Some(button_id));
-            error_message.set(None);
+            ui_state.dispatch(UIStateAction::PushTranslatingButton(button_id));
+            app_state.dispatch(AppStateAction::ClearError);
+
+            let ui_state = ui_state.clone();
+            let app_state = app_state.clone();
+            let language_dialect = language_dialect.clone();
+            let language_manner = language_manner.clone();
 
             // Start async translation
             wasm_bindgen_futures::spawn_local(async move {
-                match translation_service
-                    .translate_phrase(&english_phrase, *selected_dialect, Some(*formality))
+                match app_state
+                    .translation_service
+                    .translate_phrase(
+                        &english_phrase,
+                        (*language_dialect).selected_dialect,
+                        Some((*language_manner).formality),
+                    )
                     .await
                 {
                     Ok(translated) => {
                         info!(
                             "Translation success: '{}' -> '{}'",
-                            english_phrase_clone, translated
+                            english_phrase, translated
                         );
-                        input_prompt_value.set(Some(translated));
-                        translating_button.set(None);
+                        ui_state.dispatch(UIStateAction::EnterInputPrompt(translated));
+                        ui_state.dispatch(UIStateAction::ClearTranslatingButton);
                     }
                     Err(e) => {
                         error!("Translation failed: {}", e);
                         // Fallback to English phrase on error
-                        input_prompt_value.set(Some(english_phrase_clone));
-                        error_message.set(Some(format!(
+                        ui_state.dispatch(UIStateAction::EnterInputPrompt(english_phrase));
+                        app_state.dispatch(AppStateAction::SetError(format!(
                             "Translation failed, using English phrase: {}",
                             e
                         )));
-                        translating_button.set(None);
+                        ui_state.dispatch(UIStateAction::ClearTranslatingButton);
                     }
                 }
             });
@@ -425,7 +523,7 @@ pub fn app() -> Html {
 
                     // Connection status
                     <div class="connection-status">
-                        {match *connection_state {
+                        {match (*app_state).connection_state {
                             ConnectionState::Connected => html! { <span class="status-connected">{"● Ready to chat!"}</span> },
                             ConnectionState::Connecting => html! { <span class="status-connecting">{"⟳ Connecting..."}</span> },
                             ConnectionState::Reconnecting => html! { <span class="status-reconnecting">{"⟳ Reconnecting..."}</span> },
@@ -441,7 +539,7 @@ pub fn app() -> Html {
                     // Main chat card
                     <div class="card card--chat" id="main-chat">
                         // Error display
-                        {if let Some(err) = (*error_message).as_ref() {
+                        {if let Some(err) = ((*app_state).error_message).as_ref() {
                             html! {
                                 <div class="error-banner">
                                     {format!("⚠️ {}", err)}
@@ -453,38 +551,42 @@ pub fn app() -> Html {
 
                         // Chat interface
                         <ChatWindow
-                            messages={messages.messages.clone()}
-                            is_loading={*is_loading}
+                            messages={(*app_state).messages.messages.clone()}
+                            is_loading={(*app_state).is_loading}
                             on_replay_message={Some(on_replay_message.clone())}
                             on_prompt_click={Some(on_prompt_click.clone())}
-                            translating_button={(*translating_button).clone()}
-                            formality={*formality}
+                            translating_button={((*ui_state).translating_button).clone()}
+                            formality={(*language_manner).formality}
                         />
                         <SpeechControls
                             on_speech={on_send_message.clone()}
-                            language_code={(*selected_dialect).bcp47_tag().to_string()}
+                            language_code={(*language_dialect).selected_dialect.bcp47_tag().to_string()}
                             on_dialect_cycle={Some(on_dialect_cycle.clone())}
                         />
                         <InputBox
                             on_send={{
-                                let input_prompt_value = input_prompt_value.clone();
+                                let ui_state = ui_state.clone();
                                 let on_send_message = on_send_message.clone();
                                 Callback::from(move |content: String| {
                                     // Clear the prompt value after use
-                                    input_prompt_value.set(None);
+                                    ui_state.dispatch(UIStateAction::ClearInputPrompt);
                                     on_send_message.emit(content);
                                 })
                             }}
-                            disabled={!matches!(*connection_state, ConnectionState::Connected)}
-                            external_value={(*input_prompt_value).clone()}
+                            disabled={!matches!((*app_state).connection_state, ConnectionState::Connected)}
+                            external_value={((*ui_state).input_prompt_value).clone()}
                         />
                     </div>
 
                     // Floating panel toggle button
                     <button class="panel-toggle" onclick={{
-                        let panel_open = panel_open.clone();
+                        let ui_state = ui_state.clone();
                         Callback::from(move |_| {
-                            panel_open.set(!*panel_open);
+                            ui_state.dispatch(if (*ui_state).panel_open {
+                                UIStateAction::ClosePanel
+                            } else {
+                                UIStateAction::OpenPanel
+                            })
                         })
                     }}>
                         <span>{"⚙️"}</span>
@@ -493,13 +595,13 @@ pub fn app() -> Html {
                 </div>
 
                 // Configuration panel (collapsible)
-                <div class="panel" data-open={if *panel_open { "true" } else { "false" }}>
+                <div class="panel" data-open={if (*ui_state).panel_open { "true" } else { "false" }}>
                     <div class="panel-header">
                         <h3 class="panel-title">{"Practice Settings"}</h3>
                         <button class="panel-close" onclick={{
-                            let panel_open = panel_open.clone();
+                            let ui_state = ui_state.clone();
                             Callback::from(move |_| {
-                                panel_open.set(false);
+                                ui_state.dispatch(UIStateAction::ClosePanel);
                             })
                         }}>
                             {"×"}
@@ -524,8 +626,8 @@ pub fn app() -> Html {
                                 <div class="panel-field">
                                     <label for="dialect-select">{"Dialect"}</label>
                                     <select id="dialect-select" onchange={on_dialect_change}>
-                                        {for Dialect::for_language(*selected_language).iter().map(|dialect| {
-                                            let is_selected = *dialect == *selected_dialect;
+                                        {for Dialect::for_language((*language_dialect).selected_language).iter().map(|dialect| {
+                                            let is_selected = *dialect == (*language_dialect).selected_dialect;
                                             html! {
                                                 <option value={dialect.id()} selected={is_selected}>
                                                     {dialect.name()}
@@ -561,10 +663,8 @@ pub fn app() -> Html {
                                         <option value="corrective">{"Corrective"}</option>
                                         <option value="explanatory">{"Explanatory"}</option>
                                         <option value="interleaved">{"Interleaved"}</option>
+                                        <option value="debug">{"Debug"}</option>
                                     </select>
-                                    <div class="field-help">
-                                        {"Immersive keeps conversations flowing naturally. Corrective corrects users mistakes. Explanatory gives detailed explanations. Interleaved lets the user use their target language along with their source language, and the app will help translate it."}
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -572,10 +672,10 @@ pub fn app() -> Html {
                 </div>
 
                 // Panel backdrop
-                <div class="panel-backdrop" data-open={if *panel_open { "true" } else { "false" }} onclick={{
-                    let panel_open = panel_open.clone();
+                <div class="panel-backdrop" data-open={if (*ui_state).panel_open { "true" } else { "false" }} onclick={{
+                    let ui_state = ui_state.clone();
                     Callback::from(move |_| {
-                        panel_open.set(false);
+                        ui_state.dispatch(UIStateAction::ClosePanel);
                     })
                 }}></div>
             </main>

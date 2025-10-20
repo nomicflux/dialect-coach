@@ -13,12 +13,6 @@ pub struct MessageBubbleProps {
 pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     let msg = &props.message;
 
-    let bubble_class = if props.is_own_message {
-        "message-bubble message-own"
-    } else {
-        "message-bubble message-other"
-    };
-
     let on_replay_click = {
         let on_replay = props.on_replay.clone();
         let msg = props.message.clone();

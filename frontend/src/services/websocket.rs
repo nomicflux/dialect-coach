@@ -173,9 +173,7 @@ impl WebSocketService {
         let on_open = self.on_open.clone();
         let state = self.state.clone();
         let reconnection_attempt = self.reconnection_attempt.clone();
-        let pending_messages = self.pending_messages.clone();
         let on_state_change = self.on_state_change.clone();
-        let url = self.url.clone();
         let reconnection_config = self.reconnection_config.clone();
         let reconnection_timeout = self.reconnection_timeout.clone();
 

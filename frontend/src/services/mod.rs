@@ -5,6 +5,6 @@ pub mod translation;
 pub mod websocket;
 
 pub use persistence::PersistenceService;
-pub use speech::{CloudTtsService, SpeechRecognitionService, SpeechSynthesisService};
+pub use speech::{CloudTtsService, SpeechRecognitionService};
 pub use translation::TranslationService;
 pub use websocket::WebSocketService;
