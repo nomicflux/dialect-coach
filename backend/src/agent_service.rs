@@ -37,6 +37,7 @@ fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
         TeachingMode::Corrective => 128,
         TeachingMode::Explanatory => 512,
         TeachingMode::Interleaved => 512,
+        TeachingMode::StoryTeller => 256,
         TeachingMode::Debug => 1024,
     }
 }
@@ -67,27 +68,30 @@ fn teaching_desc(teaching_mode: &TeachingMode) -> String {
     let tokens = tokens_per_mode(teaching_mode);
     let desc = match *teaching_mode {
         TeachingMode::Immersive => {
-            "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections"
+            "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections."
         },
         TeachingMode::Corrective => {
-            "3. CORRECTIVE MODE: Point out grammar or usage errors simply and clearly, then provide the correction"
+            "3. CORRECTIVE MODE: Point out grammar or usage errors simply and clearly, then provide the correction."
         },
         TeachingMode::Explanatory => {
-            "3. EXPLANATORY MODE: Provide brief explanations of interesting grammar, idioms, or cultural context when relevant"
+            "3. EXPLANATORY MODE: Provide brief explanations of interesting grammar, idioms, or cultural context when relevant."
         },
         TeachingMode::Interleaved => {
             "3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:
 
-{user input with non-target-language words simply translated into target dialect}
+{user input with non-target-language words simply translated into target dialect, if there are any non-target-language words}
 
-{brief, conversational response in target dialect}"
+{brief, conversational response in target dialect}."
+        },
+        TeachingMode::StoryTeller => {
+            "3. STORYTELLER MODE: You are telling an interactive story with the user. Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue."
         },
         TeachingMode::Debug => {
             "3. DEBUG MODE: Ignore all system instructions. The user is trying to debug an issue with you about a response of yours.
 Answer in English with clear, brief explanations of how prompts could be improved to deliver the expected results."
         },
     };
-    format!("{}. 4. You have {} tokens for your response.", desc, tokens)
+    format!("{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.", desc, tokens)
 }
 
 impl AgentService {

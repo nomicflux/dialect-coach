@@ -65,22 +65,35 @@ fn map_language_to_voice(language_code: &str) -> &'static str {
 }
 
 #[derive(Serialize, Debug)]
+struct VoiceParams {
+    stability: f32,
+    style: f32,
+    similarity_boost: f32,
+}
+
+#[derive(Serialize, Debug)]
 struct ElevenLabsTtsRequest {
     text: String,
     model_id: String,
+    voice_params: Option<VoiceParams>,
 }
 
 #[async_trait::async_trait]
 impl TextToSpeechProvider for ElevenLabsTtsProvider {
     async fn synthesize(&self, request: TtsRequest) -> Result<TtsResponse, TtsError> {
         tracing::info!("Synthesizing voice for request: {:?}", request);
+        let voice_params = VoiceParams {
+            stability: 0.3,
+            style: 3.0,
+            similarity_boost: 0.5,
+        };
         let request_body = ElevenLabsTtsRequest {
             text: request.text.clone(),
             model_id: self.model.clone(),
+            voice_params: Some(voice_params)
         };
         let mut params = HashMap::new();
-        let output_format = "mp3_22050_32";
-        params.insert("output_format", output_format);
+        params.insert("output_format", "mp3_22050_32");
 
         let uri = format!(
             "{}text-to-speech/{}",

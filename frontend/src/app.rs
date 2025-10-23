@@ -146,6 +146,7 @@ fn on_teaching_mode_change(app_state: UseReducerHandle<AppState>) -> Callback<Ev
                 "corrective" => TeachingMode::Corrective,
                 "explanatory" => TeachingMode::Explanatory,
                 "interleaved" => TeachingMode::Interleaved,
+                "storyteller" => TeachingMode::StoryTeller,
                 "debug" => TeachingMode::Debug,
                 _ => TeachingMode::Immersive,
             };
@@ -396,6 +397,7 @@ pub fn app() -> Html {
                                         <option value="corrective">{"Corrective"}</option>
                                         <option value="explanatory">{"Explanatory"}</option>
                                         <option value="interleaved">{"Interleaved"}</option>
+                                        <option value="storyteller">{"Story Teller"}</option>
                                         <option value="debug">{"Debug"}</option>
                                     </select>
                                 </div>

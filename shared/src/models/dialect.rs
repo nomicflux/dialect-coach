@@ -347,6 +347,8 @@ pub enum TeachingMode {
     Explanatory,
     #[serde(rename = "interleaved")]
     Interleaved,
+    #[serde(rename = "storyteller")]
+    StoryTeller,
     #[serde(rename = "debug")]
     Debug,
 }
