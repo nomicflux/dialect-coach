@@ -1,11 +1,12 @@
 mod app_state;
 use app_state::{AppState, UIState, AppStateAction, UIStateAction};
+pub use app_state::{LearningItem, LearningItemType};
 
 use dialect_coach_shared::models::{Formality, Language, Message, TeachingMode};
 use log::{error, info};
 use yew::prelude::*;
 
-use crate::components::{ChatWindow, InputBox, SpeechControls};
+use crate::components::{ChatWindow, InputBox, LearningPanel, SpeechControls};
 use crate::services::websocket::{ConnectionState};
 
 fn on_send_message(app_state: UseReducerHandle<AppState>) -> Callback<String> {
@@ -179,6 +180,7 @@ pub fn app() -> Html {
 
     {
         let app_state = app_state.clone();
+        let ui_state = ui_state.clone();
         use_effect_with((), move |_| {
             info!("Initializing WebSocket connection");
 
@@ -203,12 +205,19 @@ pub fn app() -> Html {
                 }));
 
                 let asc = app_state.clone();
+                let usc = ui_state.clone();
                 ws.set_on_message(Callback::from(move |msg: Message| {
                     info!("Received message from: {}", msg.participant_id);
                     asc.dispatch(AppStateAction::LoadingComplete);
 
                     if msg.participant_id != "user" {
                         asc.dispatch(AppStateAction::Speak(msg.clone()));
+                    }
+
+                    let mistakes = msg.content.mistakes.clone().unwrap_or_default();
+                    let explained = msg.content.explained.clone().unwrap_or_default();
+                    if !mistakes.is_empty() || !explained.is_empty() {
+                        usc.dispatch(UIStateAction::AddLearningItems(mistakes, explained));
                     }
 
                     asc.dispatch(AppStateAction::AddMessage(msg));
@@ -326,6 +335,27 @@ pub fn app() -> Html {
                         <span>{"⚙️"}</span>
                         <span>{"Practice Settings"}</span>
                     </button>
+
+                    // Learning panel toggle button
+                    <button class="learning-panel-toggle" onclick={{
+                        let ui_state = ui_state.clone();
+                        Callback::from(move |_| {
+                            ui_state.dispatch(if (*ui_state).learning_panel_open {
+                                UIStateAction::CloseLearningPanel
+                            } else {
+                                UIStateAction::OpenLearningPanel
+                            })
+                        })
+                    }}>
+                        <span>{"📚"}</span>
+                        <span>{"Learning Progress"}</span>
+                    </button>
+
+                    // Learning panel
+                    <LearningPanel
+                        items={(*ui_state).learning_items.clone()}
+                        is_open={(*ui_state).learning_panel_open}
+                    />
                 </div>
 
                 // Configuration panel (collapsible)

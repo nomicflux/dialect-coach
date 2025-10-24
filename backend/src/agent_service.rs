@@ -47,9 +47,22 @@ fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
 
 fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
     match teaching_mode {
+        TeachingMode::Corrective => {
+            r#"Response format: {
+  "response": "<your conversational response>",
+  "mistakes": [{"specific_mistake": "<word/phrase>", "mistake_category": {"type": "<category>", "context": "<info>"}}]
+}
+Categories: spelling_error (context=correct spelling), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
+Only include mistakes if user made errors. Keep specific_mistake brief."#
+        }
+        TeachingMode::Explanatory => {
+            r#"Response format: {
+  "response": "<your conversational response>",
+  "explained": [{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}]
+}
+Only include explained if you introduce noteworthy vocabulary, idioms, or cultural context."#
+        }
         TeachingMode::Immersive
-        | TeachingMode::Corrective
-        | TeachingMode::Explanatory
         | TeachingMode::Interleaved
         | TeachingMode::StoryTeller
         | TeachingMode::Debug => {
@@ -88,10 +101,10 @@ fn teaching_desc(teaching_mode: &TeachingMode) -> String {
             "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections."
         },
         TeachingMode::Corrective => {
-            "3. CORRECTIVE MODE: Point out grammar or usage errors simply and clearly, then provide the correction."
+            "3. CORRECTIVE MODE: Respond naturally, but also populate the mistakes array with any errors in user's message. Include spelling errors, grammar mistakes, and dialectal usage problems. Be specific and brief in identifying the exact problematic word or phrase."
         },
         TeachingMode::Explanatory => {
-            "3. EXPLANATORY MODE: Provide brief explanations of interesting grammar, idioms, or cultural context when relevant."
+            "3. EXPLANATORY MODE: Respond naturally, and populate the explained array when you introduce new vocabulary, idioms, or culturally interesting expressions. Keep explanations brief and practical."
         },
         TeachingMode::Interleaved => {
             "3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:

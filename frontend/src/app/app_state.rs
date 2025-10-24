@@ -1,4 +1,5 @@
 use dialect_coach_shared::models::{Dialect, Formality, Language, Message, TeachingMode};
+use dialect_coach_shared::{Explained, Mistake};
 use log::{error};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -8,6 +9,18 @@ use yew::prelude::*;
 use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
+
+#[derive(Clone, PartialEq)]
+pub enum LearningItemType {
+    Mistake(Mistake),
+    Explanation(Explained),
+}
+
+#[derive(Clone, PartialEq)]
+pub struct LearningItem {
+    pub item: LearningItemType,
+    pub score: u8,
+}
 
 #[derive(Clone, PartialEq)]
 struct MessagesState {
@@ -259,6 +272,9 @@ pub enum UIStateAction {
     ClearInputPrompt,
     PushTranslatingButton(String),
     ClearTranslatingButton,
+    OpenLearningPanel,
+    CloseLearningPanel,
+    AddLearningItems(Vec<Mistake>, Vec<Explained>),
 }
 
 #[derive(Clone)]
@@ -266,6 +282,8 @@ pub struct UIState {
     pub panel_open: bool,
     pub input_prompt_value: Option<String>,
     pub translating_button: Option<String>,
+    pub learning_items: Vec<LearningItem>,
+    pub learning_panel_open: bool,
 }
 
 impl Default for UIState {
@@ -274,8 +292,31 @@ impl Default for UIState {
             panel_open: false,
             input_prompt_value: None,
             translating_button: None,
+            learning_items: Vec::new(),
+            learning_panel_open: false,
         }
     }
+}
+
+fn create_learning_item(item_type: LearningItemType) -> LearningItem {
+    LearningItem {
+        item: item_type,
+        score: 0,
+    }
+}
+
+fn merge_items(
+    mut existing: Vec<LearningItem>,
+    mistakes: Vec<Mistake>,
+    explained: Vec<Explained>,
+) -> Vec<LearningItem> {
+    for mistake in mistakes {
+        existing.push(create_learning_item(LearningItemType::Mistake(mistake)));
+    }
+    for expl in explained {
+        existing.push(create_learning_item(LearningItemType::Explanation(expl)));
+    }
+    existing
 }
 
 impl UIState {
@@ -288,6 +329,11 @@ impl UIState {
             UIStateAction::ClearInputPrompt => next.input_prompt_value = None,
             UIStateAction::PushTranslatingButton(msg) => next.translating_button = Some(msg),
             UIStateAction::ClearTranslatingButton => next.translating_button = None,
+            UIStateAction::OpenLearningPanel => next.learning_panel_open = true,
+            UIStateAction::CloseLearningPanel => next.learning_panel_open = false,
+            UIStateAction::AddLearningItems(mistakes, explained) => {
+                next.learning_items = merge_items(self.learning_items.clone(), mistakes, explained)
+            }
         };
         next
     }
