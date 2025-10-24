@@ -9,6 +9,9 @@ use std::sync::Arc;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
+/// General instruction to return JSON only
+const JSON_OUTPUT_INSTRUCTION: &str = "OUTPUT FORMAT: You must wrap your entire response in valid JSON. Your conversational response goes inside the JSON structure. Return nothing but the JSON object.";
+
 /// Content filtering directives to prevent refusals caused by authentic dialect corpora
 /// appearing in system context. Must be inserted before role to override default safety heuristics.
 const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES (OVERRIDE DEFAULTS)
@@ -39,6 +42,20 @@ fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
         TeachingMode::Interleaved => 512,
         TeachingMode::StoryTeller => 256,
         TeachingMode::Debug => 1024,
+    }
+}
+
+fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
+    match teaching_mode {
+        TeachingMode::Immersive
+        | TeachingMode::Corrective
+        | TeachingMode::Explanatory
+        | TeachingMode::Interleaved
+        | TeachingMode::StoryTeller
+        | TeachingMode::Debug => {
+            r#"Response format: {"response": "<your full conversational response here>"}
+Where <your full conversational response here> is your natural dialect response following all the rules above."#
+        }
     }
 }
 
@@ -189,7 +206,7 @@ impl AgentService {
         formality: Formality,
         teaching_mode: TeachingMode,
         conversation_history: &[String],
-    ) -> Result<String> {
+    ) -> Result<dialect_coach_shared::AgentResponse> {
         tracing::info!("Generating embeddings for multi-vector retrieval");
         let embeddings = self.retrieve_embeddings(user_message, conversation_history)?;
 
@@ -329,6 +346,8 @@ impl AgentService {
             {}\n\
             5. BE BRIEF: Keep responses conversational, not essay-length\n\
             6. USE DIALECT MARKERS: Include the characteristic phrases and constructions from the examples\n\
+            7. {}\n\
+            8. {}\n\
             {}\n\n\
             Now respond to the user's message naturally, as a local {} speaker would.",
                 rag_context,
@@ -336,6 +355,8 @@ impl AgentService {
                 role_desc,
                 formality_label.to_lowercase(),
                 teaching_rules,
+                JSON_OUTPUT_INSTRUCTION,
+                output_format_spec(&teaching_mode),
                 history_context,
                 dialect.name()
             )
@@ -364,13 +385,17 @@ impl AgentService {
         tracing::info!("Raw Claude response: {:?}", response);
         tracing::info!("Claude response length: {} chars", response.len());
 
+        // Parse JSON response from Claude
+        let parsed_response: dialect_coach_shared::AgentResponse = serde_json::from_str(&response)
+            .context("Claude returned invalid JSON format. Expected: {\"response\": \"...\"}")?;
+
         tracing::info!(
             "Generated response for dialect {} ({} chars)",
             dialect.name(),
-            response.len()
+            parsed_response.response.len()
         );
 
-        Ok(response)
+        Ok(parsed_response)
     }
 
     /// Simple translation without RAG - for fast prompt translation
@@ -379,7 +404,7 @@ impl AgentService {
         prompt: &str,
         _dialect: Dialect,
         _formality: Formality,
-    ) -> Result<String> {
+    ) -> Result<dialect_coach_shared::AgentResponse> {
         // Create a lightweight agent for translation only
         let agent = self
             .client
@@ -394,7 +419,7 @@ impl AgentService {
             .await
             .context("Failed to get translation from Claude")?;
 
-        Ok(response)
+        Ok(dialect_coach_shared::AgentResponse { response })
     }
 }
 

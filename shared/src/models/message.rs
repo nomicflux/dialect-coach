@@ -1,4 +1,4 @@
-use super::{Formality, TeachingMode};
+use super::{AgentResponse, Formality, TeachingMode};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -10,7 +10,7 @@ pub struct Message {
     pub id: Uuid,
     pub session_id: Uuid,
     pub participant_id: String,
-    pub content: String,
+    pub content: AgentResponse,
     pub timestamp: DateTime<Utc>,
     pub language: String,
     pub metadata: MessageMetadata,
@@ -65,7 +65,7 @@ impl Message {
     pub fn new(
         session_id: Uuid,
         participant_id: String,
-        content: String,
+        content: AgentResponse,
         language: String,
     ) -> Self {
         Self {
@@ -83,7 +83,7 @@ impl Message {
     pub fn new_speech(
         session_id: Uuid,
         participant_id: String,
-        content: String,
+        content: AgentResponse,
         language: String,
         confidence: f32,
     ) -> Self {
@@ -101,30 +101,38 @@ mod tests {
     #[test]
     fn test_new_message() {
         let session_id = Uuid::new_v4();
+        let content = AgentResponse {
+            response: "Hello!".to_string(),
+        };
         let msg = Message::new(
             session_id,
             "user1".to_string(),
-            "Hello!".to_string(),
+            content.clone(),
             "es-MX".to_string(),
         );
 
         assert_eq!(msg.session_id, session_id);
         assert_eq!(msg.participant_id, "user1");
-        assert_eq!(msg.content, "Hello!");
+        assert_eq!(msg.content, content);
+        assert_eq!(msg.content.response, "Hello!");
         assert!(!msg.metadata.is_speech);
     }
 
     #[test]
     fn test_speech_message() {
+        let content = AgentResponse {
+            response: "Hola".to_string(),
+        };
         let msg = Message::new_speech(
             Uuid::new_v4(),
             "user1".to_string(),
-            "Hola".to_string(),
+            content.clone(),
             "es-MX".to_string(),
             0.95,
         );
 
         assert!(msg.metadata.is_speech);
         assert_eq!(msg.metadata.speech_confidence, Some(0.95));
+        assert_eq!(msg.content, content);
     }
 }

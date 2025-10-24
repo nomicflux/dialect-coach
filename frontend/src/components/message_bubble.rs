@@ -41,7 +41,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                         html! {}
                     }}
                 </div>
-                <div class="message-content">{&msg.content}</div>
+                <div class="message-content">{&msg.content.response}</div>
                 <div class="message-time">{msg.timestamp.to_rfc3339()}</div>
             </div>
         </div>

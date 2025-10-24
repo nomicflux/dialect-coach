@@ -159,7 +159,7 @@ fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Message>
     let app_state = app_state.clone();
 
     Callback::from(move |msg: Message| {
-        info!("Replaying message with TTS: {}", msg.content);
+        info!("Replaying message with TTS: {}", msg.content.response);
         app_state.dispatch(AppStateAction::Speak(msg));
     })
 }

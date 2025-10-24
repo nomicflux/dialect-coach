@@ -34,7 +34,7 @@ pub fn should_agent_respond(session: &ChatSession, agent_id: &str, message: &Mes
 
     // Check if agent is mentioned
     let agent_name_lower = agent.name.to_lowercase();
-    if message.content.to_lowercase().contains(&agent_name_lower) {
+    if message.content.response.to_lowercase().contains(&agent_name_lower) {
         return true;
     }
 
@@ -66,8 +66,7 @@ pub fn agents_to_respond(session: &ChatSession, message: &Message) -> Vec<String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Dialect, DialectConfig, Formality, Language, SessionConfig, TeachingMode};
-    use uuid::Uuid;
+    use crate::models::{AgentResponse, AgentType, Dialect, DialectConfig, Formality, Language, Participant, SessionConfig, TeachingMode};
 
     fn create_test_session() -> ChatSession {
         let mut session = ChatSession::new("Test".to_string(), SessionConfig::default());
@@ -105,7 +104,7 @@ mod tests {
         let msg = Message::new(
             session.id,
             "human1".to_string(),
-            "Hello".to_string(),
+            AgentResponse::from("Hello".to_string()),
             "es-MX".to_string(),
         );
 
@@ -121,7 +120,7 @@ mod tests {
         let msg = Message::new(
             session.id,
             "human1".to_string(),
-            "Hola".to_string(),
+            AgentResponse::from("Hola".to_string()),
             "es-MX".to_string(),
         );
 
@@ -134,7 +133,7 @@ mod tests {
         let msg = Message::new(
             session.id,
             "agent1".to_string(),
-            "Hola".to_string(),
+            AgentResponse::from("Hola".to_string()),
             "es-MX".to_string(),
         );
 
@@ -147,7 +146,7 @@ mod tests {
         let msg = Message::new(
             session.id,
             "human1".to_string(),
-            "¿Cómo estás?".to_string(),
+            AgentResponse::from("¿Cómo estás?".to_string()),
             "es-MX".to_string(),
         );
 

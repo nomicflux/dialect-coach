@@ -12,7 +12,7 @@ pub fn build_conversation_context(session: &ChatSession, max_messages: usize) ->
                 .map(|p| p.name.as_str())
                 .unwrap_or("Unknown");
 
-            format!("{}: {}", participant, msg.content)
+            format!("{}: {}", participant, msg.content.response)
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -27,7 +27,7 @@ pub fn build_agent_prompt(
 
     format!(
         "You are {}. Respond naturally in character.\n\nConversation so far:\n{}\n\nRespond to latest user message: {}",
-        agent.name, context, user_message.content
+        agent.name, context, user_message.content.response
     )
 }
 
@@ -66,7 +66,9 @@ mod tests {
         let msg1 = Message::new(
             session.id,
             "h1".to_string(),
-            "Hello".to_string(),
+            crate::models::AgentResponse {
+                response: "Hello".to_string(),
+            },
             "es-MX".to_string(),
         );
         session.add_message(msg1);

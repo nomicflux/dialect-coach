@@ -5,12 +5,18 @@ use axum::{
     },
     response::Response,
 };
-use dialect_coach_shared::{Dialect, Formality, Message, TeachingMode};
+use dialect_coach_shared::{AgentResponse, Dialect, Formality, Message, TeachingMode};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::AppState;
+
+fn error_to_agent_response(error_message: String) -> AgentResponse {
+    AgentResponse {
+        response: error_message,
+    }
+}
 
 /// WebSocket handler
 pub async fn websocket_handler(State(state): State<AppState>, ws: WebSocketUpgrade) -> Response {
@@ -63,13 +69,13 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     Ok(parsed_msg) => {
                         eprintln!(
                             "[WEBSOCKET] Parsed message from {} in session {}: '{}'",
-                            parsed_msg.participant_id, parsed_msg.session_id, parsed_msg.content
+                            parsed_msg.participant_id, parsed_msg.session_id, parsed_msg.content.response
                         );
                         tracing::info!(
                             "Valid message from {} in session {}: '{}'",
                             parsed_msg.participant_id,
                             parsed_msg.session_id,
-                            parsed_msg.content
+                            parsed_msg.content.response
                         );
 
                         // Parse dialect from BCP-47 language tag
@@ -96,17 +102,18 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     "Unsupported language tag: {}",
                                     parsed_msg.language
                                 );
+                                let error_response = error_to_agent_response(format!(
+                                    "Unsupported language/dialect: {}",
+                                    parsed_msg.language
+                                ));
                                 let error_msg = Message::new(
                                     parsed_msg.session_id,
                                     "system".to_string(),
-                                    format!(
-                                        "Unsupported language/dialect: {}",
-                                        parsed_msg.language
-                                    ),
+                                    error_response,
                                     parsed_msg.language.clone(),
                                 );
-                                if let Ok(error_json) = serde_json::to_string(&error_msg)
-                                    && let Err(e) = tx.send(error_json)
+                                if let Ok(msg_json) = serde_json::to_string(&error_msg)
+                                    && let Err(e) = tx.send(msg_json)
                                 {
                                     tracing::error!("Failed to send error message: {}", e);
                                 }
@@ -121,7 +128,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                             .or_insert_with(Vec::new);
 
                         // Add user message to history
-                        history.push(format!("User: {}", parsed_msg.content));
+                        history.push(format!("User: {}", parsed_msg.content.response));
 
                         // Keep only last 20 messages to avoid unbounded growth
                         if history.len() > 20 {
@@ -157,7 +164,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         match state
                             .agent
                             .generate_response(
-                                &parsed_msg.content,
+                                &parsed_msg.content.response,
                                 dialect,
                                 formality,
                                 teaching_mode,
@@ -166,19 +173,15 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                             .await
                         {
                             Ok(agent_response) => {
-                                eprintln!(
-                                    "[WEBSOCKET] Agent generated response ({} chars)",
-                                    agent_response.len()
-                                );
                                 tracing::info!(
                                     "Agent generated response ({} chars)",
-                                    agent_response.len()
+                                    agent_response.response.len()
                                 );
 
                                 // Add agent response to history
                                 let mut histories = state.session_histories.lock().await;
                                 if let Some(history) = histories.get_mut(&parsed_msg.session_id) {
-                                    history.push(format!("Agent: {}", agent_response));
+                                    history.push(format!("Agent: {}", agent_response.response));
                                 }
                                 drop(histories);
 
@@ -213,16 +216,16 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 }
                             }
                             Err(e) => {
-                                eprintln!("[WEBSOCKET] ERROR: Agent error: {}", e);
                                 tracing::error!("Agent error: {}", e);
+                                let error_response = error_to_agent_response(format!("Error generating response: {}", e));
                                 let error_msg = Message::new(
                                     parsed_msg.session_id,
                                     "system".to_string(),
-                                    format!("Error generating response: {}", e),
+                                    error_response,
                                     parsed_msg.language.clone(),
                                 );
-                                if let Ok(error_json) = serde_json::to_string(&error_msg)
-                                    && let Err(e) = tx.send(error_json)
+                                if let Ok(msg_json) = serde_json::to_string(&error_msg)
+                                    && let Err(e) = tx.send(msg_json)
                                 {
                                     tracing::error!("Failed to send error message: {}", e);
                                 }
@@ -274,10 +277,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_parsing() {
+        let content = AgentResponse {
+            response: "Hello".to_string(),
+        };
         let message = Message::new(
             Uuid::new_v4(),
             "user1".to_string(),
-            "Hello".to_string(),
+            content,
             "es-MX".to_string(),
         );
 

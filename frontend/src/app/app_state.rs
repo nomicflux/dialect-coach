@@ -165,10 +165,11 @@ impl Default for AppState {
 
 impl AppState {
     pub fn create_msg(&self, content: &String) -> Message {
+        let agent_response = dialect_coach_shared::AgentResponse::from(content);
         let mut msg = Message::new(
             self.session_id,
             "user".to_string(),
-            content.clone(),
+            agent_response,
             self.language_choices
                 .selected_dialect
                 .bcp47_tag()
@@ -230,7 +231,7 @@ impl AppState {
                     .selected_dialect
                     .bcp47_tag()
                     .to_string();
-                let text = msg.content.clone();
+                let text = msg.content.response.clone();
                 wasm_bindgen_futures::spawn_local(async move {
                     if let Some(tts) = tts_service
                         && let Err(e) = tts.speak(&text, &language_code).await

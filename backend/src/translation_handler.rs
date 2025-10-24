@@ -68,16 +68,16 @@ pub async fn translate_handler(
 
     // Translate the phrase
     match translate_phrase(&state, &request.phrase, dialect, formality).await {
-        Ok(translated) => {
+        Ok(agent_response) => {
             tracing::info!(
                 "Translation success: '{}' -> '{}'",
                 request.phrase,
-                translated
+                agent_response.response
             );
             (
                 StatusCode::OK,
                 Json(TranslateResponse {
-                    translated,
+                    translated: agent_response.response,
                     success: true,
                     error: None,
                 }),
@@ -103,7 +103,7 @@ async fn translate_phrase(
     phrase: &str,
     dialect: Dialect,
     formality: Formality,
-) -> Result<String> {
+) -> Result<dialect_coach_shared::AgentResponse> {
     // Create a specialized translation prompt
     let formality_desc = match formality {
         Formality::Formal => "formal and polite",
@@ -126,15 +126,7 @@ async fn translate_phrase(
         .await
         .context("Failed to translate phrase")?;
 
-    // Clean up the response (remove quotes, extra whitespace)
-    let cleaned = response
-        .trim()
-        .trim_matches('"')
-        .trim_matches('\'')
-        .trim()
-        .to_string();
-
-    Ok(cleaned)
+    Ok(response)
 }
 
 #[cfg(test)]

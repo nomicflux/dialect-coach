@@ -99,7 +99,7 @@ impl ChatSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{AgentType, DialectConfig, Formality, TeachingMode};
+    use crate::models::{AgentResponse, AgentType, DialectConfig, Formality, TeachingMode};
 
     #[test]
     fn test_new_session() {
@@ -128,7 +128,7 @@ mod tests {
         let msg = Message::new(
             session.id,
             "user1".to_string(),
-            "Hello".to_string(),
+            AgentResponse::from("Hello"),
             "es-MX".to_string(),
         );
 
@@ -144,7 +144,7 @@ mod tests {
             let msg = Message::new(
                 session.id,
                 "user1".to_string(),
-                format!("Message {}", i),
+                AgentResponse::from(format!("Message {}", i)),
                 "es-MX".to_string(),
             );
             session.add_message(msg);
@@ -152,7 +152,7 @@ mod tests {
 
         assert_eq!(session.recent_messages(5).len(), 5);
         assert_eq!(session.recent_messages(20).len(), 10);
-        assert_eq!(session.recent_messages(5)[0].content, "Message 5");
+        assert_eq!(session.recent_messages(5)[0].content.response, "Message 5");
     }
 
     #[test]
