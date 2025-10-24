@@ -13,9 +13,7 @@ use uuid::Uuid;
 use crate::AppState;
 
 fn error_to_agent_response(error_message: String) -> AgentResponse {
-    AgentResponse {
-        response: error_message,
-    }
+    AgentResponse::from(error_message)
 }
 
 /// WebSocket handler
@@ -111,6 +109,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     "system".to_string(),
                                     error_response,
                                     parsed_msg.language.clone(),
+                                    parsed_msg.metadata.formality,
+                                    parsed_msg.metadata.teaching_mode,
                                 );
                                 if let Ok(msg_json) = serde_json::to_string(&error_msg)
                                     && let Err(e) = tx.send(msg_json)
@@ -139,12 +139,9 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         let history_vec = history.clone();
                         drop(histories); // Release lock before agent call
 
-                        // Extract formality and teaching mode from metadata (with defaults)
-                        let formality = parsed_msg.metadata.formality.unwrap_or(Formality::Casual);
-                        let teaching_mode = parsed_msg
-                            .metadata
-                            .teaching_mode
-                            .unwrap_or(TeachingMode::Immersive);
+                        // Extract formality and teaching mode from metadata
+                        let formality = parsed_msg.metadata.formality;
+                        let teaching_mode = parsed_msg.metadata.teaching_mode;
 
                         // Call agent with RAG
                         eprintln!(
@@ -191,6 +188,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     "agent".to_string(),
                                     agent_response,
                                     parsed_msg.language.clone(),
+                                    formality,
+                                    teaching_mode,
                                 );
 
                                 // Send back to client
@@ -223,6 +222,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                     "system".to_string(),
                                     error_response,
                                     parsed_msg.language.clone(),
+                                    formality,
+                                    teaching_mode,
                                 );
                                 if let Ok(msg_json) = serde_json::to_string(&error_msg)
                                     && let Err(e) = tx.send(msg_json)
@@ -277,14 +278,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_parsing() {
-        let content = AgentResponse {
-            response: "Hello".to_string(),
-        };
+        let content = AgentResponse::from("Hello");
         let message = Message::new(
             Uuid::new_v4(),
             "user1".to_string(),
             content,
             "es-MX".to_string(),
+            Formality::Casual,
+            TeachingMode::Immersive,
         );
 
         let json = serde_json::to_string(&message).unwrap();

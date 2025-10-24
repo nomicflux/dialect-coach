@@ -130,6 +130,8 @@ mod tests {
             "user1".to_string(),
             AgentResponse::from("Hello"),
             "es-MX".to_string(),
+            Formality::Casual,
+            TeachingMode::Immersive,
         );
 
         session.add_message(msg);
@@ -146,6 +148,8 @@ mod tests {
                 "user1".to_string(),
                 AgentResponse::from(format!("Message {}", i)),
                 "es-MX".to_string(),
+                Formality::Casual,
+                TeachingMode::Immersive,
             );
             session.add_message(msg);
         }

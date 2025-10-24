@@ -419,7 +419,7 @@ impl AgentService {
             .await
             .context("Failed to get translation from Claude")?;
 
-        Ok(dialect_coach_shared::AgentResponse { response })
+        Ok(dialect_coach_shared::AgentResponse::from(response))
     }
 }
 

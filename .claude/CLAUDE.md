@@ -39,3 +39,8 @@ cargo test --lib     # Run library tests
 cd backend && cargo run       # Run backend server
 cd frontend && trunk serve    # Run frontend dev server
 ```
+
+## General Instructions
+
+- You are responsible for everything in all relevent CLAUDE.md files. You will be tested on material in them. Failure to
+  address anything in any CLAUDE.md file will be grounds for termination.

@@ -49,9 +49,7 @@ pub fn truncate_to_tokens(text: &str, max_tokens: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{
-        AgentType, Dialect, DialectConfig, Formality, Language, SessionConfig, TeachingMode,
-    };
+    use crate::models::{SessionConfig};
 
     #[test]
     fn test_build_conversation_context() {
@@ -66,10 +64,10 @@ mod tests {
         let msg1 = Message::new(
             session.id,
             "h1".to_string(),
-            crate::models::AgentResponse {
-                response: "Hello".to_string(),
-            },
+            crate::models::AgentResponse::from("Hello"),
             "es-MX".to_string(),
+            crate::models::Formality::Casual,
+            crate::models::TeachingMode::Immersive,
         );
         session.add_message(msg1);
 

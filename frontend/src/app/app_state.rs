@@ -166,7 +166,7 @@ impl Default for AppState {
 impl AppState {
     pub fn create_msg(&self, content: &String) -> Message {
         let agent_response = dialect_coach_shared::AgentResponse::from(content);
-        let mut msg = Message::new(
+        Message::new(
             self.session_id,
             "user".to_string(),
             agent_response,
@@ -174,10 +174,9 @@ impl AppState {
                 .selected_dialect
                 .bcp47_tag()
                 .to_string(),
-        );
-        msg.metadata.formality = Some(self.language_manner.formality);
-        msg.metadata.teaching_mode = Some(self.language_manner.teaching_mode);
-        msg
+            self.language_manner.formality,
+            self.language_manner.teaching_mode,
+        )
     }
 
     pub fn current_dialects(&self) -> Vec<Dialect> {

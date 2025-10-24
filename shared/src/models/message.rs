@@ -1,7 +1,6 @@
 use super::{AgentResponse, Formality, TeachingMode};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 /// A message in a chat session
@@ -17,47 +16,31 @@ pub struct Message {
 }
 
 /// Metadata associated with a message
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageMetadata {
-    /// Whether this message was spoken (vs typed)
-    pub is_speech: bool,
-
-    /// Detected language/dialect from speech recognition
-    pub detected_dialect: Option<String>,
-
-    /// Confidence score for speech recognition (0.0-1.0)
-    pub speech_confidence: Option<f32>,
-
-    /// Any grammar corrections or suggestions
-    pub corrections: Vec<Correction>,
-
     /// Desired formality level for agent responses
-    pub formality: Option<Formality>,
+    pub formality: Formality,
 
     /// Teaching mode for agent behavior
-    pub teaching_mode: Option<TeachingMode>,
-
-    /// Additional key-value metadata
-    pub extra: HashMap<String, String>,
+    pub teaching_mode: TeachingMode,
 }
 
-/// A grammar or usage correction
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Correction {
-    pub original: String,
-    pub corrected: String,
-    pub explanation: String,
-    pub correction_type: CorrectionType,
+impl MessageMetadata {
+    pub fn new(formality: Formality, teaching_mode: TeachingMode) -> Self {
+        Self {
+            formality,
+            teaching_mode,
+        }
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CorrectionType {
-    Grammar,
-    Spelling,
-    Usage,
-    Pronunciation,
-    Idiom,
+impl Default for MessageMetadata {
+    fn default() -> Self {
+        Self {
+            formality: Formality::Casual,
+            teaching_mode: TeachingMode::Immersive,
+        }
+    }
 }
 
 impl Message {
@@ -67,6 +50,8 @@ impl Message {
         participant_id: String,
         content: AgentResponse,
         language: String,
+        formality: Formality,
+        teaching_mode: TeachingMode,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -75,22 +60,8 @@ impl Message {
             content,
             timestamp: Utc::now(),
             language,
-            metadata: MessageMetadata::default(),
+            metadata: MessageMetadata::new(formality, teaching_mode),
         }
-    }
-
-    /// Create a speech message
-    pub fn new_speech(
-        session_id: Uuid,
-        participant_id: String,
-        content: AgentResponse,
-        language: String,
-        confidence: f32,
-    ) -> Self {
-        let mut msg = Self::new(session_id, participant_id, content, language);
-        msg.metadata.is_speech = true;
-        msg.metadata.speech_confidence = Some(confidence);
-        msg
     }
 }
 
@@ -101,38 +72,42 @@ mod tests {
     #[test]
     fn test_new_message() {
         let session_id = Uuid::new_v4();
-        let content = AgentResponse {
-            response: "Hello!".to_string(),
-        };
+        let content = AgentResponse::from("Hello!");
         let msg = Message::new(
             session_id,
             "user1".to_string(),
             content.clone(),
             "es-MX".to_string(),
+            Formality::Casual,
+            TeachingMode::Immersive,
         );
 
         assert_eq!(msg.session_id, session_id);
         assert_eq!(msg.participant_id, "user1");
         assert_eq!(msg.content, content);
         assert_eq!(msg.content.response, "Hello!");
-        assert!(!msg.metadata.is_speech);
+        assert_eq!(msg.metadata.formality, Formality::Casual);
+        assert_eq!(msg.metadata.teaching_mode, TeachingMode::Immersive);
     }
 
     #[test]
-    fn test_speech_message() {
-        let content = AgentResponse {
-            response: "Hola".to_string(),
-        };
-        let msg = Message::new_speech(
+    fn test_metadata_serialization() {
+        let content = AgentResponse::from("Hola");
+        let msg = Message::new(
             Uuid::new_v4(),
             "user1".to_string(),
             content.clone(),
             "es-MX".to_string(),
-            0.95,
+            Formality::DialectRich,
+            TeachingMode::Corrective,
         );
 
-        assert!(msg.metadata.is_speech);
-        assert_eq!(msg.metadata.speech_confidence, Some(0.95));
-        assert_eq!(msg.content, content);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"formality\":\"dialect_rich\""));
+        assert!(json.contains("\"teaching_mode\":\"corrective\""));
+
+        // Verify metadata fields are not null
+        assert!(!json.contains("\"formality\":null"));
+        assert!(!json.contains("\"teaching_mode\":null"));
     }
 }
