@@ -133,7 +133,7 @@
     visibility: hidden;
     opacity: 0;
     position: absolute;
-    bottom: 125%;
+    top: 125%;
     left: 50%;
     transform: translateX(-50%);
     background-color: #1a1a1a;
@@ -152,12 +152,12 @@
 .item-with-tooltip .tooltip-text::after {
     content: "";
     position: absolute;
-    top: 100%;
+    bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
     border-width: 5px;
     border-style: solid;
-    border-color: #1a1a1a transparent transparent transparent;
+    border-color: transparent transparent #1a1a1a transparent;
 }
 
 .item-with-tooltip:hover .tooltip-text {
