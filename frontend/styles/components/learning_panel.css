@@ -74,6 +74,16 @@
     border-left: 3px solid var(--teal);
 }
 
+.learning-item.translation {
+    background: var(--yellow-tint);
+    border-left: 3px solid var(--yellow);
+}
+
+.learning-item.exploration {
+    background: var(--green-tint);
+    border-left: 3px solid var(--green);
+}
+
 .item-content {
     display: block;
     font-size: 14px;

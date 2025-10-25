@@ -169,7 +169,9 @@ async fn run_agents_parallel(
     let user_text = &msg_with_context.message.content.response;
 
     let has_learning_items = !msg_with_context.past_mistakes.is_empty()
-        || !msg_with_context.past_explained.is_empty();
+        || !msg_with_context.past_explained.is_empty()
+        || !msg_with_context.past_translated.is_empty()
+        || !msg_with_context.past_exploratory.is_empty();
 
     if !has_learning_items {
         return state
@@ -179,9 +181,11 @@ async fn run_agents_parallel(
     }
 
     tracing::info!(
-        "Running agents in parallel: {} mistakes, {} explained items",
+        "Running agents in parallel: {} mistakes, {} explained, {} translated, {} exploratory items",
         msg_with_context.past_mistakes.len(),
-        msg_with_context.past_explained.len()
+        msg_with_context.past_explained.len(),
+        msg_with_context.past_translated.len(),
+        msg_with_context.past_exploratory.len()
     );
 
     let (response_result, analysis_result) = tokio::join!(
@@ -191,6 +195,8 @@ async fn run_agents_parallel(
             history_vec,
             &msg_with_context.past_mistakes,
             &msg_with_context.past_explained,
+            &msg_with_context.past_translated,
+            &msg_with_context.past_exploratory,
         )
     );
 
@@ -290,12 +296,14 @@ fn create_recv_task(
                 match serde_json::from_str::<UserMessageWithContext>(&text) {
                     Ok(msg_with_context) => {
                         tracing::info!(
-                            "Valid message from {} in session {}: '{}' with {} mistakes, {} explained",
+                            "Valid message from {} in session {}: '{}' with {} mistakes, {} explained, {} translated, {} exploratory",
                             msg_with_context.message.participant_id,
                             msg_with_context.message.session_id,
                             msg_with_context.message.content.response,
                             msg_with_context.past_mistakes.len(),
-                            msg_with_context.past_explained.len()
+                            msg_with_context.past_explained.len(),
+                            msg_with_context.past_translated.len(),
+                            msg_with_context.past_exploratory.len()
                         );
 
                         if process_user_message(&state, msg_with_context, &tx).await.is_err() {

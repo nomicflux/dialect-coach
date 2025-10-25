@@ -3,14 +3,16 @@
   --coral: #FF6B6B;          /* primary - warm and inviting */
   --teal: #4ECDC4;           /* secondary - calming and supportive */
   --yellow: #FFE66D;         /* accent - energetic and fun */
+  --green: #51CF66;          /* success - fresh and encouraging */
   --bg: #FFFFFF;             /* clean background */
   --ink: #111827;            /* primary text - high contrast and readable */
   --ink-soft: #374151;       /* secondary text - darker for better readability */
-  
+
   /* Tinted surfaces for gentle bubble backgrounds */
-  --teal-tint: rgba(78, 205, 196, 0.12);    /* user messages */
-  --coral-tint: rgba(255, 107, 107, 0.12);  /* bot messages */
-  --yellow-tint: rgba(255, 230, 109, 0.15); /* highlights/accents */
+  --teal-tint: rgba(78, 205, 196, 0.12);    /* user messages, explained items */
+  --coral-tint: rgba(255, 107, 107, 0.12);  /* bot messages, mistake items */
+  --yellow-tint: rgba(255, 230, 109, 0.15); /* highlights/accents, translated items */
+  --green-tint: rgba(81, 207, 102, 0.12);   /* exploratory items */
   
   /* Surface colors */
   --surface: #FFFFFF;

@@ -3,25 +3,29 @@ use app_state::{AppState, UIState, AppStateAction, UIStateAction};
 pub use app_state::{LearningItem, LearningItemType};
 
 use dialect_coach_shared::models::{Formality, Language, Message, TeachingMode};
-use dialect_coach_shared::{Explained, Mistake, UserMessageWithContext};
+use dialect_coach_shared::{Explained, Exploratory, Mistake, Translated, UserMessageWithContext};
 use log::{error, info};
 use yew::prelude::*;
 
 use crate::components::{ChatWindow, InputBox, LearningPanel, SpeechControls};
 use crate::services::websocket::{ConnectionState};
 
-fn extract_learning_items(ui_state: &UIState) -> (Vec<Mistake>, Vec<Explained>) {
+fn extract_learning_items(ui_state: &UIState) -> (Vec<Mistake>, Vec<Explained>, Vec<Translated>, Vec<Exploratory>) {
     let mut mistakes = Vec::new();
     let mut explained = Vec::new();
+    let mut translated = Vec::new();
+    let mut exploratory = Vec::new();
 
     for item in &ui_state.learning_items {
         match &item.item {
             LearningItemType::Mistake(m) => mistakes.push(m.clone()),
             LearningItemType::Explanation(e) => explained.push(e.clone()),
+            LearningItemType::Translation(t) => translated.push(t.clone()),
+            LearningItemType::Exploration(e) => exploratory.push(e.clone()),
         }
     }
 
-    (mistakes, explained)
+    (mistakes, explained, translated, exploratory)
 }
 
 fn on_send_message(
@@ -38,10 +42,10 @@ fn on_send_message(
         app_state.dispatch(AppStateAction::AddMessage(msg.clone()));
 
         // Extract learning items from UI state
-        let (past_mistakes, past_explained) = extract_learning_items(&ui_state);
+        let (past_mistakes, past_explained, past_translated, past_exploratory) = extract_learning_items(&ui_state);
 
         // Build UserMessageWithContext
-        let msg_with_context = UserMessageWithContext::new(msg, past_mistakes, past_explained);
+        let msg_with_context = UserMessageWithContext::new(msg, past_mistakes, past_explained, past_translated, past_exploratory);
 
         // Send through WebSocket
         match (*app_state).ws_service.borrow().send_message(&msg_with_context) {
@@ -261,14 +265,18 @@ pub fn app() -> Html {
 
                     let mistakes = msg.content.mistakes.clone().unwrap_or_default();
                     let explained = msg.content.explained.clone().unwrap_or_default();
-                    if !mistakes.is_empty() || !explained.is_empty() {
-                        usc.dispatch(UIStateAction::AddLearningItems(mistakes, explained));
+                    let translated = msg.content.translated.clone().unwrap_or_default();
+                    let exploratory = msg.content.exploratory.clone().unwrap_or_default();
+                    if !mistakes.is_empty() || !explained.is_empty() || !translated.is_empty() || !exploratory.is_empty() {
+                        usc.dispatch(UIStateAction::AddLearningItems(mistakes, explained, translated, exploratory));
                     }
 
                     if let Some(analysis) = msg.content.analysis.clone() {
-                        info!("Received analysis with {} mistake scores, {} explained scores",
+                        info!("Received analysis with {} mistake scores, {} explained scores, {} translated scores, {} exploratory scores",
                             analysis.mistake_scores.len(),
-                            analysis.explained_scores.len()
+                            analysis.explained_scores.len(),
+                            analysis.translated_scores.len(),
+                            analysis.exploratory_scores.len()
                         );
                         usc.dispatch(UIStateAction::UpdateScores(analysis));
                     }

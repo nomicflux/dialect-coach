@@ -4,11 +4,14 @@ use std::fmt;
 
 pub type MistakeId = uuid::Uuid;
 pub type ExplainedId = uuid::Uuid;
+pub type TranslatedId = uuid::Uuid;
+pub type ExploratoryId = uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MistakeCategory {
     SpellingError { context: String },
+    VocabularyError { context: String },
     GrammarError { context: String },
     DialectUsageError { context: String },
     Other { context: String },
@@ -20,11 +23,20 @@ impl fmt::Display for MistakeCategory {
             MistakeCategory::SpellingError { context } => {
                 write!(f, "Correct spelling is {}", context)
             }
+            MistakeCategory::VocabularyError { context } => {
+                let size = context.split_once(" ").iter().len();
+                let unit_word = if size == 1 {
+                    "word"
+                } else {
+                    "phrase"
+                };
+                write!(f, "Correct {} is {}", unit_word, context)
+            }
             MistakeCategory::GrammarError { context } => {
                 write!(f, "Example of a grammatical error {}", context)
             }
             MistakeCategory::DialectUsageError { context } => {
-                write!(f, "Better usage would be {}", context)
+                write!(f, "More natural usage would be {}", context)
             }
             MistakeCategory::Other { context } => {
                 write!(f, "{}", context)
@@ -38,6 +50,7 @@ struct MistakeHelper {
     #[serde(default)]
     id: Option<MistakeId>,
     specific_mistake: String,
+    correction: String,
     mistake_category: MistakeCategory,
 }
 
@@ -45,6 +58,7 @@ struct MistakeHelper {
 pub struct Mistake {
     pub id: MistakeId,
     pub specific_mistake: String,
+    pub correction: String,
     pub mistake_category: MistakeCategory,
 }
 
@@ -60,13 +74,14 @@ impl<'de> Deserialize<'de> for Mistake {
         Ok(Mistake {
             id,
             specific_mistake: helper.specific_mistake,
+            correction: helper.correction,
             mistake_category: helper.mistake_category,
         })
     }
 }
 
 impl Mistake {
-    pub fn new(specific_mistake: String, mistake_category: MistakeCategory) -> Self {
+    pub fn new(specific_mistake: String, correction: String, mistake_category: MistakeCategory) -> Self {
         let id = uuid::Uuid::new_v5(
             &uuid::Uuid::NAMESPACE_OID,
             specific_mistake.as_bytes(),
@@ -74,12 +89,13 @@ impl Mistake {
         Self {
             id,
             specific_mistake,
+            correction,
             mistake_category,
         }
     }
 
-    pub fn get_content(&self) -> &str {
-        &self.specific_mistake
+    pub fn get_content(&self) -> String {
+        format!("{} -> {}", self.specific_mistake, self.correction)
     }
 }
 
@@ -133,6 +149,106 @@ impl Explained {
     }
 }
 
+#[derive(Deserialize)]
+struct TranslatedHelper {
+    #[serde(default)]
+    id: Option<TranslatedId>,
+    translated_word: String,
+    translated_to: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Translated {
+    pub id: TranslatedId,
+    pub translated_word: String,
+    pub translated_to: String,
+}
+
+impl<'de> Deserialize<'de> for Translated {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let helper = TranslatedHelper::deserialize(deserializer)?;
+        let id = helper.id.unwrap_or_else(|| {
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, helper.translated_word.as_bytes())
+        });
+        Ok(Translated {
+            id,
+            translated_word: helper.translated_word,
+            translated_to: helper.translated_to,
+        })
+    }
+}
+
+impl Translated {
+    pub fn new(translated_word: String, translated_to: String) -> Self {
+        let id = uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_OID,
+            translated_word.as_bytes(),
+        );
+        Self {
+            id,
+            translated_word,
+            translated_to,
+        }
+    }
+
+    pub fn get_content(&self) -> String {
+        format!("{} -> {}", self.translated_word, self.translated_to)
+    }
+}
+
+#[derive(Deserialize)]
+struct ExploratoryHelper {
+    #[serde(default)]
+    id: Option<ExploratoryId>,
+    point_to_try: String,
+    instructions_for_use: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Exploratory {
+    pub id: ExploratoryId,
+    pub point_to_try: String,
+    pub instructions_for_use: String,
+}
+
+impl<'de> Deserialize<'de> for Exploratory {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let helper = ExploratoryHelper::deserialize(deserializer)?;
+        let id = helper.id.unwrap_or_else(|| {
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, helper.point_to_try.as_bytes())
+        });
+        Ok(Exploratory {
+            id,
+            point_to_try: helper.point_to_try,
+            instructions_for_use: helper.instructions_for_use,
+        })
+    }
+}
+
+impl Exploratory {
+    pub fn new(point_to_try: String, instructions_for_use: String) -> Self {
+        let id = uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_OID,
+            point_to_try.as_bytes(),
+        );
+        Self {
+            id,
+            point_to_try,
+            instructions_for_use,
+        }
+    }
+
+    pub fn get_content(&self) -> String {
+        self.point_to_try.clone()
+    }
+}
+
 /// Score for a learning item from agent analysis
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct LearningItemScore {
@@ -169,6 +285,8 @@ impl<'de> Deserialize<'de> for LearningItemScore {
 pub struct AgentAnalysis {
     pub mistake_scores: HashMap<MistakeId, LearningItemScore>,
     pub explained_scores: HashMap<ExplainedId, LearningItemScore>,
+    pub translated_scores: HashMap<TranslatedId, LearningItemScore>,
+    pub exploratory_scores: HashMap<ExploratoryId, LearningItemScore>,
 }
 
 impl AgentAnalysis {
@@ -176,6 +294,8 @@ impl AgentAnalysis {
         Self {
             mistake_scores: HashMap::new(),
             explained_scores: HashMap::new(),
+            translated_scores: HashMap::new(),
+            exploratory_scores: HashMap::new(),
         }
     }
 }
@@ -192,6 +312,8 @@ pub struct AgentResponse {
     pub response: String,
     pub mistakes: Option<Vec<Mistake>>,
     pub explained: Option<Vec<Explained>>,
+    pub translated: Option<Vec<Translated>>,
+    pub exploratory: Option<Vec<Exploratory>>,
     pub analysis: Option<AgentAnalysis>,
 }
 
@@ -201,6 +323,8 @@ impl AgentResponse {
             response,
             mistakes: None,
             explained: None,
+            translated: None,
+            exploratory: None,
             analysis: None,
         }
     }
@@ -249,7 +373,7 @@ mod tests {
         let cat = MistakeCategory::DialectUsageError {
             context: "órale".to_string(),
         };
-        assert_eq!(format!("{}", cat), "Better usage would be órale");
+        assert_eq!(format!("{}", cat), "More natural usage would be órale");
     }
 
     #[test]
@@ -264,17 +388,19 @@ mod tests {
     fn test_mistake_get_content() {
         let mistake = Mistake::new(
             "hablar".to_string(),
+            "habla".to_string(),
             MistakeCategory::SpellingError {
                 context: "habla".to_string(),
             },
         );
-        assert_eq!(mistake.get_content(), "hablar");
+        assert_eq!(mistake.get_content(), "hablar -> habla");
     }
 
     #[test]
     fn test_mistake_serialization() {
         let mistake = Mistake::new(
             "hablar".to_string(),
+            "habla".to_string(),
             MistakeCategory::SpellingError {
                 context: "habla".to_string(),
             },
@@ -283,18 +409,21 @@ mod tests {
         assert!(json.contains("hablar"));
         assert!(json.contains("habla"));
         assert!(json.contains("\"id\""));
+        assert!(json.contains("\"correction\""));
     }
 
     #[test]
     fn test_mistake_stable_id() {
         let mistake1 = Mistake::new(
             "hablar".to_string(),
+            "habla".to_string(),
             MistakeCategory::SpellingError {
                 context: "habla".to_string(),
             },
         );
         let mistake2 = Mistake::new(
             "hablar".to_string(),
+            "habla".to_string(),
             MistakeCategory::GrammarError {
                 context: "different".to_string(),
             },
@@ -351,6 +480,7 @@ mod tests {
         let mut response = AgentResponse::from("Hello");
         response.mistakes = Some(vec![Mistake::new(
             "hablar".to_string(),
+            "habla".to_string(),
             MistakeCategory::SpellingError {
                 context: "habla".to_string(),
             },
@@ -399,6 +529,7 @@ mod tests {
             "mistakes": [{{
                 "id": "{}",
                 "specific_mistake": "hablar",
+                "correction": "habla",
                 "mistake_category": {{
                     "type": "spelling_error",
                     "context": "habla"
@@ -449,10 +580,14 @@ mod tests {
         let analysis = AgentAnalysis::new();
         assert_eq!(analysis.mistake_scores.len(), 0);
         assert_eq!(analysis.explained_scores.len(), 0);
+        assert_eq!(analysis.translated_scores.len(), 0);
+        assert_eq!(analysis.exploratory_scores.len(), 0);
 
         let json = serde_json::to_string(&analysis).unwrap();
         assert!(json.contains("\"mistake_scores\":{}"));
         assert!(json.contains("\"explained_scores\":{}"));
+        assert!(json.contains("\"translated_scores\":{}"));
+        assert!(json.contains("\"exploratory_scores\":{}"));
     }
 
     #[test]
@@ -503,11 +638,15 @@ mod tests {
             "response": "Hello",
             "mistakes": null,
             "explained": null,
+            "translated": null,
+            "exploratory": null,
             "analysis": {{
                 "mistake_scores": {{
                     "{}": {{"score": -5}}
                 }},
-                "explained_scores": {{}}
+                "explained_scores": {{}},
+                "translated_scores": {{}},
+                "exploratory_scores": {{}}
             }}
         }}"#, mistake_id);
 
@@ -516,5 +655,196 @@ mod tests {
         assert!(response.analysis.is_some());
         let analysis = response.analysis.unwrap();
         assert_eq!(analysis.mistake_scores.get(&mistake_id).unwrap().score, -5);
+    }
+
+    #[test]
+    fn test_translated_get_content() {
+        let translated = Translated::new(
+            "hello".to_string(),
+            "hola".to_string(),
+        );
+        assert_eq!(translated.get_content(), "hello -> hola");
+    }
+
+    #[test]
+    fn test_translated_serialization() {
+        let translated = Translated::new(
+            "hello".to_string(),
+            "hola".to_string(),
+        );
+        let json = serde_json::to_string(&translated).unwrap();
+        assert!(json.contains("hello"));
+        assert!(json.contains("hola"));
+        assert!(json.contains("\"id\""));
+        assert!(json.contains("\"translated_word\""));
+        assert!(json.contains("\"translated_to\""));
+    }
+
+    #[test]
+    fn test_translated_stable_id() {
+        let translated1 = Translated::new(
+            "hello".to_string(),
+            "hola".to_string(),
+        );
+        let translated2 = Translated::new(
+            "hello".to_string(),
+            "¡hola!".to_string(),
+        );
+        assert_eq!(translated1.id, translated2.id);
+    }
+
+    #[test]
+    fn test_translated_deserialization_without_id() {
+        let json = r#"{"translated_word": "hello", "translated_to": "hola"}"#;
+        let translated: Translated = serde_json::from_str(json).unwrap();
+        assert_eq!(translated.translated_word, "hello");
+        assert_eq!(translated.translated_to, "hola");
+
+        let expected_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "hello".as_bytes());
+        assert_eq!(translated.id, expected_id);
+    }
+
+    #[test]
+    fn test_exploratory_get_content() {
+        let exploratory = Exploratory::new(
+            "Use subjunctive mood".to_string(),
+            "Try saying 'Si fuera rico' instead of 'Si soy rico'".to_string(),
+        );
+        assert_eq!(exploratory.get_content(), "Use subjunctive mood");
+    }
+
+    #[test]
+    fn test_exploratory_serialization() {
+        let exploratory = Exploratory::new(
+            "Use subjunctive mood".to_string(),
+            "Try saying 'Si fuera rico'".to_string(),
+        );
+        let json = serde_json::to_string(&exploratory).unwrap();
+        assert!(json.contains("Use subjunctive mood"));
+        assert!(json.contains("Si fuera rico"));
+        assert!(json.contains("\"id\""));
+        assert!(json.contains("\"point_to_try\""));
+        assert!(json.contains("\"instructions_for_use\""));
+    }
+
+    #[test]
+    fn test_exploratory_stable_id() {
+        let exploratory1 = Exploratory::new(
+            "Use subjunctive mood".to_string(),
+            "Instructions A".to_string(),
+        );
+        let exploratory2 = Exploratory::new(
+            "Use subjunctive mood".to_string(),
+            "Instructions B".to_string(),
+        );
+        assert_eq!(exploratory1.id, exploratory2.id);
+    }
+
+    #[test]
+    fn test_exploratory_deserialization_without_id() {
+        let json = r#"{"point_to_try": "Use subjunctive", "instructions_for_use": "Try it"}"#;
+        let exploratory: Exploratory = serde_json::from_str(json).unwrap();
+        assert_eq!(exploratory.point_to_try, "Use subjunctive");
+        assert_eq!(exploratory.instructions_for_use, "Try it");
+
+        let expected_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "Use subjunctive".as_bytes());
+        assert_eq!(exploratory.id, expected_id);
+    }
+
+    #[test]
+    fn test_agent_analysis_with_translated() {
+        let mut analysis = AgentAnalysis::new();
+        let translated_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "hello".as_bytes());
+        analysis.translated_scores.insert(translated_id, LearningItemScore::new(5));
+
+        assert_eq!(analysis.translated_scores.len(), 1);
+        assert_eq!(analysis.translated_scores.get(&translated_id).unwrap().score, 5);
+
+        let json = serde_json::to_string(&analysis).unwrap();
+        let deserialized: AgentAnalysis = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.translated_scores.get(&translated_id).unwrap().score, 5);
+    }
+
+    #[test]
+    fn test_agent_analysis_with_exploratory() {
+        let mut analysis = AgentAnalysis::new();
+        let exploratory_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "Use subjunctive".as_bytes());
+        analysis.exploratory_scores.insert(exploratory_id, LearningItemScore::new(8));
+
+        assert_eq!(analysis.exploratory_scores.len(), 1);
+        assert_eq!(analysis.exploratory_scores.get(&exploratory_id).unwrap().score, 8);
+
+        let json = serde_json::to_string(&analysis).unwrap();
+        let deserialized: AgentAnalysis = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.exploratory_scores.get(&exploratory_id).unwrap().score, 8);
+    }
+
+    #[test]
+    fn test_agent_response_with_translated() {
+        let mut response = AgentResponse::from("Hello");
+        response.translated = Some(vec![Translated::new(
+            "hello".to_string(),
+            "hola".to_string(),
+        )]);
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"translated\""));
+        assert!(json.contains("hello"));
+        assert!(json.contains("hola"));
+    }
+
+    #[test]
+    fn test_agent_response_with_exploratory() {
+        let mut response = AgentResponse::from("Try this");
+        response.exploratory = Some(vec![Exploratory::new(
+            "Use subjunctive mood".to_string(),
+            "Try 'Si fuera rico'".to_string(),
+        )]);
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"exploratory\""));
+        assert!(json.contains("Use subjunctive mood"));
+    }
+
+    #[test]
+    fn test_agent_response_deserialization_all_four_types() {
+        let mistake_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "hablar".as_bytes());
+        let explained_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "órale".as_bytes());
+        let translated_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "hello".as_bytes());
+        let exploratory_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "Use subjunctive".as_bytes());
+
+        let json = format!(r#"{{
+            "response": "Hello",
+            "mistakes": [{{
+                "id": "{}",
+                "specific_mistake": "hablar",
+                "correction": "habla",
+                "mistake_category": {{"type": "spelling_error", "context": "habla"}}
+            }}],
+            "explained": [{{
+                "id": "{}",
+                "new_phrase": "órale",
+                "explanation": "Mexican slang"
+            }}],
+            "translated": [{{
+                "id": "{}",
+                "translated_word": "hello",
+                "translated_to": "hola"
+            }}],
+            "exploratory": [{{
+                "id": "{}",
+                "point_to_try": "Use subjunctive",
+                "instructions_for_use": "Try it"
+            }}]
+        }}"#, mistake_id, explained_id, translated_id, exploratory_id);
+
+        let response: AgentResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(response.response, "Hello");
+        assert_eq!(response.mistakes.as_ref().unwrap().len(), 1);
+        assert_eq!(response.explained.as_ref().unwrap().len(), 1);
+        assert_eq!(response.translated.as_ref().unwrap().len(), 1);
+        assert_eq!(response.exploratory.as_ref().unwrap().len(), 1);
+        assert_eq!(response.translated.as_ref().unwrap()[0].id, translated_id);
+        assert_eq!(response.exploratory.as_ref().unwrap()[0].id, exploratory_id);
     }
 }

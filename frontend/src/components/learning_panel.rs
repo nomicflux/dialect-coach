@@ -8,12 +8,13 @@ pub struct LearningPanelProps {
     pub on_close: Callback<()>,
 }
 
-fn calculate_color_from_score(score: u8, is_mistake: bool) -> String {
+fn calculate_color_from_score(score: u8, item_type: &LearningItemType) -> String {
     let intensity = 0.5 + (score as f32 / 100.0) * 0.5;
-    if is_mistake {
-        format!("rgba(255, 107, 107, {})", intensity)
-    } else {
-        format!("rgba(78, 205, 196, {})", intensity)
+    match item_type {
+        LearningItemType::Mistake(_) => format!("rgba(255, 107, 107, {})", intensity),      // coral
+        LearningItemType::Explanation(_) => format!("rgba(78, 205, 196, {})", intensity),    // teal
+        LearningItemType::Translation(_) => format!("rgba(255, 230, 109, {})", intensity),   // yellow
+        LearningItemType::Exploration(_) => format!("rgba(81, 207, 102, {})", intensity),    // green
     }
 }
 
@@ -25,6 +26,8 @@ fn get_item_content(item: &LearningItem) -> String {
     match &item.item {
         LearningItemType::Mistake(m) => m.get_content().to_string(),
         LearningItemType::Explanation(e) => e.get_content().to_string(),
+        LearningItemType::Translation(t) => t.get_content().to_string(),
+        LearningItemType::Exploration(e) => e.get_content().to_string(),
     }
 }
 
@@ -32,24 +35,26 @@ fn get_tooltip(item: &LearningItem) -> Option<String> {
     match &item.item {
         LearningItemType::Mistake(m) => Some(m.mistake_category.to_string()),
         LearningItemType::Explanation(e) => Some(e.explanation.clone()),
+        LearningItemType::Translation(t) => Some(format!("Translation: {}", t.translated_to)),
+        LearningItemType::Exploration(e) => Some(e.instructions_for_use.clone()),
     }
 }
 
-fn is_mistake(item: &LearningItem) -> bool {
-    matches!(&item.item, LearningItemType::Mistake(_))
+fn get_item_class(item: &LearningItem) -> &'static str {
+    match &item.item {
+        LearningItemType::Mistake(_) => "learning-item mistake",
+        LearningItemType::Explanation(_) => "learning-item explanation",
+        LearningItemType::Translation(_) => "learning-item translation",
+        LearningItemType::Exploration(_) => "learning-item exploration",
+    }
 }
 
 fn render_learning_item(item: &LearningItem) -> Html {
     let content = get_item_content(item);
     let tooltip = get_tooltip(item);
-    let is_mistake_item = is_mistake(item);
-    let color = calculate_color_from_score(item.score, is_mistake_item);
+    let color = calculate_color_from_score(item.score, &item.item);
     let bar_width = calculate_bar_width(item.score);
-    let item_class = if is_mistake_item {
-        "learning-item mistake"
-    } else {
-        "learning-item explanation"
-    };
+    let item_class = get_item_class(item);
 
     html! {
         <li class={item_class}>

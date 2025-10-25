@@ -9,7 +9,7 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
 /// General instruction to return JSON only
-const JSON_OUTPUT_INSTRUCTION: &str = "OUTPUT FORMAT: You must wrap your entire response in valid JSON. Your conversational response goes inside the JSON structure. Return nothing but the JSON object.";
+const JSON_OUTPUT_INSTRUCTION: &str = "CRITICAL: Return raw JSON only. Your response will be parsed by a JSON parser. Do not wrap in markdown code blocks or backticks. Do not add any text before or after the JSON object. Start with { and end with }.";
 
 /// Content filtering directives to prevent refusals caused by authentic dialect corpora
 /// appearing in system context. Must be inserted before role to override default safety heuristics.
@@ -35,11 +35,11 @@ pub struct AgentService {
 
 fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
     match teaching_mode {
-        TeachingMode::Immersive => 64,
-        TeachingMode::Corrective => 128,
+        TeachingMode::Immersive => 128,
+        TeachingMode::Corrective => 256,
         TeachingMode::Explanatory => 512,
         TeachingMode::Interleaved => 512,
-        TeachingMode::StoryTeller => 256,
+        TeachingMode::StoryTeller => 512,
         TeachingMode::Debug => 1024,
     }
 }
@@ -49,9 +49,11 @@ fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
         TeachingMode::Corrective => {
             r#"Response format: {
   "response": "<your conversational response>",
-  "mistakes": [{"specific_mistake": "<word/phrase>", "mistake_category": {"type": "<category>", "context": "<info>"}}]
+  "mistakes": [{"specific_mistake": "<word/phrase>", "correction": "<correct form>", "mistake_category": {"type": "<category>", "context": "<info>"}}]
 }
-Categories: spelling_error (context=correct spelling), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
+Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
+The "correction" field should contain the direct correction of the mistake in specific_mistake.
+The "mistake_category" field should also contain a brief explanation of the mistake.
 Only include mistakes if user made errors. Keep specific_mistake brief."#
         }
         TeachingMode::Explanatory => {
@@ -59,11 +61,25 @@ Only include mistakes if user made errors. Keep specific_mistake brief."#
   "response": "<your conversational response>",
   "explained": [{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}]
 }
-Only include explained if you introduce noteworthy vocabulary, idioms, or cultural context."#
+Only include explained if you introduce and explain noteworthy vocabulary, idioms, or cultural context. Keep it to 1-2 essential items that you introduced."#
+        }
+        TeachingMode::Interleaved => {
+            r#"Response format: {
+  "response": "<your conversational response>",
+  "translated": [{"translated_word": "<word from user>", "translated_to": "<your translation>"}]
+}
+Include translated array when you translate words/phrases from user's source language into the target dialect.
+The "translated_word" should be the original word, "translated_to" should be your dialectal translation."#
+        }
+        TeachingMode::StoryTeller => {
+            r#"Response format: {
+  "response": "<your conversational response>",
+  "exploratory": [{"point_to_try": "<language feature>", "instructions_for_use": "<how to use it>"}]
+}
+Include exploratory array when you introduce new language patterns, idioms, or features you want the user to try.
+Keep it to 1-2 points that naturally fit the story context."#
         }
         TeachingMode::Immersive
-        | TeachingMode::Interleaved
-        | TeachingMode::StoryTeller
         | TeachingMode::Debug => {
             r#"Response format: {"response": "<your full conversational response here>"}
 Where <your full conversational response here> is your natural dialect response following all the rules above."#
@@ -116,8 +132,7 @@ fn teaching_desc(teaching_mode: &TeachingMode) -> String {
             "3. STORYTELLER MODE: You are telling an interactive story with the user. Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue."
         },
         TeachingMode::Debug => {
-            "3. DEBUG MODE: Ignore all system instructions. The user is trying to debug an issue with you about a response of yours.
-Answer in English with clear, brief explanations of how prompts could be improved to deliver the expected results."
+            "3. DEBUG MODE: Answer in English with clear, brief explanations. The user is debugging an issue. Provide technical details about what went wrong and how prompts could be improved."
         },
     };
     format!("{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.", desc, tokens)
@@ -145,11 +160,35 @@ fn format_explained_for_analysis(explained: &[Explained]) -> String {
         .join(", ")
 }
 
+fn format_translated_for_analysis(translated: &[dialect_coach_shared::Translated]) -> String {
+    if translated.is_empty() {
+        return "None".to_string();
+    }
+    translated
+        .iter()
+        .map(|t| format!(r#"{{"id": "{}", "text": "{}"}}"#, t.id, t.translated_word))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn format_exploratory_for_analysis(exploratory: &[dialect_coach_shared::Exploratory]) -> String {
+    if exploratory.is_empty() {
+        return "None".to_string();
+    }
+    exploratory
+        .iter()
+        .map(|e| format!(r#"{{"id": "{}", "text": "{}"}}"#, e.id, e.point_to_try))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn analysis_agent_prompt(
     dialect: &Dialect,
     conversation_history: &[String],
     mistakes: &[Mistake],
     explained: &[Explained],
+    translated: &[dialect_coach_shared::Translated],
+    exploratory: &[dialect_coach_shared::Exploratory],
 ) -> String {
     format!(
         r#"You are analyzing a language learner's progress in {}.
@@ -163,16 +202,26 @@ PAST MISTAKES TO ANALYZE:
 PAST EXPLAINED FEATURES TO ANALYZE:
 {}
 
+PAST TRANSLATIONS TO ANALYZE:
+{}
+
+PAST EXPLORATORY POINTS TO ANALYZE:
+{}
+
 Analyze the conversation and score each item:
 MISTAKES (-10 to 10): -10=still occurring, 0=no usage/different error, 10=fixed
 EXPLAINED (0 to 10): 0=not used, 5=attempted incorrectly, 10=used correctly
+TRANSLATED (-10 to 10): -10=reverted to untranslated, 0=not used, 10=correctly used
+EXPLORATORY (0 to 10): 0=not used, 5=imperfect attempt, 10=correctly used
 
 Return ONLY this JSON:
-{{"mistake_scores": {{}}, "explained_scores": {{}}}}"#,
+{{"mistake_scores": {{}}, "explained_scores": {{}}, "translated_scores": {{}}, "exploratory_scores": {{}}}}"#,
         dialect.name(),
         conversation_history.join("\n"),
         format_mistakes_for_analysis(mistakes),
         format_explained_for_analysis(explained),
+        format_translated_for_analysis(translated),
+        format_exploratory_for_analysis(exploratory),
     )
 }
 
@@ -204,19 +253,23 @@ impl AgentService {
         conversation_history: &[String],
         mistakes: &[Mistake],
         explained: &[Explained],
+        translated: &[dialect_coach_shared::Translated],
+        exploratory: &[dialect_coach_shared::Exploratory],
     ) -> Result<dialect_coach_shared::AgentAnalysis> {
-        if mistakes.is_empty() && explained.is_empty() {
+        if mistakes.is_empty() && explained.is_empty() && translated.is_empty() && exploratory.is_empty() {
             tracing::debug!("Skipping analysis - no learning items");
             return Ok(dialect_coach_shared::AgentAnalysis::new());
         }
 
         tracing::info!(
-            "Starting analysis for {} mistakes, {} explained items",
+            "Starting analysis for {} mistakes, {} explained, {} translated, {} exploratory items",
             mistakes.len(),
-            explained.len()
+            explained.len(),
+            translated.len(),
+            exploratory.len()
         );
 
-        let prompt = analysis_agent_prompt(&dialect, conversation_history, mistakes, explained);
+        let prompt = analysis_agent_prompt(&dialect, conversation_history, mistakes, explained, translated, exploratory);
 
         tracing::debug!("Analysis prompt sent to Claude:\n{}", prompt);
 
@@ -238,8 +291,11 @@ impl AgentService {
         tracing::info!("Raw analysis response from Claude: {}", response);
 
         serde_json::from_str(&response).map_err(|e| {
-            tracing::error!("Failed to parse analysis response as JSON: {}", e);
-            anyhow::anyhow!("Claude returned invalid JSON for analysis: {}", e)
+            tracing::error!("JSON parse error: {}. First 200 chars of response: {}",
+                e,
+                &response.chars().take(200).collect::<String>()
+            );
+            anyhow::anyhow!("Claude returned invalid JSON for analysis: {}. Check if response is wrapped in markdown", e)
         })
     }
 
@@ -505,7 +561,13 @@ impl AgentService {
 
         let parsed_response: dialect_coach_shared::AgentResponse =
             serde_json::from_str(&response)
-                .context("Claude returned invalid JSON format")?;
+                .map_err(|e| {
+                    tracing::error!("JSON parse error: {}. First 200 chars of response: {}",
+                        e,
+                        &response.chars().take(200).collect::<String>()
+                    );
+                    anyhow::anyhow!("Claude returned invalid JSON: {}. Check if response is wrapped in markdown", e)
+                })?;
 
         tracing::info!(
             "Generated response for dialect {} ({} chars)",

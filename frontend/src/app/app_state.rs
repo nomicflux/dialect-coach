@@ -1,5 +1,5 @@
 use dialect_coach_shared::models::{Dialect, Formality, Language, Message, TeachingMode};
-use dialect_coach_shared::{AgentAnalysis, Explained, Mistake};
+use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
 use log::{error};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -14,6 +14,8 @@ use crate::services::websocket::{ConnectionState, WebSocketService};
 pub enum LearningItemType {
     Mistake(Mistake),
     Explanation(Explained),
+    Translation(Translated),
+    Exploration(Exploratory),
 }
 
 #[derive(Clone, PartialEq)]
@@ -340,7 +342,7 @@ pub enum UIStateAction {
     ClearTranslatingButton,
     OpenLearningPanel,
     CloseLearningPanel,
-    AddLearningItems(Vec<Mistake>, Vec<Explained>),
+    AddLearningItems(Vec<Mistake>, Vec<Explained>, Vec<Translated>, Vec<Exploratory>),
     UpdateScores(AgentAnalysis),
     ToggleTTS,
 }
@@ -379,12 +381,20 @@ fn merge_items(
     mut existing: Vec<LearningItem>,
     mistakes: Vec<Mistake>,
     explained: Vec<Explained>,
+    translated: Vec<Translated>,
+    exploratory: Vec<Exploratory>,
 ) -> Vec<LearningItem> {
     for mistake in mistakes {
         existing.push(create_learning_item(LearningItemType::Mistake(mistake)));
     }
     for expl in explained {
         existing.push(create_learning_item(LearningItemType::Explanation(expl)));
+    }
+    for trans in translated {
+        existing.push(create_learning_item(LearningItemType::Translation(trans)));
+    }
+    for explor in exploratory {
+        existing.push(create_learning_item(LearningItemType::Exploration(explor)));
     }
     existing
 }
@@ -407,6 +417,16 @@ fn apply_score_updates(
                         item.score = score_obj.score.max(0) as u8;
                     }
                 }
+                LearningItemType::Translation(t) => {
+                    if let Some(score_obj) = analysis.translated_scores.get(&t.id) {
+                        item.score = score_obj.score.max(0) as u8;
+                    }
+                }
+                LearningItemType::Exploration(e) => {
+                    if let Some(score_obj) = analysis.exploratory_scores.get(&e.id) {
+                        item.score = score_obj.score.max(0) as u8;
+                    }
+                }
             }
             item
         })
@@ -425,8 +445,8 @@ impl UIState {
             UIStateAction::ClearTranslatingButton => next.translating_button = None,
             UIStateAction::OpenLearningPanel => next.learning_panel_open = true,
             UIStateAction::CloseLearningPanel => next.learning_panel_open = false,
-            UIStateAction::AddLearningItems(mistakes, explained) => {
-                next.learning_items = merge_items(self.learning_items.clone(), mistakes, explained)
+            UIStateAction::AddLearningItems(mistakes, explained, translated, exploratory) => {
+                next.learning_items = merge_items(self.learning_items.clone(), mistakes, explained, translated, exploratory)
             }
             UIStateAction::UpdateScores(analysis) => {
                 next.learning_items = apply_score_updates(self.learning_items.clone(), &analysis)
