@@ -9,6 +9,8 @@ use uuid::Uuid;
 use yew::prelude::*;
 
 use crate::components::{ChatWindow, InputBox, LearningPanel, SpeechControls};
+use crate::hooks::use_debounced_save;
+use crate::services::persistence::{load_user_state, save_user_state};
 use crate::services::websocket::{ConnectionState};
 
 fn extract_learning_items(user_state: &UserStateWrapper) -> (Vec<Mistake>, Vec<Explained>, Vec<Translated>, Vec<Exploratory>) {
@@ -209,7 +211,29 @@ fn on_tts_toggle(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<()>
 pub fn app() -> Html {
     let app_state = use_reducer(AppState::default);
     let ui_state = use_reducer(UIState::default);
-    let user_state = use_reducer(|| UserStateWrapper(UserState::new(Uuid::new_v4())));
+    let user_state = use_reducer(|| {
+        match load_user_state() {
+            Ok(Some(state)) => {
+                info!("Loaded existing UserState from localStorage");
+                UserStateWrapper(state)
+            }
+            Ok(None) => {
+                info!("No existing UserState, creating new one");
+                UserStateWrapper(UserState::new(Uuid::new_v4()))
+            }
+            Err(e) => {
+                error!("Failed to load UserState: {}", e);
+                UserStateWrapper(UserState::new(Uuid::new_v4()))
+            }
+        }
+    });
+
+    // Set up debounced auto-save
+    let _force_save = use_debounced_save(&user_state, |state| {
+        if let Err(e) = save_user_state(state) {
+            error!("Failed to save UserState: {}", e);
+        }
+    });
 
     {
         let app_state = app_state.clone();
