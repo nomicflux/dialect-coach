@@ -142,21 +142,135 @@ IDs were already tracked since Phase 1 added deterministic UUIDs to `Mistake` an
 
 ---
 
-## Phase 6: Frontend - Score Updates (frontend crate)
+## Phase 6: Frontend - Score Updates and Accomplishments (frontend crate)
 
-### Status: Not Started
+### Status: ✅ Complete
+
+### Tasks:
+- [x] 6.1: Update UIState to handle score updates via AgentAnalysis
+- [x] 6.2: Wire score updates through app.rs message handling
+- [x] 6.3: Update learning panel to partition accomplishments (score == 100)
+- [x] 6.4: Display accomplishments in separate section
+
+### Files Modified:
+- `frontend/src/app/app_state.rs`
+- `frontend/src/app.rs`
+- `frontend/src/components/learning_panel.rs`
+
+### Key Changes:
+
+**UIState Updates (`app_state.rs`)**:
+- Added `UIStateAction::UpdateScores(AgentAnalysis)` action
+- Implemented `apply_score_updates()` helper function that:
+  - Iterates through learning items
+  - Matches IDs with AgentAnalysis HashMap
+  - Updates score field (max with 0 to prevent negatives)
+
+**App Layer (`app.rs`)**:
+- Updated message handling to extract `AgentAnalysis` from agent responses
+- Dispatches `UIStateAction::UpdateScores()` when analysis is present
+- Added logging for score updates
+
+**Learning Panel (`learning_panel.rs`)**:
+- Partitioned items: `score == 100` moves to accomplishments, others stay in learning
+- Added "Accomplishments" section header with count badge
+- Items in accomplishments displayed with visual distinction
+
+### Tests: All tests pass
+
+### Build Status: ✅ Compiles cleanly with no errors
 
 ---
 
-## Phase 7: Frontend - Tooltips (frontend crate)
+## Phase 7: Tooltips (frontend crate)
 
-### Status: Not Started
+### Status: ✅ Complete
+
+### Tasks:
+- [x] 7.1: Implement CSS-based hover tooltips
+- [x] 7.2: Wire tooltip content from learning items
+- [x] 7.3: Fix tooltip text contrast
+- [x] 7.4: Fix tooltip z-index to appear above header
+
+### Files Modified:
+- `frontend/src/components/learning_panel.rs`
+- `frontend/styles/components/learning_panel.css`
+
+### Key Changes:
+
+**Learning Panel Component (`learning_panel.rs`)**:
+- Wrapped item content in `.item-with-tooltip` div
+- Added `.tooltip-text` span for hover display
+- Tooltip content:
+  - Mistakes: Shows `mistake_category` as tooltip
+  - Explanations: Shows `explanation` field as tooltip
+
+**Tooltip Styles (`learning_panel.css`)**:
+- Implemented pure CSS hover tooltips (no HTML title attribute)
+- Used hard-coded colors (#1a1a1a background, #ffffff text) for proper contrast
+- Added downward-pointing arrow using ::after pseudo-element
+- Positioned absolutely above item (bottom: 125%)
+- Visibility/opacity transition on hover
+- Fixed z-index: Changed learning panel from 100 to 200 to appear above header
+
+### Tests: All tests pass
+
+### Build Status: ✅ Compiles cleanly with no errors
 
 ---
 
-## Phase 8: Integration Testing
+## Phase 8: Additional Features and Bug Fixes
 
-### Status: Not Started
+### Status: ✅ Complete
+
+### Tasks:
+- [x] 8.1: Custom JSON deserialization for flexible Claude responses
+- [x] 8.2: Update Corrective mode to ignore punctuation/capitalization
+- [x] 8.3: Implement TTS auto-play toggle (default OFF)
+- [x] 8.4: Add comprehensive logging for debugging
+
+### Files Modified:
+- `shared/src/models/agent.rs`
+- `backend/src/agent_service.rs`
+- `frontend/src/app/app_state.rs`
+- `frontend/src/app.rs`
+- `frontend/src/components/speech_controls.rs`
+- `frontend/styles/components/composer.css`
+
+### Key Changes:
+
+**Custom Deserialization (`shared/src/models/agent.rs`)**:
+- Added custom `Deserialize` for `Mistake`:
+  - Accepts JSON with or without `id` field
+  - Generates deterministic UUID using `uuid::Uuid::new_v5()` when missing
+  - Uses `specific_mistake` content as namespace seed
+- Added custom `Deserialize` for `Explained`:
+  - Same pattern as Mistake
+  - Uses `explanation` content as namespace seed
+- Added custom `Deserialize` for `LearningItemScore`:
+  - Accepts both integer (`5`) and object (`{"score": 5}`) formats
+  - Uses untagged enum helper for flexible parsing
+
+**Prompt Updates (`agent_service.rs`)**:
+- Updated Corrective mode prompt at line 103:
+  - Added "IGNORE missing punctuation and capitalization - this is casual chat"
+  - Focuses on actual language errors (spelling, grammar, dialectal usage)
+- Added comprehensive logging:
+  - Raw JSON responses at line 492 (main agent)
+  - Analysis step logging at lines 213, 230, 236, 238
+  - Detailed error logging for JSON parsing failures
+
+**TTS Toggle Feature**:
+- Added `tts_enabled: bool` to UIState (default: false)
+- Added `UIStateAction::ToggleTTS` action
+- Gated auto-play in `app.rs` at line 251: `if msg.participant_id != "user" && (*usc).tts_enabled`
+- Added toggle button in `speech_controls.rs` (🔊/🔇 icons)
+- Styled with `.tts-enabled` and `.tts-disabled` CSS classes
+- Manual TTS replay still works regardless of toggle state
+
+### Tests: All tests pass
+
+### Build Status: ✅ Compiles cleanly with no errors
 
 ---
 

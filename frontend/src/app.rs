@@ -211,6 +211,13 @@ fn on_teaching_mode_cycle(app_state: UseReducerHandle<AppState>) -> Callback<()>
     })
 }
 
+fn on_tts_toggle(ui_state: UseReducerHandle<UIState>) -> Callback<()> {
+    let ui_state = ui_state.clone();
+    Callback::from(move |_| {
+        ui_state.dispatch(UIStateAction::ToggleTTS);
+    })
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     let app_state = use_reducer(AppState::default);
@@ -248,7 +255,7 @@ pub fn app() -> Html {
                     info!("Received message from: {}", msg.participant_id);
                     asc.dispatch(AppStateAction::LoadingComplete);
 
-                    if msg.participant_id != "user" {
+                    if msg.participant_id != "user" && (*usc).tts_enabled {
                         asc.dispatch(AppStateAction::Speak(msg.clone()));
                     }
 
@@ -352,9 +359,11 @@ pub fn app() -> Html {
                             language_code={app_state.bcp47_tag()}
                             teaching_mode={app_state.teaching_mode_display().to_string()}
                             formality={app_state.formality_display().to_string()}
+                            tts_enabled={(*ui_state).tts_enabled}
                             on_dialect_cycle={Some(on_dialect_cycle(app_state.clone()))}
                             on_teaching_mode_cycle={Some(on_teaching_mode_cycle(app_state.clone()))}
                             on_formality_cycle={Some(on_formality_cycle(app_state.clone()))}
+                            on_tts_toggle={Some(on_tts_toggle(ui_state.clone()))}
                         />
                         <InputBox
                             on_send={{

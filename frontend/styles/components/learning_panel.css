@@ -11,7 +11,7 @@
     box-shadow: var(--shadow-float);
     padding: 20px;
     overflow-y: auto;
-    z-index: 100;
+    z-index: 200;
 }
 
 .learning-panel-header {

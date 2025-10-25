@@ -134,6 +134,12 @@
   margin-bottom: var(--s-3);
 }
 
+.button-group {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+
 .speech-controls button {
   background: var(--surface);
   border: 1px solid rgba(78, 205, 196, 0.2);
@@ -175,6 +181,19 @@
     opacity: 0.8;
     transform: scale(1.02);
   }
+}
+
+.speech-controls button.tts-enabled {
+  background: var(--teal-tint);
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.speech-controls button.tts-disabled {
+  background: var(--surface);
+  border-color: rgba(58, 74, 90, 0.2);
+  color: var(--ink-soft);
+  opacity: 0.7;
 }
 
 .language-indicator {

@@ -10,12 +10,15 @@ pub struct SpeechControlsProps {
     pub language_code: String,
     pub teaching_mode: String,
     pub formality: String,
+    pub tts_enabled: bool,
     #[prop_or_default]
     pub on_dialect_cycle: Option<Callback<()>>,
     #[prop_or_default]
     pub on_teaching_mode_cycle: Option<Callback<()>>,
     #[prop_or_default]
     pub on_formality_cycle: Option<Callback<()>>,
+    #[prop_or_default]
+    pub on_tts_toggle: Option<Callback<()>>,
 }
 
 #[function_component(SpeechControls)]
@@ -73,9 +76,24 @@ pub fn speech_controls(props: &SpeechControlsProps) -> Html {
 
     html! {
         <div class="speech-controls">
-            <button onclick={toggle_listening} class={if *is_listening { "listening" } else { "" }}>
-                {if *is_listening { "🎤 Listening..." } else { "🎤 Speak" }}
-            </button>
+            <div class="button-group">
+                <button onclick={toggle_listening} class={if *is_listening { "listening" } else { "" }}>
+                    {if *is_listening { "🎤 Listening..." } else { "🎤 Speak" }}
+                </button>
+                <button
+                    onclick={{
+                        let on_tts_toggle = props.on_tts_toggle.clone();
+                        Callback::from(move |_| {
+                            if let Some(callback) = &on_tts_toggle {
+                                callback.emit(());
+                            }
+                        })
+                    }}
+                    class={if props.tts_enabled { "tts-enabled" } else { "tts-disabled" }}
+                    title={if props.tts_enabled { "Auto-play ON" } else { "Auto-play OFF" }}>
+                    {if props.tts_enabled { "🔊" } else { "🔇" }}
+                </button>
+            </div>
             <div class="control-indicators">
                 <button class="language-indicator clickable"
                         onclick={{

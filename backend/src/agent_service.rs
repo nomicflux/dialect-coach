@@ -100,7 +100,7 @@ fn teaching_desc(teaching_mode: &TeachingMode) -> String {
             "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections."
         },
         TeachingMode::Corrective => {
-            "3. CORRECTIVE MODE: Respond naturally, but also populate the mistakes array with any errors in user's message. Include spelling errors, grammar mistakes, and dialectal usage problems. Be specific and brief in identifying the exact problematic word or phrase."
+            "3. CORRECTIVE MODE: Respond naturally, but also populate the mistakes array with any errors in user's message. Include spelling errors, grammar mistakes, and dialectal usage problems. IGNORE missing punctuation and capitalization - this is casual chat. Be specific and brief in identifying the exact problematic word or phrase."
         },
         TeachingMode::Explanatory => {
             "3. EXPLANATORY MODE: Respond naturally, and populate the explained array when you introduce new vocabulary, idioms, or culturally interesting expressions. Keep explanations brief and practical."

@@ -342,6 +342,7 @@ pub enum UIStateAction {
     CloseLearningPanel,
     AddLearningItems(Vec<Mistake>, Vec<Explained>),
     UpdateScores(AgentAnalysis),
+    ToggleTTS,
 }
 
 #[derive(Clone)]
@@ -351,6 +352,7 @@ pub struct UIState {
     pub translating_button: Option<String>,
     pub learning_items: Vec<LearningItem>,
     pub learning_panel_open: bool,
+    pub tts_enabled: bool,
 }
 
 impl Default for UIState {
@@ -361,6 +363,7 @@ impl Default for UIState {
             translating_button: None,
             learning_items: Vec::new(),
             learning_panel_open: false,
+            tts_enabled: false,
         }
     }
 }
@@ -428,6 +431,7 @@ impl UIState {
             UIStateAction::UpdateScores(analysis) => {
                 next.learning_items = apply_score_updates(self.learning_items.clone(), &analysis)
             }
+            UIStateAction::ToggleTTS => next.tts_enabled = !self.tts_enabled,
         };
         next
     }
