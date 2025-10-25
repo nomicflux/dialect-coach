@@ -1,4 +1,4 @@
-use super::{AgentResponse, Explained, Formality, Mistake, TeachingMode};
+use super::{AgentResponse, Explained, Formality, Mistake, TeachingMode, UserState};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -91,6 +91,19 @@ impl UserMessageWithContext {
             past_exploratory,
         }
     }
+}
+
+/// WebSocket messages for UserState persistence
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum UserStateMessage {
+    /// Request to save user state to backend
+    Save(UserState),
+    /// Request to load user state by user_id
+    Load(Uuid),
+    /// Response to save request (Ok = success, Err = error message)
+    SaveResponse(Result<(), String>),
+    /// Response to load request (Some = found, None = not found)
+    LoadResponse(Option<UserState>),
 }
 
 #[cfg(test)]
@@ -353,5 +366,88 @@ mod tests {
         assert_eq!(deserialized.past_explained.len(), 1);
         assert_eq!(deserialized.past_translated.len(), 1);
         assert_eq!(deserialized.past_exploratory.len(), 1);
+    }
+
+    #[test]
+    fn test_user_state_message_save_serialization() {
+        use crate::models::UserState;
+
+        let user_id = Uuid::new_v4();
+        let state = UserState::new(user_id);
+        let msg = UserStateMessage::Save(state.clone());
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"Save\""));
+        assert!(json.contains(&user_id.to_string()));
+
+        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_user_state_message_load_serialization() {
+        let user_id = Uuid::new_v4();
+        let msg = UserStateMessage::Load(user_id);
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"Load\""));
+        assert!(json.contains(&user_id.to_string()));
+
+        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_user_state_message_save_response_ok() {
+        let msg = UserStateMessage::SaveResponse(Ok(()));
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"SaveResponse\""));
+        assert!(json.contains("\"Ok\""));
+
+        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_user_state_message_save_response_err() {
+        let error_msg = "Database connection failed".to_string();
+        let msg = UserStateMessage::SaveResponse(Err(error_msg.clone()));
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"SaveResponse\""));
+        assert!(json.contains("\"Err\""));
+        assert!(json.contains(&error_msg));
+
+        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_user_state_message_load_response_some() {
+        use crate::models::UserState;
+
+        let user_id = Uuid::new_v4();
+        let state = UserState::new(user_id);
+        let msg = UserStateMessage::LoadResponse(Some(state.clone()));
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"LoadResponse\""));
+        assert!(json.contains(&user_id.to_string()));
+
+        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_user_state_message_load_response_none() {
+        let msg = UserStateMessage::LoadResponse(None);
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"LoadResponse\""));
+        assert!(json.contains("null"));
+
+        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
     }
 }
