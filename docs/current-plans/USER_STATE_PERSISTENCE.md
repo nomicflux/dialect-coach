@@ -736,20 +736,20 @@ pub struct InMemoryPersistence {
 
 ## Phase 8: Backend AppState Integration (backend crate)
 
-### Status: Not Started
+### Status: Completed (2025-10-25)
 
 ### Before Starting This Phase:
-- [ ] Review `.claude/CLAUDE.md` for code style guidelines
-- [ ] Functions must be <20 lines (prefer <10 lines)
-- [ ] Write helper functions for complex logic
-- [ ] Every function needs a test
-- [ ] Use pure functions where possible
+- [x] Review `.claude/CLAUDE.md` for code style guidelines
+- [x] Functions must be <20 lines (prefer <10 lines)
+- [x] Write helper functions for complex logic
+- [x] Every function needs a test
+- [x] Use pure functions where possible
 
 ### Tasks:
-- [ ] Add user_persistence field to AppState
-- [ ] Initialize with InMemoryPersistence in main.rs
-- [ ] Call initialize() on persistence layer
-- [ ] Pass to WebSocket handlers
+- [x] Add user_persistence field to AppState
+- [x] Initialize with InMemoryPersistence in main.rs
+- [x] Call initialize() on persistence layer
+- [x] Pass to WebSocket handlers
 
 ### Files to Modify:
 - `backend/src/main.rs`
@@ -782,11 +782,69 @@ let app_state = AppState {
 - AppState owns the Arc (standard axum pattern)
 
 ### Phase Completion Checklist:
-- [ ] All tests pass (100% success required)
-- [ ] All functions are <20 lines
-- [ ] Update this planning doc with any deviations or issues encountered
-- [ ] Document any user corrections or rejected approaches
-- [ ] Mark phase status as "Completed" before moving to next phase
+- [x] All tests pass (100% success required) - 21 backend tests passed, 3 ignored
+- [x] All functions are <20 lines - No new functions, only field additions
+- [x] Update this planning doc with any deviations or issues encountered
+- [x] Document any user corrections or rejected approaches
+- [x] Mark phase status as "Completed" before moving to next phase
+
+### Implementation Notes (2025-10-25):
+
+**Files Modified**:
+- `backend/src/main.rs` - Added user_persistence field and initialization
+
+**Changes to AppState**:
+```rust
+pub struct AppState {
+    pub qdrant: Arc<qdrant_service::QdrantService>,
+    pub agent: Arc<agent_service::AgentService>,
+    pub embeddings: Arc<embedding_service::EmbeddingService>,
+    pub session_histories: Arc<Mutex<HashMap<Uuid, Vec<String>>>>,
+    pub user_persistence: Arc<dyn UserPersistence>,  // NEW
+}
+```
+
+**Initialization in main()** (backend/src/main.rs:63-68):
+```rust
+tracing::info!("Initializing user persistence...");
+let user_persistence: Arc<dyn UserPersistence> = Arc::new(InMemoryPersistence::new());
+user_persistence
+    .initialize()
+    .await
+    .context("Failed to initialize user persistence")?;
+```
+
+**AppState Construction** (backend/src/main.rs:92):
+```rust
+let state = AppState {
+    qdrant,
+    agent: Arc::new(agent),
+    embeddings,
+    session_histories: Arc::new(Mutex::new(HashMap::new())),
+    user_persistence,  // NEW
+};
+```
+
+**Test Results**:
+- cargo check: passes (only unrelated dead code warnings)
+- backend tests: 21 passed, 3 ignored
+- All existing tests continue to pass
+
+**Critical Requirements Met**:
+- ✓ Variable name is `user_persistence` (generic)
+- ✓ Type is `Arc<dyn UserPersistence>` (trait object)
+- ✓ Only reference to InMemoryPersistence is at line 64 (initialization)
+- ✓ Easy to swap implementations by changing one line
+- ✓ AppState owns the Arc (standard Axum pattern)
+- ✓ initialize() called during startup with error context
+
+**Design Benefits**:
+- Trait object allows swapping implementations without changing AppState
+- Single initialization point in main()
+- Available to all handlers via AppState
+- Follows Axum best practices for shared state
+
+**No User Corrections**: Implementation followed planning doc exactly
 
 ---
 
