@@ -1,6 +1,10 @@
+pub mod in_memory;
+
 use anyhow::Result;
 use dialect_coach_shared::UserState;
 use uuid::Uuid;
+
+pub use in_memory::InMemoryPersistence;
 
 /// Trait for persisting user state
 ///
@@ -27,6 +31,7 @@ use uuid::Uuid;
 ///     Ok(())
 /// }
 /// ```
+#[async_trait::async_trait]
 pub trait UserPersistence: Send + Sync {
     /// Initialize the persistence layer
     ///
