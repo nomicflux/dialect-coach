@@ -7,6 +7,7 @@ use std::rc::Rc;
 use uuid::Uuid;
 use yew::prelude::*;
 
+use crate::services::save_queue::PendingSaveQueue;
 use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
@@ -19,6 +20,8 @@ pub enum AppStateAction {
     ClearError,
     SetConnectionState(ConnectionState),
     Speak(Message),
+    QueuePendingSave(UserState),
+    RetryPendingSaves,
 }
 
 #[derive(Clone)]
@@ -30,6 +33,7 @@ pub struct AppState {
     pub ws_service: Rc<RefCell<WebSocketService>>,
     pub tts_service: Option<Rc<CloudTtsService>>,
     pub translation_service: Rc<TranslationService>,
+    pub save_queue: Rc<PendingSaveQueue>,
 }
 
 impl Default for AppState {
@@ -44,6 +48,7 @@ impl Default for AppState {
             ))),
             tts_service: Some(Rc::new(CloudTtsService::new("http://localhost:3000"))),
             translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
+            save_queue: Rc::new(PendingSaveQueue::new()),
         }
     }
 }
@@ -72,6 +77,14 @@ impl AppState {
                         error!("Failed to replay message with TTS: {}", e);
                     }
                 });
+            }
+            AppStateAction::QueuePendingSave(state) => {
+                next.save_queue.enqueue(state);
+            }
+            AppStateAction::RetryPendingSaves => {
+                if let Err(e) = next.save_queue.retry_all() {
+                    error!("Failed to retry pending saves: {}", e);
+                }
             }
         }
         next

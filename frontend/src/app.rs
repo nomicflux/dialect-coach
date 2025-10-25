@@ -11,7 +11,7 @@ use yew::prelude::*;
 use crate::components::{ChatWindow, InputBox, LearningPanel, SpeechControls};
 use crate::hooks::use_debounced_save;
 use crate::services::persistence::{load_user_state, save_user_state};
-use crate::services::websocket::{ConnectionState};
+use crate::services::websocket::ConnectionState;
 
 fn extract_learning_items(user_state: &UserStateWrapper) -> (Vec<Mistake>, Vec<Explained>, Vec<Translated>, Vec<Exploratory>) {
     let mut mistakes = Vec::new();
@@ -228,10 +228,17 @@ pub fn app() -> Html {
         }
     });
 
-    // Set up debounced auto-save
-    let _force_save = use_debounced_save(&user_state, |state| {
-        if let Err(e) = save_user_state(state) {
-            error!("Failed to save UserState: {}", e);
+    // Set up debounced auto-save with retry queue
+    let app_state_for_save = app_state.clone();
+    let _force_save = use_debounced_save(&user_state, move |state| {
+        match save_user_state(state) {
+            Ok(()) => {
+                info!("UserState saved successfully");
+            }
+            Err(e) => {
+                error!("Failed to save UserState: {}", e);
+                app_state_for_save.dispatch(AppStateAction::QueuePendingSave(state.clone()));
+            }
         }
     });
 
@@ -308,6 +315,11 @@ pub fn app() -> Html {
                             ws_clone.borrow_mut().reconnect();
                         })
                         .forget();
+                    }
+
+                    // Retry pending saves when connected
+                    if matches!(new_state, ConnectionState::Connected) {
+                        asc.dispatch(AppStateAction::RetryPendingSaves);
                     }
                 }));
 
