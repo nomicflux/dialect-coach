@@ -1,5 +1,6 @@
 mod agent_service;
 mod embedding_service;
+mod persistence;
 mod qdrant_service;
 mod translation_handler;
 mod tts_handler;
