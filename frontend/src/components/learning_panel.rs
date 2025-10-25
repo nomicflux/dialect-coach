@@ -1,5 +1,5 @@
 use yew::prelude::*;
-use crate::app::{LearningItem, LearningItemType};
+use dialect_coach_shared::{LearningItem, LearningItemType};
 
 #[derive(Properties, PartialEq)]
 pub struct LearningPanelProps {
