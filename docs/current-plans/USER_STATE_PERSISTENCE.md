@@ -22,6 +22,13 @@ Extract user-specific data from UIState/AppState into dedicated UserState, persi
 
 ### Status: Not Started
 
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
+
 ### Tasks:
 - [ ] Create new file `shared/src/models/user_state.rs`
 - [ ] Move `LearningItem` and `LearningItemType` from frontend to shared
@@ -77,11 +84,25 @@ pub enum LearningItemType {
 - test_user_state_deserialization
 - test_conversation_history_in_user_state
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 2: Extract UserState in Frontend (frontend crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Import UserState from shared crate
@@ -118,11 +139,25 @@ pub enum UserStateAction {
 - **Conversation history**: Move from AppState.messages to UserState.conversation_history
 - **Learning items vs scores**: Keep separate - items added with score=0, scores updated via separate action
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 3: Debounced Persistence (frontend crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Create `frontend/src/hooks/use_debounced_save.rs`
@@ -155,11 +190,25 @@ pub fn use_debounced_save(
 - **No disconnect edge cases**: Too late once disconnect is noticed
 - **Manual sync**: Returns force_save_now() callback for "Sync Settings" button
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 4: Save Queue with Retry (frontend crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Create `frontend/src/services/save_queue.rs`
@@ -216,11 +265,25 @@ impl PendingSaveQueue {
 - **Automatic retry**: Call retry_all() in WebSocket reconnect handler
 - **Minimal logging**: Log when queuing first save and when retrying, warn on retry failure
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 5: WebSocket Protocol Updates (shared crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Add UserStateMessage enum to `shared/src/models/message.rs`
@@ -247,11 +310,25 @@ pub enum UserStateMessage {
 - **ACK via SaveResponse**: `Ok(())` serves as acknowledgment, no separate ACK needed
 - **No versioning**: Not needed at this stage - future concern
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 6: Backend Persistence Trait (backend crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Create `backend/src/persistence/mod.rs`
@@ -297,11 +374,25 @@ pub trait UserPersistence: Send + Sync {
 - **`&self` methods**: Implementations control mutability (e.g., Arc<Mutex<HashMap>> internally)
 - **Keep simple**: Only save/load for now - add delete/list/etc when needed
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 7: InMemoryPersistence Implementation (backend crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Create `backend/src/persistence/in_memory.rs`
@@ -374,11 +465,25 @@ impl UserPersistence for InMemoryPersistence {
 - **No metrics**: Just basic debug logging
 - **Development tool**: Placeholder for production persistence later
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 8: Backend AppState Integration (backend crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Add user_persistence field to AppState
@@ -416,11 +521,25 @@ let app_state = AppState {
 - Easy to swap: change `InMemoryPersistence::new()` to `DatabasePersistence::new()`
 - AppState owns the Arc (standard axum pattern)
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 9: WebSocket Handlers (backend crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Create new WebSocket endpoint `/ws/user_state` (separate from `/ws` chat endpoint)
@@ -498,11 +617,25 @@ async fn handle_load_user_state(
 - **Separate endpoint**: `/ws/user_state` for user state operations, `/ws` for chat
 - **No rate limiting**: Not needed at this stage
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 10: Frontend WebSocket Integration (frontend crate)
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Add second WebSocket connection to WebSocketService for `/ws/user_state` endpoint
@@ -555,11 +688,25 @@ pub fn load_user_state(&self, user_id: Uuid) -> Result<(), String> {
 - **No message mixing**: Different endpoints = different handlers
 - **Auto-load on connect**: Load happens automatically when user state WebSocket connects
 
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
+
 ---
 
 ## Phase 12: Integration Testing
 
 ### Status: Not Started
+
+### Before Starting This Phase:
+- [ ] Review `.claude/CLAUDE.md` for code style guidelines
+- [ ] Functions must be <20 lines (prefer <10 lines)
+- [ ] Write helper functions for complex logic
+- [ ] Every function needs a test
+- [ ] Use pure functions where possible
 
 ### Tasks:
 - [ ] Manual test: Set preferences, verify debounced save
@@ -600,6 +747,13 @@ pub fn load_user_state(&self, user_id: Uuid) -> Result<(), String> {
 2. Restart backend
 3. Refresh browser
 4. Verify state NOT restored (expected - in-memory)
+
+### Phase Completion Checklist:
+- [ ] All tests pass (100% success required)
+- [ ] All functions are <20 lines
+- [ ] Update this planning doc with any deviations or issues encountered
+- [ ] Document any user corrections or rejected approaches
+- [ ] Mark phase status as "Completed" before moving to next phase
 
 ---
 
