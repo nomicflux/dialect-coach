@@ -3,14 +3,33 @@ use app_state::{AppState, UIState, AppStateAction, UIStateAction};
 pub use app_state::{LearningItem, LearningItemType};
 
 use dialect_coach_shared::models::{Formality, Language, Message, TeachingMode};
+use dialect_coach_shared::{Explained, Mistake, UserMessageWithContext};
 use log::{error, info};
 use yew::prelude::*;
 
 use crate::components::{ChatWindow, InputBox, LearningPanel, SpeechControls};
 use crate::services::websocket::{ConnectionState};
 
-fn on_send_message(app_state: UseReducerHandle<AppState>) -> Callback<String> {
+fn extract_learning_items(ui_state: &UIState) -> (Vec<Mistake>, Vec<Explained>) {
+    let mut mistakes = Vec::new();
+    let mut explained = Vec::new();
+
+    for item in &ui_state.learning_items {
+        match &item.item {
+            LearningItemType::Mistake(m) => mistakes.push(m.clone()),
+            LearningItemType::Explanation(e) => explained.push(e.clone()),
+        }
+    }
+
+    (mistakes, explained)
+}
+
+fn on_send_message(
+    app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>
+) -> Callback<String> {
     let app_state = app_state.clone();
+    let ui_state = ui_state.clone();
 
     Callback::from(move |content: String| {
         info!("Sending message: {}", content);
@@ -18,8 +37,14 @@ fn on_send_message(app_state: UseReducerHandle<AppState>) -> Callback<String> {
         let msg = (*app_state).create_msg(&content);
         app_state.dispatch(AppStateAction::AddMessage(msg.clone()));
 
+        // Extract learning items from UI state
+        let (past_mistakes, past_explained) = extract_learning_items(&ui_state);
+
+        // Build UserMessageWithContext
+        let msg_with_context = UserMessageWithContext::new(msg, past_mistakes, past_explained);
+
         // Send through WebSocket
-        match (*app_state).ws_service.borrow().send_message(&msg) {
+        match (*app_state).ws_service.borrow().send_message(&msg_with_context) {
             Ok(_) => {
                 info!("Message sent successfully");
                 app_state.dispatch(AppStateAction::SetLoading);
@@ -167,9 +192,22 @@ fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Message>
 
 fn on_dialect_cycle(app_state: UseReducerHandle<AppState>) -> Callback<()> {
     let app_state = app_state.clone();
-
     Callback::from(move |_| {
         app_state.dispatch(AppStateAction::RotateDialect);
+    })
+}
+
+fn on_formality_cycle(app_state: UseReducerHandle<AppState>) -> Callback<()> {
+    let app_state = app_state.clone();
+    Callback::from(move |_| {
+        app_state.dispatch(AppStateAction::RotateFormality);
+    })
+}
+
+fn on_teaching_mode_cycle(app_state: UseReducerHandle<AppState>) -> Callback<()> {
+    let app_state = app_state.clone();
+    Callback::from(move |_| {
+        app_state.dispatch(AppStateAction::RotateTeachingMode);
     })
 }
 
@@ -218,6 +256,14 @@ pub fn app() -> Html {
                     let explained = msg.content.explained.clone().unwrap_or_default();
                     if !mistakes.is_empty() || !explained.is_empty() {
                         usc.dispatch(UIStateAction::AddLearningItems(mistakes, explained));
+                    }
+
+                    if let Some(analysis) = msg.content.analysis.clone() {
+                        info!("Received analysis with {} mistake scores, {} explained scores",
+                            analysis.mistake_scores.len(),
+                            analysis.explained_scores.len()
+                        );
+                        usc.dispatch(UIStateAction::UpdateScores(analysis));
                     }
 
                     asc.dispatch(AppStateAction::AddMessage(msg));
@@ -302,14 +348,18 @@ pub fn app() -> Html {
                             formality={app_state.current_formality()}
                         />
                         <SpeechControls
-                            on_speech={on_send_message(app_state.clone())}
+                            on_speech={on_send_message(app_state.clone(), ui_state.clone())}
                             language_code={app_state.bcp47_tag()}
+                            teaching_mode={app_state.teaching_mode_display().to_string()}
+                            formality={app_state.formality_display().to_string()}
                             on_dialect_cycle={Some(on_dialect_cycle(app_state.clone()))}
+                            on_teaching_mode_cycle={Some(on_teaching_mode_cycle(app_state.clone()))}
+                            on_formality_cycle={Some(on_formality_cycle(app_state.clone()))}
                         />
                         <InputBox
                             on_send={{
                                 let ui_state = ui_state.clone();
-                                let send_message = on_send_message(app_state.clone());
+                                let send_message = on_send_message(app_state.clone(), ui_state.clone());
                                 Callback::from(move |content: String| {
                                     // Clear the prompt value after use
                                     ui_state.dispatch(UIStateAction::ClearInputPrompt);
@@ -355,6 +405,12 @@ pub fn app() -> Html {
                     <LearningPanel
                         items={(*ui_state).learning_items.clone()}
                         is_open={(*ui_state).learning_panel_open}
+                        on_close={{
+                            let ui_state = ui_state.clone();
+                            Callback::from(move |_| {
+                                ui_state.dispatch(UIStateAction::CloseLearningPanel);
+                            })
+                        }}
                     />
                 </div>
 

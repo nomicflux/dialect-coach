@@ -1,5 +1,5 @@
 use dialect_coach_shared::models::{Dialect, Formality, Language, Message, TeachingMode};
-use dialect_coach_shared::{Explained, Mistake};
+use dialect_coach_shared::{AgentAnalysis, Explained, Mistake};
 use log::{error};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -126,6 +126,44 @@ impl LanguageManner {
             ..self.clone()
         }
     }
+
+    fn rotate_formality(&self) -> Self {
+        let formalities = [
+            Formality::Formal,
+            Formality::Casual,
+            Formality::DialectRich,
+            Formality::Slang,
+        ];
+        let current_index = formalities
+            .iter()
+            .position(|f| *f == self.formality)
+            .unwrap_or(0);
+        let next_index = (current_index + 1) % formalities.len();
+        Self {
+            formality: formalities[next_index],
+            ..self.clone()
+        }
+    }
+
+    fn rotate_teaching_mode(&self) -> Self {
+        let modes = [
+            TeachingMode::Immersive,
+            TeachingMode::Corrective,
+            TeachingMode::Explanatory,
+            TeachingMode::Interleaved,
+            TeachingMode::StoryTeller,
+            TeachingMode::Debug,
+        ];
+        let current_index = modes
+            .iter()
+            .position(|m| *m == self.teaching_mode)
+            .unwrap_or(0);
+        let next_index = (current_index + 1) % modes.len();
+        Self {
+            teaching_mode: modes[next_index],
+            ..self.clone()
+        }
+    }
 }
 
 pub enum AppStateAction {
@@ -139,7 +177,9 @@ pub enum AppStateAction {
     RotateDialect,
     ChangeLanguage(Language),
     ChangeFormality(Formality),
+    RotateFormality,
     ChangeTeachingMode(TeachingMode),
+    RotateTeachingMode,
     Speak(Message),
 }
 
@@ -208,6 +248,26 @@ impl AppState {
         self.language_manner.formality
     }
 
+    pub fn formality_display(&self) -> &'static str {
+        match self.language_manner.formality {
+            Formality::Formal => "Formal",
+            Formality::Casual => "Casual",
+            Formality::DialectRich => "Dialect-Rich",
+            Formality::Slang => "Slang",
+        }
+    }
+
+    pub fn teaching_mode_display(&self) -> &'static str {
+        match self.language_manner.teaching_mode {
+            TeachingMode::Immersive => "Immersive",
+            TeachingMode::Corrective => "Corrective",
+            TeachingMode::Explanatory => "Explanatory",
+            TeachingMode::Interleaved => "Interleaved",
+            TeachingMode::StoryTeller => "Storyteller",
+            TeachingMode::Debug => "Debug",
+        }
+    }
+
     pub fn current_messages(&self) -> Vec<Message> {
         self.messages.messages.clone()
     }
@@ -233,8 +293,14 @@ impl AppState {
             AppStateAction::ChangeFormality(formality) => {
                 next.language_manner = next.language_manner.with_formality(formality)
             }
+            AppStateAction::RotateFormality => {
+                next.language_manner = next.language_manner.rotate_formality()
+            }
             AppStateAction::ChangeTeachingMode(tm) => {
                 next.language_manner = next.language_manner.with_teaching_mode(tm)
+            }
+            AppStateAction::RotateTeachingMode => {
+                next.language_manner = next.language_manner.rotate_teaching_mode()
             }
             AppStateAction::Speak(msg) => {
                 let tts_service = next.tts_service.clone();
@@ -275,6 +341,7 @@ pub enum UIStateAction {
     OpenLearningPanel,
     CloseLearningPanel,
     AddLearningItems(Vec<Mistake>, Vec<Explained>),
+    UpdateScores(AgentAnalysis),
 }
 
 #[derive(Clone)]
@@ -319,6 +386,30 @@ fn merge_items(
     existing
 }
 
+fn apply_score_updates(
+    items: Vec<LearningItem>,
+    analysis: &AgentAnalysis,
+) -> Vec<LearningItem> {
+    items
+        .into_iter()
+        .map(|mut item| {
+            match &item.item {
+                LearningItemType::Mistake(m) => {
+                    if let Some(score_obj) = analysis.mistake_scores.get(&m.id) {
+                        item.score = score_obj.score.max(0) as u8;
+                    }
+                }
+                LearningItemType::Explanation(e) => {
+                    if let Some(score_obj) = analysis.explained_scores.get(&e.id) {
+                        item.score = score_obj.score.max(0) as u8;
+                    }
+                }
+            }
+            item
+        })
+        .collect()
+}
+
 impl UIState {
     fn apply_action(&self, action: UIStateAction) -> Self {
         let mut next = self.clone();
@@ -333,6 +424,9 @@ impl UIState {
             UIStateAction::CloseLearningPanel => next.learning_panel_open = false,
             UIStateAction::AddLearningItems(mistakes, explained) => {
                 next.learning_items = merge_items(self.learning_items.clone(), mistakes, explained)
+            }
+            UIStateAction::UpdateScores(analysis) => {
+                next.learning_items = apply_score_updates(self.learning_items.clone(), &analysis)
             }
         };
         next

@@ -1,9 +1,8 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::{Dialect, DialectDocument, Formality, TeachingMode};
+use dialect_coach_shared::{Dialect, DialectDocument, Explained, Formality, Mistake, TeachingMode};
 use rig::completion::Prompt;
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
 
-use std::error::Error;
 use std::sync::Arc;
 
 use crate::embedding_service::EmbeddingService;
@@ -124,6 +123,59 @@ Answer in English with clear, brief explanations of how prompts could be improve
     format!("{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.", desc, tokens)
 }
 
+fn format_mistakes_for_analysis(mistakes: &[Mistake]) -> String {
+    if mistakes.is_empty() {
+        return "None".to_string();
+    }
+    mistakes
+        .iter()
+        .map(|m| format!(r#"{{"id": "{}", "text": "{}"}}"#, m.id, m.specific_mistake))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn format_explained_for_analysis(explained: &[Explained]) -> String {
+    if explained.is_empty() {
+        return "None".to_string();
+    }
+    explained
+        .iter()
+        .map(|e| format!(r#"{{"id": "{}", "text": "{}"}}"#, e.id, e.new_phrase))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn analysis_agent_prompt(
+    dialect: &Dialect,
+    conversation_history: &[String],
+    mistakes: &[Mistake],
+    explained: &[Explained],
+) -> String {
+    format!(
+        r#"You are analyzing a language learner's progress in {}.
+
+CONVERSATION HISTORY:
+{}
+
+PAST MISTAKES TO ANALYZE:
+{}
+
+PAST EXPLAINED FEATURES TO ANALYZE:
+{}
+
+Analyze the conversation and score each item:
+MISTAKES (-10 to 10): -10=still occurring, 0=no usage/different error, 10=fixed
+EXPLAINED (0 to 10): 0=not used, 5=attempted incorrectly, 10=used correctly
+
+Return ONLY this JSON:
+{{"mistake_scores": {{}}, "explained_scores": {{}}}}"#,
+        dialect.name(),
+        conversation_history.join("\n"),
+        format_mistakes_for_analysis(mistakes),
+        format_explained_for_analysis(explained),
+    )
+}
+
 impl AgentService {
     /// Create new agent service from environment variables
     pub fn from_env(qdrant: Arc<QdrantService>, embeddings: Arc<EmbeddingService>) -> Result<Self> {
@@ -143,6 +195,51 @@ impl AgentService {
             model_name,
             qdrant,
             embeddings,
+        })
+    }
+
+    pub async fn generate_analysis(
+        &self,
+        dialect: Dialect,
+        conversation_history: &[String],
+        mistakes: &[Mistake],
+        explained: &[Explained],
+    ) -> Result<dialect_coach_shared::AgentAnalysis> {
+        if mistakes.is_empty() && explained.is_empty() {
+            tracing::debug!("Skipping analysis - no learning items");
+            return Ok(dialect_coach_shared::AgentAnalysis::new());
+        }
+
+        tracing::info!(
+            "Starting analysis for {} mistakes, {} explained items",
+            mistakes.len(),
+            explained.len()
+        );
+
+        let prompt = analysis_agent_prompt(&dialect, conversation_history, mistakes, explained);
+
+        tracing::debug!("Analysis prompt sent to Claude:\n{}", prompt);
+
+        let agent = self
+            .client
+            .agent(&self.model_name)
+            .max_tokens(256)
+            .temperature(0.3)
+            .build();
+
+        tracing::info!("Calling Claude API for analysis...");
+        let response = agent
+            .prompt(prompt.as_str())
+            .await
+            .context("Failed to get analysis from Claude")?;
+
+        tracing::info!("Received analysis response from Claude API");
+
+        tracing::info!("Raw analysis response from Claude: {}", response);
+
+        serde_json::from_str(&response).map_err(|e| {
+            tracing::error!("Failed to parse analysis response as JSON: {}", e);
+            anyhow::anyhow!("Claude returned invalid JSON for analysis: {}", e)
         })
     }
 
@@ -210,6 +307,19 @@ impl AgentService {
             docs.extend(example_docs);
         }
         Ok(docs)
+    }
+
+    fn temperature_for_mode(
+        mode: &TeachingMode,
+    ) -> f64 {
+        match mode {
+            TeachingMode::Immersive => 0.6,
+            TeachingMode::Corrective => 0.4,
+            TeachingMode::Explanatory => 0.5,
+            TeachingMode::Interleaved => 0.4,
+            TeachingMode::StoryTeller => 1.0,
+            TeachingMode::Debug => 0.1,
+        }
     }
 
     pub async fn generate_response(
@@ -382,25 +492,20 @@ impl AgentService {
             .agent(&self.model_name)
             .preamble(&system_content)
             .max_tokens(max_tokens)
-            .temperature(1.0)
+            .temperature(Self::temperature_for_mode(&teaching_mode))
             .build();
 
         tracing::info!("Sending prompt to Claude: {}", user_message);
-        let response = match agent.prompt(user_message).await {
-            Ok(resp) => resp,
-            Err(e) => {
-                tracing::error!("Claude API error details: {:?}", e);
-                tracing::error!("Claude API error source: {:?}", e.source());
-                return Err(anyhow::Error::from(e).context("Failed to get completion from Claude"));
-            }
-        };
+        let response = agent
+            .prompt(user_message)
+            .await
+            .context("Failed to get completion from Claude")?;
 
-        tracing::info!("Raw Claude response: {:?}", response);
-        tracing::info!("Claude response length: {} chars", response.len());
+        tracing::info!("Raw response from Claude: {}", response);
 
-        // Parse JSON response from Claude
-        let parsed_response: dialect_coach_shared::AgentResponse = serde_json::from_str(&response)
-            .context("Claude returned invalid JSON format. Expected: {\"response\": \"...\"}")?;
+        let parsed_response: dialect_coach_shared::AgentResponse =
+            serde_json::from_str(&response)
+                .context("Claude returned invalid JSON format")?;
 
         tracing::info!(
             "Generated response for dialect {} ({} chars)",

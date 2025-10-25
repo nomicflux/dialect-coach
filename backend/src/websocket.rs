@@ -5,7 +5,7 @@ use axum::{
     },
     response::Response,
 };
-use dialect_coach_shared::{AgentResponse, Dialect, Formality, Message, TeachingMode};
+use dialect_coach_shared::{AgentResponse, Dialect, Formality, Message, TeachingMode, UserMessageWithContext};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -158,15 +158,65 @@ async fn validate_and_parse_dialect(
     }
 }
 
+async fn run_agents_parallel(
+    state: &AppState,
+    msg_with_context: &UserMessageWithContext,
+    dialect: Dialect,
+    history_vec: &[String],
+) -> Result<AgentResponse, anyhow::Error> {
+    let formality = msg_with_context.message.metadata.formality;
+    let teaching_mode = msg_with_context.message.metadata.teaching_mode;
+    let user_text = &msg_with_context.message.content.response;
+
+    let has_learning_items = !msg_with_context.past_mistakes.is_empty()
+        || !msg_with_context.past_explained.is_empty();
+
+    if !has_learning_items {
+        return state
+            .agent
+            .generate_response(user_text, dialect, formality, teaching_mode, history_vec)
+            .await;
+    }
+
+    tracing::info!(
+        "Running agents in parallel: {} mistakes, {} explained items",
+        msg_with_context.past_mistakes.len(),
+        msg_with_context.past_explained.len()
+    );
+
+    let (response_result, analysis_result) = tokio::join!(
+        state.agent.generate_response(user_text, dialect, formality, teaching_mode, history_vec),
+        state.agent.generate_analysis(
+            dialect,
+            history_vec,
+            &msg_with_context.past_mistakes,
+            &msg_with_context.past_explained,
+        )
+    );
+
+    let mut agent_response = response_result?;
+
+    match analysis_result {
+        Ok(analysis) => {
+            agent_response.analysis = Some(analysis);
+            Ok(agent_response)
+        }
+        Err(e) => {
+            tracing::error!("Analysis agent failed: {}", e);
+            Err(e)
+        }
+    }
+}
+
 async fn call_agent_and_respond(
     state: &AppState,
-    parsed_msg: &Message,
+    msg_with_context: &UserMessageWithContext,
     dialect: Dialect,
     history_vec: &[String],
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
-    let formality = parsed_msg.metadata.formality;
-    let teaching_mode = parsed_msg.metadata.teaching_mode;
+    let formality = msg_with_context.message.metadata.formality;
+    let teaching_mode = msg_with_context.message.metadata.teaching_mode;
 
     tracing::info!(
         "Calling agent for dialect {} ({:?}, {:?}) with {} history messages",
@@ -176,23 +226,13 @@ async fn call_agent_and_respond(
         history_vec.len()
     );
 
-    match state
-        .agent
-        .generate_response(
-            &parsed_msg.content.response,
-            dialect,
-            formality,
-            teaching_mode,
-            history_vec,
-        )
-        .await
-    {
+    match run_agents_parallel(state, msg_with_context, dialect, history_vec).await {
         Ok(agent_response) => {
             tracing::info!(
                 "Agent generated response ({} chars)",
                 agent_response.response.len()
             );
-            handle_agent_success(state, parsed_msg, agent_response, tx)
+            handle_agent_success(state, &msg_with_context.message, agent_response, tx)
                 .await
                 .map_err(|e| {
                     tracing::error!("{}", e);
@@ -200,7 +240,7 @@ async fn call_agent_and_respond(
         }
         Err(e) => {
             tracing::error!("Agent error: {}", e);
-            let _ = handle_agent_error(parsed_msg, e, tx).await;
+            let _ = handle_agent_error(&msg_with_context.message, e, tx).await;
             Ok(())
         }
     }
@@ -208,14 +248,18 @@ async fn call_agent_and_respond(
 
 async fn process_user_message(
     state: &AppState,
-    parsed_msg: Message,
+    msg_with_context: UserMessageWithContext,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
-    let dialect = validate_and_parse_dialect(&parsed_msg, tx).await?;
+    let dialect = validate_and_parse_dialect(&msg_with_context.message, tx).await?;
 
-    let history_vec = update_user_history(state, parsed_msg.session_id, &parsed_msg.content.response).await;
+    let history_vec = update_user_history(
+        state,
+        msg_with_context.message.session_id,
+        &msg_with_context.message.content.response
+    ).await;
 
-    call_agent_and_respond(state, &parsed_msg, dialect, &history_vec, tx).await
+    call_agent_and_respond(state, &msg_with_context, dialect, &history_vec, tx).await
 }
 
 fn create_send_task(
@@ -243,16 +287,18 @@ fn create_recv_task(
             if let WsMessage::Text(text) = msg {
                 tracing::debug!("Received message: {}", text);
 
-                match serde_json::from_str::<Message>(&text) {
-                    Ok(parsed_msg) => {
+                match serde_json::from_str::<UserMessageWithContext>(&text) {
+                    Ok(msg_with_context) => {
                         tracing::info!(
-                            "Valid message from {} in session {}: '{}'",
-                            parsed_msg.participant_id,
-                            parsed_msg.session_id,
-                            parsed_msg.content.response
+                            "Valid message from {} in session {}: '{}' with {} mistakes, {} explained",
+                            msg_with_context.message.participant_id,
+                            msg_with_context.message.session_id,
+                            msg_with_context.message.content.response,
+                            msg_with_context.past_mistakes.len(),
+                            msg_with_context.past_explained.len()
                         );
 
-                        if process_user_message(&state, parsed_msg, &tx).await.is_err() {
+                        if process_user_message(&state, msg_with_context, &tx).await.is_err() {
                             break;
                         }
                     }

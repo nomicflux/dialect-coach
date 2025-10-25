@@ -1,4 +1,4 @@
-use dialect_coach_shared::Message;
+use dialect_coach_shared::{Message, UserMessageWithContext};
 use futures_channel::mpsc;
 use futures_util::{SinkExt, StreamExt};
 use gloo_net::websocket::{Message as WsMessage, futures::WebSocket};
@@ -292,9 +292,9 @@ impl WebSocketService {
         }
     }
 
-    /// Send a message through the WebSocket
-    pub fn send_message(&self, message: &Message) -> Result<(), String> {
-        let json = serde_json::to_string(message)
+    /// Send a message with context through the WebSocket
+    pub fn send_message(&self, message_with_context: &UserMessageWithContext) -> Result<(), String> {
+        let json = serde_json::to_string(message_with_context)
             .map_err(|e| format!("Failed to serialize message: {}", e))?;
 
         if !self.is_connected() {
@@ -304,7 +304,11 @@ impl WebSocketService {
             return Ok(());
         }
 
-        info!("Sending message: {} bytes", json.len());
+        info!("Sending message: {} bytes ({} mistakes, {} explained)",
+            json.len(),
+            message_with_context.past_mistakes.len(),
+            message_with_context.past_explained.len()
+        );
 
         if let Some(sender) = self.sender.borrow().as_ref() {
             sender

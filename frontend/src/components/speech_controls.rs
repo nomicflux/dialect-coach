@@ -8,8 +8,14 @@ use yew::prelude::*;
 pub struct SpeechControlsProps {
     pub on_speech: Callback<String>,
     pub language_code: String,
+    pub teaching_mode: String,
+    pub formality: String,
     #[prop_or_default]
     pub on_dialect_cycle: Option<Callback<()>>,
+    #[prop_or_default]
+    pub on_teaching_mode_cycle: Option<Callback<()>>,
+    #[prop_or_default]
+    pub on_formality_cycle: Option<Callback<()>>,
 }
 
 #[function_component(SpeechControls)]
@@ -70,18 +76,44 @@ pub fn speech_controls(props: &SpeechControlsProps) -> Html {
             <button onclick={toggle_listening} class={if *is_listening { "listening" } else { "" }}>
                 {if *is_listening { "🎤 Listening..." } else { "🎤 Speak" }}
             </button>
-            <button class="language-indicator clickable"
-                    onclick={{
-                        let on_dialect_cycle = props.on_dialect_cycle.clone();
-                        Callback::from(move |_| {
-                            if let Some(callback) = &on_dialect_cycle {
-                                callback.emit(());
-                            }
-                        })
-                    }}
-                    title="Click to cycle through dialects">
-                {&props.language_code}
-            </button>
+            <div class="control-indicators">
+                <button class="language-indicator clickable"
+                        onclick={{
+                            let on_dialect_cycle = props.on_dialect_cycle.clone();
+                            Callback::from(move |_| {
+                                if let Some(callback) = &on_dialect_cycle {
+                                    callback.emit(());
+                                }
+                            })
+                        }}
+                        title="Click to cycle through dialects">
+                    {&props.language_code}
+                </button>
+                <button class="mode-indicator clickable"
+                        onclick={{
+                            let on_teaching_mode_cycle = props.on_teaching_mode_cycle.clone();
+                            Callback::from(move |_| {
+                                if let Some(callback) = &on_teaching_mode_cycle {
+                                    callback.emit(());
+                                }
+                            })
+                        }}
+                        title="Click to cycle through teaching modes">
+                    {&props.teaching_mode}
+                </button>
+                <button class="formality-indicator clickable"
+                        onclick={{
+                            let on_formality_cycle = props.on_formality_cycle.clone();
+                            Callback::from(move |_| {
+                                if let Some(callback) = &on_formality_cycle {
+                                    callback.emit(());
+                                }
+                            })
+                        }}
+                        title="Click to cycle through formality levels">
+                    {&props.formality}
+                </button>
+            </div>
         </div>
     }
 }
