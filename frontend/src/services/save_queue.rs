@@ -2,7 +2,7 @@ use dialect_coach_shared::UserState;
 use log::{info, warn};
 use std::cell::RefCell;
 
-use super::persistence::save_user_state;
+use super::user_state_websocket::UserStateWebSocketService;
 
 /// Queue for pending UserState saves that failed
 pub struct PendingSaveQueue {
@@ -25,11 +25,11 @@ impl PendingSaveQueue {
         }
     }
 
-    /// Retry all pending saves
-    pub fn retry_all(&self) -> Result<(), String> {
+    /// Retry all pending saves using WebSocket
+    pub fn retry_all(&self, user_state_ws: &UserStateWebSocketService) -> Result<(), String> {
         if let Some(state) = self.pending.borrow_mut().take() {
-            info!("Retrying pending user state save");
-            match save_user_state(&state) {
+            info!("Retrying pending user state save via WebSocket");
+            match user_state_ws.save_user_state(&state) {
                 Ok(()) => {
                     info!("Retry successful");
                     Ok(())

@@ -10,6 +10,7 @@ use yew::prelude::*;
 use crate::services::save_queue::PendingSaveQueue;
 use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
+use crate::services::user_state_websocket::UserStateWebSocketService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
 
 
@@ -31,6 +32,7 @@ pub struct AppState {
     pub is_loading: bool,
     pub error_message: Option<String>,
     pub ws_service: Rc<RefCell<WebSocketService>>,
+    pub user_state_ws_service: Rc<RefCell<UserStateWebSocketService>>,
     pub tts_service: Option<Rc<CloudTtsService>>,
     pub translation_service: Rc<TranslationService>,
     pub save_queue: Rc<PendingSaveQueue>,
@@ -45,6 +47,9 @@ impl Default for AppState {
             error_message: None,
             ws_service: Rc::new(RefCell::new(WebSocketService::new(
                 "ws://localhost:3000/ws",
+            ))),
+            user_state_ws_service: Rc::new(RefCell::new(UserStateWebSocketService::new(
+                "ws://localhost:3000/ws/user_state",
             ))),
             tts_service: Some(Rc::new(CloudTtsService::new("http://localhost:3000"))),
             translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
@@ -82,7 +87,8 @@ impl AppState {
                 next.save_queue.enqueue(state);
             }
             AppStateAction::RetryPendingSaves => {
-                if let Err(e) = next.save_queue.retry_all() {
+                let ws_service = next.user_state_ws_service.borrow();
+                if let Err(e) = next.save_queue.retry_all(&ws_service) {
                     error!("Failed to retry pending saves: {}", e);
                 }
             }

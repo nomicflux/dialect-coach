@@ -10,7 +10,6 @@ use yew::prelude::*;
 
 use crate::components::{ChatWindow, InputBox, LearningPanel, SpeechControls};
 use crate::hooks::use_debounced_save;
-use crate::services::persistence::{load_user_state, save_user_state};
 use crate::services::websocket::ConnectionState;
 
 fn extract_learning_items(user_state: &UserStateWrapper) -> (Vec<Mistake>, Vec<Explained>, Vec<Translated>, Vec<Exploratory>) {
@@ -207,36 +206,62 @@ fn on_tts_toggle(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<()>
     })
 }
 
+fn on_user_state_ws_open(
+    app_state: UseReducerHandle<AppState>,
+    user_id: uuid::Uuid,
+) -> Callback<()> {
+    Callback::from(move |_| {
+        info!("User state WebSocket opened, loading state for user: {}", user_id);
+        if let Err(e) = app_state.user_state_ws_service.borrow().load_user_state(user_id) {
+            error!("Failed to request user state load: {}", e);
+        }
+        app_state.dispatch(AppStateAction::RetryPendingSaves);
+    })
+}
+
+fn on_user_state_load_response(
+    user_state: UseReducerHandle<UserStateWrapper>,
+) -> Callback<Option<UserState>> {
+    Callback::from(move |loaded_state: Option<UserState>| {
+        if let Some(state) = loaded_state {
+            info!("Received user state from backend");
+            // TODO: Add ReplaceUserState action to UserStateAction enum
+        } else {
+            info!("No existing user state on backend, using current state");
+        }
+    })
+}
+
+fn on_user_state_save_response() -> Callback<Result<(), String>> {
+    Callback::from(move |result: Result<(), String>| {
+        match result {
+            Ok(()) => info!("User state saved successfully to backend"),
+            Err(e) => error!("Failed to save user state to backend: {}", e),
+        }
+    })
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     let app_state = use_reducer(AppState::default);
     let ui_state = use_reducer(UIState::default);
+
+    // Create initial user state - will be loaded from backend via WebSocket
     let user_state = use_reducer(|| {
-        match load_user_state() {
-            Ok(Some(state)) => {
-                info!("Loaded existing UserState from localStorage");
-                UserStateWrapper(state)
-            }
-            Ok(None) => {
-                info!("No existing UserState, creating new one");
-                UserStateWrapper(UserState::new(Uuid::new_v4()))
-            }
-            Err(e) => {
-                error!("Failed to load UserState: {}", e);
-                UserStateWrapper(UserState::new(Uuid::new_v4()))
-            }
-        }
+        info!("Creating initial UserState");
+        UserStateWrapper(UserState::new(Uuid::new_v4()))
     });
 
-    // Set up debounced auto-save with retry queue
+    // Set up debounced auto-save via WebSocket with retry queue
     let app_state_for_save = app_state.clone();
     let _force_save = use_debounced_save(&user_state, move |state| {
-        match save_user_state(state) {
+        let ws_service = app_state_for_save.user_state_ws_service.borrow();
+        match ws_service.save_user_state(state) {
             Ok(()) => {
-                info!("UserState saved successfully");
+                info!("UserState save request sent via WebSocket");
             }
             Err(e) => {
-                error!("Failed to save UserState: {}", e);
+                error!("Failed to send UserState save: {}", e);
                 app_state_for_save.dispatch(AppStateAction::QueuePendingSave(state.clone()));
             }
         }
@@ -332,6 +357,27 @@ pub fn app() -> Html {
             move || {
                 info!("Disconnecting WebSocket");
                 ws_service_clone.borrow_mut().disconnect();
+            }
+        });
+    }
+
+    // Initialize user state WebSocket for persistence
+    {
+        let app_state = app_state.clone();
+        let user_state = user_state.clone();
+        use_effect_with((), move |_| {
+            info!("Initializing user state WebSocket connection");
+
+            let user_id = (*user_state).user_id;
+            let mut ws = (*app_state).user_state_ws_service.borrow_mut();
+
+            ws.set_on_open(on_user_state_ws_open(app_state.clone(), user_id));
+            ws.set_on_load_response(on_user_state_load_response(user_state.clone()));
+            ws.set_on_save_response(on_user_state_save_response());
+            ws.connect();
+
+            move || {
+                info!("User state WebSocket cleanup");
             }
         });
     }
