@@ -96,6 +96,7 @@ async fn main() -> Result<()> {
     let mut app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(websocket::websocket_handler))
+        .route("/ws/user_state", get(websocket::user_state_websocket_handler))
         .route(
             "/api/translate",
             post(translation_handler::translate_handler),

@@ -5,7 +5,7 @@ use axum::{
     },
     response::Response,
 };
-use dialect_coach_shared::{AgentResponse, Dialect, Formality, Message, TeachingMode, UserMessageWithContext};
+use dialect_coach_shared::{AgentResponse, Dialect, Formality, Message, TeachingMode, UserMessageWithContext, UserState, UserStateMessage};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -352,6 +352,131 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     tracing::info!("WebSocket connection closed: {}", connection_id);
 }
 
+/// Handle save user state request
+async fn handle_save_user_state(
+    state: &AppState,
+    user_state: UserState,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    tracing::info!("Saving user state for user: {}", user_state.user_id);
+
+    let response = match state.user_persistence.save(&user_state).await {
+        Ok(_) => UserStateMessage::SaveResponse(Ok(())),
+        Err(e) => {
+            tracing::error!("Failed to save user state: {}", e);
+            UserStateMessage::SaveResponse(Err(e.to_string()))
+        }
+    };
+
+    send_user_state_message(&response, tx)
+}
+
+/// Handle load user state request
+async fn handle_load_user_state(
+    state: &AppState,
+    user_id: Uuid,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    tracing::info!("Loading user state for user: {}", user_id);
+
+    let response = match state.user_persistence.load(user_id).await {
+        Ok(user_state) => UserStateMessage::LoadResponse(user_state),
+        Err(e) => {
+            tracing::error!("Failed to load user state: {}", e);
+            UserStateMessage::LoadResponse(None)
+        }
+    };
+
+    send_user_state_message(&response, tx)
+}
+
+/// Send UserStateMessage through WebSocket
+fn send_user_state_message(
+    msg: &UserStateMessage,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    let json = serde_json::to_string(msg)
+        .map_err(|e| tracing::error!("Failed to serialize UserStateMessage: {}", e))?;
+
+    tx.send(json)
+        .map_err(|e| tracing::error!("Failed to send UserStateMessage: {}", e))?;
+
+    Ok(())
+}
+
+/// Process incoming user state message
+async fn process_user_state_message(
+    state: &AppState,
+    text: &str,
+    tx: &mpsc::UnboundedSender<String>,
+) {
+    match serde_json::from_str::<UserStateMessage>(text) {
+        Ok(UserStateMessage::Save(user_state)) => {
+            let _ = handle_save_user_state(state, user_state, tx).await;
+        }
+        Ok(UserStateMessage::Load(user_id)) => {
+            let _ = handle_load_user_state(state, user_id, tx).await;
+        }
+        Ok(_) => {
+            tracing::warn!("Received unexpected UserStateMessage variant from client");
+        }
+        Err(e) => {
+            tracing::error!("Failed to parse UserStateMessage: {}", e);
+        }
+    }
+}
+
+/// Create send task for user state WebSocket
+fn create_user_state_send_task(
+    mut sender: futures_util::stream::SplitSink<WebSocket, WsMessage>,
+    mut rx: mpsc::UnboundedReceiver<String>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if sender.send(WsMessage::Text(msg.into())).await.is_err() {
+                break;
+            }
+        }
+    })
+}
+
+/// Create receive task for user state WebSocket
+async fn run_user_state_receive_task(
+    mut receiver: futures_util::stream::SplitStream<WebSocket>,
+    state: AppState,
+    tx: mpsc::UnboundedSender<String>,
+) {
+    while let Some(msg) = receiver.next().await {
+        if let Ok(WsMessage::Text(text)) = msg {
+            process_user_state_message(&state, &text, &tx).await;
+        }
+    }
+}
+
+/// Handle user state WebSocket connection
+pub async fn user_state_websocket_handler(
+    State(state): State<AppState>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    tracing::info!("User state WebSocket upgrade request received");
+    ws.on_upgrade(move |socket| handle_user_state_socket(socket, state))
+}
+
+/// Handle individual user state WebSocket connection
+async fn handle_user_state_socket(socket: WebSocket, state: AppState) {
+    let connection_id = Uuid::new_v4();
+    tracing::info!("User state WebSocket connection established: {}", connection_id);
+
+    let (sender, receiver) = socket.split();
+    let (tx, rx) = mpsc::unbounded_channel::<String>();
+
+    let send_task = create_user_state_send_task(sender, rx);
+    run_user_state_receive_task(receiver, state, tx).await;
+
+    let _ = send_task.await;
+    tracing::info!("User state WebSocket connection closed: {}", connection_id);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -493,5 +618,50 @@ mod tests {
         let error_msg: Message = serde_json::from_str(&error_json).unwrap();
         assert_eq!(error_msg.participant_id, "system");
         assert!(error_msg.content.response.contains("Unsupported language/dialect"));
+    }
+
+    #[test]
+    fn test_send_user_state_message_ok() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let response = UserStateMessage::SaveResponse(Ok(()));
+
+        let result = send_user_state_message(&response, &tx);
+        assert!(result.is_ok());
+
+        let json = rx.try_recv().unwrap();
+        let parsed: UserStateMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, response);
+    }
+
+    #[test]
+    fn test_send_user_state_message_err() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let response = UserStateMessage::SaveResponse(Err("Test error".to_string()));
+
+        let result = send_user_state_message(&response, &tx);
+        assert!(result.is_ok());
+
+        let json = rx.try_recv().unwrap();
+        let parsed: UserStateMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, response);
+    }
+
+    #[test]
+    fn test_send_user_state_message_load_response() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let user_id = Uuid::new_v4();
+        let user_state = UserState::new(user_id);
+        let response = UserStateMessage::LoadResponse(Some(user_state.clone()));
+
+        let result = send_user_state_message(&response, &tx);
+        assert!(result.is_ok());
+
+        let json = rx.try_recv().unwrap();
+        let parsed: UserStateMessage = serde_json::from_str(&json).unwrap();
+        if let UserStateMessage::LoadResponse(Some(state)) = parsed {
+            assert_eq!(state.user_id, user_id);
+        } else {
+            panic!("Expected LoadResponse(Some)");
+        }
     }
 }
