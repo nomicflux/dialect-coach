@@ -357,6 +357,17 @@ fn on_user_signin_response(
     })
 }
 
+fn on_signout_click(
+    app_state: UseReducerHandle<AppState>,
+    user_state: UseReducerHandle<UserStateWrapper>,
+) -> Callback<MouseEvent> {
+    Callback::from(move |_: MouseEvent| {
+        info!("User signed out, resetting to fresh anonymous state");
+        app_state.dispatch(AppStateAction::ClearUser);
+        user_state.dispatch(UserStateAction::ReplaceUserState(UserState::new(Uuid::new_v4())));
+    })
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     let app_state = use_reducer(AppState::default);
@@ -518,6 +529,21 @@ pub fn app() -> Html {
         });
     }
 
+    // Auto-dismiss error messages after 5 seconds
+    {
+        let app_state = app_state.clone();
+        let error_msg = (*app_state).error_message.clone();
+        use_effect_with(error_msg, move |msg| {
+            let timeout = msg.as_ref().map(|_| {
+                let app_state = app_state.clone();
+                gloo::timers::callback::Timeout::new(5000, move || {
+                    app_state.dispatch(AppStateAction::ClearError);
+                })
+            });
+            move || drop(timeout)
+        });
+    }
+
     html! {
         <div class="app">
             <header class="app-header">
@@ -532,7 +558,10 @@ pub fn app() -> Html {
                         {if let Some(user) = (*app_state).current_user.as_ref() {
                             html! {
                                 <div class="user-signed-in">
-                                    {format!("Signed in as: {}", user.username)}
+                                    <span>{format!("Signed in as: {}", user.username)}</span>
+                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), user_state.clone())}>
+                                        {"Sign Out"}
+                                    </button>
                                 </div>
                             }
                         } else {
@@ -600,7 +629,15 @@ pub fn app() -> Html {
                         {if let Some(err) = ((*app_state).error_message).as_ref() {
                             html! {
                                 <div class="error-banner">
-                                    {format!("⚠️ {}", err)}
+                                    <span>{format!("⚠️ {}", err)}</span>
+                                    <button class="error-close" onclick={{
+                                        let app_state = app_state.clone();
+                                        Callback::from(move |_: MouseEvent| {
+                                            app_state.dispatch(AppStateAction::ClearError);
+                                        })
+                                    }}>
+                                        {"×"}
+                                    </button>
                                 </div>
                             }
                         } else {
