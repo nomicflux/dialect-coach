@@ -5,7 +5,7 @@ use axum::{
     },
     response::Response,
 };
-use dialect_coach_shared::{AgentResponse, Dialect, Formality, Message, TeachingMode, UserMessageWithContext, UserState, UserStateMessage};
+use dialect_coach_shared::{AgentResponse, Dialect, Formality, Message, TeachingMode, User, UserMessage, UserMessageWithContext, UserState, UserStateMessage};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -477,6 +477,137 @@ async fn handle_user_state_socket(socket: WebSocket, state: AppState) {
     tracing::info!("User state WebSocket connection closed: {}", connection_id);
 }
 
+/// Handle create user request
+async fn handle_create_user(
+    state: &AppState,
+    user_id: Uuid,
+    username: String,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    tracing::info!("Creating user: {} with id {}", username, user_id);
+
+    let user = User::new(user_id, username.clone());
+    let response = match state.user_persistence.create_user(&user).await {
+        Ok(_) => UserMessage::CreateUserResponse(Ok(user)),
+        Err(e) => {
+            tracing::error!("Failed to create user: {}", e);
+            UserMessage::CreateUserResponse(Err(e.to_string()))
+        }
+    };
+
+    send_user_message(&response, tx)
+}
+
+/// Handle sign in request
+async fn handle_sign_in(
+    state: &AppState,
+    username: String,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    tracing::info!("Sign in request for user: {}", username);
+
+    let response = match state.user_persistence.load_user_by_username(&username).await {
+        Ok(Some(user)) => UserMessage::SignInResponse(Ok(user)),
+        Ok(None) => {
+            tracing::warn!("User not found: {}", username);
+            UserMessage::SignInResponse(Err("User not found".to_string()))
+        }
+        Err(e) => {
+            tracing::error!("Failed to load user: {}", e);
+            UserMessage::SignInResponse(Err(e.to_string()))
+        }
+    };
+
+    send_user_message(&response, tx)
+}
+
+/// Send UserMessage through WebSocket
+fn send_user_message(
+    msg: &UserMessage,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    let json = serde_json::to_string(msg)
+        .map_err(|e| tracing::error!("Failed to serialize UserMessage: {}", e))?;
+
+    tx.send(json)
+        .map_err(|e| tracing::error!("Failed to send UserMessage: {}", e))?;
+
+    Ok(())
+}
+
+/// Process incoming user message
+async fn process_user_message_ws(
+    state: &AppState,
+    text: &str,
+    tx: &mpsc::UnboundedSender<String>,
+) {
+    match serde_json::from_str::<UserMessage>(text) {
+        Ok(UserMessage::CreateUser { user_id, username }) => {
+            let _ = handle_create_user(state, user_id, username, tx).await;
+        }
+        Ok(UserMessage::SignIn { username }) => {
+            let _ = handle_sign_in(state, username, tx).await;
+        }
+        Ok(_) => {
+            tracing::warn!("Received unexpected UserMessage variant from client");
+        }
+        Err(e) => {
+            tracing::error!("Failed to parse UserMessage: {}", e);
+        }
+    }
+}
+
+/// Create send task for user WebSocket
+fn create_user_send_task(
+    mut sender: futures_util::stream::SplitSink<WebSocket, WsMessage>,
+    mut rx: mpsc::UnboundedReceiver<String>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if sender.send(WsMessage::Text(msg.into())).await.is_err() {
+                break;
+            }
+        }
+    })
+}
+
+/// Run receive task for user WebSocket
+async fn run_user_receive_task(
+    mut receiver: futures_util::stream::SplitStream<WebSocket>,
+    state: AppState,
+    tx: mpsc::UnboundedSender<String>,
+) {
+    while let Some(msg) = receiver.next().await {
+        if let Ok(WsMessage::Text(text)) = msg {
+            process_user_message_ws(&state, &text, &tx).await;
+        }
+    }
+}
+
+/// Handle user WebSocket connection
+async fn handle_user_socket(socket: WebSocket, state: AppState) {
+    let connection_id = Uuid::new_v4();
+    tracing::info!("User WebSocket connection established: {}", connection_id);
+
+    let (sender, receiver) = socket.split();
+    let (tx, rx) = mpsc::unbounded_channel::<String>();
+
+    let send_task = create_user_send_task(sender, rx);
+    run_user_receive_task(receiver, state, tx).await;
+
+    let _ = send_task.await;
+    tracing::info!("User WebSocket connection closed: {}", connection_id);
+}
+
+/// User WebSocket handler
+pub async fn user_websocket_handler(
+    State(state): State<AppState>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    tracing::info!("User WebSocket upgrade request received");
+    ws.on_upgrade(move |socket| handle_user_socket(socket, state))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -663,5 +794,54 @@ mod tests {
         } else {
             panic!("Expected LoadResponse(Some)");
         }
+    }
+
+    #[test]
+    fn test_send_user_message_create_user_response_ok() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let user = User::new(Uuid::new_v4(), "testuser".to_string());
+        let response = UserMessage::CreateUserResponse(Ok(user.clone()));
+
+        let result = send_user_message(&response, &tx);
+        assert!(result.is_ok());
+
+        let json = rx.try_recv().unwrap();
+        let parsed: UserMessage = serde_json::from_str(&json).unwrap();
+        if let UserMessage::CreateUserResponse(Ok(parsed_user)) = parsed {
+            assert_eq!(parsed_user.username, "testuser");
+        } else {
+            panic!("Expected CreateUserResponse(Ok)");
+        }
+    }
+
+    #[test]
+    fn test_send_user_message_sign_in_response_err() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let response = UserMessage::SignInResponse(Err("User not found".to_string()));
+
+        let result = send_user_message(&response, &tx);
+        assert!(result.is_ok());
+
+        let json = rx.try_recv().unwrap();
+        let parsed: UserMessage = serde_json::from_str(&json).unwrap();
+        if let UserMessage::SignInResponse(Err(err_msg)) = parsed {
+            assert_eq!(err_msg, "User not found");
+        } else {
+            panic!("Expected SignInResponse(Err)");
+        }
+    }
+
+    #[test]
+    fn test_send_user_message_serialization() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let user = User::new(Uuid::new_v4(), "bob".to_string());
+        let response = UserMessage::SignInResponse(Ok(user.clone()));
+
+        let result = send_user_message(&response, &tx);
+        assert!(result.is_ok());
+
+        let json = rx.try_recv().unwrap();
+        let parsed: UserMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, response);
     }
 }

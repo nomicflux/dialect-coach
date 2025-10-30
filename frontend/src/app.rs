@@ -206,6 +206,56 @@ fn on_tts_toggle(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<()>
     })
 }
 
+fn on_dialect_cycle(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<()> {
+    let user_state = user_state.clone();
+    Callback::from(move |_| {
+        let dialects = user_state.current_dialects();
+        let current = user_state.current_dialect();
+        if let Some(idx) = dialects.iter().position(|d| d == &current) {
+            let next_idx = (idx + 1) % dialects.len();
+            user_state.dispatch(UserStateAction::ChangeDialect(dialects[next_idx].clone()));
+        }
+    })
+}
+
+fn on_formality_cycle(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<()> {
+    use dialect_coach_shared::models::Formality;
+    let user_state = user_state.clone();
+    Callback::from(move |_| {
+        let formalities = [
+            Formality::Formal,
+            Formality::Casual,
+            Formality::DialectRich,
+            Formality::Slang,
+        ];
+        let current = user_state.formality;
+        if let Some(idx) = formalities.iter().position(|f| f == &current) {
+            let next_idx = (idx + 1) % formalities.len();
+            user_state.dispatch(UserStateAction::ChangeFormality(formalities[next_idx]));
+        }
+    })
+}
+
+fn on_teaching_mode_cycle(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<()> {
+    use dialect_coach_shared::models::TeachingMode;
+    let user_state = user_state.clone();
+    Callback::from(move |_| {
+        let modes = [
+            TeachingMode::Immersive,
+            TeachingMode::Corrective,
+            TeachingMode::Explanatory,
+            TeachingMode::Interleaved,
+            TeachingMode::StoryTeller,
+            TeachingMode::Debug,
+        ];
+        let current = user_state.teaching_mode;
+        if let Some(idx) = modes.iter().position(|m| m == &current) {
+            let next_idx = (idx + 1) % modes.len();
+            user_state.dispatch(UserStateAction::ChangeTeachingMode(modes[next_idx]));
+        }
+    })
+}
+
 fn on_user_state_ws_open(
     app_state: UseReducerHandle<AppState>,
     user_id: uuid::Uuid,
@@ -225,7 +275,7 @@ fn on_user_state_load_response(
     Callback::from(move |loaded_state: Option<UserState>| {
         if let Some(state) = loaded_state {
             info!("Received user state from backend");
-            // TODO: Add ReplaceUserState action to UserStateAction enum
+            user_state.dispatch(UserStateAction::ReplaceUserState(state));
         } else {
             info!("No existing user state on backend, using current state");
         }
@@ -237,6 +287,72 @@ fn on_user_state_save_response() -> Callback<Result<(), String>> {
         match result {
             Ok(()) => info!("User state saved successfully to backend"),
             Err(e) => error!("Failed to save user state to backend: {}", e),
+        }
+    })
+}
+
+fn on_create_user_click(
+    app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>,
+    user_state: UseReducerHandle<UserStateWrapper>,
+) -> Callback<MouseEvent> {
+    Callback::from(move |_: MouseEvent| {
+        let username = (*ui_state).create_username_input.clone();
+        let user_id = (*user_state).user_id;
+        if let Err(e) = app_state.user_ws_service.borrow().create_user(user_id, username) {
+            error!("Failed to create user: {}", e);
+            app_state.dispatch(AppStateAction::SetError(format!("Failed to create user: {}", e)));
+        }
+    })
+}
+
+fn on_signin_click(
+    app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>,
+) -> Callback<MouseEvent> {
+    Callback::from(move |_: MouseEvent| {
+        let username = (*ui_state).signin_username_input.clone();
+        if let Err(e) = app_state.user_ws_service.borrow().sign_in(username) {
+            error!("Failed to sign in: {}", e);
+            app_state.dispatch(AppStateAction::SetError(format!("Failed to sign in: {}", e)));
+        }
+    })
+}
+
+fn on_user_create_response(
+    app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>,
+) -> Callback<Result<dialect_coach_shared::User, String>> {
+    Callback::from(move |result: Result<dialect_coach_shared::User, String>| {
+        match result {
+            Ok(user) => {
+                info!("User created successfully: {}", user.username);
+                ui_state.dispatch(UIStateAction::ClearCreateUsernameInput);
+                app_state.dispatch(AppStateAction::SetUser(user));
+            }
+            Err(e) => {
+                error!("Failed to create user: {}", e);
+                app_state.dispatch(AppStateAction::SetError(format!("Create failed: {}", e)));
+            }
+        }
+    })
+}
+
+fn on_user_signin_response(
+    app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>,
+) -> Callback<Result<dialect_coach_shared::User, String>> {
+    Callback::from(move |result: Result<dialect_coach_shared::User, String>| {
+        match result {
+            Ok(user) => {
+                info!("Signed in successfully as: {}", user.username);
+                ui_state.dispatch(UIStateAction::ClearSigninUsernameInput);
+                app_state.dispatch(AppStateAction::SetUser(user));
+            }
+            Err(e) => {
+                error!("Sign in failed: {}", e);
+                app_state.dispatch(AppStateAction::SetError(format!("Sign in failed: {}", e)));
+            }
         }
     })
 }
@@ -382,6 +498,26 @@ pub fn app() -> Html {
         });
     }
 
+    // Initialize user WebSocket for user management
+    {
+        let app_state = app_state.clone();
+        let ui_state = ui_state.clone();
+        use_effect_with((), move |_| {
+            info!("Initializing user WebSocket connection");
+
+            let mut ws = (*app_state).user_ws_service.borrow_mut();
+
+            ws.set_on_create_response(on_user_create_response(app_state.clone(), ui_state.clone()));
+            ws.set_on_signin_response(on_user_signin_response(app_state.clone(), ui_state.clone()));
+            ws.set_on_open(Callback::from(|_| info!("User WebSocket opened")));
+            ws.connect();
+
+            move || {
+                info!("User WebSocket cleanup");
+            }
+        });
+    }
+
     html! {
         <div class="app">
             <header class="app-header">
@@ -389,6 +525,58 @@ pub fn app() -> Html {
                     <div>
                         <h1 class="app-title">{"🎯 Dialect Coach"}</h1>
                         <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p>
+                    </div>
+
+                    // User management section
+                    <div class="user-section">
+                        {if let Some(user) = (*app_state).current_user.as_ref() {
+                            html! {
+                                <div class="user-signed-in">
+                                    {format!("Signed in as: {}", user.username)}
+                                </div>
+                            }
+                        } else {
+                            html! {
+                                <div class="user-forms">
+                                    <div class="user-form">
+                                        <label>{"Create: "}</label>
+                                        <input
+                                            type="text"
+                                            value={(*ui_state).create_username_input.clone()}
+                                            oninput={{
+                                                let ui_state = ui_state.clone();
+                                                Callback::from(move |e: InputEvent| {
+                                                    if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                                        ui_state.dispatch(UIStateAction::SetCreateUsernameInput(input.value()));
+                                                    }
+                                                })
+                                            }}
+                                        />
+                                        <button onclick={on_create_user_click(app_state.clone(), ui_state.clone(), user_state.clone())}>
+                                            {"Create Account"}
+                                        </button>
+                                    </div>
+                                    <div class="user-form">
+                                        <label>{"Sign In: "}</label>
+                                        <input
+                                            type="text"
+                                            value={(*ui_state).signin_username_input.clone()}
+                                            oninput={{
+                                                let ui_state = ui_state.clone();
+                                                Callback::from(move |e: InputEvent| {
+                                                    if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                                        ui_state.dispatch(UIStateAction::SetSigninUsernameInput(input.value()));
+                                                    }
+                                                })
+                                            }}
+                                        />
+                                        <button onclick={on_signin_click(app_state.clone(), ui_state.clone())}>
+                                            {"Sign In"}
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        }}
                     </div>
 
                     // Connection status
@@ -434,6 +622,9 @@ pub fn app() -> Html {
                             teaching_mode={user_state.teaching_mode_display().to_string()}
                             formality={user_state.formality_display().to_string()}
                             tts_enabled={(*user_state).tts_enabled}
+                            on_dialect_cycle={Some(on_dialect_cycle(user_state.clone()))}
+                            on_teaching_mode_cycle={Some(on_teaching_mode_cycle(user_state.clone()))}
+                            on_formality_cycle={Some(on_formality_cycle(user_state.clone()))}
                             on_tts_toggle={Some(on_tts_toggle(user_state.clone()))}
                         />
                         <InputBox

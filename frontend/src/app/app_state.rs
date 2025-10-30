@@ -1,6 +1,6 @@
 use dialect_coach_shared::models::{Dialect, Formality, Language, Message, TeachingMode};
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
-use dialect_coach_shared::{UserState, LearningItem, LearningItemType};
+use dialect_coach_shared::{User, UserState, LearningItem, LearningItemType};
 use log::{error};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -11,6 +11,7 @@ use crate::services::save_queue::PendingSaveQueue;
 use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
 use crate::services::user_state_websocket::UserStateWebSocketService;
+use crate::services::user_websocket::UserWebSocketService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
 
 
@@ -23,6 +24,9 @@ pub enum AppStateAction {
     Speak(Message),
     QueuePendingSave(UserState),
     RetryPendingSaves,
+    SetUser(User),
+    ClearUser,
+    LoadUserState(Uuid),
 }
 
 #[derive(Clone)]
@@ -31,8 +35,10 @@ pub struct AppState {
     pub connection_state: ConnectionState,
     pub is_loading: bool,
     pub error_message: Option<String>,
+    pub current_user: Option<User>,
     pub ws_service: Rc<RefCell<WebSocketService>>,
     pub user_state_ws_service: Rc<RefCell<UserStateWebSocketService>>,
+    pub user_ws_service: Rc<RefCell<UserWebSocketService>>,
     pub tts_service: Option<Rc<CloudTtsService>>,
     pub translation_service: Rc<TranslationService>,
     pub save_queue: Rc<PendingSaveQueue>,
@@ -45,16 +51,27 @@ impl Default for AppState {
             connection_state: ConnectionState::Disconnected,
             is_loading: false,
             error_message: None,
+            current_user: None,
             ws_service: Rc::new(RefCell::new(WebSocketService::new(
                 "ws://localhost:3000/ws",
             ))),
             user_state_ws_service: Rc::new(RefCell::new(UserStateWebSocketService::new(
                 "ws://localhost:3000/ws/user_state",
             ))),
+            user_ws_service: Rc::new(RefCell::new(UserWebSocketService::new(
+                "ws://localhost:3000/ws/user",
+            ))),
             tts_service: Some(Rc::new(CloudTtsService::new("http://localhost:3000"))),
             translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
             save_queue: Rc::new(PendingSaveQueue::new()),
         }
+    }
+}
+
+fn load_user_state(ws_service: &Rc<RefCell<UserStateWebSocketService>>, user_id: Uuid) {
+    let ws = ws_service.borrow();
+    if let Err(e) = ws.load_user_state(user_id) {
+        error!("Failed to load user state: {}", e);
     }
 }
 
@@ -92,6 +109,16 @@ impl AppState {
                     error!("Failed to retry pending saves: {}", e);
                 }
             }
+            AppStateAction::SetUser(user) => {
+                load_user_state(&next.user_state_ws_service, user.id);
+                next.current_user = Some(user);
+            }
+            AppStateAction::ClearUser => {
+                next.current_user = None;
+            }
+            AppStateAction::LoadUserState(user_id) => {
+                load_user_state(&next.user_state_ws_service, user_id);
+            }
         }
         next
     }
@@ -114,6 +141,10 @@ pub enum UIStateAction {
     ClearTranslatingButton,
     OpenLearningPanel,
     CloseLearningPanel,
+    SetCreateUsernameInput(String),
+    SetSigninUsernameInput(String),
+    ClearCreateUsernameInput,
+    ClearSigninUsernameInput,
 }
 
 #[derive(Clone)]
@@ -122,6 +153,8 @@ pub struct UIState {
     pub input_prompt_value: Option<String>,
     pub translating_button: Option<String>,
     pub learning_panel_open: bool,
+    pub create_username_input: String,
+    pub signin_username_input: String,
 }
 
 impl Default for UIState {
@@ -131,6 +164,8 @@ impl Default for UIState {
             input_prompt_value: None,
             translating_button: None,
             learning_panel_open: false,
+            create_username_input: String::new(),
+            signin_username_input: String::new(),
         }
     }
 }
@@ -147,6 +182,10 @@ impl UIState {
             UIStateAction::ClearTranslatingButton => next.translating_button = None,
             UIStateAction::OpenLearningPanel => next.learning_panel_open = true,
             UIStateAction::CloseLearningPanel => next.learning_panel_open = false,
+            UIStateAction::SetCreateUsernameInput(input) => next.create_username_input = input,
+            UIStateAction::SetSigninUsernameInput(input) => next.signin_username_input = input,
+            UIStateAction::ClearCreateUsernameInput => next.create_username_input = String::new(),
+            UIStateAction::ClearSigninUsernameInput => next.signin_username_input = String::new(),
         }
         next
     }
@@ -169,6 +208,7 @@ pub enum UserStateAction {
     ChangeFormality(Formality),
     ChangeTeachingMode(TeachingMode),
     ToggleTTS,
+    ReplaceUserState(UserState),
 }
 
 fn add_learning_items_to_vec(
@@ -264,6 +304,9 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::ToggleTTS => {
             next.tts_enabled = !next.tts_enabled;
+        }
+        UserStateAction::ReplaceUserState(new_state) => {
+            next = new_state;
         }
     }
     next

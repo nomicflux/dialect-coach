@@ -1,7 +1,7 @@
 pub mod in_memory;
 
 use anyhow::Result;
-use dialect_coach_shared::UserState;
+use dialect_coach_shared::{User, UserState};
 use uuid::Uuid;
 
 pub use in_memory::InMemoryPersistence;
@@ -76,4 +76,38 @@ pub trait UserPersistence: Send + Sync {
     ///
     /// Returns an error if the load operation fails (but not if user is not found)
     async fn load(&self, user_id: Uuid) -> Result<Option<UserState>>;
+
+    /// Create a new user
+    ///
+    /// Saves the user to persistent storage. If a user with this username already exists,
+    /// should return an error.
+    ///
+    /// # Arguments
+    ///
+    /// * `user` - The user to create
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - A user with this username already exists
+    /// - The username is empty
+    /// - The create operation fails
+    async fn create_user(&self, user: &User) -> Result<()>;
+
+    /// Load user by username
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The username to search for
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(User))` if the user exists
+    /// - `Ok(None)` if the user does not exist
+    /// - `Err(_)` if the load operation fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the load operation fails (but not if user is not found)
+    async fn load_user_by_username(&self, username: &str) -> Result<Option<User>>;
 }
