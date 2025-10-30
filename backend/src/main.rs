@@ -1,5 +1,6 @@
 mod agent_service;
 mod embedding_service;
+mod persistence;
 mod qdrant_service;
 mod translation_handler;
 mod tts_handler;
@@ -24,6 +25,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tts_service::eleven_labs_tts_provider::{ElevenLabsTtsProvider};
 use uuid::Uuid;
 
+use persistence::{InMemoryPersistence, UserPersistence};
+
 /// Application state shared across handlers
 #[derive(Clone)]
 pub struct AppState {
@@ -31,6 +34,7 @@ pub struct AppState {
     pub agent: Arc<agent_service::AgentService>,
     pub embeddings: Arc<embedding_service::EmbeddingService>,
     pub session_histories: Arc<Mutex<HashMap<Uuid, Vec<String>>>>,
+    pub user_persistence: Arc<dyn UserPersistence>,
 }
 
 #[tokio::main]
@@ -56,6 +60,13 @@ async fn main() -> Result<()> {
     let agent = agent_service::AgentService::from_env(qdrant.clone(), embeddings.clone())
         .context("Failed to initialize agent service")?;
 
+    tracing::info!("Initializing user persistence...");
+    let user_persistence: Arc<dyn UserPersistence> = Arc::new(InMemoryPersistence::new());
+    user_persistence
+        .initialize()
+        .await
+        .context("Failed to initialize user persistence")?;
+
     let tts_state = match ElevenLabsTtsProvider::from_env() {
         Ok(tts_provider) => {
             let tts_service = tts_service::TtsService::new(Arc::new(tts_provider));
@@ -78,12 +89,15 @@ async fn main() -> Result<()> {
         agent: Arc::new(agent),
         embeddings,
         session_histories: Arc::new(Mutex::new(HashMap::new())),
+        user_persistence,
     };
 
     // Build main application with routes
     let mut app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(websocket::websocket_handler))
+        .route("/ws/user_state", get(websocket::user_state_websocket_handler))
+        .route("/ws/user", get(websocket::user_websocket_handler))
         .route(
             "/api/translate",
             post(translation_handler::translate_handler),

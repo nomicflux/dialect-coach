@@ -6,6 +6,8 @@ pub mod language;
 pub mod message;
 pub mod participant;
 pub mod session;
+pub mod user;
+pub mod user_state;
 
 pub use agent::*;
 pub use corpus::*;
@@ -15,3 +17,5 @@ pub use language::*;
 pub use message::*;
 pub use participant::*;
 pub use session::*;
+pub use user::*;
+pub use user_state::*;

@@ -69,15 +69,16 @@ Only include explained if you introduce and explain noteworthy vocabulary, idiom
   "translated": [{"translated_word": "<word from user>", "translated_to": "<your translation>"}]
 }
 Include translated array when you translate words/phrases from user's source language into the target dialect.
+Focus on translated words, not on errors in the target language.
 The "translated_word" should be the original word, "translated_to" should be your dialectal translation."#
         }
         TeachingMode::StoryTeller => {
             r#"Response format: {
   "response": "<your conversational response>",
-  "exploratory": [{"point_to_try": "<language feature>", "instructions_for_use": "<how to use it>"}]
+  "exploratory": [{"point_to_try": "<language feature in target language>", "instructions_for_use": "<how to use it>"}]
 }
 Include exploratory array when you introduce new language patterns, idioms, or features you want the user to try.
-Keep it to 1-2 points that naturally fit the story context."#
+Keep it to 1-2 brief points that naturally fit the story context."#
         }
         TeachingMode::Immersive
         | TeachingMode::Debug => {
@@ -135,7 +136,8 @@ fn teaching_desc(teaching_mode: &TeachingMode) -> String {
             "3. DEBUG MODE: Answer in English with clear, brief explanations. The user is debugging an issue. Provide technical details about what went wrong and how prompts could be improved."
         },
     };
-    format!("{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.", desc, tokens)
+    format!("{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.",
+            desc, tokens - 20)
 }
 
 fn format_mistakes_for_analysis(mistakes: &[Mistake]) -> String {
@@ -208,7 +210,7 @@ PAST TRANSLATIONS TO ANALYZE:
 PAST EXPLORATORY POINTS TO ANALYZE:
 {}
 
-Analyze the conversation and score each item:
+Analyze the conversation and score each item (be generous; prefer to give points when in doubt. If you see the item in the user response, do not give a score of 0.):
 MISTAKES (-10 to 10): -10=still occurring, 0=no usage/different error, 10=fixed
 EXPLAINED (0 to 10): 0=not used, 5=attempted incorrectly, 10=used correctly
 TRANSLATED (-10 to 10): -10=reverted to untranslated, 0=not used, 10=correctly used
@@ -276,8 +278,8 @@ impl AgentService {
         let agent = self
             .client
             .agent(&self.model_name)
-            .max_tokens(256)
-            .temperature(0.3)
+            .max_tokens(512)
+            .temperature(0.1)
             .build();
 
         tracing::info!("Calling Claude API for analysis...");
