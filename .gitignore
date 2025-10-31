@@ -5,6 +5,8 @@ Cargo.lock
 /frontend/pkg
 /frontend/dist
 
+/backend/data/*
+
 # Corpus data (can be large)
 /corpus-processor/**/*.csv
 /corpus-processor/**/*.tsv

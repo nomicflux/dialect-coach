@@ -1,10 +1,12 @@
 pub mod in_memory;
+pub mod sled;
 
 use anyhow::Result;
 use dialect_coach_shared::{User, UserState};
 use uuid::Uuid;
 
 pub use in_memory::InMemoryPersistence;
+pub use sled::SledPersistence;
 
 /// Trait for persisting user state
 ///

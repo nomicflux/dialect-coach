@@ -49,6 +49,9 @@ lru = "0.12"
 # Random number generation for shuffling
 rand = "0.8"
 
+# Persistent storage
+sled = "0.34"
+
 # Environment
 dotenvy = "0.15"
 

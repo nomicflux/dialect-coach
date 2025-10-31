@@ -25,7 +25,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tts_service::eleven_labs_tts_provider::{ElevenLabsTtsProvider};
 use uuid::Uuid;
 
-use persistence::{InMemoryPersistence, UserPersistence};
+use persistence::{SledPersistence, UserPersistence};
 
 /// Application state shared across handlers
 #[derive(Clone)]
@@ -61,7 +61,12 @@ async fn main() -> Result<()> {
         .context("Failed to initialize agent service")?;
 
     tracing::info!("Initializing user persistence...");
-    let user_persistence: Arc<dyn UserPersistence> = Arc::new(InMemoryPersistence::new());
+    let db_path = std::env::var("DB_PATH")
+        .unwrap_or_else(|_| "./data/dialect-coach.db".to_string());
+    let user_persistence: Arc<dyn UserPersistence> = Arc::new(
+        SledPersistence::new(&db_path)
+            .context("Failed to create SledPersistence")?
+    );
     user_persistence
         .initialize()
         .await
