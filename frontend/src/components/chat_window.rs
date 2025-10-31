@@ -1,4 +1,5 @@
 use dialect_coach_shared::models::{Formality, Message};
+use uuid::Uuid;
 use web_sys::HtmlElement;
 use yew::prelude::*;
 
@@ -15,6 +16,8 @@ pub struct ChatWindowProps {
     #[prop_or_default]
     pub translating_button: Option<String>, // Track which specific button is translating
     pub formality: Formality,
+    #[prop_or_default]
+    pub on_delete_message: Option<Callback<Uuid>>,
 }
 
 fn get_context_aware_prompt(prompt_type: &str, formality: Formality) -> &'static str {
@@ -147,6 +150,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         message={msg.clone()}
                                         is_own_message={is_own}
                                         on_replay={props.on_replay_message.clone()}
+                                        on_delete={props.on_delete_message.clone()}
                                     />
                                 }
                             })}

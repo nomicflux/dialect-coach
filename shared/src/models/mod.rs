@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod agent;
 pub mod corpus;
 pub mod dialect;
@@ -9,6 +10,7 @@ pub mod session;
 pub mod user;
 pub mod user_state;
 
+pub use admin::*;
 pub use agent::*;
 pub use corpus::*;
 pub use dialect::*;

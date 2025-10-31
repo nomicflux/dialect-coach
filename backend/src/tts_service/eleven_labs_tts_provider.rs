@@ -41,26 +41,27 @@ impl ElevenLabsTtsProvider {
 fn map_language_to_voice(language_code: &str) -> &'static str {
     tracing::info!("Mapping language code {} to voice", language_code);
     match language_code {
-        "es-MX" => "spPXlKT5a4JMfbhPRAzA",
-        "es-ES" => "zRUArUmK0DWSP7K6mmLW",
+        "es-MX" => "hHjbwzYZW17oh0p05AKv",
+        //"es-ES" => "zRUArUmK0DWSP7K6mmLW",
         "es-AR" => "XmoCtjPCefjeLDu0eMSl",
         "es-CU" => "1hB7zCGWj11SeMuBseeI",
-        "es-CL" => "nNS8uylvF9GBWVSiIt5h",
+        //"es-CL" => "nNS8uylvF9GBWVSiIt5h",
         "es-CO" => "86V9x9hrQds83qf7zaGn",
 
         "ar-EG" => "LXrTqFIgiubkrMkwvOUr",
         "ar-LB" => "4wf10lgibMnboGJGCLrP",
+        "ar-SA" => "DANw8bnAVbjDEHwZIoYa",
         //"ar-SA" => "ar-SA-ZariyahNeural",
         //"ar-MA" => "ar-MA-MounaNeural",
         //"ar-IQ" => "ar-IQ-RanaNeural",
         "fr-CA" => "j9RedbMRSNQ74PyikQwD",
+        "fr-CI" => "FgHDn7bpgpKqz7QttoyC",
         //"fr-FR" => "fr-FR-DeniseNeural",
         //"fr-CH" => "fr-CH-ArianeNeural",
         //"fr-BE" => "fr-BE-CharlineNeural",
-        //"fr-CI" => "fr-CI-AkanNeural",
 
         // Fallback to known working voice
-        _ => "en-US-AriaNeural", // This is confirmed to exist
+        _ => "en-US-AriaNeural",
     }
 }
 

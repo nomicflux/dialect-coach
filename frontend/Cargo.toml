@@ -6,6 +6,10 @@ edition.workspace = true
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "dialect-coach-frontend"
+path = "src/main.rs"
+
 [dependencies]
 dialect-coach-shared = { path = "../shared" }
 serde.workspace = true

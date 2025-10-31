@@ -178,28 +178,50 @@ impl Dialect {
     pub fn for_language(language: Language) -> Vec<Dialect> {
         match language {
             Language::Spanish => vec![
-                Self::SpanishMexican,
-                Self::SpanishCastilian,
+                //Self::SpanishMexican,
+                //Self::SpanishCastilian,
                 Self::SpanishArgentinian,
                 Self::SpanishCuban,
-                Self::SpanishChilean,
+                //Self::SpanishChilean,
                 Self::SpanishColombian,
             ],
             Language::Arabic => vec![
                 Self::ArabicEgyptian,
                 Self::ArabicLevantine,
                 Self::ArabicGulf,
-                Self::ArabicMaghrebi,
-                Self::ArabicIraqi,
+                //Self::ArabicMaghrebi,
+                //Self::ArabicIraqi,
             ],
             Language::French => vec![
                 Self::FrenchQuebecois,
-                Self::FrenchParisian,
-                Self::FrenchSwiss,
-                Self::FrenchBelgian,
+                //Self::FrenchParisian,
+                //Self::FrenchSwiss,
+                //Self::FrenchBelgian,
                 Self::FrenchAfrican,
             ],
         }
+    }
+
+    /// Get all supported dialects
+    pub fn all() -> Vec<Dialect> {
+        vec![
+            Self::SpanishMexican,
+            Self::SpanishCastilian,
+            Self::SpanishArgentinian,
+            Self::SpanishCuban,
+            Self::SpanishChilean,
+            Self::SpanishColombian,
+            Self::ArabicEgyptian,
+            Self::ArabicLevantine,
+            Self::ArabicGulf,
+            Self::ArabicMaghrebi,
+            Self::ArabicIraqi,
+            Self::FrenchQuebecois,
+            Self::FrenchParisian,
+            Self::FrenchSwiss,
+            Self::FrenchBelgian,
+            Self::FrenchAfrican,
+        ]
     }
 
     /// Parse from serde ID format ("spanish_mexican", "arabic_egyptian", etc.)

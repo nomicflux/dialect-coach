@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Dialect Coach</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 2rem; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid #e0e0e0; }
+        .header h1 { font-size: 2rem; color: #333; }
+        .refresh-btn { padding: 0.75rem 1.5rem; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+        .refresh-btn:hover { background: #45a049; }
+        .refresh-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .timestamp { text-align: right; color: #666; font-size: 0.9rem; font-style: italic; margin-bottom: 1rem; }
+        .card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card h2 { font-size: 1.5rem; color: #333; margin-bottom: 1rem; }
+        .card h3 { font-size: 1.2rem; color: #555; margin: 1.5rem 0 0.75rem; }
+        .note { color: #666; font-style: italic; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .stat { padding: 0.75rem; background: #f5f5f5; border-radius: 4px; }
+        .stat-label { font-size: 0.85rem; color: #666; font-weight: 500; display: block; margin-bottom: 0.25rem; }
+        .stat-value { font-size: 1.25rem; color: #333; font-weight: 600; }
+        .error { color: #d32f2f; font-weight: 500; }
+        .loading { text-align: center; padding: 2rem; color: #666; }
+        table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+        thead { background: #f5f5f5; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #ddd; }
+        th { font-weight: 600; color: #333; }
+        tr:hover { background: #fafafa; }
+        td:last-child { text-align: right; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Admin Dashboard</h1>
+            <button class="refresh-btn" onclick="fetchData()" id="refreshBtn">Refresh</button>
+        </div>
+        <div id="content">
+            <div class="loading">Click "Refresh" to load admin statistics</div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchData() {
+            const btn = document.getElementById('refreshBtn');
+            const content = document.getElementById('content');
+
+            btn.disabled = true;
+            btn.textContent = 'Refreshing...';
+            content.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const response = await fetch('/admin/api/status');
+                if (!response.ok) throw new Error('Failed to fetch');
+
+                const data = await response.json();
+                renderData(data);
+            } catch (error) {
+                content.innerHTML = `<div class="card"><div class="error">Error: ${error.message}</div></div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Refresh';
+            }
+        }
+
+        function renderData(data) {
+            const content = document.getElementById('content');
+
+            let html = data.timestamp ? `<div class="timestamp">Last updated: ${data.timestamp}</div>` : '';
+
+            // Anthropic
+            html += '<div class="card"><h2>Anthropic / Claude API</h2>';
+            const anth = data.anthropic;
+            if (anth.error) {
+                html += `<p class="error">${anth.error}</p>`;
+            } else {
+                html += '<p class="note">Last 30 days of usage</p>';
+                html += `<div class="stats-grid">
+                    <div class="stat"><span class="stat-label">Uncached Input Tokens</span><span class="stat-value">${formatNumber(anth.uncached_input_tokens || 0)}</span></div>
+                    <div class="stat"><span class="stat-label">Cached Input Tokens</span><span class="stat-value">${formatNumber(anth.cached_input_tokens || 0)}</span></div>
+                    <div class="stat"><span class="stat-label">Cache Creation Tokens</span><span class="stat-value">${formatNumber(anth.cache_creation_tokens || 0)}</span></div>
+                    <div class="stat"><span class="stat-label">Output Tokens</span><span class="stat-value">${formatNumber(anth.output_tokens || 0)}</span></div>
+                    <div class="stat"><span class="stat-label">Total Cost</span><span class="stat-value">$${anth.total_cost_usd || '0.00'}</span></div>
+                </div>`;
+            }
+            html += '</div>';
+
+            // ElevenLabs
+            html += '<div class="card"><h2>ElevenLabs TTS</h2>';
+            if (data.elevenlabs) {
+                const el = data.elevenlabs;
+                html += `<div class="stats-grid">
+                    <div class="stat"><span class="stat-label">Tier</span><span class="stat-value">${el.tier}</span></div>
+                    <div class="stat"><span class="stat-label">Characters Used</span><span class="stat-value">${formatNumber(el.characters_used)}</span></div>
+                    <div class="stat"><span class="stat-label">Characters Limit</span><span class="stat-value">${formatNumber(el.characters_limit)}</span></div>
+                    <div class="stat"><span class="stat-label">Characters Remaining</span><span class="stat-value">${formatNumber(el.characters_remaining)}</span></div>
+                    <div class="stat"><span class="stat-label">Quota Resets</span><span class="stat-value">${el.reset_date}</span></div>
+                </div>`;
+            } else {
+                html += '<p class="error">Service unavailable</p>';
+            }
+            html += '</div>';
+
+            // QDrant
+            html += '<div class="card"><h2>QDrant Vector Database</h2>';
+            if (data.qdrant) {
+                const q = data.qdrant;
+                html += `<div class="stats-grid">
+                    <div class="stat"><span class="stat-label">Total Points</span><span class="stat-value">${formatNumber(q.points_count)}</span></div>
+                    <div class="stat"><span class="stat-label">Vectors</span><span class="stat-value">${formatNumber(q.vectors_count)}</span></div>
+                    <div class="stat"><span class="stat-label">Segments</span><span class="stat-value">${q.segments_count}</span></div>`;
+                if (q.memory_bytes) {
+                    html += `<div class="stat"><span class="stat-label">Memory Usage</span><span class="stat-value">${formatBytes(q.memory_bytes)}</span></div>`;
+                }
+                html += '</div>';
+
+                if (q.dialect_counts && q.dialect_counts.length > 0) {
+                    html += '<h3>Per-Dialect Counts</h3><table><thead><tr><th>Dialect</th><th>Count</th></tr></thead><tbody>';
+                    q.dialect_counts.forEach(dc => {
+                        html += `<tr><td>${dc.dialect}</td><td>${formatNumber(dc.count)}</td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                }
+            } else {
+                html += '<p class="error">Service unavailable</p>';
+            }
+            html += '</div>';
+
+            content.innerHTML = html;
+        }
+
+        function formatNumber(n) {
+            return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        function formatBytes(bytes) {
+            const KB = 1024;
+            const MB = KB * 1024;
+            const GB = MB * 1024;
+
+            if (bytes >= GB) return (bytes / GB).toFixed(2) + ' GB';
+            if (bytes >= MB) return (bytes / MB).toFixed(2) + ' MB';
+            if (bytes >= KB) return (bytes / KB).toFixed(2) + ' KB';
+            return bytes + ' B';
+        }
+
+        // Auto-load on page load
+        window.addEventListener('load', fetchData);
+    </script>
+</body>
+</html>

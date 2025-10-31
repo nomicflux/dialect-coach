@@ -148,6 +148,8 @@ pub enum UIStateAction {
     ClearSigninUsernameInput,
     PushDeletedLearningItem(LearningItem),
     PopDeletedLearningItem,
+    PushDeletedMessage(Message),
+    PopDeletedMessage,
 }
 
 #[derive(Clone)]
@@ -159,6 +161,7 @@ pub struct UIState {
     pub create_username_input: String,
     pub signin_username_input: String,
     pub deleted_learning_items: VecDeque<LearningItem>,
+    pub deleted_messages: VecDeque<Message>,
 }
 
 impl Default for UIState {
@@ -171,6 +174,7 @@ impl Default for UIState {
             create_username_input: String::new(),
             signin_username_input: String::new(),
             deleted_learning_items: VecDeque::new(),
+            deleted_messages: VecDeque::new(),
         }
     }
 }
@@ -200,6 +204,15 @@ impl UIState {
             UIStateAction::PopDeletedLearningItem => {
                 next.deleted_learning_items.pop_back();
             }
+            UIStateAction::PushDeletedMessage(msg) => {
+                next.deleted_messages.push_back(msg);
+                if next.deleted_messages.len() > 10 {
+                    next.deleted_messages.pop_front();
+                }
+            }
+            UIStateAction::PopDeletedMessage => {
+                next.deleted_messages.pop_back();
+            }
         }
         next
     }
@@ -225,6 +238,8 @@ pub enum UserStateAction {
     ReplaceUserState(UserState),
     DeleteLearningItem(Uuid),
     UndoDeleteLearningItem(LearningItem),
+    DeleteMessage(Uuid),
+    UndoDeleteMessage(Message),
 }
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
@@ -298,6 +313,16 @@ fn undo_delete_learning_item(mut items: Vec<LearningItem>, item: LearningItem) -
     items
 }
 
+fn delete_message(mut history: Vec<Message>, id: Uuid) -> Vec<Message> {
+    history.retain(|msg| msg.id != id);
+    history
+}
+
+fn undo_delete_message(mut history: Vec<Message>, msg: Message) -> Vec<Message> {
+    history.push(msg);
+    history
+}
+
 fn default_dialect_for_language(lang: Language) -> Dialect {
     match lang {
         Language::Spanish => Dialect::SpanishCuban,
@@ -348,6 +373,12 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::UndoDeleteLearningItem(item) => {
             next.learning_items = undo_delete_learning_item(next.learning_items, item);
+        }
+        UserStateAction::DeleteMessage(id) => {
+            next.conversation_history = delete_message(next.conversation_history, id);
+        }
+        UserStateAction::UndoDeleteMessage(msg) => {
+            next.conversation_history = undo_delete_message(next.conversation_history, msg);
         }
     }
     next

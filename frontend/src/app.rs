@@ -30,6 +30,20 @@ fn extract_learning_items(user_state: &UserStateWrapper) -> (Vec<Mistake>, Vec<E
     (mistakes, explained, translated, exploratory)
 }
 
+fn render_message_undo_notification(deleted_count: usize, on_undo: Callback<()>) -> Html {
+    if deleted_count > 0 {
+        let onclick = Callback::from(move |_| on_undo.emit(()));
+        html! {
+            <div class="message-undo-notification">
+                <span>{"Message deleted."}</span>
+                <button class="undo-button" {onclick}>{"Undo"}</button>
+            </div>
+        }
+    } else {
+        html! {}
+    }
+}
+
 fn on_send_message(
     app_state: UseReducerHandle<AppState>,
     user_state: UseReducerHandle<UserStateWrapper>
@@ -368,6 +382,31 @@ fn on_signout_click(
     })
 }
 
+fn on_delete_message_callback(
+    ui_state: UseReducerHandle<UIState>,
+    user_state: UseReducerHandle<UserStateWrapper>,
+) -> Callback<Uuid> {
+    Callback::from(move |msg_id: Uuid| {
+        if let Some(msg) = user_state.conversation_history.iter().find(|m| m.id == msg_id).cloned() {
+            ui_state.dispatch(UIStateAction::PushDeletedMessage(msg));
+        }
+        user_state.dispatch(UserStateAction::DeleteMessage(msg_id));
+    })
+}
+
+fn on_undo_message_callback(
+    ui_state: UseReducerHandle<UIState>,
+    user_state: UseReducerHandle<UserStateWrapper>,
+) -> Callback<()> {
+    let deleted_messages = (*ui_state).deleted_messages.clone();
+    Callback::from(move |_| {
+        if let Some(msg) = deleted_messages.back().cloned() {
+            user_state.dispatch(UserStateAction::UndoDeleteMessage(msg));
+            ui_state.dispatch(UIStateAction::PopDeletedMessage);
+        }
+    })
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     let app_state = use_reducer(AppState::default);
@@ -652,6 +691,7 @@ pub fn app() -> Html {
                             on_prompt_click={Some(on_prompt_click(app_state.clone(), user_state.clone(), ui_state.clone()))}
                             translating_button={((*ui_state).translating_button).clone()}
                             formality={(*user_state).formality}
+                            on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_state.clone()))}
                         />
                         <SpeechControls
                             on_speech={on_send_message(app_state.clone(), user_state.clone())}
@@ -677,6 +717,10 @@ pub fn app() -> Html {
                             disabled={!matches!((*app_state).connection_state, ConnectionState::Connected)}
                             external_value={((*ui_state).input_prompt_value).clone()}
                         />
+                        {render_message_undo_notification(
+                            (*ui_state).deleted_messages.len(),
+                            on_undo_message_callback(ui_state.clone(), user_state.clone())
+                        )}
                     </div>
 
                     // Floating panel toggle button

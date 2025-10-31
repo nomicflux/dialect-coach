@@ -27,6 +27,11 @@ impl QdrantService {
         Ok(Self { client })
     }
 
+    /// Get reference to the Qdrant client
+    pub fn client(&self) -> &Qdrant {
+        &self.client
+    }
+
     /// Create from environment variables
     pub async fn from_env() -> Result<Self> {
         let url = std::env::var("QDRANT_URL").context("QDRANT_URL environment variable not set")?;

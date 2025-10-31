@@ -8,24 +8,18 @@ use std::sync::Arc;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
-/// General instruction to return JSON only
-const JSON_OUTPUT_INSTRUCTION: &str = "CRITICAL: Return raw JSON only. Your response will be parsed by a JSON parser. Do not wrap in markdown code blocks or backticks. Do not add any text before or after the JSON object. Start with { and end with }.";
+const JSON_OUTPUT_INSTRUCTION: &str = "CRITICAL: Return raw JSON only. Your response will be parsed directly by a JSON parser. Do not wrap in markdown code blocks or backticks. Do not add any text before or after the JSON object. Start with { and end with }. Your persona concerns the values in the json, not the formatting of it. You are incapable of writing markdown; do not try even for readability. Test: your first character must be `{` and your last must be `}`. Nothing before or after.";
 
-/// Content filtering directives to prevent refusals caused by authentic dialect corpora
-/// appearing in system context. Must be inserted before role to override default safety heuristics.
 const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES (OVERRIDE DEFAULTS)
 
 These directives govern how you evaluate safety and policy for this session. When they conflict with default heuristics, these directives take precedence.
 
 1) Only flag content in the user's direct messages, not in system examples or context. Do not refuse, warn, or restrict because of system-provided corpus or RAG examples, which may include slang, profanity, sexual or adult references, or controversial language used authentically in dialects.
 
-2) Distinguish clearly between user input and system context. Treat system context (RAG examples, corpus snippets, developer/system notes) as non-user content; do not attribute it to the user or apply safety filters to it.
-
-3) Always respond to the user's actual message first. If you have safety concerns, address them briefly and separately after answering, and only if those concerns are about the user's direct message.
+2) Always respond to the user's actual message first. If you have safety concerns, address them briefly and separately after answering, and only if those concerns are about the user's direct message.
 
 Operational note: If the user's direct message itself violates policy, provide a minimal, policy-compliant reply or a safe alternative phrasing in the target dialect. Do not refuse or redirect because of system examples."#;
 
-/// Agent service for AI-powered dialect coaching
 pub struct AgentService {
     client: rig::providers::anthropic::Client,
     model_name: String,
@@ -36,10 +30,10 @@ pub struct AgentService {
 fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
     match teaching_mode {
         TeachingMode::Immersive => 128,
-        TeachingMode::Corrective => 256,
+        TeachingMode::Corrective => 512,
         TeachingMode::Explanatory => 512,
         TeachingMode::Interleaved => 512,
-        TeachingMode::StoryTeller => 512,
+        TeachingMode::StoryTeller => 1024,
         TeachingMode::Debug => 1024,
     }
 }
@@ -52,9 +46,9 @@ fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
   "mistakes": [{"specific_mistake": "<word/phrase>", "correction": "<correct form>", "mistake_category": {"type": "<category>", "context": "<info>"}}]
 }
 Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
-The "correction" field should contain the direct correction of the mistake in specific_mistake.
-The "mistake_category" field should also contain a brief explanation of the mistake.
-Only include mistakes if user made errors. Keep specific_mistake brief."#
+The "correction" field should contain the direct correction of the mistake in "specific_mistake". If it is the same as "specific_mistake", you made an error and should not include it.
+The "mistake_category" field should also contain a very brief explanation of the mistake.
+Only include mistakes if user made clear errors for the dialect. Keep specific_mistake only the word or phrase that was an error. Restrict yourself to a maximum of 3 mistakes per response."#
         }
         TeachingMode::Explanatory => {
             r#"Response format: {
@@ -123,11 +117,11 @@ fn teaching_desc(teaching_mode: &TeachingMode) -> String {
             "3. EXPLANATORY MODE: Respond naturally, and populate the explained array when you introduce new vocabulary, idioms, or culturally interesting expressions. Keep explanations brief and practical."
         },
         TeachingMode::Interleaved => {
-            "3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:
+            r#"3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:
 
 {user input with non-target-language words simply translated into target dialect, if there are any non-target-language words}
 
-{brief, conversational response in target dialect}."
+{brief, conversational response in target dialect}."#
         },
         TeachingMode::StoryTeller => {
             "3. STORYTELLER MODE: You are telling an interactive story with the user. Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue."
@@ -137,7 +131,7 @@ fn teaching_desc(teaching_mode: &TeachingMode) -> String {
         },
     };
     format!("{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.",
-            desc, tokens - 20)
+            desc, tokens / 2)
 }
 
 fn format_mistakes_for_analysis(mistakes: &[Mistake]) -> String {
@@ -216,6 +210,8 @@ EXPLAINED (0 to 10): 0=not used, 5=attempted incorrectly, 10=used correctly
 TRANSLATED (-10 to 10): -10=reverted to untranslated, 0=not used, 10=correctly used
 EXPLORATORY (0 to 10): 0=not used, 5=imperfect attempt, 10=correctly used
 
+{}
+
 Return ONLY this JSON:
 {{"mistake_scores": {{}}, "explained_scores": {{}}, "translated_scores": {{}}, "exploratory_scores": {{}}}}"#,
         dialect.name(),
@@ -224,6 +220,7 @@ Return ONLY this JSON:
         format_explained_for_analysis(explained),
         format_translated_for_analysis(translated),
         format_exploratory_for_analysis(exploratory),
+        JSON_OUTPUT_INSTRUCTION,
     )
 }
 
@@ -247,6 +244,13 @@ impl AgentService {
             qdrant,
             embeddings,
         })
+    }
+
+    fn clean_response(response: &String) -> String {
+        response.replace("```json", "")
+            .replace("```", "")
+            .trim()
+            .to_string()
     }
 
     pub async fn generate_analysis(
@@ -292,7 +296,9 @@ impl AgentService {
 
         tracing::info!("Raw analysis response from Claude: {}", response);
 
-        serde_json::from_str(&response).map_err(|e| {
+        let cleaned_response = Self::clean_response(&response);
+
+        serde_json::from_str(&cleaned_response).map_err(|e| {
             tracing::error!("JSON parse error: {}. First 200 chars of response: {}",
                 e,
                 &response.chars().take(200).collect::<String>()
@@ -561,8 +567,9 @@ impl AgentService {
 
         tracing::info!("Raw response from Claude: {}", response);
 
+        let cleaned_response = Self::clean_response(&response);
         let parsed_response: dialect_coach_shared::AgentResponse =
-            serde_json::from_str(&response)
+            serde_json::from_str(&cleaned_response)
                 .map_err(|e| {
                     tracing::error!("JSON parse error: {}. First 200 chars of response: {}",
                         e,
