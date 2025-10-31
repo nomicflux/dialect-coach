@@ -1,40 +1,18 @@
-use crate::test_seams::VectorUploader;
 use anyhow::{Context, Result, anyhow};
 use dialect_coach_shared::DialectDocument;
 use qdrant_client::qdrant::points_selector::PointsSelectorOneOf;
 use qdrant_client::qdrant::points_update_operation::{Operation, SetPayload};
 use qdrant_client::qdrant::value::Kind;
 use qdrant_client::qdrant::{
-    Condition, CreateCollectionBuilder, Distance, Filter, PointId, PointStruct, PointsIdsList,
-    PointsSelector, PointsUpdateOperation, ScrollPointsBuilder, UpdateBatchPointsBuilder,
-    UpsertPointsBuilder, Value, VectorParamsBuilder,
+    Condition, CreateCollectionBuilder, DeletePointsBuilder, Distance, Filter, PointId,
+    PointStruct, PointsIdsList, PointsSelector, PointsUpdateOperation, ScrollPointsBuilder,
+    UpdateBatchPointsBuilder, UpsertPointsBuilder, Value, VectorParamsBuilder,
 };
 use qdrant_client::{Payload, Qdrant};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
 const COLLECTION_NAME: &str = "dialect_documents";
-
-/// Generic Qdrant API response envelope
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct QdrantResponse<T> {
-    pub status: String,
-    pub time: f64,
-    pub result: Option<T>,
-}
-
-/// Collection information from Qdrant API
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct CollectionInfo {
-    pub status: Option<String>,
-    pub points_count: Option<u64>,
-    pub vectors_count: Option<u64>,
-    pub indexed_vectors_count: Option<u64>,
-    pub segments_count: Option<u32>,
-}
 
 /// Qdrant client wrapper for uploading dialect documents
 pub struct QdrantService {
@@ -154,30 +132,6 @@ impl QdrantService {
         }
 
         Ok(())
-    }
-
-    /// Get collection info as structured data
-    pub async fn get_collection_info_structured(&self) -> Result<QdrantResponse<CollectionInfo>> {
-        let collection_info = self
-            .client
-            .collection_info(COLLECTION_NAME)
-            .await
-            .context("Failed to get collection info")?;
-
-        // Convert qdrant_client response to our structured format
-        let response = QdrantResponse {
-            status: "ok".to_string(), // qdrant_client doesn't expose status, but success means ok
-            time: collection_info.time,
-            result: collection_info.result.map(|result| CollectionInfo {
-                status: Some("green".to_string()), // Default assumption for successful response
-                points_count: result.points_count,
-                vectors_count: result.vectors_count,
-                indexed_vectors_count: result.indexed_vectors_count,
-                segments_count: Some(result.segments_count as u32),
-            }),
-        };
-
-        Ok(response)
     }
 
     /// Get detailed status with counts per dialect
@@ -314,28 +268,38 @@ impl QdrantService {
 
         Ok(())
     }
-}
 
-// Implement VectorUploader trait for dependency injection
-#[async_trait::async_trait]
-impl VectorUploader for QdrantService {
-    async fn upload_documents(&self, documents: &[DialectDocument]) -> Result<()> {
-        self.upload_documents(documents).await
-    }
+    pub async fn delete_points(&self, dialect: &String) -> Result<()> {
+        let filter = Filter::must([Condition::matches("dialect", (*dialect).clone())]);
+        let limit = 100000;
+        let results = self
+            .client
+            .scroll(
+                ScrollPointsBuilder::new(COLLECTION_NAME)
+                    .limit(limit)
+                    .filter(filter)
+                    .with_payload(true),
+            )
+            .await
+            .context("Failed to search Qdrant")?;
 
-    async fn get_collection_info(&self) -> Result<()> {
-        // For the trait, we'll maintain the old printing behavior
-        let info = self.get_collection_info_structured().await?;
-        println!("\nCollection Info:");
-        println!("  Name: {}", COLLECTION_NAME);
-        if let Some(result) = &info.result {
-            println!("  Points count: {:?}", result.points_count);
-            println!("  Vectors count: {:?}", result.vectors_count);
+        let point_ids = results
+            .result
+            .iter()
+            .map(|point| point.id.clone().unwrap())
+            .collect();
+        let point_selector = PointsSelectorOneOf::Points(PointsIdsList { ids: point_ids });
+        let builder = DeletePointsBuilder::new(COLLECTION_NAME).points(point_selector);
+        let res = self
+            .client
+            .delete_points(builder.wait(true))
+            .await
+            .context("Failed to delete points");
+        match res {
+            Ok(r) => println!("Returned result: {:?}", r),
+            Err(e) => println!("Returned error: {:?}", e),
         }
-        Ok(())
-    }
 
-    async fn get_detailed_status(&self) -> Result<()> {
-        self.get_detailed_status().await
+        Ok(())
     }
 }

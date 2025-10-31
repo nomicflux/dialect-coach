@@ -70,14 +70,18 @@ fn load_directory(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>>
 /// Load plain text file - one document per file
 fn load_text_file(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>> {
     // Check file size first
-    let metadata = fs::metadata(path).context(format!("Failed to get file metadata: {}", path.display()))?;
+    let metadata =
+        fs::metadata(path).context(format!("Failed to get file metadata: {}", path.display()))?;
     let file_size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-    
+
     if file_size_mb > 10.0 {
-        println!("  📝 Loading large file: {} ({:.1}MB) - this may take a moment...", 
-                 path.file_name().unwrap_or_default().to_string_lossy(), file_size_mb);
+        println!(
+            "  📝 Loading large file: {} ({:.1}MB) - this may take a moment...",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            file_size_mb
+        );
     }
-    
+
     let content =
         fs::read_to_string(path).context(format!("Failed to read file: {}", path.display()))?;
 
@@ -86,8 +90,11 @@ fn load_text_file(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>>
     }
 
     if file_size_mb > 10.0 {
-        println!("  ✅ File loaded successfully: {:.1}MB, {} characters", 
-                 file_size_mb, content.len());
+        println!(
+            "  ✅ File loaded successfully: {:.1}MB, {} characters",
+            file_size_mb,
+            content.len()
+        );
     }
 
     let doc = DialectDocument::new(content.trim().to_string(), dialect, None);

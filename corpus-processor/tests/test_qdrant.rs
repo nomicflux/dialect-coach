@@ -207,7 +207,6 @@ mod tests {
         // This test records actual API calls to a real Qdrant instance
         // Run with: QDRANT_URL=http://localhost:6333 cargo test -- --ignored test_record_qdrant_api_calls
         use corpus_processor::qdrant::QdrantService;
-        use corpus_processor::test_seams::VectorUploader;
         use dialect_coach_shared::{Dialect, DialectDocument, Formality};
 
         let qdrant_url = std::env::var("QDRANT_URL")
@@ -230,9 +229,6 @@ mod tests {
         documents[0].embedding = vec![0.1; 768];
 
         let _ = qdrant.upload_documents(&documents).await;
-
-        // Test collection info
-        let _ = qdrant.get_collection_info().await;
 
         println!("API calls recorded. Use these to create cassette fixtures.");
     }

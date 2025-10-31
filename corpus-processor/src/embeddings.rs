@@ -1,4 +1,3 @@
-use crate::test_seams::EmbeddingProvider;
 use anyhow::{Context, Result};
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 
@@ -33,18 +32,6 @@ impl EmbeddingService {
     }
 }
 
-// Implement EmbeddingProvider trait for dependency injection
-impl EmbeddingProvider for EmbeddingService {
-    fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
-        self.embed_batch(texts)
-    }
-
-    fn dimension(&self) -> usize {
-        // MultilingualE5Base produces 768-dimensional embeddings
-        768
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -59,11 +46,5 @@ mod tests {
         for embedding in embeddings {
             assert_eq!(embedding.len(), 768); // MultilingualE5Base dimension
         }
-    }
-
-    #[test]
-    fn test_dimension() {
-        let service = EmbeddingService::new().unwrap();
-        assert_eq!(service.dimension(), 768);
     }
 }

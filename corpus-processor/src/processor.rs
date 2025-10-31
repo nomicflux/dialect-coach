@@ -6,43 +6,47 @@ use std::path::Path;
 use crate::chunking::{ChunkConfig, chunk_text};
 use crate::embeddings::EmbeddingService;
 use crate::loaders::load_corpus;
-use crate::test_seams::EmbeddingProvider;
 
 /// Process a corpus: load, chunk, embed, and save (with dependency injection)
-pub fn process_corpus_with_embedder<E: EmbeddingProvider>(
+pub fn process_corpus_with_embedder(
     input_path: &str,
     output_path: &str,
     dialect: Dialect,
     chunk_size: usize,
     overlap: usize,
-    embedding_service: &E,
+    embedding_service: &EmbeddingService,
 ) -> Result<()> {
     // Create output directory if it doesn't exist
     fs::create_dir_all(output_path).context(format!(
         "Failed to create output directory: {}",
         output_path
     ))?;
-    
+
     // Check if already processed (look for any .jsonl file in output directory)
     let output_dir = std::path::Path::new(output_path);
     if output_dir.exists() {
         let existing_files: Vec<_> = std::fs::read_dir(output_dir)?
             .filter_map(|entry| entry.ok())
             .filter(|entry| {
-                entry.path().extension()
+                entry
+                    .path()
+                    .extension()
                     .and_then(|ext| ext.to_str())
                     .map(|ext| ext == "jsonl")
                     .unwrap_or(false)
             })
             .collect();
-            
+
         if !existing_files.is_empty() {
             let existing_file = &existing_files[0];
             let metadata = existing_file.metadata()?;
             let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-            
-            println!("  ⚠️  Already processed file found: {} ({:.1}MB)", 
-                     existing_file.file_name().to_string_lossy(), size_mb);
+
+            println!(
+                "  ⚠️  Already processed file found: {} ({:.1}MB)",
+                existing_file.file_name().to_string_lossy(),
+                size_mb
+            );
             println!("  📝 Use 'rm -rf {}' to reprocess if needed", output_path);
             return Ok(());
         }
@@ -64,32 +68,42 @@ pub fn process_corpus_with_embedder<E: EmbeddingProvider>(
         max_chunk_size: chunk_size,
         overlap,
     };
-    
+
     // Estimate chunks based on total content size
     let total_chars: usize = raw_documents.iter().map(|d| d.content.len()).sum();
     let estimated_chunks = total_chars / chunk_size + raw_documents.len();
-    println!("  📏 Estimated chunks: ~{} (from {:.1}MB of content)", estimated_chunks, total_chars as f64 / (1024.0 * 1024.0));
-    
+    println!(
+        "  📏 Estimated chunks: ~{} (from {:.1}MB of content)",
+        estimated_chunks,
+        total_chars as f64 / (1024.0 * 1024.0)
+    );
+
     let chunked_documents = chunk_documents(raw_documents, &chunk_config)?;
     println!("  ✅ Created {} chunks (actual)", chunked_documents.len());
 
     // Generate embeddings in batches with detailed progress
     let total_chunks = chunked_documents.len();
-    
+
     // Adaptive batch size based on dataset size - larger batches for big datasets
     let batch_size = if total_chunks > 10000 {
-        64  // Larger batches for big datasets (2x faster)
+        64 // Larger batches for big datasets (2x faster)
     } else if total_chunks > 1000 {
-        48  // Medium batch size
+        48 // Medium batch size
     } else {
-        32  // Default batch size for small datasets
+        32 // Default batch size for small datasets
     };
-    
+
     let total_batches = total_chunks.div_ceil(batch_size);
-    
-    println!("Generating embeddings for {} chunks in {} batches...", total_chunks, total_batches);
-    println!("⏱️  Estimated time: ~{} minutes for large files", (total_batches * 2) / 60);
-    
+
+    println!(
+        "Generating embeddings for {} chunks in {} batches...",
+        total_chunks, total_batches
+    );
+    println!(
+        "⏱️  Estimated time: ~{} minutes for large files",
+        (total_batches * 2) / 60
+    );
+
     let mut processed_documents = Vec::new();
     let start_time = std::time::Instant::now();
 
@@ -111,13 +125,13 @@ pub fn process_corpus_with_embedder<E: EmbeddingProvider>(
         let batch_duration = batch_start.elapsed();
         let elapsed_total = start_time.elapsed();
         let progress_percent = ((batch_idx + 1) as f64 / total_batches as f64) * 100.0;
-        
+
         // Calculate ETA
         let avg_batch_time = elapsed_total.as_secs_f64() / (batch_idx + 1) as f64;
         let remaining_batches = total_batches - (batch_idx + 1);
         let eta_seconds = avg_batch_time * remaining_batches as f64;
         let eta_mins = eta_seconds / 60.0;
-        
+
         println!(
             "  📊 Batch {}/{} ({:.1}%) | Batch: {:.2}s | Total: {:.1}m | ETA: {:.1}m | {} docs",
             batch_idx + 1,
@@ -128,11 +142,15 @@ pub fn process_corpus_with_embedder<E: EmbeddingProvider>(
             eta_mins,
             processed_documents.len()
         );
-        
+
         // Print milestone updates
         if (batch_idx + 1) % 100 == 0 || batch_idx + 1 == total_batches {
-            println!("    🎯 Milestone: {}/{} batches completed ({:.1}%)", 
-                batch_idx + 1, total_batches, progress_percent);
+            println!(
+                "    🎯 Milestone: {}/{} batches completed ({:.1}%)",
+                batch_idx + 1,
+                total_batches,
+                progress_percent
+            );
         }
     }
 
@@ -141,17 +159,21 @@ pub fn process_corpus_with_embedder<E: EmbeddingProvider>(
     let save_start = std::time::Instant::now();
     save_documents(&processed_documents, output_path)?;
     let save_duration = save_start.elapsed();
-    
+
     let total_duration = start_time.elapsed();
     let file_size_mb = std::fs::metadata(
-        std::path::Path::new(output_path)
-            .join(format!("{}.jsonl", dialect.id()))
-    )?.len() as f64 / (1024.0 * 1024.0);
+        std::path::Path::new(output_path).join(format!("{}.jsonl", dialect.id())),
+    )?
+    .len() as f64
+        / (1024.0 * 1024.0);
 
     println!("\n✅ PROCESSING COMPLETE");
     println!("  Documents: {}", processed_documents.len());
     println!("  Output size: {:.1}MB", file_size_mb);
-    println!("  Total time: {:.1} minutes", total_duration.as_secs_f64() / 60.0);
+    println!(
+        "  Total time: {:.1} minutes",
+        total_duration.as_secs_f64() / 60.0
+    );
     println!("  Save time: {:.2}s", save_duration.as_secs_f64());
     println!("  Output: {}", output_path);
 
@@ -188,8 +210,7 @@ pub fn chunk_documents(
         let chunks = chunk_text(&doc.content, config)?;
 
         for chunk_content in chunks {
-            let chunk_doc =
-                DialectDocument::new(chunk_content, doc.dialect, doc.formality);
+            let chunk_doc = DialectDocument::new(chunk_content, doc.dialect, doc.formality);
             chunked.push(chunk_doc);
         }
     }

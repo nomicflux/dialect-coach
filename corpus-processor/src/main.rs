@@ -3,13 +3,11 @@ mod embeddings;
 mod loaders;
 mod processor;
 mod qdrant;
-mod test_seams;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use dialect_coach_shared::{Dialect, DialectDocument, Language};
 use std::fs;
-use test_seams::VectorUploader;
 
 #[derive(Parser)]
 #[command(name = "corpus-processor")]
@@ -46,6 +44,15 @@ enum Commands {
         /// Overlap between chunks in characters
         #[arg(long, default_value = "50")]
         overlap: usize,
+    },
+
+    Delete {
+        #[arg(short, long)]
+        dialect: String,
+        #[arg(short, long)]
+        url: Option<String>,
+        #[arg(short = 'k', long)]
+        api_key: Option<String>,
     },
 
     /// Upload processed documents to Qdrant
@@ -98,7 +105,10 @@ fn get_qdrant_key(api_key: Option<String>) -> Option<String> {
     api_key.or_else(|| std::env::var("QDRANT_API_KEY").ok())
 }
 
-async fn get_qdrant_service(url: Option<String>, api_key: Option<String>) -> Result<qdrant::QdrantService> {
+async fn get_qdrant_service(
+    url: Option<String>,
+    api_key: Option<String>,
+) -> Result<qdrant::QdrantService> {
     let qdrant_url = get_qdrant_url(url)?;
     println!("Connecting to: {}", qdrant_url);
     let qdrant_api_key = get_qdrant_key(api_key);
@@ -141,6 +151,16 @@ async fn main() -> Result<()> {
 
             println!("\n✓ Processing completed successfully");
         }
+        Commands::Delete {
+            dialect,
+            url,
+            api_key,
+        } => {
+            println!("Deleting points from Qdrant:");
+            println!("  Dialect: {}", dialect);
+            let qdrant = get_qdrant_service(url, api_key).await?;
+            qdrant.delete_points(&dialect).await?;
+        }
         Commands::Upload {
             input,
             url,
@@ -159,8 +179,6 @@ async fn main() -> Result<()> {
 
             println!("Uploading to Qdrant...");
             qdrant.upload_documents(&documents).await?;
-
-            qdrant.get_collection_info().await?;
 
             println!("\n✓ Upload completed successfully");
         }
