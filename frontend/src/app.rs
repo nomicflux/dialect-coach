@@ -719,6 +719,37 @@ pub fn app() -> Html {
                                 ui_state.dispatch(UIStateAction::CloseLearningPanel);
                             })
                         }}
+                        on_delete={{
+                            let ui_state = ui_state.clone();
+                            let user_state = user_state.clone();
+                            let items = (*user_state).learning_items.clone();
+                            Callback::from(move |id: Uuid| {
+                                if let Some(item) = items.iter().find(|i| {
+                                    let item_id = match &i.item {
+                                        LearningItemType::Mistake(m) => m.id,
+                                        LearningItemType::Explanation(e) => e.id,
+                                        LearningItemType::Translation(t) => t.id,
+                                        LearningItemType::Exploration(e) => e.id,
+                                    };
+                                    item_id == id
+                                }) {
+                                    ui_state.dispatch(UIStateAction::PushDeletedLearningItem(item.clone()));
+                                }
+                                user_state.dispatch(UserStateAction::DeleteLearningItem(id));
+                            })
+                        }}
+                        on_undo={{
+                            let ui_state = ui_state.clone();
+                            let user_state = user_state.clone();
+                            let deleted_items = (*ui_state).deleted_learning_items.clone();
+                            Callback::from(move |_| {
+                                if let Some(item) = deleted_items.back() {
+                                    user_state.dispatch(UserStateAction::UndoDeleteLearningItem(item.clone()));
+                                    ui_state.dispatch(UIStateAction::PopDeletedLearningItem);
+                                }
+                            })
+                        }}
+                        deleted_count={(*ui_state).deleted_learning_items.len()}
                     />
                 </div>
 

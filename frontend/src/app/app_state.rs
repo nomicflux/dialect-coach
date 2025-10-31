@@ -3,6 +3,7 @@ use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Trans
 use dialect_coach_shared::{User, UserState, LearningItem, LearningItemType};
 use log::{error};
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 use uuid::Uuid;
 use yew::prelude::*;
@@ -145,6 +146,8 @@ pub enum UIStateAction {
     SetSigninUsernameInput(String),
     ClearCreateUsernameInput,
     ClearSigninUsernameInput,
+    PushDeletedLearningItem(LearningItem),
+    PopDeletedLearningItem,
 }
 
 #[derive(Clone)]
@@ -155,6 +158,7 @@ pub struct UIState {
     pub learning_panel_open: bool,
     pub create_username_input: String,
     pub signin_username_input: String,
+    pub deleted_learning_items: VecDeque<LearningItem>,
 }
 
 impl Default for UIState {
@@ -166,6 +170,7 @@ impl Default for UIState {
             learning_panel_open: false,
             create_username_input: String::new(),
             signin_username_input: String::new(),
+            deleted_learning_items: VecDeque::new(),
         }
     }
 }
@@ -186,6 +191,15 @@ impl UIState {
             UIStateAction::SetSigninUsernameInput(input) => next.signin_username_input = input,
             UIStateAction::ClearCreateUsernameInput => next.create_username_input = String::new(),
             UIStateAction::ClearSigninUsernameInput => next.signin_username_input = String::new(),
+            UIStateAction::PushDeletedLearningItem(item) => {
+                next.deleted_learning_items.push_back(item);
+                if next.deleted_learning_items.len() > 10 {
+                    next.deleted_learning_items.pop_front();
+                }
+            }
+            UIStateAction::PopDeletedLearningItem => {
+                next.deleted_learning_items.pop_back();
+            }
         }
         next
     }
@@ -209,6 +223,17 @@ pub enum UserStateAction {
     ChangeTeachingMode(TeachingMode),
     ToggleTTS,
     ReplaceUserState(UserState),
+    DeleteLearningItem(Uuid),
+    UndoDeleteLearningItem(LearningItem),
+}
+
+fn get_learning_item_id(item: &LearningItem) -> Uuid {
+    match &item.item {
+        LearningItemType::Mistake(m) => m.id,
+        LearningItemType::Explanation(e) => e.id,
+        LearningItemType::Translation(t) => t.id,
+        LearningItemType::Exploration(e) => e.id,
+    }
 }
 
 fn add_learning_items_to_vec(
@@ -263,6 +288,16 @@ fn apply_score_updates(items: Vec<LearningItem>, analysis: &AgentAnalysis) -> Ve
     items.into_iter().map(|item| update_item_score(item, analysis)).collect()
 }
 
+fn delete_learning_item(mut items: Vec<LearningItem>, id: Uuid) -> Vec<LearningItem> {
+    items.retain(|item| get_learning_item_id(item) != id);
+    items
+}
+
+fn undo_delete_learning_item(mut items: Vec<LearningItem>, item: LearningItem) -> Vec<LearningItem> {
+    items.push(item);
+    items
+}
+
 fn default_dialect_for_language(lang: Language) -> Dialect {
     match lang {
         Language::Spanish => Dialect::SpanishCuban,
@@ -307,6 +342,12 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::ReplaceUserState(new_state) => {
             next = new_state;
+        }
+        UserStateAction::DeleteLearningItem(id) => {
+            next.learning_items = delete_learning_item(next.learning_items, id);
+        }
+        UserStateAction::UndoDeleteLearningItem(item) => {
+            next.learning_items = undo_delete_learning_item(next.learning_items, item);
         }
     }
     next
