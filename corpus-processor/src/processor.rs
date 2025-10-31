@@ -53,17 +53,22 @@ pub fn process_corpus_with_embedder(
     }
 
     // Load corpus documents
-    println!("Loading corpus from {}...", input_path);
+    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("📂 STAGE 1/4: LOADING CORPUS");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Input: {}", input_path);
     let raw_documents = load_corpus(input_path, dialect)?;
-    println!("Loaded {} documents", raw_documents.len());
+    println!("✅ Loaded {} documents", raw_documents.len());
 
     if raw_documents.is_empty() {
-        println!("Warning: No documents found in input path");
+        println!("⚠️  Warning: No documents found in input path");
         return Ok(());
     }
 
     // Chunk documents with progress
-    println!("Chunking documents...");
+    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("✂️  STAGE 2/4: CHUNKING TEXT");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     let chunk_config = ChunkConfig {
         max_chunk_size: chunk_size,
         overlap,
@@ -73,15 +78,25 @@ pub fn process_corpus_with_embedder(
     let total_chars: usize = raw_documents.iter().map(|d| d.content.len()).sum();
     let estimated_chunks = total_chars / chunk_size + raw_documents.len();
     println!(
-        "  📏 Estimated chunks: ~{} (from {:.1}MB of content)",
-        estimated_chunks,
-        total_chars as f64 / (1024.0 * 1024.0)
+        "Config: max_chunk_size={}, overlap={}",
+        chunk_size, overlap
     );
+    println!(
+        "Total content: {:.1}MB ({} characters)",
+        total_chars as f64 / (1024.0 * 1024.0),
+        total_chars
+    );
+    println!("Estimated chunks: ~{}", estimated_chunks);
+    println!("Processing {} documents...", raw_documents.len());
 
     let chunked_documents = chunk_documents(raw_documents, &chunk_config)?;
-    println!("  ✅ Created {} chunks (actual)", chunked_documents.len());
+    println!("✅ Created {} chunks", chunked_documents.len());
 
     // Generate embeddings in batches with detailed progress
+    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("🧠 STAGE 3/4: GENERATING EMBEDDINGS");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    
     let total_chunks = chunked_documents.len();
 
     // Adaptive batch size based on dataset size - larger batches for big datasets
@@ -95,20 +110,20 @@ pub fn process_corpus_with_embedder(
 
     let total_batches = total_chunks.div_ceil(batch_size);
 
-    println!(
-        "Generating embeddings for {} chunks in {} batches...",
-        total_chunks, total_batches
-    );
-    println!(
-        "⏱️  Estimated time: ~{} minutes for large files",
-        (total_batches * 2) / 60
-    );
+    println!("Total chunks: {}", total_chunks);
+    println!("Batch size: {} chunks/batch", batch_size);
+    println!("Total batches: {}", total_batches);
+    
+    let estimated_time_mins = (total_batches as f64 * 2.0) / 60.0;
+    if estimated_time_mins > 1.0 {
+        println!("⏱️  Estimated time: ~{:.1} minutes", estimated_time_mins);
+    }
+    println!();
 
     let mut processed_documents = Vec::new();
     let start_time = std::time::Instant::now();
 
     for (batch_idx, chunk) in chunked_documents.chunks(batch_size).enumerate() {
-        let batch_start = std::time::Instant::now();
         let texts: Vec<String> = chunk.iter().map(|doc| doc.content.clone()).collect();
 
         let embeddings = embedding_service
@@ -122,7 +137,6 @@ pub fn process_corpus_with_embedder(
             processed_documents.push(processed_doc);
         }
 
-        let batch_duration = batch_start.elapsed();
         let elapsed_total = start_time.elapsed();
         let progress_percent = ((batch_idx + 1) as f64 / total_batches as f64) * 100.0;
 
@@ -132,30 +146,53 @@ pub fn process_corpus_with_embedder(
         let eta_seconds = avg_batch_time * remaining_batches as f64;
         let eta_mins = eta_seconds / 60.0;
 
-        println!(
-            "  📊 Batch {}/{} ({:.1}%) | Batch: {:.2}s | Total: {:.1}m | ETA: {:.1}m | {} docs",
-            batch_idx + 1,
-            total_batches,
-            progress_percent,
-            batch_duration.as_secs_f64(),
-            elapsed_total.as_secs_f64() / 60.0,
-            eta_mins,
-            processed_documents.len()
-        );
+        // Show progress - every batch for small datasets, or strategically for large ones
+        let should_print = total_batches <= 20 // Always print for small datasets
+            || (batch_idx + 1) % 10 == 0 // Every 10 batches
+            || batch_idx + 1 == total_batches // Last batch
+            || (batch_idx + 1) % 100 == 0; // Every 100 batches
 
-        // Print milestone updates
-        if (batch_idx + 1) % 100 == 0 || batch_idx + 1 == total_batches {
+        if should_print {
+            print!(
+                "Progress: [{}/{}] {:.1}% | ",
+                batch_idx + 1,
+                total_batches,
+                progress_percent
+            );
+            
+            if remaining_batches > 0 {
+                print!("ETA: {:.1}m | ", eta_mins);
+            }
+            
+            print!(
+                "Speed: {:.2}s/batch | Elapsed: {:.1}m | Total docs: {}",
+                avg_batch_time,
+                elapsed_total.as_secs_f64() / 60.0,
+                processed_documents.len()
+            );
+            println!();
+        }
+
+        // Print milestone updates for large batches
+        if total_batches > 50 && ((batch_idx + 1) % 100 == 0 || batch_idx + 1 == total_batches) {
             println!(
-                "    🎯 Milestone: {}/{} batches completed ({:.1}%)",
+                "  🎯 Milestone: {}/{} batches completed ({:.1}%)",
                 batch_idx + 1,
                 total_batches,
                 progress_percent
             );
         }
     }
+    
+    println!("✅ All embeddings generated");
 
     // Save processed documents
-    println!("Saving processed documents...");
+    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("💾 STAGE 4/4: SAVING DOCUMENTS");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Output directory: {}", output_path);
+    println!("Documents to save: {}", processed_documents.len());
+    
     let save_start = std::time::Instant::now();
     save_documents(&processed_documents, output_path)?;
     let save_duration = save_start.elapsed();
@@ -167,15 +204,17 @@ pub fn process_corpus_with_embedder(
     .len() as f64
         / (1024.0 * 1024.0);
 
-    println!("\n✅ PROCESSING COMPLETE");
-    println!("  Documents: {}", processed_documents.len());
-    println!("  Output size: {:.1}MB", file_size_mb);
-    println!(
-        "  Total time: {:.1} minutes",
-        total_duration.as_secs_f64() / 60.0
-    );
-    println!("  Save time: {:.2}s", save_duration.as_secs_f64());
-    println!("  Output: {}", output_path);
+    println!("✅ Saved successfully ({:.2}s)", save_duration.as_secs_f64());
+
+    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("🎉 PROCESSING COMPLETE");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("Dialect: {}", dialect.name());
+    println!("Total documents: {}", processed_documents.len());
+    println!("Output file size: {:.1}MB", file_size_mb);
+    println!("Total processing time: {:.1} minutes", total_duration.as_secs_f64() / 60.0);
+    println!("Output location: {}", output_path);
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
     Ok(())
 }

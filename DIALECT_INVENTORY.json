@@ -35,11 +35,11 @@
       "source": null,
       "notes": "You mentioned we had this before - need to verify"
     },
-    "spanish_caribbean": {
-      "name": "Caribbean Spanish",
+    "spanish_cuban": {
+      "name": "Cuban Spanish",
       "bcp47": "es-CU",
-      "status": "UNKNOWN - NEED TO VERIFY", 
-      "corpus_file": null,
+      "status": "AVAILABLE", 
+      "corpus_file": "spanish_cuban.txt",
       "size_mb": null,
       "entries": null,
       "source": null,
@@ -58,8 +58,8 @@
     "spanish_colombian": {
       "name": "Colombian Spanish", 
       "bcp47": "es-CO",
-      "status": "AUDIO_ONLY",
-      "corpus_file": null,
+      "status": "AVAILABLE",
+      "corpus_file": "spanish_colombian.txt",
       "size_mb": null,
       "entries": null,
       "source": "ylacombe/google-colombian-spanish",
@@ -179,15 +179,15 @@
       "arabic_gulf",
       "arabic_maghrebi",
       "french_quebecois",
-      "french_african"
+      "french_african",
+      "spanish_argentinian",
+      "spanish_cuban",
+      "spanish_colombian"
     ],
     "missing_dialects": [
       "spanish_mexican",
-      "spanish_argentinian", 
-      "spanish_caribbean",
       "spanish_castilian",
       "spanish_chilean",
-      "spanish_colombian",
       "arabic_iraqi", 
       "french_parisian",
       "french_swiss",

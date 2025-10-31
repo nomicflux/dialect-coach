@@ -72,7 +72,7 @@ mod tests {
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let file_path = temp_dir.path().join("test_arabic.txt");
 
-        // Create test file with Arabic content (line format like the real file)
+        // Create test file with Arabic content (one line per document)
         let content = "text\nجنوب السودان هيا دولة مستقلة من ساعة اول دقيقة\nمارى دى كاستيلان كانت صاحبه صالون ادبى من فرنسا\nمارى ديكسون كيس كانت مصممه نسيج";
         fs::write(&file_path, content).expect("Failed to write test file");
 
@@ -85,21 +85,30 @@ mod tests {
             println!("Document {}: {}", i, doc.content);
         }
 
-        // Text files load as single document with entire content
+        // Text files load each line as a separate document
         assert_eq!(
             documents.len(),
-            1,
-            "Text file should load as single document"
+            4,
+            "Text file should load each line as a separate document"
         );
 
-        // Verify content contains Arabic text from the file
+        // Verify first few documents
+        assert_eq!(documents[0].content, "text");
+        assert_eq!(documents[1].content, "جنوب السودان هيا دولة مستقلة من ساعة اول دقيقة");
+        
+        // Verify all documents have correct dialect
+        for doc in &documents {
+            assert_eq!(doc.dialect, Dialect::ArabicEgyptian);
+        }
+
+        // Verify documents contain Arabic text from the file
         assert!(
-            documents[0].content.contains("جنوب"),
-            "Should contain Arabic text"
+            documents[1].content.contains("جنوب"),
+            "Second document should contain Arabic text"
         );
         assert!(
-            documents[0].content.contains("مارى"),
-            "Should contain full file content"
+            documents[2].content.contains("مارى"),
+            "Third document should contain Arabic text"
         );
     }
 

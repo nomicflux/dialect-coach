@@ -67,7 +67,7 @@ fn load_directory(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>>
     Ok(documents)
 }
 
-/// Load plain text file - one document per file
+/// Load plain text file - one document per line
 fn load_text_file(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>> {
     // Check file size first
     let metadata =
@@ -91,14 +91,32 @@ fn load_text_file(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>>
 
     if file_size_mb > 10.0 {
         println!(
-            "  ✅ File loaded successfully: {:.1}MB, {} characters",
+            "  ✅ File read successfully: {:.1}MB, {} characters",
             file_size_mb,
             content.len()
         );
+        println!("  📝 Parsing lines into documents...");
     }
 
-    let doc = DialectDocument::new(content.trim().to_string(), dialect, None);
-    Ok(vec![doc])
+    // Split by lines - each line is a separate document
+    let mut documents = Vec::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            let doc = DialectDocument::new(trimmed.to_string(), dialect, None);
+            documents.push(doc);
+        }
+    }
+
+    if file_size_mb > 10.0 {
+        println!(
+            "  ✅ Parsed {} documents from {} lines",
+            documents.len(),
+            content.lines().count()
+        );
+    }
+
+    Ok(documents)
 }
 
 /// Load CSV file with columns: content, formality (optional)

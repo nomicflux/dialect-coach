@@ -35,6 +35,22 @@ fn test_load_txt_file() {
 }
 
 #[test]
+fn test_load_txt_file_multiline() {
+    let temp_dir = tempdir().unwrap();
+    let file_path = temp_dir.path().join("multiline.txt");
+    // Multiple lines - each should be a separate document
+    let content = "First line in Arabic: مرحبا\nSecond line: كيف حالك\nThird line: شكرا";
+    fs::write(&file_path, content).unwrap();
+
+    let docs = load_corpus(file_path.to_str().unwrap(), Dialect::ArabicLevantine).unwrap();
+    assert_eq!(docs.len(), 3);
+    assert_eq!(docs[0].content, "First line in Arabic: مرحبا");
+    assert_eq!(docs[1].content, "Second line: كيف حالك");
+    assert_eq!(docs[2].content, "Third line: شكرا");
+    assert_eq!(docs[0].dialect, Dialect::ArabicLevantine);
+}
+
+#[test]
 fn test_load_csv_with_headers() {
     let temp_dir = tempdir().unwrap();
     let file_path = temp_dir.path().join("test.csv");
