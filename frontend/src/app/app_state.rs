@@ -28,11 +28,13 @@ pub enum AppStateAction {
     SetUser(User),
     ClearUser,
     LoadUserState(Uuid),
+    CreateSession(Uuid),
+    DestroySession,
 }
 
 #[derive(Clone)]
 pub struct AppState {
-    session_id: Uuid,
+    session_id: Option<Uuid>,
     pub connection_state: ConnectionState,
     pub is_loading: bool,
     pub error_message: Option<String>,
@@ -48,7 +50,7 @@ pub struct AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self {
-            session_id: Uuid::new_v4(),
+            session_id: None,
             connection_state: ConnectionState::Disconnected,
             is_loading: false,
             error_message: None,
@@ -77,7 +79,7 @@ fn load_user_state(ws_service: &Rc<RefCell<UserStateWebSocketService>>, user_id:
 }
 
 impl AppState {
-    pub fn session_id(&self) -> Uuid {
+    pub fn session_id(&self) -> Option<Uuid> {
         self.session_id
     }
 
@@ -119,6 +121,12 @@ impl AppState {
             }
             AppStateAction::LoadUserState(user_id) => {
                 load_user_state(&next.user_state_ws_service, user_id);
+            }
+            AppStateAction::CreateSession(uuid) => {
+                next.session_id = Some(uuid);
+            }
+            AppStateAction::DestroySession => {
+                next.session_id = None;
             }
         }
         next
@@ -236,6 +244,7 @@ pub enum UserStateAction {
     ChangeTeachingMode(TeachingMode),
     ToggleTTS,
     ReplaceUserState(UserState),
+    ClearUserState,
     DeleteLearningItem(Uuid),
     UndoDeleteLearningItem(LearningItem),
     DeleteMessage(Uuid),
@@ -446,6 +455,11 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
                 branch.name = Some(name);
             }
         }
+        UserStateAction::ClearUserState => {
+            // This should never be called - ClearUserState is handled at OptionalUserState level
+            // But we need this case for exhaustiveness
+            panic!("ClearUserState should not reach apply_user_state_action");
+        }
     }
     next
 }
@@ -472,6 +486,31 @@ impl Reducible for UserStateWrapper {
 
     fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
         UserStateWrapper(apply_user_state_action(&self.0, action)).into()
+    }
+}
+
+// Wrapper for optional user state - None until authenticated
+#[derive(Clone, PartialEq)]
+pub struct OptionalUserState(pub Option<UserState>);
+
+impl Reducible for OptionalUserState {
+    type Action = UserStateAction;
+
+    fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
+        match action {
+            UserStateAction::ReplaceUserState(new_state) => {
+                OptionalUserState(Some(new_state)).into()
+            }
+            UserStateAction::ClearUserState => {
+                OptionalUserState(None).into()
+            }
+            _ => {
+                match &self.0 {
+                    Some(state) => OptionalUserState(Some(apply_user_state_action(state, action))).into(),
+                    None => self
+                }
+            }
+        }
     }
 }
 
