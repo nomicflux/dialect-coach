@@ -11,6 +11,7 @@ use yew::prelude::*;
 use crate::components::{BranchSidebar, ChatWindow, InputBox, LearningPanel, SpeechControls};
 use crate::hooks::use_debounced_save;
 use crate::services::websocket::ConnectionState;
+use web_sys::window;
 
 fn extract_learning_items(user_state: &UserStateWrapper) -> (Vec<Mistake>, Vec<Explained>, Vec<Translated>, Vec<Exploratory>) {
     let mut mistakes = Vec::new();
@@ -440,15 +441,44 @@ fn on_delete_branch(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<
     })
 }
 
+fn get_or_create_user_id() -> Uuid {
+    const USER_ID_KEY: &str = "dialect_coach_user_id";
+
+    if let Some(window) = window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            // Try to load existing user_id
+            if let Ok(Some(stored_id)) = storage.get_item(USER_ID_KEY) {
+                if let Ok(uuid) = Uuid::parse_str(&stored_id) {
+                    info!("Loaded existing user_id from localStorage: {}", uuid);
+                    return uuid;
+                }
+            }
+
+            // Create new user_id and store it
+            let new_id = Uuid::new_v4();
+            if let Err(e) = storage.set_item(USER_ID_KEY, &new_id.to_string()) {
+                error!("Failed to store user_id in localStorage: {:?}", e);
+            } else {
+                info!("Created and stored new user_id: {}", new_id);
+            }
+            return new_id;
+        }
+    }
+
+    error!("Failed to access localStorage, using ephemeral user_id");
+    Uuid::new_v4()
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     let app_state = use_reducer(AppState::default);
     let ui_state = use_reducer(UIState::default);
 
-    // Create initial user state - will be loaded from backend via WebSocket
+    // Create initial user state with persisted user_id - will be loaded from backend via WebSocket
     let user_state = use_reducer(|| {
-        info!("Creating initial UserState");
-        UserStateWrapper(UserState::new(Uuid::new_v4()))
+        let user_id = get_or_create_user_id();
+        info!("Creating initial UserState with user_id: {}", user_id);
+        UserStateWrapper(UserState::new(user_id))
     });
 
     // Set up debounced auto-save via WebSocket with retry queue

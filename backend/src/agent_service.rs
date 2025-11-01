@@ -46,7 +46,7 @@ fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
   "mistakes": [{"specific_mistake": "<word/phrase>", "correction": "<correct form>", "mistake_category": {"type": "<category>", "context": "<info>"}}]
 }
 Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
-The "correction" field should contain the direct correction of the mistake in "specific_mistake". If it is the same as "specific_mistake", you made an error and should not include it.
+The "correction" field should contain the direct correction of the mistake in "specific_mistake". "correction" must be correct.
 The "mistake_category" field should also contain a very brief explanation of the mistake.
 Only include mistakes if user made clear errors for the dialect. Keep specific_mistake only the word or phrase that was an error. Restrict yourself to a maximum of 3 mistakes per response."#
         }
