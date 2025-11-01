@@ -366,12 +366,9 @@ fn on_create_user_click(
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
-        let state = match user_state.0.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
         let username = (*ui_state).create_username_input.clone();
-        let user_id = state.user_id;
+        // Generate new UUID for creating account (user_state is None at this point)
+        let user_id = Uuid::new_v4();
         if let Err(e) = app_state.user_ws_service.borrow().create_user(user_id, username) {
             error!("Failed to create user: {}", e);
             app_state.dispatch(AppStateAction::SetError(format!("Failed to create user: {}", e)));
@@ -798,6 +795,25 @@ pub fn app() -> Html {
                             ConnectionState::Failed => html! { <span class="status-failed">{"✖ Connection Failed"}</span> },
                         }}
                     </div>
+
+                    // Error display - shown for both authenticated and unauthenticated states
+                    {if let Some(err) = ((*app_state).error_message).as_ref() {
+                        html! {
+                            <div class="error-banner">
+                                <span>{format!("⚠️ {}", err)}</span>
+                                <button class="error-close" onclick={{
+                                    let app_state = app_state.clone();
+                                    Callback::from(move |_: MouseEvent| {
+                                        app_state.dispatch(AppStateAction::ClearError);
+                                    })
+                                }}>
+                                    {"×"}
+                                </button>
+                            </div>
+                        }
+                    } else {
+                        html! {}
+                    }}
                 </div>
             </header>
 
@@ -817,25 +833,6 @@ pub fn app() -> Html {
                 <div class="container">
                     // Main chat card
                     <div class="card card--chat" id="main-chat">
-                        // Error display
-                        {if let Some(err) = ((*app_state).error_message).as_ref() {
-                            html! {
-                                <div class="error-banner">
-                                    <span>{format!("⚠️ {}", err)}</span>
-                                    <button class="error-close" onclick={{
-                                        let app_state = app_state.clone();
-                                        Callback::from(move |_: MouseEvent| {
-                                            app_state.dispatch(AppStateAction::ClearError);
-                                        })
-                                    }}>
-                                        {"×"}
-                                    </button>
-                                </div>
-                            }
-                        } else {
-                            html! {}
-                        }}
-
                             // Chat interface
                             <ChatWindow
                                 user_state={us.clone()}
