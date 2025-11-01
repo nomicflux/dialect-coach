@@ -395,13 +395,22 @@ fn on_signin_click(
 fn on_user_create_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
+    user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<dialect_coach_shared::User, String>> {
     Callback::from(move |result: Result<dialect_coach_shared::User, String>| {
         match result {
             Ok(user) => {
                 info!("User created successfully: {}", user.username);
                 ui_state.dispatch(UIStateAction::ClearCreateUsernameInput);
-                app_state.dispatch(AppStateAction::SetUser(user));
+                app_state.dispatch(AppStateAction::SetUser(user.clone()));
+
+                // Create new session
+                app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
+
+                // Create new UserState for the user
+                user_state.dispatch(UserStateAction::ReplaceUserState(UserState::new(user.id)));
+
+                info!("Session and UserState created for new user");
             }
             Err(e) => {
                 error!("Failed to create user: {}", e);
@@ -414,13 +423,22 @@ fn on_user_create_response(
 fn on_user_signin_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
+    user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<dialect_coach_shared::User, String>> {
     Callback::from(move |result: Result<dialect_coach_shared::User, String>| {
         match result {
             Ok(user) => {
                 info!("Signed in successfully as: {}", user.username);
                 ui_state.dispatch(UIStateAction::ClearSigninUsernameInput);
-                app_state.dispatch(AppStateAction::SetUser(user));
+                app_state.dispatch(AppStateAction::SetUser(user.clone()));
+
+                // Create new session
+                app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
+
+                // Create UserState - will be populated from backend via WebSocket
+                user_state.dispatch(UserStateAction::ReplaceUserState(UserState::new(user.id)));
+
+                info!("Session and UserState created for signed-in user (will load from backend)");
             }
             Err(e) => {
                 error!("Sign in failed: {}", e);
@@ -529,120 +547,143 @@ pub fn app() -> Html {
         }
     });
 
+    // Chat WebSocket - only connect when authenticated
     {
         let app_state = app_state.clone();
         let user_state = user_state.clone();
-        use_effect_with((), move |_| {
-            info!("Initializing WebSocket connection");
+        let is_authenticated = user_state.0.is_some();
 
-            {
-                let mut ws = (*app_state).ws_service.borrow_mut();
-
-                // Set up callbacks
-                ws.set_on_open(Callback::from(move |_| {
-                    info!("WebSocket opened");
-                }));
-
-                let asc = app_state.clone();
-                ws.set_on_close(Callback::from(move |_| {
-                    info!("WebSocket closed");
-                    asc.dispatch(AppStateAction::SetError("Connection closed".to_string()));
-                }));
-
-                let asc = app_state.clone();
-                ws.set_on_error(Callback::from(move |err| {
-                    error!("WebSocket error: {}", err);
-                    asc.dispatch(AppStateAction::SetError(err));
-                }));
-
-                let asc = app_state.clone();
-                let usc = user_state.clone();
-                ws.set_on_message(Callback::from(move |msg: Message| {
-                    info!("Received message from: {}", msg.participant_id);
-                    asc.dispatch(AppStateAction::LoadingComplete);
-
-                    let tts_enabled = usc.0.as_ref().map(|s| s.tts_enabled).unwrap_or(false);
-                    if msg.participant_id != "user" && tts_enabled {
-                        asc.dispatch(AppStateAction::Speak(msg.clone()));
-                    }
-
-                    let mistakes = msg.content.mistakes.clone().unwrap_or_default();
-                    let explained = msg.content.explained.clone().unwrap_or_default();
-                    let translated = msg.content.translated.clone().unwrap_or_default();
-                    let exploratory = msg.content.exploratory.clone().unwrap_or_default();
-                    if !mistakes.is_empty() || !explained.is_empty() || !translated.is_empty() || !exploratory.is_empty() {
-                        usc.dispatch(UserStateAction::AddLearningItems(mistakes, explained, translated, exploratory));
-                    }
-
-                    if let Some(analysis) = msg.content.analysis.clone() {
-                        info!("Received analysis with {} mistake scores, {} explained scores, {} translated scores, {} exploratory scores",
-                            analysis.mistake_scores.len(),
-                            analysis.explained_scores.len(),
-                            analysis.translated_scores.len(),
-                            analysis.exploratory_scores.len()
-                        );
-                        usc.dispatch(UserStateAction::UpdateScores(analysis));
-                    }
-
-                    usc.dispatch(UserStateAction::AddMessage(msg));
-                }));
-
-                let asc = app_state.clone();
-                ws.set_on_state_change(Callback::from(move |new_state| {
-                    info!("Connection state changed to: {:?}", new_state);
-                    asc.dispatch(AppStateAction::SetConnectionState(new_state));
-
-                    // Handle reconnecting state - the WebSocketService will attempt
-                    // automatic reconnection, but we need to trigger it from the app layer
-                    // since we can't easily call methods from within the async task
-                    if matches!(new_state, ConnectionState::Reconnecting) {
-                        // Schedule a reconnect attempt
-                        let ws_clone = (*asc).ws_service.clone();
-                        gloo::timers::callback::Timeout::new(100, move || {
-                            info!("Triggering reconnection from app layer");
-                            ws_clone.borrow_mut().reconnect();
-                        })
-                        .forget();
-                    }
-
-                    // Retry pending saves when connected
-                    if matches!(new_state, ConnectionState::Connected) {
-                        asc.dispatch(AppStateAction::RetryPendingSaves);
-                    }
-                }));
-
-                // Connect
-                ws.connect();
-            } // Drop the borrow here
-
-            // Cleanup on unmount
+        use_effect_with(is_authenticated, move |&authenticated| {
             let ws_service_clone = (*app_state).ws_service.clone();
+
+            if authenticated {
+                info!("Authenticated - initializing chat WebSocket connection");
+
+                {
+                    let mut ws = ws_service_clone.borrow_mut();
+
+                    // Set up callbacks
+                    ws.set_on_open(Callback::from(move |_| {
+                        info!("Chat WebSocket opened");
+                    }));
+
+                    let asc = app_state.clone();
+                    ws.set_on_close(Callback::from(move |_| {
+                        info!("Chat WebSocket closed");
+                        asc.dispatch(AppStateAction::SetError("Connection closed".to_string()));
+                    }));
+
+                    let asc = app_state.clone();
+                    ws.set_on_error(Callback::from(move |err| {
+                        error!("Chat WebSocket error: {}", err);
+                        asc.dispatch(AppStateAction::SetError(err));
+                    }));
+
+                    let asc = app_state.clone();
+                    let usc = user_state.clone();
+                    ws.set_on_message(Callback::from(move |msg: Message| {
+                        info!("Received message from: {}", msg.participant_id);
+                        asc.dispatch(AppStateAction::LoadingComplete);
+
+                        let tts_enabled = usc.0.as_ref().map(|s| s.tts_enabled).unwrap_or(false);
+                        if msg.participant_id != "user" && tts_enabled {
+                            asc.dispatch(AppStateAction::Speak(msg.clone()));
+                        }
+
+                        let mistakes = msg.content.mistakes.clone().unwrap_or_default();
+                        let explained = msg.content.explained.clone().unwrap_or_default();
+                        let translated = msg.content.translated.clone().unwrap_or_default();
+                        let exploratory = msg.content.exploratory.clone().unwrap_or_default();
+                        if !mistakes.is_empty() || !explained.is_empty() || !translated.is_empty() || !exploratory.is_empty() {
+                            usc.dispatch(UserStateAction::AddLearningItems(mistakes, explained, translated, exploratory));
+                        }
+
+                        if let Some(analysis) = msg.content.analysis.clone() {
+                            info!("Received analysis with {} mistake scores, {} explained scores, {} translated scores, {} exploratory scores",
+                                analysis.mistake_scores.len(),
+                                analysis.explained_scores.len(),
+                                analysis.translated_scores.len(),
+                                analysis.exploratory_scores.len()
+                            );
+                            usc.dispatch(UserStateAction::UpdateScores(analysis));
+                        }
+
+                        usc.dispatch(UserStateAction::AddMessage(msg));
+                    }));
+
+                    let asc = app_state.clone();
+                    ws.set_on_state_change(Callback::from(move |new_state| {
+                        info!("Chat connection state changed to: {:?}", new_state);
+                        asc.dispatch(AppStateAction::SetConnectionState(new_state));
+
+                        // Handle reconnecting state - the WebSocketService will attempt
+                        // automatic reconnection, but we need to trigger it from the app layer
+                        // since we can't easily call methods from within the async task
+                        if matches!(new_state, ConnectionState::Reconnecting) {
+                            // Schedule a reconnect attempt
+                            let ws_clone = (*asc).ws_service.clone();
+                            gloo::timers::callback::Timeout::new(100, move || {
+                                info!("Triggering reconnection from app layer");
+                                ws_clone.borrow_mut().reconnect();
+                            })
+                            .forget();
+                        }
+
+                        // Retry pending saves when connected
+                        if matches!(new_state, ConnectionState::Connected) {
+                            asc.dispatch(AppStateAction::RetryPendingSaves);
+                        }
+                    }));
+
+                    // Connect
+                    ws.connect();
+                } // Drop the borrow here
+            } else {
+                info!("Not authenticated, skipping chat WebSocket connection");
+            }
+
+            // Cleanup - disconnect when effect re-runs or component unmounts
             move || {
-                info!("Disconnecting WebSocket");
-                ws_service_clone.borrow_mut().disconnect();
+                if authenticated {
+                    info!("Disconnecting chat WebSocket");
+                    ws_service_clone.borrow_mut().disconnect();
+                }
             }
         });
     }
 
-    // Initialize user state WebSocket for persistence
+    // UserState WebSocket for persistence - only connect when authenticated
     {
         let app_state = app_state.clone();
         let user_state = user_state.clone();
-        use_effect_with((), move |_| {
-            info!("Initializing user state WebSocket connection");
+        let is_authenticated = user_state.0.is_some();
 
-            if let Some(state) = user_state.0.as_ref() {
-                let user_id = state.user_id;
-                let mut ws = (*app_state).user_state_ws_service.borrow_mut();
+        use_effect_with(is_authenticated, move |&authenticated| {
+            let ws_service_clone = (*app_state).user_state_ws_service.clone();
 
-                ws.set_on_open(on_user_state_ws_open(app_state.clone(), user_id));
-                ws.set_on_load_response(on_user_state_load_response(user_state.clone()));
-                ws.set_on_save_response(on_user_state_save_response());
-                ws.connect();
+            if authenticated {
+                info!("Authenticated - initializing user state WebSocket connection");
+
+                if let Some(state) = user_state.0.as_ref() {
+                    let user_id = state.user_id;
+                    let mut ws = ws_service_clone.borrow_mut();
+
+                    ws.set_on_open(on_user_state_ws_open(app_state.clone(), user_id));
+                    ws.set_on_load_response(on_user_state_load_response(user_state.clone()));
+                    ws.set_on_save_response(on_user_state_save_response());
+                    ws.connect();
+                }
+            } else {
+                info!("Not authenticated, skipping user state WebSocket connection");
             }
 
+            // Cleanup when effect re-runs or component unmounts
             move || {
-                info!("User state WebSocket cleanup");
+                if authenticated {
+                    info!("User state WebSocket cleanup");
+                    // Note: UserStateWebSocketService doesn't have a disconnect method
+                    // Connection will be cleaned up when component unmounts
+                }
             }
         });
     }
@@ -651,13 +692,14 @@ pub fn app() -> Html {
     {
         let app_state = app_state.clone();
         let ui_state = ui_state.clone();
+        let user_state = user_state.clone();
         use_effect_with((), move |_| {
             info!("Initializing user WebSocket connection");
 
             let mut ws = (*app_state).user_ws_service.borrow_mut();
 
-            ws.set_on_create_response(on_user_create_response(app_state.clone(), ui_state.clone()));
-            ws.set_on_signin_response(on_user_signin_response(app_state.clone(), ui_state.clone()));
+            ws.set_on_create_response(on_user_create_response(app_state.clone(), ui_state.clone(), user_state.clone()));
+            ws.set_on_signin_response(on_user_signin_response(app_state.clone(), ui_state.clone(), user_state.clone()));
             ws.set_on_open(Callback::from(|_| info!("User WebSocket opened")));
             ws.connect();
 
@@ -760,14 +802,17 @@ pub fn app() -> Html {
             </header>
 
             <main class="app-main">
-                // Branch navigation sidebar - positioned off to the side
-                <BranchSidebar
-                    branches={user_state.0.as_ref().map(|s| s.branches.clone()).unwrap_or_default()}
-                    active_branch_id={user_state.0.as_ref().map(|s| s.active_branch_id).unwrap_or_else(|| Uuid::new_v4())}
-                    messages={user_state.0.as_ref().map(|s| s.conversation_history.clone()).unwrap_or_default()}
-                    on_switch_branch={Some(on_switch_branch(user_state.clone()))}
-                    on_delete_branch={Some(on_delete_branch(user_state.clone()))}
-                />
+                {if let Some(us) = user_state.0.as_ref() {
+                    html! {
+                        <>
+                            // Branch navigation sidebar - positioned off to the side
+                            <BranchSidebar
+                                branches={us.branches.clone()}
+                                active_branch_id={us.active_branch_id}
+                                messages={us.conversation_history.clone()}
+                                on_switch_branch={Some(on_switch_branch(user_state.clone()))}
+                                on_delete_branch={Some(on_delete_branch(user_state.clone()))}
+                            />
 
                 <div class="container">
                     // Main chat card
@@ -791,27 +836,27 @@ pub fn app() -> Html {
                             html! {}
                         }}
 
-                        // Chat interface
-                        <ChatWindow
-                            user_state={user_state.0.clone().unwrap_or_else(|| UserState::new(Uuid::new_v4()))}
-                            is_loading={(*app_state).is_loading}
-                            on_replay_message={Some(on_replay_message(app_state.clone()))}
-                            on_prompt_click={Some(on_prompt_click(app_state.clone(), user_state.clone(), ui_state.clone()))}
-                            translating_button={((*ui_state).translating_button).clone()}
-                            on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_state.clone()))}
-                            on_create_branch={Some(on_create_branch(user_state.clone()))}
-                        />
-                        <SpeechControls
-                            on_speech={on_send_message(app_state.clone(), user_state.clone())}
-                            language_code={user_state.0.as_ref().map(|s| s.bcp47_tag()).unwrap_or_else(|| "en-US".to_string())}
-                            teaching_mode={user_state.0.as_ref().map(|s| s.teaching_mode_display().to_string()).unwrap_or_else(|| "Immersive".to_string())}
-                            formality={user_state.0.as_ref().map(|s| s.formality_display().to_string()).unwrap_or_else(|| "Casual".to_string())}
-                            tts_enabled={user_state.0.as_ref().map(|s| s.tts_enabled).unwrap_or(false)}
-                            on_dialect_cycle={Some(on_dialect_cycle(user_state.clone()))}
-                            on_teaching_mode_cycle={Some(on_teaching_mode_cycle(user_state.clone()))}
-                            on_formality_cycle={Some(on_formality_cycle(user_state.clone()))}
-                            on_tts_toggle={Some(on_tts_toggle(user_state.clone()))}
-                        />
+                            // Chat interface
+                            <ChatWindow
+                                user_state={us.clone()}
+                                is_loading={(*app_state).is_loading}
+                                on_replay_message={Some(on_replay_message(app_state.clone()))}
+                                on_prompt_click={Some(on_prompt_click(app_state.clone(), user_state.clone(), ui_state.clone()))}
+                                translating_button={((*ui_state).translating_button).clone()}
+                                on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_state.clone()))}
+                                on_create_branch={Some(on_create_branch(user_state.clone()))}
+                            />
+                            <SpeechControls
+                                on_speech={on_send_message(app_state.clone(), user_state.clone())}
+                                language_code={us.bcp47_tag()}
+                                teaching_mode={us.teaching_mode_display().to_string()}
+                                formality={us.formality_display().to_string()}
+                                tts_enabled={us.tts_enabled}
+                                on_dialect_cycle={Some(on_dialect_cycle(user_state.clone()))}
+                                on_teaching_mode_cycle={Some(on_teaching_mode_cycle(user_state.clone()))}
+                                on_formality_cycle={Some(on_formality_cycle(user_state.clone()))}
+                                on_tts_toggle={Some(on_tts_toggle(user_state.clone()))}
+                            />
                         <InputBox
                             on_send={{
                                 let ui_state = ui_state.clone();
@@ -861,21 +906,21 @@ pub fn app() -> Html {
                         <span>{"Learning Progress"}</span>
                     </button>
 
-                    // Learning panel
-                    <LearningPanel
-                        items={user_state.0.as_ref().map(|s| s.learning_items.clone()).unwrap_or_default()}
-                        is_open={(*ui_state).learning_panel_open}
-                        on_close={{
-                            let ui_state = ui_state.clone();
-                            Callback::from(move |_| {
-                                ui_state.dispatch(UIStateAction::CloseLearningPanel);
-                            })
-                        }}
-                        on_delete={{
-                            let ui_state = ui_state.clone();
-                            let user_state = user_state.clone();
-                            let items = user_state.0.as_ref().map(|s| s.learning_items.clone()).unwrap_or_default();
-                            Callback::from(move |id: Uuid| {
+                            // Learning panel
+                            <LearningPanel
+                                items={us.learning_items.clone()}
+                                is_open={(*ui_state).learning_panel_open}
+                                on_close={{
+                                    let ui_state = ui_state.clone();
+                                    Callback::from(move |_| {
+                                        ui_state.dispatch(UIStateAction::CloseLearningPanel);
+                                    })
+                                }}
+                                on_delete={{
+                                    let ui_state = ui_state.clone();
+                                    let user_state = user_state.clone();
+                                    let items = us.learning_items.clone();
+                                    Callback::from(move |id: Uuid| {
                                 if let Some(item) = items.iter().find(|i| {
                                     let item_id = match &i.item {
                                         LearningItemType::Mistake(m) => m.id,
@@ -934,26 +979,22 @@ pub fn app() -> Html {
                                     </select>
                                 </div>
 
-                                <div class="panel-field">
-                                    <label for="dialect-select">{"Dialect"}</label>
-                                    <select id="dialect-select" onchange={on_dialect_change(user_state.clone())}>
-                                        {
-                                            if let Some(state) = user_state.0.as_ref() {
-                                                let dialects = state.current_dialects();
-                                                let current = state.current_dialect();
-                                                dialects.iter().map(|dialect| {
-                                                    let is_selected = *dialect == current;
-                                                    html! {
-                                                        <option value={dialect.id()} selected={is_selected}>
-                                                            {dialect.name()}
-                                                        </option>
-                                                    }
-                                                }).collect::<Html>()
-                                            } else {
-                                                html! {}
-                                            }
-                                        }
-                                    </select>
+                                        <div class="panel-field">
+                                            <label for="dialect-select">{"Dialect"}</label>
+                                            <select id="dialect-select" onchange={on_dialect_change(user_state.clone())}>
+                                                {{
+                                                    let dialects = us.current_dialects();
+                                                    let current = us.current_dialect();
+                                                    dialects.iter().map(|dialect| {
+                                                        let is_selected = *dialect == current;
+                                                        html! {
+                                                            <option value={dialect.id()} selected={is_selected}>
+                                                                {dialect.name()}
+                                                            </option>
+                                                        }
+                                                    }).collect::<Html>()
+                                                }}
+                                            </select>
                                     <div class="field-help field-help--info">
                                         {"Regional variety affects accent, vocabulary, and expressions"}
                                     </div>
@@ -991,13 +1032,23 @@ pub fn app() -> Html {
                     </div>
                 </div>
 
-                // Panel backdrop
-                <div class="panel-backdrop" data-open={if (*ui_state).panel_open { "true" } else { "false" }} onclick={{
-                    let ui_state = ui_state.clone();
-                    Callback::from(move |_| {
-                        ui_state.dispatch(UIStateAction::ClosePanel);
-                    })
-                }}></div>
+                            // Panel backdrop
+                            <div class="panel-backdrop" data-open={if (*ui_state).panel_open { "true" } else { "false" }} onclick={{
+                                let ui_state = ui_state.clone();
+                                Callback::from(move |_| {
+                                    ui_state.dispatch(UIStateAction::ClosePanel);
+                                })
+                            }}></div>
+                        </>
+                    }
+                } else {
+                    html! {
+                        <div class="welcome-container">
+                            <h2>{"Welcome to Dialect Coach"}</h2>
+                            <p>{"Please sign in or create an account above to start practicing."}</p>
+                        </div>
+                    }
+                }}
             </main>
         </div>
     }

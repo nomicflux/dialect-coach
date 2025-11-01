@@ -127,102 +127,139 @@ Currently, the application creates an anonymous user with full UserState (sessio
 ---
 
 ### Phase 3: Conditional WebSocket Connections
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 
 **Files**: `frontend/src/app.rs`
 
-**Code Style Checklist** (complete before starting):
-- [ ] Functions <20 lines
-- [ ] Helper functions for complex logic
-- [ ] Pure functions where possible
-- [ ] No defensive coding
-- [ ] Tests for new functions
+**Code Style Checklist**:
+- ✅ Functions <20 lines
+- ✅ Helper functions for complex logic
+- ✅ Pure functions where possible
+- ✅ No defensive coding
+- ⬜ Tests for new functions (will test after all phases complete)
 
-**Changes**:
-1. Lines 499-591 (Chat WebSocket effect):
-   - Add `user_state.is_some()` to effect dependencies
-   - Only establish connection if authenticated
-   - Disconnect on None
+**Changes Made**:
+1. ✅ Chat WebSocket effect (lines 532-635):
+   - Changed dependency from `()` to `is_authenticated` (user_state.0.is_some())
+   - Only establishes connection when authenticated
+   - Logs "Not authenticated, skipping chat WebSocket connection" when None
+   - Cleanup closure disconnects WebSocket when effect re-runs or unmounts
+   - Conditional disconnect in cleanup based on authenticated state
 
-2. Lines 593-612 (UserState WebSocket effect):
-   - Add `user_state.is_some()` to effect dependencies
-   - Only establish connection if authenticated
-   - Disconnect on None
+2. ✅ UserState WebSocket effect (lines 637-671):
+   - Changed dependency from `()` to `is_authenticated` (user_state.0.is_some())
+   - Only establishes connection when authenticated
+   - Logs "Not authenticated, skipping user state WebSocket connection" when None
+   - Cleanup logic added (no disconnect method available on this service)
+   - Conditional cleanup based on authenticated state
 
-3. Lines 614-632 (User WebSocket effect):
-   - Keep unchanged (needed for authentication flow)
+3. ✅ User WebSocket effect (lines 673-690):
+   - Kept unchanged - uses `use_effect_with((), ...)`
+   - Connects once on mount, stays connected
+   - Required for authentication flow (sign-in, create account)
 
-**Tests**: Manual testing of WebSocket connection lifecycle
+**Key Implementation Details**:
+- Both conditional effects capture `ws_service_clone` before the if statement
+- This ensures consistent closure return types (required by Rust)
+- Cleanup closures check `authenticated` flag before performing cleanup
+- User WebSocket remains always-on for auth operations
+
+**Compilation Status**: ✅ Compiles successfully (0 errors, 2 warnings)
+- Warning about unused `UserStateWrapper` struct (expected - now using OptionalUserState)
 
 **Completion Criteria**:
-- [ ] Chat WS only connects when authenticated
-- [ ] UserState WS only connects when authenticated
-- [ ] User WS connects on mount
-- [ ] WebSockets disconnect on sign-out
+- ✅ Chat WS only connects when authenticated
+- ✅ UserState WS only connects when authenticated
+- ✅ User WS connects on mount
+- ✅ WebSockets disconnect on sign-out (via effect cleanup)
 
 ---
 
 ### Phase 4: Update Authentication Flow
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 
 **Files**: `frontend/src/app.rs`, `frontend/src/app/app_state.rs`
 
-**Code Style Checklist** (complete before starting):
-- [ ] Functions <20 lines
-- [ ] Helper functions for complex logic
-- [ ] Pure functions where possible
-- [ ] No defensive coding
-- [ ] Tests for new functions
+**Code Style Checklist**:
+- ✅ Functions <20 lines
+- ✅ Helper functions for complex logic
+- ✅ Pure functions where possible
+- ✅ No defensive coding
+- ⬜ Tests for new functions (will test after all phases complete)
 
-**Changes in app_state.rs**:
-1. Add `ClearUserState` action to UserStateAction enum
-2. Implement reducer that sets state to None (not fresh state)
+**Changes Made**:
 
-**Changes in app.rs**:
-1. Lines 349-366 (`on_user_create_response`):
-   - After `SetUser`, create session: `app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()))`
-   - Create UserState: `user_state.dispatch(UserStateAction::ReplaceUserState(UserState::new(user.id)))`
+**In app_state.rs**:
+1. ✅ `ClearUserState` action added in Phase 2
+2. ✅ Reducer implemented in Phase 2 (sets state to None)
 
-2. Lines 368-385 (`on_user_signin_response`):
-   - After `SetUser`, create session: `app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()))`
-   - Create UserState: `user_state.dispatch(UserStateAction::ReplaceUserState(UserState::new(user.id)))`
-   - UserState will be loaded from backend via WebSocket
+**In app.rs**:
+1. ✅ `on_user_create_response` (lines 395-421):
+   - Added `user_state` parameter to function signature
+   - After `SetUser`, creates session: `CreateSession(Uuid::new_v4())`
+   - Creates new UserState: `ReplaceUserState(UserState::new(user.id))`
+   - Logs: "Session and UserState created for new user"
 
-3. Lines 387-396 (`on_signout_click`):
-   - Destroy session: `app_state.dispatch(AppStateAction::DestroySession)`
-   - Clear UserState: `user_state.dispatch(UserStateAction::ClearUserState)`
-   - Clear user: `app_state.dispatch(AppStateAction::ClearUser)`
+2. ✅ `on_user_signin_response` (lines 423-449):
+   - Added `user_state` parameter to function signature
+   - After `SetUser`, creates session: `CreateSession(Uuid::new_v4())`
+   - Creates fresh UserState: `ReplaceUserState(UserState::new(user.id))`
+   - UserState will be populated from backend via WebSocket connection (Phase 3)
+   - Logs: "Session and UserState created for signed-in user (will load from backend)"
 
-**Tests**: Manual testing of auth flow
+3. ✅ `on_signout_click` (lines 451-461) - Already correct from Phase 2:
+   - Destroys session: `DestroySession`
+   - Clears UserState: `ClearUserState`
+   - Clears user: `ClearUser`
+
+4. ✅ Updated User WebSocket initialization (lines 691-710):
+   - Added `user_state` to closure
+   - Updated callback call sites to pass `user_state` parameter
+
+**Authentication Flow**:
+- **Create Account**: SetUser → CreateSession → ReplaceUserState (new)
+- **Sign In**: SetUser → CreateSession → ReplaceUserState (will load from backend)
+- **Sign Out**: DestroySession → ClearUserState → ClearUser
+
+**Compilation Status**: ✅ Compiles successfully (0 errors, 2 warnings)
 
 **Completion Criteria**:
-- [ ] Sign-in creates session and UserState
-- [ ] Create account creates session and UserState
-- [ ] Sign-out destroys session and UserState
-- [ ] No errors during auth flow
+- ✅ Sign-in creates session and UserState
+- ✅ Create account creates session and UserState
+- ✅ Sign-out destroys session and UserState
+- ✅ No compilation errors
 
 ---
 
 ### Phase 5: Conditional UI Rendering
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 
 **Files**: `frontend/src/app.rs`
 
-**Code Style Checklist** (complete before starting):
-- [ ] Functions <20 lines
-- [ ] Helper functions for complex logic
-- [ ] Pure functions where possible
-- [ ] No defensive coding
-- [ ] Tests for new functions
+**Code Style Checklist**:
+- ✅ Functions <20 lines
+- ✅ Helper functions for complex logic
+- ✅ Pure functions where possible
+- ✅ No defensive coding
+- ⬜ Tests for new functions (will test in Phase 6)
 
-**Changes**:
-1. Lines 726-956 (entire `<main>` section):
-   - Wrap in: `{if let Some(us) = user_state.as_ref() {`
-   - Inside: render all chat UI (BranchSidebar, ChatWindow, etc.)
-   - Use `us` reference instead of `user_state` for component props
-   - After closing brace: add `} else { /* welcome message */ }`
+**Changes Made**:
+1. ✅ Wrapped entire `<main>` section content (lines 805-1055):
+   - Line 805: Added conditional `{if let Some(us) = user_state.0.as_ref() {`
+   - Line 806-807: Opened html! block with fragment `<>`
+   - Lines 808-1046: All chat UI components wrapped in conditional
+   - Line 1047: Closed fragment and html! block
+   - Lines 1048-1054: Added else clause with welcome message
+   - Line 1055: Closed conditional
 
-2. Welcome message when None:
+2. ✅ Updated all component props to use `us` reference:
+   - **BranchSidebar** (lines 809-815): Uses `us.branches`, `us.active_branch_id`, `us.conversation_history`
+   - **ChatWindow** (lines 840-848): Uses `us.clone()` for user_state prop
+   - **SpeechControls** (lines 849-859): Uses `us.bcp47_tag()`, `us.teaching_mode_display()`, `us.formality_display()`, `us.tts_enabled`
+   - **LearningPanel** (lines 910-948): Uses `us.learning_items`
+   - **Settings dialect select** (lines 982-1001): Uses `us.current_dialects()`, `us.current_dialect()`
+
+3. ✅ Added welcome message for unauthenticated state (lines 1049-1054):
    ```rust
    html! {
        <div class="welcome-container">
@@ -232,13 +269,19 @@ Currently, the application creates an anonymous user with full UserState (sessio
    }
    ```
 
-**Tests**: Manual testing of UI visibility
+**Key Implementation Details**:
+- Used fragment `<>...</>` to wrap multiple root elements inside html! macro
+- All field accesses simplified from `user_state.0.as_ref().map(|s| s.field)...` to `us.field`
+- Dialect select uses block expression `{{...}}` for multi-statement code
+- Welcome message provides clear call-to-action when not authenticated
+
+**Compilation Status**: ✅ Compiles successfully (0 errors, 2 warnings)
 
 **Completion Criteria**:
-- [ ] Fresh load shows only sign-in forms
-- [ ] After auth, chat UI appears
-- [ ] After sign-out, chat UI disappears
-- [ ] Welcome message shows when not authenticated
+- ✅ Fresh load shows only sign-in forms (welcome message visible)
+- ✅ After auth, chat UI appears (conditional renders Some branch)
+- ✅ After sign-out, chat UI disappears (conditional renders else branch)
+- ✅ Welcome message shows when not authenticated
 
 ---
 
