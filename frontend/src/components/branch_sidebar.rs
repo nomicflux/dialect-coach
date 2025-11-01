@@ -15,8 +15,20 @@ pub struct BranchSidebarProps {
     pub on_rename_branch: Option<Callback<(Uuid, String)>>,
 }
 
-fn count_branch_messages(messages: &[Message], branch_id: Uuid) -> usize {
-    messages.iter().filter(|msg| msg.branch_id == branch_id).count()
+fn count_branch_messages(messages: &[Message], branch: &ConversationBranch) -> usize {
+    let mut count = 0;
+    let mut current_id = branch.leaf_message_id;
+
+    while let Some(msg_id) = current_id {
+        if let Some(msg) = messages.iter().find(|m| m.id == msg_id) {
+            count += 1;
+            current_id = msg.parent_id;
+        } else {
+            break;
+        }
+    }
+
+    count
 }
 
 fn get_branch_display_name(branch: &ConversationBranch) -> String {
@@ -87,7 +99,7 @@ pub fn branch_sidebar(props: &BranchSidebarProps) -> Html {
             <div class="branch-list">
                 {for props.branches.iter().map(|branch| {
                     let is_active = branch.id == props.active_branch_id;
-                    let msg_count = count_branch_messages(&props.messages, branch.id);
+                    let msg_count = count_branch_messages(&props.messages, branch);
                     render_branch_item(branch, is_active, msg_count, &props.on_switch_branch, &props.on_delete_branch)
                 })}
             </div>

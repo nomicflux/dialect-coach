@@ -335,16 +335,16 @@ fn default_dialect_for_language(lang: Language) -> Dialect {
     }
 }
 
-fn find_last_message_in_branch(messages: &[Message], branch_id: Uuid) -> Option<Uuid> {
-    messages
-        .iter()
-        .rev()
-        .find(|msg| msg.branch_id == branch_id)
-        .map(|msg| msg.id)
-}
+fn remove_messages_on_path(mut messages: Vec<Message>, leaf_id: Uuid) -> Vec<Message> {
+    let mut to_remove = Vec::new();
+    let mut current_id = Some(leaf_id);
 
-fn remove_branch_messages(mut messages: Vec<Message>, branch_id: Uuid) -> Vec<Message> {
-    messages.retain(|msg| msg.branch_id != branch_id);
+    while let Some(msg_id) = current_id {
+        to_remove.push(msg_id);
+        current_id = messages.iter().find(|m| m.id == msg_id).and_then(|m| m.parent_id);
+    }
+
+    messages.retain(|m| !to_remove.contains(&m.id));
     messages
 }
 
@@ -352,9 +352,18 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
     let mut next = state.clone();
     match action {
         UserStateAction::AddMessage(mut msg) => {
-            msg.branch_id = next.active_branch_id;
-            msg.parent_id = find_last_message_in_branch(&next.conversation_history, next.active_branch_id);
+            let current_leaf = next.branches
+                .iter()
+                .find(|b| b.id == next.active_branch_id)
+                .and_then(|b| b.leaf_message_id);
+
+            msg.parent_id = current_leaf;
+            let new_msg_id = msg.id;
             next.conversation_history.push(msg);
+
+            if let Some(branch) = next.branches.iter_mut().find(|b| b.id == next.active_branch_id) {
+                branch.leaf_message_id = Some(new_msg_id);
+            }
         }
         UserStateAction::AddLearningItems(mistakes, explained, translated, exploratory) => {
             next.learning_items = add_learning_items_to_vec(
@@ -400,7 +409,7 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             next.conversation_history = undo_delete_message(next.conversation_history, msg);
         }
         UserStateAction::CreateBranch(message_id) => {
-            let new_branch = ConversationBranch::new(Some(message_id), None);
+            let new_branch = ConversationBranch::new(Some(message_id), None, Some(message_id));
             let new_branch_id = new_branch.id;
             next.branches.push(new_branch);
             next.active_branch_id = new_branch_id;
@@ -409,8 +418,16 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             next.active_branch_id = branch_id;
         }
         UserStateAction::DeleteBranch(branch_id) => {
+            let leaf_id = next.branches.iter()
+                .find(|b| b.id == branch_id)
+                .and_then(|b| b.leaf_message_id);
+
+            if let Some(leaf) = leaf_id {
+                next.conversation_history = remove_messages_on_path(next.conversation_history, leaf);
+            }
+
             next.branches.retain(|b| b.id != branch_id);
-            next.conversation_history = remove_branch_messages(next.conversation_history, branch_id);
+
             if next.active_branch_id == branch_id {
                 next.active_branch_id = next.branches.first().map(|b| b.id).unwrap_or(next.active_branch_id);
             }
@@ -454,7 +471,7 @@ mod tests {
     use super::*;
     use dialect_coach_shared::models::AgentResponse;
 
-    fn create_test_message(session_id: Uuid, branch_id: Uuid, parent_id: Option<Uuid>) -> Message {
+    fn create_test_message(session_id: Uuid, parent_id: Option<Uuid>) -> Message {
         Message::new(
             session_id,
             "user".to_string(),
@@ -463,47 +480,21 @@ mod tests {
             Formality::Casual,
             TeachingMode::Immersive,
             parent_id,
-            branch_id,
         )
     }
 
     #[test]
-    fn test_find_last_message_in_branch() {
+    fn test_remove_messages_on_path() {
         let session_id = Uuid::new_v4();
-        let branch_id = Uuid::new_v4();
 
-        let msg1 = create_test_message(session_id, branch_id, None);
-        let msg2 = create_test_message(session_id, branch_id, Some(msg1.id));
-        let msg3 = create_test_message(session_id, Uuid::new_v4(), None);
+        let msg1 = create_test_message(session_id, None);
+        let msg2 = create_test_message(session_id, Some(msg1.id));
+        let msg3 = create_test_message(session_id, Some(msg2.id));
 
-        let messages = vec![msg1.clone(), msg2.clone(), msg3];
+        let messages = vec![msg1.clone(), msg2.clone(), msg3.clone()];
+        let result = remove_messages_on_path(messages, msg3.id);
 
-        let last = find_last_message_in_branch(&messages, branch_id);
-        assert_eq!(last, Some(msg2.id));
-    }
-
-    #[test]
-    fn test_find_last_message_in_empty_branch() {
-        let messages: Vec<Message> = vec![];
-        let result = find_last_message_in_branch(&messages, Uuid::new_v4());
-        assert_eq!(result, None);
-    }
-
-    #[test]
-    fn test_remove_branch_messages() {
-        let session_id = Uuid::new_v4();
-        let branch1 = Uuid::new_v4();
-        let branch2 = Uuid::new_v4();
-
-        let msg1 = create_test_message(session_id, branch1, None);
-        let msg2 = create_test_message(session_id, branch2, None);
-        let msg3 = create_test_message(session_id, branch1, Some(msg1.id));
-
-        let messages = vec![msg1, msg2.clone(), msg3];
-        let result = remove_branch_messages(messages, branch1);
-
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].id, msg2.id);
+        assert_eq!(result.len(), 0);
     }
 
     #[test]
@@ -518,6 +509,7 @@ mod tests {
         assert_eq!(state.branches.len(), initial_branch_count + 1);
         let new_branch = state.branches.last().unwrap();
         assert_eq!(new_branch.parent_message_id, Some(message_id));
+        assert_eq!(new_branch.leaf_message_id, Some(message_id));
         assert_eq!(state.active_branch_id, new_branch.id);
     }
 
@@ -536,12 +528,12 @@ mod tests {
     fn test_delete_branch_reducer() {
         let mut state = UserState::new(Uuid::new_v4());
 
-        state.branches.push(ConversationBranch::new(None, Some("ToDelete".to_string())));
+        let msg = create_test_message(Uuid::new_v4(), None);
+        state.conversation_history.push(msg.clone());
+
+        state.branches.push(ConversationBranch::new(None, Some("ToDelete".to_string()), Some(msg.id)));
         let branch = state.branches.last().unwrap();
         let branch_id = branch.id;
-
-        let msg = create_test_message(Uuid::new_v4(), branch_id, None);
-        state.conversation_history.push(msg);
 
         let initial_message_count = state.conversation_history.len();
         let action = UserStateAction::DeleteBranch(branch_id);
@@ -556,7 +548,7 @@ mod tests {
         let mut state = UserState::new(Uuid::new_v4());
         let first_branch_id = state.branches.first().unwrap().id;
 
-        let new_branch = ConversationBranch::new(None, Some("NewBranch".to_string()));
+        let new_branch = ConversationBranch::new(None, Some("NewBranch".to_string()), None);
         let new_branch_id = new_branch.id;
         state.branches.push(new_branch);
         state.active_branch_id = new_branch_id;
@@ -581,25 +573,29 @@ mod tests {
     }
 
     #[test]
-    fn test_add_message_sets_branch_and_parent() {
+    fn test_add_message_updates_leaf() {
         let mut state = UserState::new(Uuid::new_v4());
         let active_branch_id = state.active_branch_id;
 
-        let msg1 = create_test_message(Uuid::new_v4(), Uuid::new_v4(), None);
+        let msg1 = create_test_message(Uuid::new_v4(), None);
         let action1 = UserStateAction::AddMessage(msg1.clone());
         state = apply_user_state_action(&state, action1);
 
         let added_msg1 = state.conversation_history.last().unwrap();
-        assert_eq!(added_msg1.branch_id, active_branch_id);
         assert_eq!(added_msg1.parent_id, None);
         let msg1_id = added_msg1.id;
 
-        let msg2 = create_test_message(Uuid::new_v4(), Uuid::new_v4(), None);
+        let branch = state.branches.iter().find(|b| b.id == active_branch_id).unwrap();
+        assert_eq!(branch.leaf_message_id, Some(msg1_id));
+
+        let msg2 = create_test_message(Uuid::new_v4(), None);
         let action2 = UserStateAction::AddMessage(msg2);
         state = apply_user_state_action(&state, action2);
 
         let added_msg2 = state.conversation_history.last().unwrap();
-        assert_eq!(added_msg2.branch_id, active_branch_id);
         assert_eq!(added_msg2.parent_id, Some(msg1_id));
+
+        let branch = state.branches.iter().find(|b| b.id == active_branch_id).unwrap();
+        assert_eq!(branch.leaf_message_id, Some(added_msg2.id));
     }
 }

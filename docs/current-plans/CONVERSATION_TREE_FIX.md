@@ -641,15 +641,15 @@ fn test_remove_messages_on_path() {
 ```
 
 ### Phase 3 Completion Checklist
-- [ ] CreateBranch reducer updated to set leaf_message_id
-- [ ] AddMessage reducer updated to update branch leaf
-- [ ] DeleteBranch reducer updated to walk path instead of filter by branch_id
-- [ ] remove_messages_on_path() helper function added (<20 lines)
-- [ ] Old helper functions deleted (find_last_message_in_branch, remove_branch_messages)
-- [ ] All frontend test Message::new() calls updated
-- [ ] Old tests deleted, new tests added
-- [ ] `cargo test --lib frontend` passes 100%
-- [ ] **Update this planning document with Phase 3 Status section**
+- [x] CreateBranch reducer updated to set leaf_message_id
+- [x] AddMessage reducer updated to update branch leaf
+- [x] DeleteBranch reducer updated to walk path instead of filter by branch_id
+- [x] remove_messages_on_path() helper function added (11 lines)
+- [x] Old helper functions deleted (find_last_message_in_branch, remove_branch_messages)
+- [x] All frontend test Message::new() calls updated
+- [x] Old tests deleted, new tests added
+- [x] `cargo test --lib` (frontend) passes 100%
+- [x] **Update this planning document with Phase 3 Status section**
 
 ---
 
@@ -834,12 +834,52 @@ Expected: All tests pass
 - Fixed 2 pre-existing test failures in `agent_service.rs` (tests expected outdated CONTENT_FILTERING_DIRECTIVES structure)
 
 ### Phase 3 Status
-**Status:** Not Started
-**Started:**
-**Completed:**
+**Status:** ✅ COMPLETED
+**Started:** 2025-10-31
+**Completed:** 2025-10-31
 **Issues Encountered:**
+- None - all changes applied smoothly
 
 **Changes Made:**
+1. **CreateBranch reducer** (`frontend/src/app/app_state.rs:402`):
+   - Updated to set `leaf_message_id` to `Some(message_id)` when creating new branch
+   - Branch now starts with leaf pointing to the branch point
+
+2. **AddMessage reducer** (`frontend/src/app/app_state.rs:354`):
+   - Rewrote to get current_leaf from branch's leaf_message_id
+   - Sets msg.parent_id to current_leaf
+   - Updates branch.leaf_message_id to new message ID after adding
+
+3. **DeleteBranch reducer** (`frontend/src/app/app_state.rs:420`):
+   - Rewrote to get leaf_id from branch
+   - Calls remove_messages_on_path() to walk and delete path
+   - Properly handles branch deletion before checking active branch
+
+4. **Helper functions** (`frontend/src/app/app_state.rs:338`):
+   - Deleted `find_last_message_in_branch()` (used branch_id filtering)
+   - Deleted `remove_branch_messages()` (used branch_id filtering)
+   - Added `remove_messages_on_path()` (11 lines) - walks from leaf to root via parent_id
+
+5. **Branch sidebar** (`frontend/src/components/branch_sidebar.rs:18`):
+   - Updated `count_branch_messages()` to walk path via parent_id chain instead of filtering by branch_id
+   - Updated call site to pass branch reference instead of branch_id
+
+6. **Test updates** (`frontend/src/app/app_state.rs`):
+   - Deleted `test_find_last_message_in_branch` (function no longer exists)
+   - Deleted `test_find_last_message_in_empty_branch` (function no longer exists)
+   - Updated `test_remove_branch_messages` → `test_remove_messages_on_path` (tests new function)
+   - Updated `test_create_branch_reducer` to assert leaf_message_id is set
+   - Updated `test_delete_branch_reducer` to create branch with leaf_message_id
+   - Updated `test_delete_active_branch_switches_to_first` to use 3-param constructor
+   - Renamed `test_add_message_sets_branch_and_parent` → `test_add_message_updates_leaf`
+   - Updated `test_add_message_updates_leaf` to test leaf updating instead of branch_id
+   - Updated `create_test_message()` helper to remove branch_id parameter
+
+**Test Results:**
+- ✅ **100% test pass rate achieved**
+- ✅ 12 tests passed
+- ✅ 0 tests failed
+- Total: 1 Message::new() call updated, 3 reducers rewritten, 2 helper functions replaced, 1 component function updated
 
 ### Phase 4 Status
 **Status:** Not Started
