@@ -694,6 +694,15 @@ pub fn app() -> Html {
             </header>
 
             <main class="app-main">
+                // Branch navigation sidebar - positioned off to the side
+                <BranchSidebar
+                    branches={(*user_state).branches.clone()}
+                    active_branch_id={(*user_state).active_branch_id}
+                    messages={(*user_state).conversation_history.clone()}
+                    on_switch_branch={Some(on_switch_branch(user_state.clone()))}
+                    on_delete_branch={Some(on_delete_branch(user_state.clone()))}
+                />
+
                 <div class="container">
                     // Main chat card
                     <div class="card card--chat" id="main-chat">
@@ -715,15 +724,6 @@ pub fn app() -> Html {
                         } else {
                             html! {}
                         }}
-
-                        // Branch navigation sidebar
-                        <BranchSidebar
-                            branches={(*user_state).branches.clone()}
-                            active_branch_id={(*user_state).active_branch_id}
-                            messages={(*user_state).conversation_history.clone()}
-                            on_switch_branch={Some(on_switch_branch(user_state.clone()))}
-                            on_delete_branch={Some(on_delete_branch(user_state.clone()))}
-                        />
 
                         // Chat interface
                         <ChatWindow

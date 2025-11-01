@@ -31,15 +31,50 @@ fn count_branch_messages(messages: &[Message], branch: &ConversationBranch) -> u
     count
 }
 
-fn get_branch_display_name(branch: &ConversationBranch) -> String {
-    branch.name.clone().unwrap_or_else(|| {
-        let time = branch.created_at.format("%b %d, %H:%M");
-        format!("Branch from {}", time)
-    })
+fn get_branch_display_name(messages: &[Message], branch: &ConversationBranch) -> String {
+    // If this branch has no parent (root branch), show first message in path
+    // If this branch has a parent (branched off), show first message after the parent
+
+    let leaf_id = match branch.leaf_message_id {
+        Some(id) => id,
+        None => return "Empty".to_string(),
+    };
+
+    // Walk backwards from leaf to find either:
+    // - The first message (if parent_message_id is None)
+    // - The first message after the branch point (if parent_message_id is Some)
+    let mut current_id = Some(leaf_id);
+    let mut target_msg = None;
+
+    while let Some(msg_id) = current_id {
+        if let Some(msg) = messages.iter().find(|m| m.id == msg_id) {
+            // If this message's parent matches the branch's parent, this is the message we want
+            if msg.parent_id == branch.parent_message_id {
+                target_msg = Some(msg);
+                break;
+            }
+            current_id = msg.parent_id;
+        } else {
+            break;
+        }
+    }
+
+    if let Some(msg) = target_msg {
+        let text = &msg.content.response;
+        let max_len = 30;
+        if text.len() > max_len {
+            format!("{}...", &text[..max_len])
+        } else {
+            text.to_string()
+        }
+    } else {
+        "Empty".to_string()
+    }
 }
 
 fn render_branch_item(
     branch: &ConversationBranch,
+    messages: &[Message],
     is_active: bool,
     message_count: usize,
     on_switch: &Option<Callback<Uuid>>,
@@ -47,7 +82,7 @@ fn render_branch_item(
 ) -> Html {
     let branch_class = if is_active { "branch-item branch-item--active" } else { "branch-item" };
     let branch_id = branch.id;
-    let branch_name = get_branch_display_name(branch);
+    let branch_name = get_branch_display_name(messages, branch);
 
     html! {
         <div class={branch_class}>
@@ -100,7 +135,7 @@ pub fn branch_sidebar(props: &BranchSidebarProps) -> Html {
                 {for props.branches.iter().map(|branch| {
                     let is_active = branch.id == props.active_branch_id;
                     let msg_count = count_branch_messages(&props.messages, branch);
-                    render_branch_item(branch, is_active, msg_count, &props.on_switch_branch, &props.on_delete_branch)
+                    render_branch_item(branch, &props.messages, is_active, msg_count, &props.on_switch_branch, &props.on_delete_branch)
                 })}
             </div>
         </div>

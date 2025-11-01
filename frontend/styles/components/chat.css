@@ -372,6 +372,40 @@
   color: white;
 }
 
+/* Branch point button - displayed under messages */
+.branch-button {
+  margin: var(--s-2) 0 var(--s-2) calc(var(--avatar-size) + var(--s-3));
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface-muted);
+  border: 1px solid var(--teal);
+  border-radius: var(--r-m);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.branch-button:hover {
+  background: var(--teal-tint);
+  border-color: var(--teal);
+  transform: translateY(-1px);
+}
+
+.branch-button--has-children {
+  border-color: var(--coral);
+  background: var(--coral-tint);
+}
+
+.branch-button--has-children:hover {
+  background: var(--coral);
+  color: white;
+  border-color: var(--coral);
+}
+
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
   .message,
@@ -382,6 +416,10 @@
   }
 
   .prompt-item:hover {
+    transform: none;
+  }
+
+  .branch-button:hover {
     transform: none;
   }
 }

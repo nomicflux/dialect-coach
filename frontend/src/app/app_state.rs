@@ -409,6 +409,15 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             next.conversation_history = undo_delete_message(next.conversation_history, msg);
         }
         UserStateAction::CreateBranch(message_id) => {
+            // Update the current branch's parent_message_id if it's None
+            // This ensures both branches know where they diverged
+            if let Some(current_branch) = next.branches.iter_mut().find(|b| b.id == next.active_branch_id) {
+                if current_branch.parent_message_id.is_none() {
+                    current_branch.parent_message_id = Some(message_id);
+                }
+            }
+
+            // Create new branch
             let new_branch = ConversationBranch::new(Some(message_id), None, Some(message_id));
             let new_branch_id = new_branch.id;
             next.branches.push(new_branch);

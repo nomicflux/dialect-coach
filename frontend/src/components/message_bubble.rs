@@ -68,18 +68,21 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     let (msg_class, avatar_class, bubble_class, avatar_text) = get_css_classes(props.is_own_message);
 
     html! {
-        <div class={msg_class}>
-            <div class={avatar_class}>{avatar_text}</div>
-            <div class={bubble_class}>
-                {render_delete_button(&props.on_delete, props.message.id)}
-                {render_branch_button(&props.on_create_branch, props.message.id, props.has_child_branches)}
-                <div class="message-header">
-                    <div class="message-author">{&props.message.participant_id}</div>
-                    {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
+        <>
+            <div class={msg_class}>
+                <div class={avatar_class}>{avatar_text}</div>
+                <div class={bubble_class}>
+                    {render_delete_button(&props.on_delete, props.message.id)}
+                    <div class="message-header">
+                        <div class="message-author">{&props.message.participant_id}</div>
+                        {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
+                    </div>
+                    <div class="message-content">{&props.message.content.response}</div>
+                    <div class="message-time">{props.message.timestamp.to_rfc3339()}</div>
                 </div>
-                <div class="message-content">{&props.message.content.response}</div>
-                <div class="message-time">{props.message.timestamp.to_rfc3339()}</div>
             </div>
-        </div>
+            // Branch point - displayed under the message node
+            {render_branch_button(&props.on_create_branch, props.message.id, props.has_child_branches)}
+        </>
     }
 }

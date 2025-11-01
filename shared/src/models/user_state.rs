@@ -40,8 +40,8 @@ pub enum LearningItemType {
 impl UserState {
     /// Create a new UserState with default values for a given user
     pub fn new(user_id: Uuid) -> Self {
-        let root_branch = ConversationBranch::new(None, Some("Main".to_string()), None);
-        let root_branch_id = root_branch.id;
+        let initial_branch = ConversationBranch::new(None, None, None);
+        let initial_branch_id = initial_branch.id;
 
         Self {
             user_id,
@@ -52,8 +52,8 @@ impl UserState {
             selected_dialect: Dialect::SpanishCuban,
             formality: Formality::Casual,
             teaching_mode: TeachingMode::Immersive,
-            active_branch_id: root_branch_id,
-            branches: vec![root_branch],
+            active_branch_id: initial_branch_id,
+            branches: vec![initial_branch],
         }
     }
 
