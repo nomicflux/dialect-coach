@@ -16,6 +16,15 @@ fn error_to_agent_response(error_message: String) -> AgentResponse {
     AgentResponse::from(error_message)
 }
 
+fn build_context_from_messages(messages: &[Message]) -> Vec<String> {
+    messages
+        .iter()
+        .map(|msg| {
+            format!("{}: {}", msg.participant_id, msg.content.response)
+        })
+        .collect()
+}
+
 fn trim_history(history: &mut Vec<String>, max_size: usize) {
     if history.len() > max_size {
         history.drain(0..history.len() - max_size);
@@ -37,6 +46,7 @@ fn create_error_message(
         language,
         formality,
         teaching_mode,
+        None,
     )
 }
 
@@ -80,6 +90,7 @@ fn create_agent_response_message(
     language: String,
     formality: Formality,
     teaching_mode: TeachingMode,
+    parent_id: Uuid,
 ) -> Message {
     Message::new(
         session_id,
@@ -88,6 +99,7 @@ fn create_agent_response_message(
         language,
         formality,
         teaching_mode,
+        Some(parent_id),
     )
 }
 
@@ -105,6 +117,7 @@ async fn handle_agent_success(
         parsed_msg.language.clone(),
         parsed_msg.metadata.formality,
         parsed_msg.metadata.teaching_mode,
+        parsed_msg.id,
     );
 
     serialize_and_send(&response_msg, tx)?;
@@ -259,13 +272,9 @@ async fn process_user_message(
 ) -> Result<(), ()> {
     let dialect = validate_and_parse_dialect(&msg_with_context.message, tx).await?;
 
-    let history_vec = update_user_history(
-        state,
-        msg_with_context.message.session_id,
-        &msg_with_context.message.content.response
-    ).await;
+    let context_vec = build_context_from_messages(&msg_with_context.context_messages);
 
-    call_agent_and_respond(state, &msg_with_context, dialect, &history_vec, tx).await
+    call_agent_and_respond(state, &msg_with_context, dialect, &context_vec, tx).await
 }
 
 fn create_send_task(
@@ -613,6 +622,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_build_context_from_messages() {
+        let session_id = Uuid::new_v4();
+
+        let msg1 = Message::new(
+            session_id,
+            "user".to_string(),
+            AgentResponse::from("Hello"),
+            "es-MX".to_string(),
+            Formality::Casual,
+            TeachingMode::Immersive,
+            None,
+        );
+
+        let msg2 = Message::new(
+            session_id,
+            "agent".to_string(),
+            AgentResponse::from("Hola"),
+            "es-MX".to_string(),
+            Formality::Casual,
+            TeachingMode::Immersive,
+            Some(msg1.id),
+        );
+
+        let messages = vec![msg1, msg2];
+        let context = build_context_from_messages(&messages);
+
+        assert_eq!(context.len(), 2);
+        assert_eq!(context[0], "user: Hello");
+        assert_eq!(context[1], "agent: Hola");
+    }
+
+    #[test]
     fn test_trim_history() {
         let mut history = vec![];
 
@@ -650,6 +691,7 @@ mod tests {
         assert_eq!(error_msg.language, "es-MX");
         assert_eq!(error_msg.metadata.formality, Formality::Casual);
         assert_eq!(error_msg.metadata.teaching_mode, TeachingMode::Immersive);
+        assert_eq!(error_msg.parent_id, None);
     }
 
     #[test]
@@ -663,6 +705,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let result = serialize_and_send(&msg, &tx);
@@ -676,6 +719,7 @@ mod tests {
     #[test]
     fn test_create_agent_response_message() {
         let session_id = Uuid::new_v4();
+        let parent_id = Uuid::new_v4();
         let agent_response = AgentResponse::from("Test response");
 
         let msg = create_agent_response_message(
@@ -684,6 +728,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::DialectRich,
             TeachingMode::Corrective,
+            parent_id,
         );
 
         assert_eq!(msg.session_id, session_id);
@@ -692,6 +737,7 @@ mod tests {
         assert_eq!(msg.language, "es-MX");
         assert_eq!(msg.metadata.formality, Formality::DialectRich);
         assert_eq!(msg.metadata.teaching_mode, TeachingMode::Corrective);
+        assert_eq!(msg.parent_id, Some(parent_id));
     }
 
     #[tokio::test]
@@ -704,6 +750,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let json = serde_json::to_string(&message).unwrap();
@@ -723,6 +770,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let result = validate_and_parse_dialect(&msg, &tx).await;
@@ -740,6 +788,7 @@ mod tests {
             "invalid-tag".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let result = validate_and_parse_dialect(&msg, &tx).await;

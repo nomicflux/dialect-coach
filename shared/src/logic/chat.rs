@@ -108,6 +108,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let initial_count = session.messages.len();
@@ -126,6 +127,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         assert!(should_agent_respond(&session, "agent1", &msg));
@@ -141,6 +143,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         assert!(!should_agent_respond(&session, "agent1", &msg));
@@ -156,6 +159,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let agents = agents_to_respond(&session, &msg);

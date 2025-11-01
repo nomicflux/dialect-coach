@@ -8,7 +8,7 @@ use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
 
-use crate::components::{ChatWindow, InputBox, LearningPanel, SpeechControls};
+use crate::components::{BranchSidebar, ChatWindow, InputBox, LearningPanel, SpeechControls};
 use crate::hooks::use_debounced_save;
 use crate::services::websocket::ConnectionState;
 
@@ -60,8 +60,20 @@ fn on_send_message(
         // Extract learning items from user state
         let (past_mistakes, past_explained, past_translated, past_exploratory) = extract_learning_items(&user_state);
 
+        // Get active branch context
+        let active_branch_id = user_state.active_branch_id;
+        let context_messages = user_state.get_active_branch_messages().into_iter().cloned().collect();
+
         // Build UserMessageWithContext
-        let msg_with_context = UserMessageWithContext::new(msg, past_mistakes, past_explained, past_translated, past_exploratory);
+        let msg_with_context = UserMessageWithContext::new(
+            msg,
+            past_mistakes,
+            past_explained,
+            past_translated,
+            past_exploratory,
+            active_branch_id,
+            context_messages,
+        );
 
         // Send through WebSocket
         match (*app_state).ws_service.borrow().send_message(&msg_with_context) {
@@ -407,6 +419,27 @@ fn on_undo_message_callback(
     })
 }
 
+fn on_create_branch(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<Uuid> {
+    Callback::from(move |message_id: Uuid| {
+        info!("Creating branch from message: {}", message_id);
+        user_state.dispatch(UserStateAction::CreateBranch(message_id));
+    })
+}
+
+fn on_switch_branch(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<Uuid> {
+    Callback::from(move |branch_id: Uuid| {
+        info!("Switching to branch: {}", branch_id);
+        user_state.dispatch(UserStateAction::SwitchBranch(branch_id));
+    })
+}
+
+fn on_delete_branch(user_state: UseReducerHandle<UserStateWrapper>) -> Callback<Uuid> {
+    Callback::from(move |branch_id: Uuid| {
+        info!("Deleting branch: {}", branch_id);
+        user_state.dispatch(UserStateAction::DeleteBranch(branch_id));
+    })
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     let app_state = use_reducer(AppState::default);
@@ -683,15 +716,24 @@ pub fn app() -> Html {
                             html! {}
                         }}
 
+                        // Branch navigation sidebar
+                        <BranchSidebar
+                            branches={(*user_state).branches.clone()}
+                            active_branch_id={(*user_state).active_branch_id}
+                            messages={(*user_state).conversation_history.clone()}
+                            on_switch_branch={Some(on_switch_branch(user_state.clone()))}
+                            on_delete_branch={Some(on_delete_branch(user_state.clone()))}
+                        />
+
                         // Chat interface
                         <ChatWindow
-                            messages={(*user_state).conversation_history.clone()}
+                            user_state={(**user_state).clone()}
                             is_loading={(*app_state).is_loading}
                             on_replay_message={Some(on_replay_message(app_state.clone()))}
                             on_prompt_click={Some(on_prompt_click(app_state.clone(), user_state.clone(), ui_state.clone()))}
                             translating_button={((*ui_state).translating_button).clone()}
-                            formality={(*user_state).formality}
                             on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_state.clone()))}
+                            on_create_branch={Some(on_create_branch(user_state.clone()))}
                         />
                         <SpeechControls
                             on_speech={on_send_message(app_state.clone(), user_state.clone())}

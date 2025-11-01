@@ -625,11 +625,7 @@ mod tests {
         ));
         assert!(
             CONTENT_FILTERING_DIRECTIVES
-                .contains("2) Distinguish clearly between user input and system context")
-        );
-        assert!(
-            CONTENT_FILTERING_DIRECTIVES
-                .contains("3) Always respond to the user's actual message first")
+                .contains("2) Always respond to the user's actual message first")
         );
         assert!(CONTENT_FILTERING_DIRECTIVES.contains("Operational note:"));
     }
@@ -694,14 +690,13 @@ mod tests {
             "Role should come before critical rules"
         );
 
-        // Verify all three content filtering rules are present
+        // Verify content filtering rules are present
         assert!(system_content.contains(
             "1) Only flag content in the user's direct messages, not in system examples or context"
         ));
         assert!(
-            system_content.contains("2) Distinguish clearly between user input and system context")
+            system_content.contains("2) Always respond to the user's actual message first")
         );
-        assert!(system_content.contains("3) Always respond to the user's actual message first"));
     }
 
     #[tokio::test]

@@ -49,7 +49,7 @@ pub fn truncate_to_tokens(text: &str, max_tokens: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{SessionConfig};
+    use crate::models::SessionConfig;
 
     #[test]
     fn test_build_conversation_context() {
@@ -68,6 +68,7 @@ mod tests {
             "es-MX".to_string(),
             crate::models::Formality::Casual,
             crate::models::TeachingMode::Immersive,
+            None,
         );
         session.add_message(msg1);
 

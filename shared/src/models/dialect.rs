@@ -409,6 +409,8 @@ mod tests {
     fn test_dialects_for_language() {
         let spanish_dialects = Dialect::for_language(Language::Spanish);
         assert!(spanish_dialects.len() >= 3);
-        assert!(spanish_dialects.contains(&Dialect::SpanishMexican));
+        assert!(spanish_dialects.contains(&Dialect::SpanishCuban));
+        assert!(spanish_dialects.contains(&Dialect::SpanishArgentinian));
+        assert!(spanish_dialects.contains(&Dialect::SpanishColombian));
     }
 }

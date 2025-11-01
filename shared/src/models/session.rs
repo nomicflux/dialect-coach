@@ -132,6 +132,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         session.add_message(msg);
@@ -150,6 +151,7 @@ mod tests {
                 "es-MX".to_string(),
                 Formality::Casual,
                 TeachingMode::Immersive,
+                None,
             );
             session.add_message(msg);
         }

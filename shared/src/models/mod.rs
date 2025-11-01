@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod agent;
+pub mod branch;
 pub mod corpus;
 pub mod dialect;
 pub mod events;
@@ -12,6 +13,7 @@ pub mod user_state;
 
 pub use admin::*;
 pub use agent::*;
+pub use branch::*;
 pub use corpus::*;
 pub use dialect::*;
 pub use events::*;

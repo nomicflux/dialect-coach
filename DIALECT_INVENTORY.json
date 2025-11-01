@@ -38,7 +38,7 @@
     "spanish_cuban": {
       "name": "Cuban Spanish",
       "bcp47": "es-CU",
-      "status": "AVAILABLE", 
+      "status": "PROCESSED", 
       "corpus_file": "spanish_cuban.txt",
       "size_mb": null,
       "entries": null,
@@ -58,7 +58,7 @@
     "spanish_colombian": {
       "name": "Colombian Spanish", 
       "bcp47": "es-CO",
-      "status": "AVAILABLE",
+      "status": "PROCESSED",
       "corpus_file": "spanish_colombian.txt",
       "size_mb": null,
       "entries": null,
@@ -68,7 +68,7 @@
     "arabic_egyptian": {
       "name": "Egyptian Arabic",
       "bcp47": "ar-EG",
-      "status": "AVAILABLE",
+      "status": "PROCESSED",
       "corpus_file": "egyptian_arabic.txt",
       "size_mb": 698.0,
       "entries": 728337,
@@ -78,7 +78,7 @@
     "arabic_levantine": {
       "name": "Levantine Arabic",
       "bcp47": "ar-LB", 
-      "status": "AVAILABLE",
+      "status": "PROCESSED",
       "corpus_file": "levantine_arabic.txt",
       "size_mb": 19.0,
       "entries": 223146,
@@ -88,7 +88,7 @@
     "arabic_gulf": {
       "name": "Gulf Arabic",
       "bcp47": "ar-SA",
-      "status": "AVAILABLE", 
+      "status": "PROCESSED", 
       "corpus_file": "gulf_arabic.txt",
       "size_mb": 26.0,
       "entries": 107966,
@@ -98,7 +98,7 @@
     "arabic_maghrebi": {
       "name": "Maghrebi Arabic",
       "bcp47": "ar-MA",
-      "status": "AVAILABLE",
+      "status": "PROCESSED",
       "corpus_file": "moroccan_darija.txt", 
       "size_mb": 460.0,
       "entries": 3580846,
@@ -158,7 +158,7 @@
     "french_african": {
       "name": "African French",
       "bcp47": "fr-CI",
-      "status": "AVAILABLE",
+      "status": "PROCESSED",
       "corpus_file": "african_french.txt",
       "size_mb": 1.3,
       "entries": 13500,

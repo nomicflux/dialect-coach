@@ -13,6 +13,7 @@ pub struct Message {
     pub timestamp: DateTime<Utc>,
     pub language: String,
     pub metadata: MessageMetadata,
+    pub parent_id: Option<Uuid>,
 }
 
 /// Metadata associated with a message
@@ -52,6 +53,7 @@ impl Message {
         language: String,
         formality: Formality,
         teaching_mode: TeachingMode,
+        parent_id: Option<Uuid>,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -61,6 +63,7 @@ impl Message {
             timestamp: Utc::now(),
             language,
             metadata: MessageMetadata::new(formality, teaching_mode),
+            parent_id,
         }
     }
 }
@@ -73,6 +76,8 @@ pub struct UserMessageWithContext {
     pub past_explained: Vec<Explained>,
     pub past_translated: Vec<crate::models::agent::Translated>,
     pub past_exploratory: Vec<crate::models::agent::Exploratory>,
+    pub active_branch_id: Uuid,
+    pub context_messages: Vec<Message>,
 }
 
 impl UserMessageWithContext {
@@ -82,6 +87,8 @@ impl UserMessageWithContext {
         past_explained: Vec<Explained>,
         past_translated: Vec<crate::models::agent::Translated>,
         past_exploratory: Vec<crate::models::agent::Exploratory>,
+        active_branch_id: Uuid,
+        context_messages: Vec<Message>,
     ) -> Self {
         Self {
             message,
@@ -89,6 +96,8 @@ impl UserMessageWithContext {
             past_explained,
             past_translated,
             past_exploratory,
+            active_branch_id,
+            context_messages,
         }
     }
 }
@@ -134,6 +143,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         assert_eq!(msg.session_id, session_id);
@@ -154,6 +164,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::DialectRich,
             TeachingMode::Corrective,
+            None,
         );
 
         let json = serde_json::to_string(&msg).unwrap();
@@ -174,15 +185,19 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
-        let context = UserMessageWithContext::new(msg.clone(), vec![], vec![], vec![], vec![]);
+        let branch_id = Uuid::new_v4();
+        let context = UserMessageWithContext::new(msg.clone(), vec![], vec![], vec![], vec![], branch_id, vec![]);
 
         assert_eq!(context.message.id, msg.id);
         assert_eq!(context.past_mistakes.len(), 0);
         assert_eq!(context.past_explained.len(), 0);
         assert_eq!(context.past_translated.len(), 0);
         assert_eq!(context.past_exploratory.len(), 0);
+        assert_eq!(context.active_branch_id, branch_id);
+        assert_eq!(context.context_messages.len(), 0);
     }
 
     #[test]
@@ -196,6 +211,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let mistake = Mistake::new(
@@ -211,11 +227,14 @@ mod tests {
             "Mexican slang".to_string(),
         );
 
+        let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
             vec![mistake.clone()],
             vec![explained.clone()],
             vec![],
+            vec![],
+            branch_id,
             vec![],
         );
 
@@ -238,6 +257,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let mistake = Mistake::new(
@@ -248,7 +268,8 @@ mod tests {
             },
         );
 
-        let context = UserMessageWithContext::new(msg, vec![mistake], vec![], vec![], vec![]);
+        let branch_id = Uuid::new_v4();
+        let context = UserMessageWithContext::new(msg, vec![mistake], vec![], vec![], vec![], branch_id, vec![]);
 
         let json = serde_json::to_string(&context).unwrap();
         assert!(json.contains("\"message\""));
@@ -256,6 +277,8 @@ mod tests {
         assert!(json.contains("\"past_explained\""));
         assert!(json.contains("\"past_translated\""));
         assert!(json.contains("\"past_exploratory\""));
+        assert!(json.contains("\"active_branch_id\""));
+        assert!(json.contains("\"context_messages\""));
         assert!(json.contains("hablar"));
 
         let deserialized: UserMessageWithContext = serde_json::from_str(&json).unwrap();
@@ -275,6 +298,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let translated = Translated::new(
@@ -282,11 +306,14 @@ mod tests {
             "hola".to_string(),
         );
 
+        let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
             vec![],
             vec![],
             vec![translated.clone()],
+            vec![],
+            branch_id,
             vec![],
         );
 
@@ -305,6 +332,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let exploratory = Exploratory::new(
@@ -312,12 +340,15 @@ mod tests {
             "Try 'Si fuera'".to_string(),
         );
 
+        let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
             vec![],
             vec![],
             vec![],
             vec![exploratory.clone()],
+            branch_id,
+            vec![],
         );
 
         assert_eq!(context.past_exploratory.len(), 1);
@@ -335,6 +366,7 @@ mod tests {
             "es-MX".to_string(),
             Formality::Casual,
             TeachingMode::Immersive,
+            None,
         );
 
         let mistake = Mistake::new(
@@ -360,12 +392,15 @@ mod tests {
             "Try 'Si fuera'".to_string(),
         );
 
+        let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
             vec![mistake.clone()],
             vec![explained.clone()],
             vec![translated.clone()],
             vec![exploratory.clone()],
+            branch_id,
+            vec![],
         );
 
         assert_eq!(context.past_mistakes.len(), 1);

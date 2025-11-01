@@ -1,4 +1,5 @@
-use dialect_coach_shared::models::{Formality, Message};
+use dialect_coach_shared::models::{ConversationBranch, Formality, Message};
+use dialect_coach_shared::UserState;
 use uuid::Uuid;
 use web_sys::HtmlElement;
 use yew::prelude::*;
@@ -7,7 +8,7 @@ use super::MessageBubble;
 
 #[derive(Properties, PartialEq)]
 pub struct ChatWindowProps {
-    pub messages: Vec<Message>,
+    pub user_state: UserState,
     pub is_loading: bool,
     #[prop_or_default]
     pub on_replay_message: Option<Callback<Message>>,
@@ -15,9 +16,14 @@ pub struct ChatWindowProps {
     pub on_prompt_click: Option<Callback<(String, String)>>, // (button_id, phrase)
     #[prop_or_default]
     pub translating_button: Option<String>, // Track which specific button is translating
-    pub formality: Formality,
     #[prop_or_default]
     pub on_delete_message: Option<Callback<Uuid>>,
+    #[prop_or_default]
+    pub on_create_branch: Option<Callback<Uuid>>,
+}
+
+fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool {
+    branches.iter().any(|b| b.parent_message_id == Some(message_id))
 }
 
 fn get_context_aware_prompt(prompt_type: &str, formality: Formality) -> &'static str {
@@ -48,7 +54,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     // Auto-scroll to bottom when new messages arrive
     {
         let chat_container_ref = chat_container_ref.clone();
-        let message_count = props.messages.len();
+        let message_count = props.user_state.conversation_history.len();
 
         use_effect_with(message_count, move |_| {
             if let Some(container) = chat_container_ref.cast::<HtmlElement>() {
@@ -58,10 +64,13 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
         });
     }
 
+    let formality = props.user_state.formality;
+    let active_messages = props.user_state.get_active_branch_messages();
+
     html! {
         <div class="chat" ref={chat_container_ref} role="log" aria-live="polite" aria-relevant="additions">
             <div class="chat-scroll">
-                {if props.messages.is_empty() {
+                {if props.user_state.conversation_history.is_empty() {
                     html! {
                         <div class="empty">
                             <div class="empty-icon">{"💬"}</div>
@@ -72,10 +81,10 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         disabled={props.translating_button.is_some()}
                                         onclick={{
                                     let on_prompt_click = props.on_prompt_click.clone();
-                                    let formality = props.formality;
+                                    let form = formality;
                                     Callback::from(move |_| {
                                         if let Some(callback) = &on_prompt_click {
-                                            let prompt = get_context_aware_prompt("greeting", formality);
+                                            let prompt = get_context_aware_prompt("greeting", form);
                                             callback.emit(("greeting".to_string(), prompt.to_string()));
                                         }
                                     })
@@ -83,7 +92,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                     {if props.translating_button.as_ref() == Some(&"greeting".to_string()) {
                                         "Translating..."
                                     } else {
-                                        match props.formality {
+                                        match formality {
                                             Formality::Formal => "Good day, how are you doing?",
                                             Formality::Casual => "Hello, how are you?",
                                             Formality::DialectRich => "Hey there, what's up?",
@@ -95,10 +104,10 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         disabled={props.translating_button.is_some()}
                                         onclick={{
                                     let on_prompt_click = props.on_prompt_click.clone();
-                                    let formality = props.formality;
+                                    let form = formality;
                                     Callback::from(move |_| {
                                         if let Some(callback) = &on_prompt_click {
-                                            let prompt = get_context_aware_prompt("weather", formality);
+                                            let prompt = get_context_aware_prompt("weather", form);
                                             callback.emit(("weather".to_string(), prompt.to_string()));
                                         }
                                     })
@@ -106,7 +115,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                     {if props.translating_button.as_ref() == Some(&"weather".to_string()) {
                                         "Translating..."
                                     } else {
-                                        match props.formality {
+                                        match formality {
                                             Formality::Formal => "What is the weather forecast for today?",
                                             Formality::Casual => "What's the weather like today?",
                                             Formality::DialectRich => "How's it looking outside?",
@@ -118,10 +127,10 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         disabled={props.translating_button.is_some()}
                                         onclick={{
                                     let on_prompt_click = props.on_prompt_click.clone();
-                                    let formality = props.formality;
+                                    let form = formality;
                                     Callback::from(move |_| {
                                         if let Some(callback) = &on_prompt_click {
-                                            let prompt = get_context_aware_prompt("food", formality);
+                                            let prompt = get_context_aware_prompt("food", form);
                                             callback.emit(("food".to_string(), prompt.to_string()));
                                         }
                                     })
@@ -129,7 +138,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                     {if props.translating_button.as_ref() == Some(&"food".to_string()) {
                                         "Translating..."
                                     } else {
-                                        match props.formality {
+                                        match formality {
                                             Formality::Formal => "I would like to place an order, please",
                                             Formality::Casual => "I'd like to order some food",
                                             Formality::DialectRich => "Can I get something to eat?",
@@ -143,14 +152,17 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                 } else {
                     html! {
                         <div class="messages-list">
-                            {for props.messages.iter().map(|msg| {
+                            {for active_messages.iter().map(|msg| {
                                 let is_own = msg.participant_id == "user";
+                                let has_children = has_child_branches(msg.id, &props.user_state.branches);
                                 html! {
                                     <MessageBubble
-                                        message={msg.clone()}
+                                        message={(*msg).clone()}
                                         is_own_message={is_own}
                                         on_replay={props.on_replay_message.clone()}
                                         on_delete={props.on_delete_message.clone()}
+                                        on_create_branch={props.on_create_branch.clone()}
+                                        has_child_branches={has_children}
                                     />
                                 }
                             })}

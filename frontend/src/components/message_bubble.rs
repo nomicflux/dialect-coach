@@ -10,6 +10,10 @@ pub struct MessageBubbleProps {
     pub on_replay: Option<Callback<Message>>,
     #[prop_or_default]
     pub on_delete: Option<Callback<Uuid>>,
+    #[prop_or_default]
+    pub on_create_branch: Option<Callback<Uuid>>,
+    #[prop_or(false)]
+    pub has_child_branches: bool,
 }
 
 fn render_delete_button(on_delete: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
@@ -45,6 +49,20 @@ fn get_css_classes(is_own: bool) -> (&'static str, &'static str, &'static str, &
     }
 }
 
+fn render_branch_button(on_create_branch: &Option<Callback<Uuid>>, msg_id: Uuid, has_children: bool) -> Html {
+    if let Some(callback) = on_create_branch {
+        let cb = callback.clone();
+        let onclick = Callback::from(move |_| cb.emit(msg_id));
+        let title = if has_children { "Branch from here (has existing branches)" } else { "Branch from here" };
+        let class = if has_children { "branch-button branch-button--has-children" } else { "branch-button" };
+        html! {
+            <button {class} {onclick} {title}>{"🌿"}</button>
+        }
+    } else {
+        html! {}
+    }
+}
+
 #[function_component(MessageBubble)]
 pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     let (msg_class, avatar_class, bubble_class, avatar_text) = get_css_classes(props.is_own_message);
@@ -54,6 +72,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
             <div class={avatar_class}>{avatar_text}</div>
             <div class={bubble_class}>
                 {render_delete_button(&props.on_delete, props.message.id)}
+                {render_branch_button(&props.on_create_branch, props.message.id, props.has_child_branches)}
                 <div class="message-header">
                     <div class="message-author">{&props.message.participant_id}</div>
                     {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
