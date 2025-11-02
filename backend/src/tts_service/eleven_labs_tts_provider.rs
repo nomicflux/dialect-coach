@@ -91,7 +91,7 @@ impl TextToSpeechProvider for ElevenLabsTtsProvider {
         let request_body = ElevenLabsTtsRequest {
             text: request.text.clone(),
             model_id: self.model.clone(),
-            voice_params: Some(voice_params)
+            voice_params: Some(voice_params),
         };
         let mut params = HashMap::new();
         params.insert("output_format", "mp3_22050_32");

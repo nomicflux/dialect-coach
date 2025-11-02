@@ -1,10 +1,10 @@
+use super::UserPersistence;
+use anyhow::{Result, anyhow};
+use dialect_coach_shared::{User, UserState};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use anyhow::{anyhow, Result};
-use dialect_coach_shared::{User, UserState};
 use uuid::Uuid;
-use super::UserPersistence;
 
 /// In-memory implementation of UserPersistence for development and testing
 ///
@@ -42,7 +42,10 @@ impl UserPersistence for InMemoryPersistence {
     async fn save(&self, user_state: &UserState) -> Result<()> {
         let mut state = self.state.lock().await;
         state.insert(user_state.user_id, user_state.clone());
-        tracing::debug!("Saved user state to in-memory storage: {}", user_state.user_id);
+        tracing::debug!(
+            "Saved user state to in-memory storage: {}",
+            user_state.user_id
+        );
         Ok(())
     }
 
@@ -207,7 +210,10 @@ mod tests {
         let persistence = InMemoryPersistence::new();
         persistence.initialize().await.unwrap();
 
-        let loaded = persistence.load_user_by_username("nonexistent").await.unwrap();
+        let loaded = persistence
+            .load_user_by_username("nonexistent")
+            .await
+            .unwrap();
         assert!(loaded.is_none());
     }
 

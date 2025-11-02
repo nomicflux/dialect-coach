@@ -5,10 +5,15 @@ use axum::{
     },
     response::Response,
 };
-use rig::completion::{Message as RigMessage, message::UserContent, message::AssistantContent, message::Text};
-use rig::one_or_many::OneOrMany;
-use dialect_coach_shared::{AgentResponse, Dialect, Formality, Language, Message, MessageContent, MessageMetadata, TeachingMode, User, UserMessage, UserMessageWithContext, UserState, UserStateMessage};
+use dialect_coach_shared::{
+    AgentResponse, Dialect, Message, MessageContent, MessageMetadata, User, UserMessage,
+    UserMessageWithContext, UserState, UserStateMessage,
+};
 use futures_util::{SinkExt, StreamExt};
+use rig::completion::{
+    Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
+};
+use rig::one_or_many::OneOrMany;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -20,16 +25,21 @@ fn error_to_agent_response(error_message: String) -> AgentResponse {
 
 fn convert_to_rig_message(message: &Message) -> RigMessage {
     match message.content.clone() {
-        MessageContent::UserMessage { content } => RigMessage::User { content: OneOrMany::one(UserContent::Text(Text { text: content.clone() })) },
-        MessageContent::AgentMessage { content } => RigMessage::Assistant { content: OneOrMany::one(AssistantContent::Text(Text { text: content.response.clone() })) },
+        MessageContent::UserMessage { content } => RigMessage::User {
+            content: OneOrMany::one(UserContent::Text(Text {
+                text: content.clone(),
+            })),
+        },
+        MessageContent::AgentMessage { content } => RigMessage::Assistant {
+            content: OneOrMany::one(AssistantContent::Text(Text {
+                text: content.response.clone(),
+            })),
+        },
     }
 }
 
 fn build_context_from_messages(messages: &[Message]) -> Vec<RigMessage> {
-    messages
-        .iter()
-        .map(convert_to_rig_message)
-        .collect()
+    messages.iter().map(convert_to_rig_message).collect()
 }
 
 fn trim_history(history: &mut Vec<String>, max_size: usize) {
@@ -38,24 +48,20 @@ fn trim_history(history: &mut Vec<String>, max_size: usize) {
     }
 }
 
-fn create_error_message(
-    error_text: String,
-    metadata: MessageMetadata,
-) -> Message {
+fn create_error_message(error_text: String, metadata: MessageMetadata) -> Message {
     let error_response = error_to_agent_response(error_text);
     Message::new(
-        MessageContent::AgentMessage { content: error_response },
+        MessageContent::AgentMessage {
+            content: error_response,
+        },
         metadata,
         None,
     )
 }
 
-fn serialize_and_send(
-    msg: &Message,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), String> {
-    let json = serde_json::to_string(msg)
-        .map_err(|e| format!("Failed to serialize message: {}", e))?;
+fn serialize_and_send(msg: &Message, tx: &mpsc::UnboundedSender<String>) -> Result<(), String> {
+    let json =
+        serde_json::to_string(msg).map_err(|e| format!("Failed to serialize message: {}", e))?;
 
     tx.send(json)
         .map_err(|e| format!("Failed to send message: {}", e))?;
@@ -63,11 +69,7 @@ fn serialize_and_send(
     Ok(())
 }
 
-async fn update_user_history(
-    state: &AppState,
-    session_id: Uuid,
-    user_text: &str,
-) -> Vec<String> {
+async fn update_user_history(state: &AppState, session_id: Uuid, user_text: &str) -> Vec<String> {
     let mut histories = state.session_histories.lock().await;
     let history = histories.entry(session_id).or_insert_with(Vec::new);
 
@@ -90,7 +92,9 @@ fn create_agent_response_message(
     parent_id: Uuid,
 ) -> Message {
     Message::new(
-        MessageContent::AgentMessage { content: agent_response },
+        MessageContent::AgentMessage {
+            content: agent_response,
+        },
         metadata,
         Some(parent_id),
     )
@@ -102,13 +106,15 @@ async fn handle_agent_success(
     agent_response: AgentResponse,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), String> {
-    add_agent_to_history(state, parsed_msg.metadata.session_id, &agent_response.response).await;
+    add_agent_to_history(
+        state,
+        parsed_msg.metadata.session_id,
+        &agent_response.response,
+    )
+    .await;
 
-    let response_msg = create_agent_response_message(
-        agent_response,
-        parsed_msg.metadata.clone(),
-        parsed_msg.id,
-    );
+    let response_msg =
+        create_agent_response_message(agent_response, parsed_msg.metadata.clone(), parsed_msg.id);
 
     serialize_and_send(&response_msg, tx)?;
     Ok(())
@@ -132,7 +138,7 @@ async fn validate_and_parse_dialect(
     parsed_msg: &Message,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<Dialect, ()> {
-    match Dialect::from_bcp47(&parsed_msg.metadata.dialect.bcp47_tag()) {
+    match Dialect::from_bcp47(parsed_msg.metadata.dialect.bcp47_tag()) {
         Some(d) => {
             tracing::info!(
                 "Parsed dialect: {} from language tag: {}",
@@ -142,9 +148,15 @@ async fn validate_and_parse_dialect(
             Ok(d)
         }
         None => {
-            tracing::error!("Unsupported language tag: {}", parsed_msg.metadata.dialect.bcp47_tag());
+            tracing::error!(
+                "Unsupported language tag: {}",
+                parsed_msg.metadata.dialect.bcp47_tag()
+            );
             let error_msg = create_error_message(
-                format!("Unsupported language/dialect: {}", parsed_msg.metadata.dialect.bcp47_tag()),
+                format!(
+                    "Unsupported language/dialect: {}",
+                    parsed_msg.metadata.dialect.bcp47_tag()
+                ),
                 parsed_msg.metadata.clone(),
             );
             if let Err(e) = serialize_and_send(&error_msg, tx) {
@@ -186,7 +198,9 @@ async fn run_agents_parallel(
     );
 
     let (response_result, analysis_result) = tokio::join!(
-        state.agent.generate_response(user_text, dialect, formality, teaching_mode, history_vec),
+        state
+            .agent
+            .generate_response(user_text, dialect, formality, teaching_mode, history_vec),
         state.agent.generate_analysis(
             dialect,
             user_text,
@@ -298,12 +312,19 @@ fn create_recv_task(
                             msg_with_context.past_exploratory.len()
                         );
 
-                        if process_user_message(&state, msg_with_context, &tx).await.is_err() {
+                        if process_user_message(&state, msg_with_context, &tx)
+                            .await
+                            .is_err()
+                        {
                             break;
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Failed to parse message JSON: {}. Raw message: {}", e, text);
+                        tracing::error!(
+                            "Failed to parse message JSON: {}. Raw message: {}",
+                            e,
+                            text
+                        );
                     }
                 }
             } else if let WsMessage::Close(_) = msg {
@@ -457,7 +478,10 @@ pub async fn user_state_websocket_handler(
 /// Handle individual user state WebSocket connection
 async fn handle_user_state_socket(socket: WebSocket, state: AppState) {
     let connection_id = Uuid::new_v4();
-    tracing::info!("User state WebSocket connection established: {}", connection_id);
+    tracing::info!(
+        "User state WebSocket connection established: {}",
+        connection_id
+    );
 
     let (sender, receiver) = socket.split();
     let (tx, rx) = mpsc::unbounded_channel::<String>();
@@ -498,7 +522,11 @@ async fn handle_sign_in(
 ) -> Result<(), ()> {
     tracing::info!("Sign in request for user: {}", username);
 
-    let response = match state.user_persistence.load_user_by_username(&username).await {
+    let response = match state
+        .user_persistence
+        .load_user_by_username(&username)
+        .await
+    {
         Ok(Some(user)) => UserMessage::SignInResponse(Ok(user)),
         Ok(None) => {
             tracing::warn!("User not found: {}", username);
@@ -514,10 +542,7 @@ async fn handle_sign_in(
 }
 
 /// Send UserMessage through WebSocket
-fn send_user_message(
-    msg: &UserMessage,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
+fn send_user_message(msg: &UserMessage, tx: &mpsc::UnboundedSender<String>) -> Result<(), ()> {
     let json = serde_json::to_string(msg)
         .map_err(|e| tracing::error!("Failed to serialize UserMessage: {}", e))?;
 
@@ -528,11 +553,7 @@ fn send_user_message(
 }
 
 /// Process incoming user message
-async fn process_user_message_ws(
-    state: &AppState,
-    text: &str,
-    tx: &mpsc::UnboundedSender<String>,
-) {
+async fn process_user_message_ws(state: &AppState, text: &str, tx: &mpsc::UnboundedSender<String>) {
     match serde_json::from_str::<UserMessage>(text) {
         Ok(UserMessage::CreateUser { user_id, username }) => {
             let _ = handle_create_user(state, user_id, username, tx).await;
@@ -603,23 +624,30 @@ pub async fn user_websocket_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dialect_coach_shared::{Dialect, Formality, Language, TeachingMode};
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
-        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+        MessageMetadata::at_now(
+            Formality::Casual,
+            TeachingMode::Immersive,
+            Language::Spanish,
+            Dialect::SpanishArgentinian,
+            session_id,
+        )
     }
 
     #[test]
     fn test_build_context_from_messages() {
         let session_id = Uuid::new_v4();
 
-        let user_content = MessageContent::UserMessage { content: "Hello".to_string() };
-        let msg1 = Message::new(
-            user_content.clone(),
-            test_metadata(session_id),
-            None,
-        );
+        let user_content = MessageContent::UserMessage {
+            content: "Hello".to_string(),
+        };
+        let msg1 = Message::new(user_content.clone(), test_metadata(session_id), None);
 
-        let agent_content = MessageContent::AgentMessage { content: AgentResponse::from("Hola") };
+        let agent_content = MessageContent::AgentMessage {
+            content: AgentResponse::from("Hola"),
+        };
         let msg2 = Message::new(
             agent_content.clone(),
             test_metadata(session_id),
@@ -658,10 +686,7 @@ mod tests {
     #[test]
     fn test_create_error_message() {
         let session_id = Uuid::new_v4();
-        let error_msg = create_error_message(
-            "Test error".to_string(),
-            test_metadata(session_id),
-        );
+        let error_msg = create_error_message("Test error".to_string(), test_metadata(session_id));
 
         assert_eq!(error_msg.get_content(), "Test error");
         assert_eq!(error_msg.metadata.session_id, session_id);
@@ -674,7 +699,9 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         let msg = Message::new(
-            MessageContent::AgentMessage { content: AgentResponse::from("Hello") },
+            MessageContent::AgentMessage {
+                content: AgentResponse::from("Hello"),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
@@ -725,7 +752,9 @@ mod tests {
     async fn test_validate_and_parse_dialect_success() {
         let (tx, _rx) = mpsc::unbounded_channel();
         let msg = Message::new(
-            MessageContent::AgentMessage { content: AgentResponse::from("Hola") },
+            MessageContent::AgentMessage {
+                content: AgentResponse::from("Hola"),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );

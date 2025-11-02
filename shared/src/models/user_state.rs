@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    ConversationBranch, Dialect, Explained, Exploratory, Formality, Language, Message, MessageContent, MessageMetadata, Mistake,
-    TeachingMode, Translated,
+    ConversationBranch, Dialect, Explained, Exploratory, Formality, Language, Message,
+    MessageContent, MessageMetadata, Mistake, TeachingMode, Translated,
 };
 
 /// User-specific state that persists across sessions
@@ -70,11 +70,15 @@ impl UserState {
             ),
             parent_id,
         )
-
     }
 
     pub fn create_user_msg(&self, session_id: Uuid, content: &String) -> Message {
-        self.create_msg(session_id, MessageContent::UserMessage { content: content.clone() })
+        self.create_msg(
+            session_id,
+            MessageContent::UserMessage {
+                content: content.clone(),
+            },
+        )
     }
 
     fn get_last_message_in_active_branch(&self) -> Option<Uuid> {
@@ -117,7 +121,8 @@ impl UserState {
     }
 
     pub fn get_active_branch_messages(&self) -> Vec<&Message> {
-        let leaf_id = self.branches
+        let leaf_id = self
+            .branches
             .iter()
             .find(|b| b.id == self.active_branch_id)
             .and_then(|b| b.leaf_message_id);
@@ -167,10 +172,16 @@ impl LearningItem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::agent::{MistakeCategory};
+    use crate::models::agent::MistakeCategory;
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
-        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+        MessageMetadata::at_now(
+            Formality::Casual,
+            TeachingMode::Immersive,
+            Language::Spanish,
+            Dialect::SpanishArgentinian,
+            session_id,
+        )
     }
 
     fn create_test_user_state() -> UserState {
@@ -189,7 +200,9 @@ mod tests {
 
     fn create_test_message() -> Message {
         Message::new(
-            MessageContent::UserMessage { content: "test".to_string() },
+            MessageContent::UserMessage {
+                content: "test".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         )
@@ -271,14 +284,20 @@ mod tests {
     fn test_get_active_branch_messages_single() {
         let mut state = create_test_user_state();
         let msg = Message::new(
-            MessageContent::UserMessage { content: "test".to_string() },
+            MessageContent::UserMessage {
+                content: "test".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
         state.conversation_history.push(msg.clone());
 
         // Set the branch's leaf to this message
-        if let Some(branch) = state.branches.iter_mut().find(|b| b.id == state.active_branch_id) {
+        if let Some(branch) = state
+            .branches
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
             branch.leaf_message_id = Some(msg.id);
         }
 
@@ -293,28 +312,38 @@ mod tests {
 
         // Create a chain: A → B → C
         let msg_a = Message::new(
-            MessageContent::UserMessage { content: "A".to_string() },
+            MessageContent::UserMessage {
+                content: "A".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
         state.conversation_history.push(msg_a.clone());
 
         let msg_b = Message::new(
-            MessageContent::UserMessage { content: "B".to_string() },
+            MessageContent::UserMessage {
+                content: "B".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
         state.conversation_history.push(msg_b.clone());
 
         let msg_c = Message::new(
-            MessageContent::UserMessage { content: "C".to_string() },
+            MessageContent::UserMessage {
+                content: "C".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             Some(msg_b.id),
         );
         state.conversation_history.push(msg_c.clone());
 
         // Set the branch's leaf to msg_c
-        if let Some(branch) = state.branches.iter_mut().find(|b| b.id == state.active_branch_id) {
+        if let Some(branch) = state
+            .branches
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
             branch.leaf_message_id = Some(msg_c.id);
         }
 
@@ -335,14 +364,18 @@ mod tests {
 
         // Create main path: A → B
         let msg_a = Message::new(
-            MessageContent::UserMessage { content: "A".to_string() },
+            MessageContent::UserMessage {
+                content: "A".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
         state.conversation_history.push(msg_a.clone());
 
         let msg_b = Message::new(
-            MessageContent::UserMessage { content: "B".to_string() },
+            MessageContent::UserMessage {
+                content: "B".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
@@ -350,14 +383,20 @@ mod tests {
 
         // Create alternative path from A: A → X
         let msg_x = Message::new(
-            MessageContent::UserMessage { content: "X".to_string() },
+            MessageContent::UserMessage {
+                content: "X".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
         state.conversation_history.push(msg_x.clone());
 
         // Set active branch leaf to B (so path is A → B, not A → X)
-        if let Some(branch) = state.branches.iter_mut().find(|b| b.id == state.active_branch_id) {
+        if let Some(branch) = state
+            .branches
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
             branch.leaf_message_id = Some(msg_b.id);
         }
 

@@ -67,10 +67,22 @@ fn sum_token_usage(usage_data: &Value) -> (u64, u64, u64, u64) {
 
     if let Some(buckets) = buckets {
         for bucket in buckets {
-            uncached += bucket.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-            cached += bucket.get("cache_read_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-            cache_creation += bucket.get("cache_creation_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-            output += bucket.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+            uncached += bucket
+                .get("input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            cached += bucket
+                .get("cache_read_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            cache_creation += bucket
+                .get("cache_creation_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            output += bucket
+                .get("output_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
         }
     }
     (uncached, cached, cache_creation, output)
@@ -82,10 +94,10 @@ fn sum_costs(cost_data: &Value) -> f64 {
 
     if let Some(buckets) = buckets {
         for bucket in buckets {
-            if let Some(cost_str) = bucket.get("amount").and_then(|v| v.as_str()) {
-                if let Ok(cost) = cost_str.parse::<f64>() {
-                    total += cost;
-                }
+            if let Some(cost_str) = bucket.get("amount").and_then(|v| v.as_str())
+                && let Ok(cost) = cost_str.parse::<f64>()
+            {
+                total += cost;
             }
         }
     }

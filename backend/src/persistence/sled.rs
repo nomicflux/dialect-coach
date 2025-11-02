@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Result};
+use super::UserPersistence;
+use anyhow::{Result, anyhow};
 use dialect_coach_shared::{User, UserState};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::UserPersistence;
 
 pub struct SledPersistence {
     db: sled::Db,
@@ -51,10 +51,15 @@ impl UserPersistence for SledPersistence {
     async fn load(&self, user_id: Uuid) -> Result<Option<UserState>> {
         let tree = self.user_states_tree()?;
         let key = user_id.to_string();
-        let result = tree.get(key.as_bytes())?
+        let result = tree
+            .get(key.as_bytes())?
             .map(|bytes| deserialize_from_json(&bytes))
             .transpose()?;
-        tracing::debug!("Loaded user state from sled: {} (found: {})", user_id, result.is_some());
+        tracing::debug!(
+            "Loaded user state from sled: {} (found: {})",
+            user_id,
+            result.is_some()
+        );
         Ok(result)
     }
 
@@ -76,10 +81,15 @@ impl UserPersistence for SledPersistence {
 
     async fn load_user_by_username(&self, username: &str) -> Result<Option<User>> {
         let tree = self.users_tree()?;
-        let result = tree.get(username.as_bytes())?
+        let result = tree
+            .get(username.as_bytes())?
             .map(|bytes| deserialize_from_json(&bytes))
             .transpose()?;
-        tracing::debug!("Loaded user by username: {} (found: {})", username, result.is_some());
+        tracing::debug!(
+            "Loaded user by username: {} (found: {})",
+            username,
+            result.is_some()
+        );
         Ok(result)
     }
 }

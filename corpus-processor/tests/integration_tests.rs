@@ -94,8 +94,11 @@ mod tests {
 
         // Verify first few documents
         assert_eq!(documents[0].content, "text");
-        assert_eq!(documents[1].content, "جنوب السودان هيا دولة مستقلة من ساعة اول دقيقة");
-        
+        assert_eq!(
+            documents[1].content,
+            "جنوب السودان هيا دولة مستقلة من ساعة اول دقيقة"
+        );
+
         // Verify all documents have correct dialect
         for doc in &documents {
             assert_eq!(doc.dialect, Dialect::ArabicEgyptian);

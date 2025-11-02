@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument};
 use qdrant_client::Qdrant;
+use qdrant_client::qdrant::r#match::MatchValue;
 use qdrant_client::qdrant::{
     Condition, CreateFieldIndexCollectionBuilder, FieldType, Filter, SearchPointsBuilder,
 };
-use qdrant_client::qdrant::r#match::{MatchValue};
 use rand::seq::SliceRandom;
 
 const COLLECTION_NAME: &str = "dialect_documents";
@@ -50,7 +50,10 @@ impl QdrantService {
     ) -> Result<Vec<DialectDocument>> {
         let dialect_id = dialect.id().to_string();
         tracing::info!("Searching for {}", dialect_id);
-        let filter = Filter::must([Condition::matches("dialect", MatchValue::Keyword(dialect_id))]);
+        let filter = Filter::must([Condition::matches(
+            "dialect",
+            MatchValue::Keyword(dialect_id),
+        )]);
 
         let search_result = self
             .client
@@ -62,7 +65,7 @@ impl QdrantService {
             .await
             .map_err(|e| {
                 anyhow::anyhow!(
-                    "Failed to search Qdrant collection '{}' for dialect {} (limit: {}): {}", 
+                    "Failed to search Qdrant collection '{}' for dialect {} (limit: {}): {}",
                     COLLECTION_NAME,
                     dialect.name(),
                     limit,
@@ -105,7 +108,7 @@ impl QdrantService {
             .await
             .map_err(|e| {
                 anyhow::anyhow!(
-                    "Failed to scroll Qdrant collection '{}' for dialect {} (limit: {}): {}", 
+                    "Failed to scroll Qdrant collection '{}' for dialect {} (limit: {}): {}",
                     COLLECTION_NAME,
                     dialect.name(),
                     limit,

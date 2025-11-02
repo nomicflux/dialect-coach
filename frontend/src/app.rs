@@ -69,7 +69,7 @@ fn on_send_message(
 
         info!("Sending message: {}", content);
 
-        let session_id = (*app_state).session_id().unwrap_or_else(|| Uuid::new_v4());
+        let session_id = (*app_state).session_id().unwrap_or_else(Uuid::new_v4);
         let content = MessageContent::UserMessage {
             content: content.clone(),
         };
@@ -100,7 +100,7 @@ fn on_send_message(
         );
 
         // Send through WebSocket
-        match (*app_state)
+        match app_state
             .ws_service
             .borrow()
             .send_message(&msg_with_context)
@@ -209,7 +209,7 @@ fn on_dialect_change(user_state: UseReducerHandle<OptionalUserState>) -> Callbac
             // Get all dialects for current language and find matching one
             let dialects = state.current_dialects();
             if let Some(dialect) = dialects.iter().find(|d| d.id() == value) {
-                user_state.dispatch(UserStateAction::ChangeDialect(dialect.clone()));
+                user_state.dispatch(UserStateAction::ChangeDialect(*dialect));
             }
         }
     })
@@ -289,7 +289,7 @@ fn on_dialect_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback
         let current = state.current_dialect();
         if let Some(idx) = dialects.iter().position(|d| d == &current) {
             let next_idx = (idx + 1) % dialects.len();
-            user_state.dispatch(UserStateAction::ChangeDialect(dialects[next_idx].clone()));
+            user_state.dispatch(UserStateAction::ChangeDialect(dialects[next_idx]));
         }
     })
 }
@@ -386,7 +386,7 @@ fn on_create_user_click(
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
-        let username = (*ui_state).create_username_input.clone();
+        let username = ui_state.create_username_input.clone();
         // Generate new UUID for creating account (user_state is None at this point)
         let user_id = Uuid::new_v4();
         if let Err(e) = app_state
@@ -408,7 +408,7 @@ fn on_signin_click(
     ui_state: UseReducerHandle<UIState>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
-        let username = (*ui_state).signin_username_input.clone();
+        let username = ui_state.signin_username_input.clone();
         if let Err(e) = app_state.user_ws_service.borrow().sign_in(username) {
             error!("Failed to sign in: {}", e);
             app_state.dispatch(AppStateAction::SetError(format!(
@@ -510,7 +510,7 @@ fn on_undo_message_callback(
     ui_state: UseReducerHandle<UIState>,
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<()> {
-    let deleted_messages = (*ui_state).deleted_messages.clone();
+    let deleted_messages = ui_state.deleted_messages.clone();
     Callback::from(move |_| {
         if user_state.0.is_none() {
             return;
@@ -585,7 +585,7 @@ pub fn app() -> Html {
         let is_authenticated = user_state.0.is_some();
 
         use_effect_with(is_authenticated, move |&authenticated| {
-            let ws_service_clone = (*app_state).ws_service.clone();
+            let ws_service_clone = app_state.ws_service.clone();
 
             if authenticated {
                 info!("Authenticated - initializing chat WebSocket connection");
@@ -658,7 +658,7 @@ pub fn app() -> Html {
                         // since we can't easily call methods from within the async task
                         if matches!(new_state, ConnectionState::Reconnecting) {
                             // Schedule a reconnect attempt
-                            let ws_clone = (*asc).ws_service.clone();
+                            let ws_clone = asc.ws_service.clone();
                             gloo::timers::callback::Timeout::new(100, move || {
                                 info!("Triggering reconnection from app layer");
                                 ws_clone.borrow_mut().reconnect();
@@ -696,7 +696,7 @@ pub fn app() -> Html {
         let is_authenticated = user_state.0.is_some();
 
         use_effect_with(is_authenticated, move |&authenticated| {
-            let ws_service_clone = (*app_state).user_state_ws_service.clone();
+            let ws_service_clone = app_state.user_state_ws_service.clone();
 
             if authenticated {
                 info!("Authenticated - initializing user state WebSocket connection");
@@ -733,7 +733,7 @@ pub fn app() -> Html {
         use_effect_with((), move |_| {
             info!("Initializing user WebSocket connection");
 
-            let mut ws = (*app_state).user_ws_service.borrow_mut();
+            let mut ws = app_state.user_ws_service.borrow_mut();
 
             ws.set_on_create_response(on_user_create_response(
                 app_state.clone(),
@@ -757,7 +757,7 @@ pub fn app() -> Html {
     // Auto-dismiss error messages after 5 seconds
     {
         let app_state = app_state.clone();
-        let error_msg = (*app_state).error_message.clone();
+        let error_msg = app_state.error_message.clone();
         use_effect_with(error_msg, move |msg| {
             let timeout = msg.as_ref().map(|_| {
                 let app_state = app_state.clone();
@@ -780,7 +780,7 @@ pub fn app() -> Html {
 
                     // User management section
                     <div class="user-section">
-                        {if let Some(user) = (*app_state).current_user.as_ref() {
+                        {if let Some(user) = app_state.current_user.as_ref() {
                             html! {
                                 <div class="user-signed-in">
                                     <span>{format!("Signed in as: {}", user.username)}</span>
@@ -796,7 +796,7 @@ pub fn app() -> Html {
                                         <label>{"Create: "}</label>
                                         <input
                                             type="text"
-                                            value={(*ui_state).create_username_input.clone()}
+                                            value={ui_state.create_username_input.clone()}
                                             oninput={{
                                                 let ui_state = ui_state.clone();
                                                 Callback::from(move |e: InputEvent| {
@@ -814,7 +814,7 @@ pub fn app() -> Html {
                                         <label>{"Sign In: "}</label>
                                         <input
                                             type="text"
-                                            value={(*ui_state).signin_username_input.clone()}
+                                            value={ui_state.signin_username_input.clone()}
                                             oninput={{
                                                 let ui_state = ui_state.clone();
                                                 Callback::from(move |e: InputEvent| {
@@ -835,7 +835,7 @@ pub fn app() -> Html {
 
                     // Connection status
                     <div class="connection-status">
-                        {match (*app_state).connection_state {
+                        {match app_state.connection_state {
                             ConnectionState::Connected => html! { <span class="status-connected">{"● Ready to chat!"}</span> },
                             ConnectionState::Connecting => html! { <span class="status-connecting">{"⟳ Connecting..."}</span> },
                             ConnectionState::Reconnecting => html! { <span class="status-reconnecting">{"⟳ Reconnecting..."}</span> },
@@ -845,7 +845,7 @@ pub fn app() -> Html {
                     </div>
 
                     // Error display - shown for both authenticated and unauthenticated states
-                    {if let Some(err) = ((*app_state).error_message).as_ref() {
+                    {if let Some(err) = (app_state.error_message).as_ref() {
                         html! {
                             <div class="error-banner">
                                 <span>{format!("⚠️ {}", err)}</span>
@@ -884,10 +884,10 @@ pub fn app() -> Html {
                             // Chat interface
                             <ChatWindow
                                 user_state={us.clone()}
-                                is_loading={(*app_state).is_loading}
+                                is_loading={app_state.is_loading}
                                 on_replay_message={Some(on_replay_message(app_state.clone()))}
                                 on_prompt_click={Some(on_prompt_click(app_state.clone(), user_state.clone(), ui_state.clone()))}
-                                translating_button={((*ui_state).translating_button).clone()}
+                                translating_button={(ui_state.translating_button).clone()}
                                 on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_state.clone()))}
                                 on_create_branch={Some(on_create_branch(user_state.clone()))}
                             />
@@ -912,11 +912,11 @@ pub fn app() -> Html {
                                     send_message.emit(content);
                                 })
                             }}
-                            disabled={!matches!((*app_state).connection_state, ConnectionState::Connected)}
-                            external_value={((*ui_state).input_prompt_value).clone()}
+                            disabled={!matches!(app_state.connection_state, ConnectionState::Connected)}
+                            external_value={(ui_state.input_prompt_value).clone()}
                         />
                         {render_message_undo_notification(
-                            (*ui_state).deleted_messages.len(),
+                            ui_state.deleted_messages.len(),
                             on_undo_message_callback(ui_state.clone(), user_state.clone())
                         )}
                     </div>
@@ -925,7 +925,7 @@ pub fn app() -> Html {
                     <button class="panel-toggle" onclick={{
                         let ui_state = ui_state.clone();
                         Callback::from(move |_| {
-                            ui_state.dispatch(if (*ui_state).panel_open {
+                            ui_state.dispatch(if ui_state.panel_open {
                                 UIStateAction::ClosePanel
                             } else {
                                 UIStateAction::OpenPanel
@@ -940,7 +940,7 @@ pub fn app() -> Html {
                     <button class="learning-panel-toggle" onclick={{
                         let ui_state = ui_state.clone();
                         Callback::from(move |_| {
-                            ui_state.dispatch(if (*ui_state).learning_panel_open {
+                            ui_state.dispatch(if ui_state.learning_panel_open {
                                 UIStateAction::CloseLearningPanel
                             } else {
                                 UIStateAction::OpenLearningPanel
@@ -954,7 +954,7 @@ pub fn app() -> Html {
                             // Learning panel
                             <LearningPanel
                                 items={us.learning_items.clone()}
-                                is_open={(*ui_state).learning_panel_open}
+                                is_open={ui_state.learning_panel_open}
                                 on_close={{
                                     let ui_state = ui_state.clone();
                                     Callback::from(move |_| {
@@ -983,7 +983,7 @@ pub fn app() -> Html {
                         on_undo={{
                             let ui_state = ui_state.clone();
                             let user_state = user_state.clone();
-                            let deleted_items = (*ui_state).deleted_learning_items.clone();
+                            let deleted_items = ui_state.deleted_learning_items.clone();
                             Callback::from(move |_| {
                                 if let Some(item) = deleted_items.back() {
                                     user_state.dispatch(UserStateAction::UndoDeleteLearningItem(item.clone()));
@@ -991,12 +991,12 @@ pub fn app() -> Html {
                                 }
                             })
                         }}
-                        deleted_count={(*ui_state).deleted_learning_items.len()}
+                        deleted_count={ui_state.deleted_learning_items.len()}
                     />
                 </div>
 
                 // Configuration panel (collapsible)
-                <div class="panel" data-open={if (*ui_state).panel_open { "true" } else { "false" }}>
+                <div class="panel" data-open={if ui_state.panel_open { "true" } else { "false" }}>
                     <div class="panel-header">
                         <h3 class="panel-title">{"Practice Settings"}</h3>
                         <button class="panel-close" onclick={{
@@ -1078,7 +1078,7 @@ pub fn app() -> Html {
                 </div>
 
                             // Panel backdrop
-                            <div class="panel-backdrop" data-open={if (*ui_state).panel_open { "true" } else { "false" }} onclick={{
+                            <div class="panel-backdrop" data-open={if ui_state.panel_open { "true" } else { "false" }} onclick={{
                                 let ui_state = ui_state.clone();
                                 Callback::from(move |_| {
                                     ui_state.dispatch(UIStateAction::ClosePanel);

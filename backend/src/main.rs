@@ -10,12 +10,11 @@ mod websocket;
 
 use anyhow::{Context, Result};
 use axum::{
+    Json, Router,
     extract::State,
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{delete, get, post},
-    Json,
-    Router,
 };
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -25,7 +24,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 //use tts_service::azure_tts_provider::{AzureTtsProvider};
-use tts_service::eleven_labs_tts_provider::{ElevenLabsTtsProvider};
+use tts_service::eleven_labs_tts_provider::ElevenLabsTtsProvider;
 use uuid::Uuid;
 
 use persistence::{SledPersistence, UserPersistence};
@@ -49,18 +48,24 @@ async fn serve_admin_html() -> Result<Html<String>, StatusCode> {
 }
 
 /// Get admin status from all monitors
-async fn get_admin_status(State(state): State<AppState>) -> Json<admin::types::AdminStatusResponse> {
+async fn get_admin_status(
+    State(state): State<AppState>,
+) -> Json<admin::types::AdminStatusResponse> {
     use chrono::Utc;
 
     let timestamp = Utc::now().to_rfc3339();
     let anthropic = fetch_anthropic_stats().await;
 
     let elevenlabs = match std::env::var("ELEVEN_LABS_API_KEY") {
-        Ok(api_key) => admin::elevenlabs_monitor::get_elevenlabs_usage(&api_key).await.ok(),
+        Ok(api_key) => admin::elevenlabs_monitor::get_elevenlabs_usage(&api_key)
+            .await
+            .ok(),
         Err(_) => None,
     };
 
-    let qdrant = admin::qdrant_monitor::get_qdrant_stats(&state.qdrant).await.ok();
+    let qdrant = admin::qdrant_monitor::get_qdrant_stats(&state.qdrant)
+        .await
+        .ok();
 
     Json(admin::types::AdminStatusResponse {
         timestamp,
@@ -100,9 +105,8 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                "debug".into()
-            }),
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "debug".into()),
         )
         .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
         .init();
@@ -119,12 +123,10 @@ async fn main() -> Result<()> {
         .context("Failed to initialize agent service")?;
 
     tracing::info!("Initializing user persistence...");
-    let db_path = std::env::var("DB_PATH")
-        .unwrap_or_else(|_| "./data/dialect-coach.db".to_string());
-    let user_persistence: Arc<dyn UserPersistence> = Arc::new(
-        SledPersistence::new(&db_path)
-            .context("Failed to create SledPersistence")?
-    );
+    let db_path =
+        std::env::var("DB_PATH").unwrap_or_else(|_| "./data/dialect-coach.db".to_string());
+    let user_persistence: Arc<dyn UserPersistence> =
+        Arc::new(SledPersistence::new(&db_path).context("Failed to create SledPersistence")?);
     user_persistence
         .initialize()
         .await
@@ -159,7 +161,10 @@ async fn main() -> Result<()> {
     let mut app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(websocket::websocket_handler))
-        .route("/ws/user_state", get(websocket::user_state_websocket_handler))
+        .route(
+            "/ws/user_state",
+            get(websocket::user_state_websocket_handler),
+        )
         .route("/ws/user", get(websocket::user_websocket_handler))
         .route(
             "/api/translate",

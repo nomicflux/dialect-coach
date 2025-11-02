@@ -4,9 +4,9 @@ use gloo_net::websocket::{Message as WsMessage, futures::WebSocket};
 use log::{error, info};
 use std::cell::RefCell;
 use std::rc::Rc;
+use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use yew::Callback;
-use uuid::Uuid;
 
 /// WebSocket service for user management
 pub struct UserWebSocketService {
@@ -103,8 +103,7 @@ impl UserWebSocketService {
 
     /// Send a UserMessage
     fn send_message(&self, msg: &UserMessage) -> Result<(), String> {
-        let json = serde_json::to_string(msg)
-            .map_err(|e| format!("Failed to serialize: {}", e))?;
+        let json = serde_json::to_string(msg).map_err(|e| format!("Failed to serialize: {}", e))?;
 
         if let Some(sender) = self.sender.borrow().as_ref() {
             sender

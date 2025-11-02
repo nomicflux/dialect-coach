@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use dialect_coach_shared::tts::{TtsRequest};
+use dialect_coach_shared::tts::TtsRequest;
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -43,7 +43,10 @@ pub async fn synthesize_handler(
         .map_err(TtsErrorResponse::from_tts_error)?;
 
     // Convert binary audio data to base64 for frontend
-    let audio_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &response.audio_data);
+    let audio_base64 = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        &response.audio_data,
+    );
 
     let api_response = TtsSynthesizeApiResponse {
         audio_base64,

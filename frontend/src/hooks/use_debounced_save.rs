@@ -8,7 +8,10 @@ use yew::prelude::*;
 const DEBOUNCE_MS: u32 = 2000;
 
 #[hook]
-pub fn use_debounced_save<F>(user_state: &UseReducerHandle<OptionalUserState>, save_fn: F) -> Callback<()>
+pub fn use_debounced_save<F>(
+    user_state: &UseReducerHandle<OptionalUserState>,
+    save_fn: F,
+) -> Callback<()>
 where
     F: Fn(&UserState) + 'static + Clone,
 {

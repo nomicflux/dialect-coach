@@ -24,7 +24,9 @@ pub async fn get_qdrant_stats(service: &QdrantService) -> Result<QdrantStats> {
 async fn get_collection_info(service: &QdrantService) -> Result<(u64, u64, u32)> {
     let client = service.client();
     let info = client.collection_info(COLLECTION_NAME).await?;
-    let result = info.result.ok_or_else(|| anyhow::anyhow!("No collection info"))?;
+    let result = info
+        .result
+        .ok_or_else(|| anyhow::anyhow!("No collection info"))?;
 
     Ok((
         result.points_count.unwrap_or(0),
@@ -63,10 +65,10 @@ pub fn parse_prometheus_metrics(text: &str) -> HashMap<String, f64> {
         }
 
         let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() == 2 {
-            if let Ok(value) = parts[1].parse::<f64>() {
-                metrics.insert(parts[0].to_string(), value);
-            }
+        if parts.len() == 2
+            && let Ok(value) = parts[1].parse::<f64>()
+        {
+            metrics.insert(parts[0].to_string(), value);
         }
     }
 
@@ -88,7 +90,10 @@ rest_responses_total 156
 "#;
 
         let metrics = parse_prometheus_metrics(sample);
-        assert_eq!(metrics.get("process_resident_memory_bytes"), Some(&134217728.0));
+        assert_eq!(
+            metrics.get("process_resident_memory_bytes"),
+            Some(&134217728.0)
+        );
         assert_eq!(metrics.get("collections_total"), Some(&1.0));
         assert_eq!(metrics.get("rest_responses_total"), Some(&156.0));
     }

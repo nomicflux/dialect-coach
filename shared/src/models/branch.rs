@@ -13,7 +13,11 @@ pub struct ConversationBranch {
 }
 
 impl ConversationBranch {
-    pub fn new(parent_message_id: Option<Uuid>, name: Option<String>, leaf_message_id: Option<Uuid>) -> Self {
+    pub fn new(
+        parent_message_id: Option<Uuid>,
+        name: Option<String>,
+        leaf_message_id: Option<Uuid>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             parent_message_id,
@@ -60,7 +64,8 @@ mod tests {
     #[test]
     fn test_branch_serialization() {
         let parent_id = Uuid::new_v4();
-        let branch = ConversationBranch::new(Some(parent_id), Some("Test Branch".to_string()), None);
+        let branch =
+            ConversationBranch::new(Some(parent_id), Some("Test Branch".to_string()), None);
 
         let json = serde_json::to_string(&branch).unwrap();
         assert!(json.contains(&branch.id.to_string()));

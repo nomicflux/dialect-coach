@@ -1,12 +1,12 @@
 use dialect_coach_shared::tts::TtsRequest;
 use gloo_net::http::Request;
 use log::{error, info, warn};
-use serde::{Deserialize};
+use serde::Deserialize;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlAudioElement};
+use web_sys::HtmlAudioElement;
 use yew::Callback;
 
 // Speech Recognition Service for Speech-to-Text
@@ -94,17 +94,17 @@ impl SpeechRecognitionService {
             Closure::wrap(Box::new(move |event: web_sys::SpeechRecognitionEvent| {
                 if let Some(results) = event.results() {
                     // Get the latest result
-                    if let Some(result) = results.get(results.length() - 1) {
-                        if let Some(alternative) = result.get(0) {
-                            let transcript = alternative.transcript();
+                    if let Some(result) = results.get(results.length() - 1)
+                        && let Some(alternative) = result.get(0)
+                    {
+                        let transcript = alternative.transcript();
 
-                            if result.is_final() {
-                                info!("Final transcript: {}", transcript);
-                                on_result_clone.emit(transcript);
-                            } else if let Some(interim_callback) = &on_interim_clone {
-                                info!("Interim transcript: {}", transcript);
-                                interim_callback.emit(transcript);
-                            }
+                        if result.is_final() {
+                            info!("Final transcript: {}", transcript);
+                            on_result_clone.emit(transcript);
+                        } else if let Some(interim_callback) = &on_interim_clone {
+                            info!("Interim transcript: {}", transcript);
+                            interim_callback.emit(transcript);
                         }
                     }
                 }
@@ -208,19 +208,12 @@ impl CloudTtsService {
     }
 
     /// Synthesize and play speech using backend TTS
-    pub async fn speak(
-        &self,
-        text: &str,
-        language_code: &str,
-    ) -> Result<(), String> {
+    pub async fn speak(&self, text: &str, language_code: &str) -> Result<(), String> {
         if text.is_empty() {
             return Err("Cannot speak empty text".to_string());
         }
 
-        info!(
-            "Synthesizing speech with backend TTS: {}",
-            text,
-        );
+        info!("Synthesizing speech with backend TTS: {}", text,);
 
         // Build request
         let request = TtsRequest {

@@ -1,7 +1,9 @@
-use dialect_coach_shared::models::{ConversationBranch, Dialect, Formality, Language, Message, TeachingMode};
+use dialect_coach_shared::models::{
+    ConversationBranch, Dialect, Formality, Language, Message, TeachingMode,
+};
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
-use dialect_coach_shared::{User, UserState, LearningItem, LearningItemType};
-use log::{error};
+use dialect_coach_shared::{LearningItem, LearningItemType, User, UserState};
+use log::error;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -14,7 +16,6 @@ use crate::services::translation::TranslationService;
 use crate::services::user_state_websocket::UserStateWebSocketService;
 use crate::services::user_websocket::UserWebSocketService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
-
 
 pub enum AppStateAction {
     SetLoading,
@@ -93,11 +94,11 @@ impl AppState {
             AppStateAction::SetConnectionState(conn_state) => next.connection_state = conn_state,
             AppStateAction::Speak(msg) => {
                 let tts_service = next.tts_service.clone();
-                let language_code = msg.metadata.dialect.bcp47_tag().clone();
+                let language_code = msg.metadata.dialect.bcp47_tag();
                 let text = msg.get_content();
                 wasm_bindgen_futures::spawn_local(async move {
                     if let Some(tts) = tts_service
-                        && let Err(e) = tts.speak(&text, &language_code).await
+                        && let Err(e) = tts.speak(&text, language_code).await
                     {
                         error!("Failed to replay message with TTS: {}", e);
                     }
@@ -160,7 +161,7 @@ pub enum UIStateAction {
     PopDeletedMessage,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct UIState {
     pub panel_open: bool,
     pub input_prompt_value: Option<String>,
@@ -170,21 +171,6 @@ pub struct UIState {
     pub signin_username_input: String,
     pub deleted_learning_items: VecDeque<LearningItem>,
     pub deleted_messages: VecDeque<Message>,
-}
-
-impl Default for UIState {
-    fn default() -> Self {
-        Self {
-            panel_open: false,
-            input_prompt_value: None,
-            translating_button: None,
-            learning_panel_open: false,
-            create_username_input: String::new(),
-            signin_username_input: String::new(),
-            deleted_learning_items: VecDeque::new(),
-            deleted_messages: VecDeque::new(),
-        }
-    }
 }
 
 impl UIState {
@@ -236,7 +222,12 @@ impl Reducible for UIState {
 
 pub enum UserStateAction {
     AddMessage(Message),
-    AddLearningItems(Vec<Mistake>, Vec<Explained>, Vec<Translated>, Vec<Exploratory>),
+    AddLearningItems(
+        Vec<Mistake>,
+        Vec<Explained>,
+        Vec<Translated>,
+        Vec<Exploratory>,
+    ),
     UpdateScores(AgentAnalysis),
     ChangeDialect(Dialect),
     ChangeLanguage(Language),
@@ -313,7 +304,10 @@ fn update_item_score(mut item: LearningItem, analysis: &AgentAnalysis) -> Learni
 }
 
 fn apply_score_updates(items: Vec<LearningItem>, analysis: &AgentAnalysis) -> Vec<LearningItem> {
-    items.into_iter().map(|item| update_item_score(item, analysis)).collect()
+    items
+        .into_iter()
+        .map(|item| update_item_score(item, analysis))
+        .collect()
 }
 
 fn delete_learning_item(mut items: Vec<LearningItem>, id: Uuid) -> Vec<LearningItem> {
@@ -321,7 +315,10 @@ fn delete_learning_item(mut items: Vec<LearningItem>, id: Uuid) -> Vec<LearningI
     items
 }
 
-fn undo_delete_learning_item(mut items: Vec<LearningItem>, item: LearningItem) -> Vec<LearningItem> {
+fn undo_delete_learning_item(
+    mut items: Vec<LearningItem>,
+    item: LearningItem,
+) -> Vec<LearningItem> {
     items.push(item);
     items
 }
@@ -350,7 +347,10 @@ fn remove_messages_on_path(mut messages: Vec<Message>, leaf_id: Uuid) -> Vec<Mes
 
     while let Some(msg_id) = current_id {
         to_remove.push(msg_id);
-        current_id = messages.iter().find(|m| m.id == msg_id).and_then(|m| m.parent_id);
+        current_id = messages
+            .iter()
+            .find(|m| m.id == msg_id)
+            .and_then(|m| m.parent_id);
     }
 
     messages.retain(|m| !to_remove.contains(&m.id));
@@ -361,7 +361,8 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
     let mut next = state.clone();
     match action {
         UserStateAction::AddMessage(mut msg) => {
-            let current_leaf = next.branches
+            let current_leaf = next
+                .branches
                 .iter()
                 .find(|b| b.id == next.active_branch_id)
                 .and_then(|b| b.leaf_message_id);
@@ -370,7 +371,11 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             let new_msg_id = msg.id;
             next.conversation_history.push(msg);
 
-            if let Some(branch) = next.branches.iter_mut().find(|b| b.id == next.active_branch_id) {
+            if let Some(branch) = next
+                .branches
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+            {
                 branch.leaf_message_id = Some(new_msg_id);
             }
         }
@@ -420,10 +425,13 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         UserStateAction::CreateBranch(message_id) => {
             // Update the current branch's parent_message_id if it's None
             // This ensures both branches know where they diverged
-            if let Some(current_branch) = next.branches.iter_mut().find(|b| b.id == next.active_branch_id) {
-                if current_branch.parent_message_id.is_none() {
-                    current_branch.parent_message_id = Some(message_id);
-                }
+            if let Some(current_branch) = next
+                .branches
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+                && current_branch.parent_message_id.is_none()
+            {
+                current_branch.parent_message_id = Some(message_id);
             }
 
             // Create new branch
@@ -436,18 +444,25 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             next.active_branch_id = branch_id;
         }
         UserStateAction::DeleteBranch(branch_id) => {
-            let leaf_id = next.branches.iter()
+            let leaf_id = next
+                .branches
+                .iter()
                 .find(|b| b.id == branch_id)
                 .and_then(|b| b.leaf_message_id);
 
             if let Some(leaf) = leaf_id {
-                next.conversation_history = remove_messages_on_path(next.conversation_history, leaf);
+                next.conversation_history =
+                    remove_messages_on_path(next.conversation_history, leaf);
             }
 
             next.branches.retain(|b| b.id != branch_id);
 
             if next.active_branch_id == branch_id {
-                next.active_branch_id = next.branches.first().map(|b| b.id).unwrap_or(next.active_branch_id);
+                next.active_branch_id = next
+                    .branches
+                    .first()
+                    .map(|b| b.id)
+                    .unwrap_or(next.active_branch_id);
             }
         }
         UserStateAction::RenameBranch(branch_id, name) => {
@@ -501,15 +516,13 @@ impl Reducible for OptionalUserState {
             UserStateAction::ReplaceUserState(new_state) => {
                 OptionalUserState(Some(new_state)).into()
             }
-            UserStateAction::ClearUserState => {
-                OptionalUserState(None).into()
-            }
-            _ => {
-                match &self.0 {
-                    Some(state) => OptionalUserState(Some(apply_user_state_action(state, action))).into(),
-                    None => self
+            UserStateAction::ClearUserState => OptionalUserState(None).into(),
+            _ => match &self.0 {
+                Some(state) => {
+                    OptionalUserState(Some(apply_user_state_action(state, action))).into()
                 }
-            }
+                None => self,
+            },
         }
     }
 }
@@ -517,14 +530,22 @@ impl Reducible for OptionalUserState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::models::{MessageMetadata};
-    use dialect_coach_shared::models::{Formality, Language, TeachingMode, Dialect};
-    use dialect_coach_shared::models::{MessageContent};
+    use dialect_coach_shared::models::MessageContent;
+    use dialect_coach_shared::models::MessageMetadata;
+    use dialect_coach_shared::models::{Dialect, Formality, Language, TeachingMode};
 
     fn create_test_message(session_id: Uuid, parent_id: Option<Uuid>) -> Message {
         Message::new(
-            MessageContent::UserMessage { content: "test".to_string() },
-            MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishMexican, session_id),
+            MessageContent::UserMessage {
+                content: "test".to_string(),
+            },
+            MessageMetadata::at_now(
+                Formality::Casual,
+                TeachingMode::Immersive,
+                Language::Spanish,
+                Dialect::SpanishMexican,
+                session_id,
+            ),
             parent_id,
         )
     }
@@ -577,7 +598,11 @@ mod tests {
         let msg = create_test_message(Uuid::new_v4(), None);
         state.conversation_history.push(msg.clone());
 
-        state.branches.push(ConversationBranch::new(None, Some("ToDelete".to_string()), Some(msg.id)));
+        state.branches.push(ConversationBranch::new(
+            None,
+            Some("ToDelete".to_string()),
+            Some(msg.id),
+        ));
         let branch = state.branches.last().unwrap();
         let branch_id = branch.id;
 
@@ -631,7 +656,11 @@ mod tests {
         assert_eq!(added_msg1.parent_id, None);
         let msg1_id = added_msg1.id;
 
-        let branch = state.branches.iter().find(|b| b.id == active_branch_id).unwrap();
+        let branch = state
+            .branches
+            .iter()
+            .find(|b| b.id == active_branch_id)
+            .unwrap();
         assert_eq!(branch.leaf_message_id, Some(msg1_id));
 
         let msg2 = create_test_message(Uuid::new_v4(), None);
@@ -641,7 +670,11 @@ mod tests {
         let added_msg2 = state.conversation_history.last().unwrap();
         assert_eq!(added_msg2.parent_id, Some(msg1_id));
 
-        let branch = state.branches.iter().find(|b| b.id == active_branch_id).unwrap();
+        let branch = state
+            .branches
+            .iter()
+            .find(|b| b.id == active_branch_id)
+            .unwrap();
         assert_eq!(branch.leaf_message_id, Some(added_msg2.id));
     }
 }

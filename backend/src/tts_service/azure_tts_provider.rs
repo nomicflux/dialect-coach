@@ -38,29 +38,29 @@ impl AzureTtsProvider {
     fn map_language_to_voice(language_code: &str) -> &'static str {
         match language_code {
             // Spanish dialects - VERIFIED 2025-10-19
-            "es-MX" => "es-MX-DaliaNeural",      // ✅ VERIFIED
-            "es-ES" => "es-ES-ElviraNeural",     // ✅ VERIFIED
-            "es-AR" => "es-AR-ElenaNeural",      // ✅ VERIFIED
-            "es-CU" => "es-CU-BelkysNeural",     // ✅ VERIFIED
-            "es-CL" => "es-CL-CatalinaNeural",   // ✅ VERIFIED
-            "es-CO" => "es-CO-SalomeNeural",     // ✅ VERIFIED
+            "es-MX" => "es-MX-DaliaNeural",    // ✅ VERIFIED
+            "es-ES" => "es-ES-ElviraNeural",   // ✅ VERIFIED
+            "es-AR" => "es-AR-ElenaNeural",    // ✅ VERIFIED
+            "es-CU" => "es-CU-BelkysNeural",   // ✅ VERIFIED
+            "es-CL" => "es-CL-CatalinaNeural", // ✅ VERIFIED
+            "es-CO" => "es-CO-SalomeNeural",   // ✅ VERIFIED
 
             // Arabic dialects - VERIFIED 2025-10-19
-            "ar-EG" => "ar-EG-SalmaNeural",      // ✅ VERIFIED
-            "ar-LB" => "ar-LB-LaylaNeural",      // ✅ VERIFIED
-            "ar-SA" => "ar-SA-ZariyahNeural",    // ✅ VERIFIED
-            "ar-MA" => "ar-MA-MounaNeural",      // ✅ VERIFIED
-            "ar-IQ" => "ar-IQ-RanaNeural",       // ✅ VERIFIED
+            "ar-EG" => "ar-EG-SalmaNeural",   // ✅ VERIFIED
+            "ar-LB" => "ar-LB-LaylaNeural",   // ✅ VERIFIED
+            "ar-SA" => "ar-SA-ZariyahNeural", // ✅ VERIFIED
+            "ar-MA" => "ar-MA-MounaNeural",   // ✅ VERIFIED
+            "ar-IQ" => "ar-IQ-RanaNeural",    // ✅ VERIFIED
 
             // French dialects - VERIFIED 2025-10-19
-            "fr-CA" => "fr-CA-SylvieNeural",     // ✅ VERIFIED
-            "fr-FR" => "fr-FR-DeniseNeural",     // ✅ VERIFIED
-            "fr-CH" => "fr-CH-ArianeNeural",     // ✅ VERIFIED
-            "fr-BE" => "fr-BE-CharlineNeural",   // ✅ VERIFIED
+            "fr-CA" => "fr-CA-SylvieNeural",   // ✅ VERIFIED
+            "fr-FR" => "fr-FR-DeniseNeural",   // ✅ VERIFIED
+            "fr-CH" => "fr-CH-ArianeNeural",   // ✅ VERIFIED
+            "fr-BE" => "fr-BE-CharlineNeural", // ✅ VERIFIED
             // "fr-CI" => "fr-CI-AkanNeural",    // ❌ REMOVED - Voice does not exist in Azure API
 
             // Fallback to known working voice
-            _ => "en-US-AriaNeural",               // This is confirmed to exist
+            _ => "en-US-AriaNeural", // This is confirmed to exist
         }
     }
 
@@ -153,11 +153,14 @@ mod tests {
         // Requires AZURE_SPEECH_REGION and AZURE_SPEECH_KEY environment variables
         let region = env::var("AZURE_SPEECH_REGION")
             .expect("AZURE_SPEECH_REGION must be set to run this test");
-        let key = env::var("AZURE_SPEECH_KEY")
-            .expect("AZURE_SPEECH_KEY must be set to run this test");
+        let key =
+            env::var("AZURE_SPEECH_KEY").expect("AZURE_SPEECH_KEY must be set to run this test");
 
         let client = reqwest::Client::new();
-        let url = format!("https://{}.tts.speech.microsoft.com/cognitiveservices/voices/list", region);
+        let url = format!(
+            "https://{}.tts.speech.microsoft.com/cognitiveservices/voices/list",
+            region
+        );
 
         let response = client
             .get(&url)
@@ -166,7 +169,11 @@ mod tests {
             .await
             .expect("Failed to call Azure voices API");
 
-        assert!(response.status().is_success(), "Azure API call failed: {}", response.status());
+        assert!(
+            response.status().is_success(),
+            "Azure API call failed: {}",
+            response.status()
+        );
 
         let voices: Vec<serde_json::Value> = response
             .json()
@@ -202,14 +209,24 @@ mod tests {
 
         for (locale, expected_voice) in test_cases {
             let mapped_voice = AzureTtsProvider::map_language_to_voice(locale);
-            assert_eq!(mapped_voice, expected_voice, "Voice mapping mismatch for locale {}", locale);
+            assert_eq!(
+                mapped_voice, expected_voice,
+                "Voice mapping mismatch for locale {}",
+                locale
+            );
 
-            assert!(voice_names.contains(expected_voice),
+            assert!(
+                voice_names.contains(expected_voice),
                 "Voice '{}' for locale '{}' not found in Azure API. Available voices: {:?}",
-                expected_voice, locale, voice_names.iter().take(5).collect::<Vec<_>>()
+                expected_voice,
+                locale,
+                voice_names.iter().take(5).collect::<Vec<_>>()
             );
         }
 
-        println!("✅ All {} voice mappings verified against Azure API", test_cases.len());
+        println!(
+            "✅ All {} voice mappings verified against Azure API",
+            test_cases.len()
+        );
     }
 }

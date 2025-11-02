@@ -1,6 +1,6 @@
-use yew::prelude::*;
 use dialect_coach_shared::{LearningItem, LearningItemType};
 use uuid::Uuid;
+use yew::prelude::*;
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
     match &item.item {
@@ -24,10 +24,10 @@ pub struct LearningPanelProps {
 fn calculate_color_from_score(score: u8, item_type: &LearningItemType) -> String {
     let intensity = 0.5 + (score as f32 / 100.0) * 0.5;
     match item_type {
-        LearningItemType::Mistake(_) => format!("rgba(255, 107, 107, {})", intensity),      // coral
-        LearningItemType::Explanation(_) => format!("rgba(78, 205, 196, {})", intensity),    // teal
-        LearningItemType::Translation(_) => format!("rgba(255, 230, 109, {})", intensity),   // yellow
-        LearningItemType::Exploration(_) => format!("rgba(81, 207, 102, {})", intensity),    // green
+        LearningItemType::Mistake(_) => format!("rgba(255, 107, 107, {})", intensity), // coral
+        LearningItemType::Explanation(_) => format!("rgba(78, 205, 196, {})", intensity), // teal
+        LearningItemType::Translation(_) => format!("rgba(255, 230, 109, {})", intensity), // yellow
+        LearningItemType::Exploration(_) => format!("rgba(81, 207, 102, {})", intensity), // green
     }
 }
 

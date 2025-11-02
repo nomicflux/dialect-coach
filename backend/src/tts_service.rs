@@ -1,9 +1,7 @@
 pub mod azure_tts_provider;
 pub mod eleven_labs_tts_provider;
 
-use dialect_coach_shared::tts::{
-    TextToSpeechProvider, TtsError, TtsRequest, TtsResponse,
-};
+use dialect_coach_shared::tts::{TextToSpeechProvider, TtsError, TtsRequest, TtsResponse};
 use std::sync::Arc;
 use tracing::info;
 

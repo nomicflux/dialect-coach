@@ -99,10 +99,18 @@ impl ChatSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{AgentType, DialectConfig, Formality, TeachingMode, MessageContent, MessageMetadata};
+    use crate::models::{
+        AgentType, DialectConfig, Formality, MessageContent, MessageMetadata, TeachingMode,
+    };
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
-        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+        MessageMetadata::at_now(
+            Formality::Casual,
+            TeachingMode::Immersive,
+            Language::Spanish,
+            Dialect::SpanishArgentinian,
+            session_id,
+        )
     }
 
     #[test]
@@ -130,7 +138,9 @@ mod tests {
     fn test_add_message() {
         let mut session = ChatSession::new("Test".to_string(), SessionConfig::default());
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Hello".to_string() },
+            MessageContent::UserMessage {
+                content: "Hello".to_string(),
+            },
             test_metadata(session.id),
             None,
         );
@@ -145,7 +155,9 @@ mod tests {
 
         for i in 0..10 {
             let msg = Message::new(
-                MessageContent::UserMessage { content: format!("Message {}", i) },
+                MessageContent::UserMessage {
+                    content: format!("Message {}", i),
+                },
                 test_metadata(session.id),
                 None,
             );

@@ -43,18 +43,40 @@ fn render_replay_button(on_replay: &Option<Callback<Message>>, msg: &Message) ->
 
 fn get_css_classes(is_own: bool) -> (&'static str, &'static str, &'static str, &'static str) {
     if is_own {
-        ("message message--user", "avatar avatar--user", "bubble bubble--user", "U")
+        (
+            "message message--user",
+            "avatar avatar--user",
+            "bubble bubble--user",
+            "U",
+        )
     } else {
-        ("message message--bot", "avatar avatar--bot", "bubble bubble--bot", "🤖")
+        (
+            "message message--bot",
+            "avatar avatar--bot",
+            "bubble bubble--bot",
+            "🤖",
+        )
     }
 }
 
-fn render_branch_button(on_create_branch: &Option<Callback<Uuid>>, msg_id: Uuid, has_children: bool) -> Html {
+fn render_branch_button(
+    on_create_branch: &Option<Callback<Uuid>>,
+    msg_id: Uuid,
+    has_children: bool,
+) -> Html {
     if let Some(callback) = on_create_branch {
         let cb = callback.clone();
         let onclick = Callback::from(move |_| cb.emit(msg_id));
-        let title = if has_children { "Branch from here (has existing branches)" } else { "Branch from here" };
-        let class = if has_children { "branch-button branch-button--has-children" } else { "branch-button" };
+        let title = if has_children {
+            "Branch from here (has existing branches)"
+        } else {
+            "Branch from here"
+        };
+        let class = if has_children {
+            "branch-button branch-button--has-children"
+        } else {
+            "branch-button"
+        };
         html! {
             <button {class} {onclick} {title}>{"🌿"}</button>
         }
@@ -65,7 +87,8 @@ fn render_branch_button(on_create_branch: &Option<Callback<Uuid>>, msg_id: Uuid,
 
 #[function_component(MessageBubble)]
 pub fn message_bubble(props: &MessageBubbleProps) -> Html {
-    let (msg_class, avatar_class, bubble_class, avatar_text) = get_css_classes(props.is_own_message);
+    let (msg_class, avatar_class, bubble_class, avatar_text) =
+        get_css_classes(props.is_own_message);
 
     html! {
         <>

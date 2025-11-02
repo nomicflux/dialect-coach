@@ -19,7 +19,10 @@ mod tests {
         };
         let json = serde_json::to_string(&stats).unwrap();
         let deserialized: AnthropicStats = serde_json::from_str(&json).unwrap();
-        assert_eq!(stats.uncached_input_tokens, deserialized.uncached_input_tokens);
+        assert_eq!(
+            stats.uncached_input_tokens,
+            deserialized.uncached_input_tokens
+        );
         assert_eq!(stats.total_cost_usd, deserialized.total_cost_usd);
     }
 
@@ -59,7 +62,10 @@ mod tests {
         let json = serde_json::to_string(&stats).unwrap();
         let deserialized: QdrantStats = serde_json::from_str(&json).unwrap();
         assert_eq!(stats.points_count, deserialized.points_count);
-        assert_eq!(stats.dialect_counts.len(), deserialized.dialect_counts.len());
+        assert_eq!(
+            stats.dialect_counts.len(),
+            deserialized.dialect_counts.len()
+        );
     }
 
     #[test]

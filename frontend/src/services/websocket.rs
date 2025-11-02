@@ -292,7 +292,10 @@ impl WebSocketService {
     }
 
     /// Send a message with context through the WebSocket
-    pub fn send_message(&self, message_with_context: &UserMessageWithContext) -> Result<(), String> {
+    pub fn send_message(
+        &self,
+        message_with_context: &UserMessageWithContext,
+    ) -> Result<(), String> {
         let json = serde_json::to_string(message_with_context)
             .map_err(|e| format!("Failed to serialize message: {}", e))?;
 
@@ -303,7 +306,8 @@ impl WebSocketService {
             return Ok(());
         }
 
-        info!("Sending message: {} bytes ({} mistakes, {} explained)",
+        info!(
+            "Sending message: {} bytes ({} mistakes, {} explained)",
             json.len(),
             message_with_context.past_mistakes.len(),
             message_with_context.past_explained.len()

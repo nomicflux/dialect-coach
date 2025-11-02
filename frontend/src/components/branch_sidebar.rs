@@ -80,7 +80,11 @@ fn render_branch_item(
     on_switch: &Option<Callback<Uuid>>,
     on_delete: &Option<Callback<Uuid>>,
 ) -> Html {
-    let branch_class = if is_active { "branch-item branch-item--active" } else { "branch-item" };
+    let branch_class = if is_active {
+        "branch-item branch-item--active"
+    } else {
+        "branch-item"
+    };
     let branch_id = branch.id;
     let branch_name = get_branch_display_name(messages, branch);
 

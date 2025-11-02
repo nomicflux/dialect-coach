@@ -1,16 +1,14 @@
-use super::{AgentResponse, Explained, Formality, Mistake, TeachingMode, User, UserState, Language, Dialect};
+use super::{
+    AgentResponse, Dialect, Explained, Formality, Language, Mistake, TeachingMode, User, UserState,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MessageContent {
-    UserMessage {
-        content: String,
-    },
-    AgentMessage {
-        content: AgentResponse,
-    },
+    UserMessage { content: String },
+    AgentMessage { content: AgentResponse },
 }
 
 /// A message in a chat session
@@ -47,7 +45,7 @@ impl MessageMetadata {
             teaching_mode,
             language,
             dialect,
-            timestamp: timestamp,
+            timestamp,
             session_id,
         }
     }
@@ -79,7 +77,7 @@ impl Message {
         Self {
             id: Uuid::new_v4(),
             content,
-            metadata: metadata,
+            metadata,
             parent_id,
         }
     }
@@ -161,7 +159,13 @@ mod tests {
     use super::*;
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
-        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+        MessageMetadata::at_now(
+            Formality::Casual,
+            TeachingMode::Immersive,
+            Language::Spanish,
+            Dialect::SpanishArgentinian,
+            session_id,
+        )
     }
 
     #[test]
@@ -170,11 +174,7 @@ mod tests {
         let content = MessageContent::UserMessage {
             content: "Hello".to_string(),
         };
-        let msg = Message::new(
-            content.clone(),
-            test_metadata(session_id),
-            None,
-        );
+        let msg = Message::new(content.clone(), test_metadata(session_id), None);
 
         assert_eq!(msg.metadata.session_id, session_id);
         assert_eq!(msg.get_content(), "Hello");
@@ -184,12 +184,10 @@ mod tests {
 
     #[test]
     fn test_metadata_serialization() {
-        let content = MessageContent::UserMessage { content: "Hola".to_string() };
-        let msg = Message::new(
-            content.clone(),
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let content = MessageContent::UserMessage {
+            content: "Hola".to_string(),
+        };
+        let msg = Message::new(content.clone(), test_metadata(Uuid::new_v4()), None);
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"formality\":\"casual\""));
@@ -203,7 +201,9 @@ mod tests {
     #[test]
     fn test_user_message_with_context_basic() {
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Hola".to_string() },
+            MessageContent::UserMessage {
+                content: "Hola".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
@@ -233,7 +233,9 @@ mod tests {
         use crate::models::agent::{Explained, Mistake, MistakeCategory};
 
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Hola".to_string() },
+            MessageContent::UserMessage {
+                content: "Hola".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
@@ -272,7 +274,9 @@ mod tests {
         use crate::models::agent::{Mistake, MistakeCategory};
 
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Hola".to_string() },
+            MessageContent::UserMessage {
+                content: "Hola".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
@@ -317,7 +321,9 @@ mod tests {
         use crate::models::agent::Translated;
 
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Hola".to_string() },
+            MessageContent::UserMessage {
+                content: "Hola".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
@@ -344,7 +350,9 @@ mod tests {
         use crate::models::agent::Exploratory;
 
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Try this".to_string() },
+            MessageContent::UserMessage {
+                content: "Try this".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );
@@ -372,7 +380,9 @@ mod tests {
         use crate::models::agent::{Explained, Exploratory, Mistake, MistakeCategory, Translated};
 
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Test".to_string() },
+            MessageContent::UserMessage {
+                content: "Test".to_string(),
+            },
             test_metadata(Uuid::new_v4()),
             None,
         );

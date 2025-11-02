@@ -18,10 +18,15 @@ pub async fn get_elevenlabs_usage(api_key: &str) -> Result<ElevenLabsStats> {
 
 fn parse_elevenlabs_response(json: Value) -> ElevenLabsStats {
     let subscription = &json["subscription"];
-    let tier = subscription["tier"].as_str().unwrap_or("unknown").to_string();
+    let tier = subscription["tier"]
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
     let characters_used = subscription["character_count"].as_u64().unwrap_or(0);
     let characters_limit = subscription["character_limit"].as_u64().unwrap_or(0);
-    let reset_unix = subscription["next_character_count_reset_unix"].as_i64().unwrap_or(0);
+    let reset_unix = subscription["next_character_count_reset_unix"]
+        .as_i64()
+        .unwrap_or(0);
 
     ElevenLabsStats {
         tier,
@@ -34,7 +39,7 @@ fn parse_elevenlabs_response(json: Value) -> ElevenLabsStats {
 
 fn unix_to_iso8601(unix_timestamp: i64) -> String {
     DateTime::from_timestamp(unix_timestamp, 0)
-        .unwrap_or_else(|| Utc::now())
+        .unwrap_or_else(Utc::now)
         .to_rfc3339()
 }
 

@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument, Explained, Formality, Mistake, TeachingMode};
-use rig::completion::{Prompt, Chat, Message as RigMessage, message::UserContent, message::AssistantContent};
-use rig::one_or_many::OneOrMany;
+use rig::completion::{
+    Chat, Message as RigMessage, Prompt, message::AssistantContent, message::UserContent,
+};
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
 
 use std::sync::Arc;
@@ -75,8 +76,7 @@ The "translated_word" should be the original word, "translated_to" should be you
 Include exploratory array when you introduce new language patterns, idioms, or features you want the user to try.
 Keep it to 1-2 brief points that naturally fit the story context."#
         }
-        TeachingMode::Immersive
-        | TeachingMode::Debug => {
+        TeachingMode::Immersive | TeachingMode::Debug => {
             r#"Response format: {"response": "<your full conversational response here>"}
 Where <your full conversational response here> is your natural dialect response following all the rules above."#
         }
@@ -110,29 +110,32 @@ fn teaching_desc(teaching_mode: &TeachingMode) -> String {
     let desc = match *teaching_mode {
         TeachingMode::Immersive => {
             "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections."
-        },
+        }
         TeachingMode::Corrective => {
             "3. CORRECTIVE MODE: Respond naturally, but also populate the mistakes array with any errors in user's message. Include spelling errors, grammar mistakes, and dialectal usage problems. IGNORE missing punctuation and capitalization - this is casual chat. Be specific and brief in identifying the exact problematic word or phrase."
-        },
+        }
         TeachingMode::Explanatory => {
             "3. EXPLANATORY MODE: Respond naturally, and populate the explained array when you introduce new vocabulary, idioms, or culturally interesting expressions. Keep explanations brief and practical."
-        },
+        }
         TeachingMode::Interleaved => {
             r#"3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:
 
 {user input with non-target-language words simply translated into target dialect, if there are any non-target-language words}
 
 {brief, conversational response in target dialect}."#
-        },
+        }
         TeachingMode::StoryTeller => {
             "3. STORYTELLER MODE: You are telling an interactive story with the user. Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue."
-        },
+        }
         TeachingMode::Debug => {
             "3. DEBUG MODE: Answer in English with clear, brief explanations. The user is debugging an issue. Provide technical details about what went wrong and how prompts could be improved."
-        },
+        }
     };
-    format!("{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.",
-            desc, tokens / 2)
+    format!(
+        "{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.",
+        desc,
+        tokens / 2
+    )
 }
 
 fn format_mistakes_for_analysis(mistakes: &[Mistake]) -> String {
@@ -243,7 +246,8 @@ impl AgentService {
     }
 
     fn clean_response(response: &String) -> String {
-        response.replace("```json", "")
+        response
+            .replace("```json", "")
             .replace("```", "")
             .trim()
             .to_string()
@@ -258,7 +262,11 @@ impl AgentService {
         translated: &[dialect_coach_shared::Translated],
         exploratory: &[dialect_coach_shared::Exploratory],
     ) -> Result<dialect_coach_shared::AgentAnalysis> {
-        if mistakes.is_empty() && explained.is_empty() && translated.is_empty() && exploratory.is_empty() {
+        if mistakes.is_empty()
+            && explained.is_empty()
+            && translated.is_empty()
+            && exploratory.is_empty()
+        {
             tracing::debug!("Skipping analysis - no learning items");
             return Ok(dialect_coach_shared::AgentAnalysis::new());
         }
@@ -271,7 +279,8 @@ impl AgentService {
             exploratory.len()
         );
 
-        let preamble = analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory);
+        let preamble =
+            analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory);
         tracing::debug!("Analysis preamble sent to Claude:\n{}", preamble);
 
         let agent = self
@@ -372,9 +381,7 @@ impl AgentService {
         Ok(docs)
     }
 
-    fn temperature_for_mode(
-        mode: &TeachingMode,
-    ) -> f64 {
+    fn temperature_for_mode(mode: &TeachingMode) -> f64 {
         match mode {
             TeachingMode::Immersive => 0.6,
             TeachingMode::Corrective => 0.4,
@@ -388,14 +395,14 @@ impl AgentService {
     fn get_user_content(content: &UserContent) -> String {
         match content {
             UserContent::Text(text) => text.text.clone(),
-            _ => "".to_string()
+            _ => "".to_string(),
         }
     }
 
     fn get_assistant_content(content: &AssistantContent) -> String {
         match content {
             AssistantContent::Text(text) => text.text.clone(),
-            _ => "".to_string()
+            _ => "".to_string(),
         }
     }
 
@@ -415,11 +422,11 @@ impl AgentService {
         conversation_history: &[RigMessage],
     ) -> Result<dialect_coach_shared::AgentResponse> {
         tracing::info!("Generating embeddings for multi-vector retrieval");
-        let history_text = conversation_history.iter().map(|m| Self::get_message_text(&m)).collect::<Vec<String>>();
-        let embeddings = self.retrieve_embeddings(
-            user_message,
-            &history_text,
-        )?;
+        let history_text = conversation_history
+            .iter()
+            .map(|m| Self::get_message_text(m))
+            .collect::<Vec<String>>();
+        let embeddings = self.retrieve_embeddings(user_message, &history_text)?;
 
         tracing::info!("Performing multi-vector retrieval");
         let examples = self.retrieve_examples(&dialect, embeddings).await?;
@@ -580,14 +587,17 @@ impl AgentService {
 
         let cleaned_response = Self::clean_response(&response);
         let parsed_response: dialect_coach_shared::AgentResponse =
-            serde_json::from_str(&cleaned_response)
-                .map_err(|e| {
-                    tracing::error!("JSON parse error: {}. First 200 chars of response: {}",
-                        e,
-                        &response.chars().take(200).collect::<String>()
-                    );
-                    anyhow::anyhow!("Claude returned invalid JSON: {}. Check if response is wrapped in markdown", e)
-                })?;
+            serde_json::from_str(&cleaned_response).map_err(|e| {
+                tracing::error!(
+                    "JSON parse error: {}. First 200 chars of response: {}",
+                    e,
+                    &response.chars().take(200).collect::<String>()
+                );
+                anyhow::anyhow!(
+                    "Claude returned invalid JSON: {}. Check if response is wrapped in markdown",
+                    e
+                )
+            })?;
 
         tracing::info!(
             "Generated response for dialect {} ({} chars)",
@@ -705,9 +715,7 @@ mod tests {
         assert!(system_content.contains(
             "1) Only flag content in the user's direct messages, not in system examples or context"
         ));
-        assert!(
-            system_content.contains("2) Always respond to the user's actual message first")
-        );
+        assert!(system_content.contains("2) Always respond to the user's actual message first"));
     }
 
     #[tokio::test]

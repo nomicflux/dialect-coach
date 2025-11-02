@@ -12,11 +12,20 @@ pub fn should_agent_respond(message: &Message) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{
+        AgentResponse, AgentType, Dialect, DialectConfig, Formality, Language, MessageContent,
+        MessageMetadata, Participant, SessionConfig, TeachingMode,
+    };
     use uuid::Uuid;
-    use crate::models::{AgentResponse, AgentType, Dialect, DialectConfig, Formality, Language, MessageContent, MessageMetadata, Participant, SessionConfig, TeachingMode};
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
-        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+        MessageMetadata::at_now(
+            Formality::Casual,
+            TeachingMode::Immersive,
+            Language::Spanish,
+            Dialect::SpanishArgentinian,
+            session_id,
+        )
     }
 
     fn create_test_session() -> ChatSession {
@@ -53,7 +62,9 @@ mod tests {
     fn test_add_message_pure() {
         let session = create_test_session();
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Hello".to_string() },
+            MessageContent::UserMessage {
+                content: "Hello".to_string(),
+            },
             test_metadata(session.id),
             None,
         );
@@ -68,7 +79,9 @@ mod tests {
     fn test_agent_responds_to_human() {
         let session = create_test_session();
         let msg = Message::new(
-            MessageContent::UserMessage { content: "Hola".to_string() },
+            MessageContent::UserMessage {
+                content: "Hola".to_string(),
+            },
             test_metadata(session.id),
             None,
         );
@@ -80,7 +93,9 @@ mod tests {
     fn test_agent_does_not_respond_to_self() {
         let session = create_test_session();
         let msg = Message::new(
-            MessageContent::AgentMessage { content: AgentResponse::from("Hola".to_string()) },
+            MessageContent::AgentMessage {
+                content: AgentResponse::from("Hola".to_string()),
+            },
             test_metadata(session.id),
             None,
         );

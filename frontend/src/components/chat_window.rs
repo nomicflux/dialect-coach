@@ -1,5 +1,5 @@
-use dialect_coach_shared::models::{ConversationBranch, Formality, Message};
 use dialect_coach_shared::UserState;
+use dialect_coach_shared::models::{ConversationBranch, Formality, Message};
 use uuid::Uuid;
 use web_sys::HtmlElement;
 use yew::prelude::*;
@@ -23,7 +23,9 @@ pub struct ChatWindowProps {
 }
 
 fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool {
-    branches.iter().any(|b| b.parent_message_id == Some(message_id))
+    branches
+        .iter()
+        .any(|b| b.parent_message_id == Some(message_id))
 }
 
 fn get_context_aware_prompt(prompt_type: &str, formality: Formality) -> &'static str {
