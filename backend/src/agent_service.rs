@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument, Explained, Formality, Mistake, TeachingMode};
-use rig::completion::Prompt;
+use rig::completion::{Prompt, Chat, Message as RigMessage, message::UserContent, message::AssistantContent};
+use rig::one_or_many::OneOrMany;
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
 
 use std::sync::Arc;
@@ -47,7 +48,7 @@ fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
 }
 Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
 The "correction" field should contain the direct correction of the mistake in "specific_mistake". "correction" must be correct.
-The "mistake_category" field should also contain a very brief explanation of the mistake.
+The "mistake_category.context" field should also contain a very brief explanation of the mistake. Keep to a single sentence at most, or empty of "correction" was sufficient.
 Only include mistakes if user made clear errors for the dialect. Keep specific_mistake only the word or phrase that was an error. Restrict yourself to a maximum of 3 mistakes per response."#
         }
         TeachingMode::Explanatory => {
@@ -178,9 +179,8 @@ fn format_exploratory_for_analysis(exploratory: &[dialect_coach_shared::Explorat
         .join(", ")
 }
 
-fn analysis_agent_prompt(
+fn analysis_agent_preamble(
     dialect: &Dialect,
-    conversation_history: &[String],
     mistakes: &[Mistake],
     explained: &[Explained],
     translated: &[dialect_coach_shared::Translated],
@@ -188,9 +188,6 @@ fn analysis_agent_prompt(
 ) -> String {
     format!(
         r#"You are analyzing a language learner's progress in {}.
-
-CONVERSATION HISTORY:
-{}
 
 PAST MISTAKES TO ANALYZE:
 {}
@@ -205,17 +202,16 @@ PAST EXPLORATORY POINTS TO ANALYZE:
 {}
 
 Analyze the conversation and score each item (be generous; prefer to give points when in doubt. If you see the item in the user response, do not give a score of 0.):
-MISTAKES (-10 to 10): -10=still occurring, 0=no usage/different error, 10=fixed
-EXPLAINED (0 to 10): 0=not used, 5=attempted incorrectly, 10=used correctly
-TRANSLATED (-10 to 10): -10=reverted to untranslated, 0=not used, 10=correctly used
-EXPLORATORY (0 to 10): 0=not used, 5=imperfect attempt, 10=correctly used
+MISTAKES (-10 to 10): -10=still occurring, 0=no usage/different error, 10=fixed. Give partial points for similar cases to the mistake.
+EXPLAINED (0 to 10): 0=not used, 5=attempted incorrectly, 10=used correctly. Give partial points for similar cases to the explained item.
+TRANSLATED (-10 to 10): -10=reverted to untranslated, 0=not used, 10=correctly used. Give full points for different conjugations, declensions, etc. as the translated item.
+EXPLORATORY (0 to 10): 0=not used, 5=imperfect attempt, 10=correctly used. Be generous in counting whether the explored item matches.
 
 {}
 
 Return ONLY this JSON:
 {{"mistake_scores": {{}}, "explained_scores": {{}}, "translated_scores": {{}}, "exploratory_scores": {{}}}}"#,
         dialect.name(),
-        conversation_history.join("\n"),
         format_mistakes_for_analysis(mistakes),
         format_explained_for_analysis(explained),
         format_translated_for_analysis(translated),
@@ -256,7 +252,7 @@ impl AgentService {
     pub async fn generate_analysis(
         &self,
         dialect: Dialect,
-        conversation_history: &[String],
+        msg: &String,
         mistakes: &[Mistake],
         explained: &[Explained],
         translated: &[dialect_coach_shared::Translated],
@@ -275,16 +271,19 @@ impl AgentService {
             exploratory.len()
         );
 
-        let prompt = analysis_agent_prompt(&dialect, conversation_history, mistakes, explained, translated, exploratory);
-
-        tracing::debug!("Analysis prompt sent to Claude:\n{}", prompt);
+        let preamble = analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory);
+        tracing::debug!("Analysis preamble sent to Claude:\n{}", preamble);
 
         let agent = self
             .client
             .agent(&self.model_name)
-            .max_tokens(512)
-            .temperature(0.1)
+            .max_tokens(1024)
+            .temperature(0.2)
+            .preamble(&preamble)
             .build();
+
+        let prompt = format!("USER MESSAGE TO ANALYZE: {msg}");
+        tracing::debug!("Analysis prompt sent to Claude:\n{}", prompt);
 
         tracing::info!("Calling Claude API for analysis...");
         let response = agent
@@ -315,7 +314,7 @@ impl AgentService {
 
     fn retrieve_history_embeddings(
         &self,
-        conversation_history: &[String],
+        conversation_history: &Vec<String>,
     ) -> Result<Vec<Vec<f32>>> {
         (*conversation_history)
             .iter()
@@ -331,7 +330,7 @@ impl AgentService {
     fn retrieve_embeddings(
         &self,
         user_message: &str,
-        conversation_history: &[String],
+        conversation_history: &Vec<String>,
     ) -> Result<Vec<Vec<f32>>> {
         let content_embedding = self.retrieve_user_msg_embeddings(user_message)?;
         let mut topic_embeddings = self
@@ -386,16 +385,41 @@ impl AgentService {
         }
     }
 
+    fn get_user_content(content: &UserContent) -> String {
+        match content {
+            UserContent::Text(text) => text.text.clone(),
+            _ => "".to_string()
+        }
+    }
+
+    fn get_assistant_content(content: &AssistantContent) -> String {
+        match content {
+            AssistantContent::Text(text) => text.text.clone(),
+            _ => "".to_string()
+        }
+    }
+
+    fn get_message_text(message: &RigMessage) -> String {
+        match message {
+            RigMessage::User { content } => Self::get_user_content(&content.first()),
+            RigMessage::Assistant { content } => Self::get_assistant_content(&content.first()),
+        }
+    }
+
     pub async fn generate_response(
         &self,
         user_message: &str,
         dialect: Dialect,
         formality: Formality,
         teaching_mode: TeachingMode,
-        conversation_history: &[String],
+        conversation_history: &[RigMessage],
     ) -> Result<dialect_coach_shared::AgentResponse> {
         tracing::info!("Generating embeddings for multi-vector retrieval");
-        let embeddings = self.retrieve_embeddings(user_message, conversation_history)?;
+        let history_text = conversation_history.iter().map(|m| Self::get_message_text(&m)).collect::<Vec<String>>();
+        let embeddings = self.retrieve_embeddings(
+            user_message,
+            &history_text,
+        )?;
 
         tracing::info!("Performing multi-vector retrieval");
         let examples = self.retrieve_examples(&dialect, embeddings).await?;
@@ -497,16 +521,6 @@ impl AgentService {
             tracing::warn!("No secondary examples available!");
         }
 
-        // Build conversation context
-        let history_context = if conversation_history.is_empty() {
-            String::new()
-        } else {
-            format!(
-                "\n\n# CONVERSATION HISTORY\n{}",
-                conversation_history.join("\n")
-            )
-        };
-
         let role_desc = speaker_desc(&dialect, &formality);
         let teaching_rules = teaching_desc(&teaching_mode);
 
@@ -514,19 +528,18 @@ impl AgentService {
             format!(
                 "# YOUR ROLE\n\
             {}.\n\n\
-            Conversational Context: {}\n\n\
             # CRITICAL RULES\n\
-            1. BE CONCISE: Explain why you did what you did simply and briefly, without pandering.\n\
+            1. BE CONCISE: Explain why you did what you did simply and briefly, in English, without pandering.\n\
             2. ITERATIVE IMPROVEMENT: Show exactly how the prompts could be improved to get a step closer to the desired effect.\n\
             Now respond to the user's message technically.",
-                role_desc, history_context
+                role_desc
             )
         } else {
             format!(
                 "{}\n\n\
-            {}\n\n\
             # YOUR ROLE\n\
-            {}. Your responses must sound EXACTLY like the authentic examples above.\n\n\
+            {}.
+            Your responses must sound EXACTLY like these authentic examples:\n{}\n\n\
             # CRITICAL RULES\n\
             1. MIMIC THE PATTERNS: Study the examples above and copy their vocabulary, grammar, and style\n\
             2. MAINTAIN FORMALITY: Match the {} level shown in the primary examples\n\
@@ -535,16 +548,14 @@ impl AgentService {
             6. USE DIALECT MARKERS: Include the characteristic phrases and constructions from the examples\n\
             7. {}\n\
             8. {}\n\
-            {}\n\n\
             Now respond to the user's message naturally, as a local {} speaker would.",
-                rag_context,
                 CONTENT_FILTERING_DIRECTIVES,
                 role_desc,
+                rag_context,
                 formality_label.to_lowercase(),
                 teaching_rules,
                 JSON_OUTPUT_INSTRUCTION,
                 output_format_spec(&teaching_mode),
-                history_context,
                 dialect.name()
             )
         };
@@ -561,7 +572,7 @@ impl AgentService {
 
         tracing::info!("Sending prompt to Claude: {}", user_message);
         let response = agent
-            .prompt(user_message)
+            .chat(user_message, conversation_history.to_vec())
             .await
             .context("Failed to get completion from Claude")?;
 

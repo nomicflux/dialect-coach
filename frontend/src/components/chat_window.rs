@@ -153,7 +153,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                     html! {
                         <div class="messages-list">
                             {for active_messages.iter().map(|msg| {
-                                let is_own = msg.participant_id == "user";
+                                let is_own = !msg.is_agent();
                                 let has_children = has_child_branches(msg.id, &props.user_state.branches);
                                 html! {
                                     <MessageBubble

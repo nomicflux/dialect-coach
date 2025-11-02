@@ -274,9 +274,9 @@ Currently, the application creates an anonymous user with full UserState (sessio
 - All field accesses simplified from `user_state.0.as_ref().map(|s| s.field)...` to `us.field`
 - Dialect select uses block expression `{{...}}` for multi-statement code
 - Welcome message provides clear call-to-action when not authenticated
-- **Error display moved outside conditional** (lines 804-821): Shows errors for both authenticated and unauthenticated states (auth failures, connection errors, etc.)
+- **Error display moved INSIDE header container** (lines 799-816): Positioned inside header after connection status so it's properly styled and visible for both authenticated and unauthenticated states (auth failures, username conflicts, connection errors, etc.)
 
-**Compilation Status**: ✅ Compiles successfully (0 errors, 2 warnings)
+**Compilation Status**: ✅ Compiles successfully (0 errors, 3 warnings)
 
 **Completion Criteria**:
 - ✅ Fresh load shows only sign-in forms (welcome message visible)

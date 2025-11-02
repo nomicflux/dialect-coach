@@ -93,8 +93,8 @@ impl AppState {
             AppStateAction::SetConnectionState(conn_state) => next.connection_state = conn_state,
             AppStateAction::Speak(msg) => {
                 let tts_service = next.tts_service.clone();
-                let language_code = msg.language.clone();
-                let text = msg.content.response.clone();
+                let language_code = msg.metadata.dialect.bcp47_tag().clone();
+                let text = msg.get_content();
                 wasm_bindgen_futures::spawn_local(async move {
                     if let Some(tts) = tts_service
                         && let Err(e) = tts.speak(&text, &language_code).await
@@ -517,16 +517,14 @@ impl Reducible for OptionalUserState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::models::AgentResponse;
+    use dialect_coach_shared::models::{MessageMetadata};
+    use dialect_coach_shared::models::{Formality, Language, TeachingMode, Dialect};
+    use dialect_coach_shared::models::{MessageContent};
 
     fn create_test_message(session_id: Uuid, parent_id: Option<Uuid>) -> Message {
         Message::new(
-            session_id,
-            "user".to_string(),
-            AgentResponse::from("test"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "test".to_string() },
+            MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishMexican, session_id),
             parent_id,
         )
     }

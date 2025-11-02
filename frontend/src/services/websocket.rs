@@ -209,7 +209,6 @@ impl WebSocketService {
                         info!("Received WebSocket message: {} bytes", text.len());
                         match serde_json::from_str::<Message>(&text) {
                             Ok(parsed_msg) => {
-                                info!("Parsed message from: {}", parsed_msg.participant_id);
                                 on_message.emit(parsed_msg);
                             }
                             Err(e) => {

@@ -99,7 +99,11 @@ impl ChatSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{AgentResponse, AgentType, DialectConfig, Formality, TeachingMode};
+    use crate::models::{AgentType, DialectConfig, Formality, TeachingMode, MessageContent, MessageMetadata};
+
+    fn test_metadata(session_id: Uuid) -> MessageMetadata {
+        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+    }
 
     #[test]
     fn test_new_session() {
@@ -126,12 +130,8 @@ mod tests {
     fn test_add_message() {
         let mut session = ChatSession::new("Test".to_string(), SessionConfig::default());
         let msg = Message::new(
-            session.id,
-            "user1".to_string(),
-            AgentResponse::from("Hello"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "Hello".to_string() },
+            test_metadata(session.id),
             None,
         );
 
@@ -145,12 +145,8 @@ mod tests {
 
         for i in 0..10 {
             let msg = Message::new(
-                session.id,
-                "user1".to_string(),
-                AgentResponse::from(format!("Message {}", i)),
-                "es-MX".to_string(),
-                Formality::Casual,
-                TeachingMode::Immersive,
+                MessageContent::UserMessage { content: format!("Message {}", i) },
+                test_metadata(session.id),
                 None,
             );
             session.add_message(msg);
@@ -158,7 +154,7 @@ mod tests {
 
         assert_eq!(session.recent_messages(5).len(), 5);
         assert_eq!(session.recent_messages(20).len(), 10);
-        assert_eq!(session.recent_messages(5)[0].content.response, "Message 5");
+        assert_eq!(session.recent_messages(5)[0].get_content(), "Message 5");
     }
 
     #[test]

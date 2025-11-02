@@ -60,7 +60,7 @@ fn get_branch_display_name(messages: &[Message], branch: &ConversationBranch) ->
     }
 
     if let Some(msg) = target_msg {
-        let text = &msg.content.response;
+        let text = &msg.get_content();
         let max_len = 30;
         if text.len() > max_len {
             format!("{}...", &text[..max_len])

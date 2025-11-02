@@ -1,70 +1,98 @@
-use super::{AgentResponse, Explained, Formality, Mistake, TeachingMode, User, UserState};
+use super::{AgentResponse, Explained, Formality, Mistake, TeachingMode, User, UserState, Language, Dialect};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MessageContent {
+    UserMessage {
+        content: String,
+    },
+    AgentMessage {
+        content: AgentResponse,
+    },
+}
 
 /// A message in a chat session
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
     pub id: Uuid,
-    pub session_id: Uuid,
-    pub participant_id: String,
-    pub content: AgentResponse,
-    pub timestamp: DateTime<Utc>,
-    pub language: String,
-    pub metadata: MessageMetadata,
     pub parent_id: Option<Uuid>,
+    pub metadata: MessageMetadata,
+    pub content: MessageContent,
 }
 
 /// Metadata associated with a message
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageMetadata {
-    /// Desired formality level for agent responses
     pub formality: Formality,
-
-    /// Teaching mode for agent behavior
     pub teaching_mode: TeachingMode,
+    pub language: Language,
+    pub dialect: Dialect,
+    pub timestamp: DateTime<Utc>,
+    pub session_id: Uuid,
 }
 
 impl MessageMetadata {
-    pub fn new(formality: Formality, teaching_mode: TeachingMode) -> Self {
+    pub fn new(
+        formality: Formality,
+        teaching_mode: TeachingMode,
+        language: Language,
+        dialect: Dialect,
+        timestamp: DateTime<Utc>,
+        session_id: Uuid,
+    ) -> Self {
         Self {
             formality,
             teaching_mode,
+            language,
+            dialect,
+            timestamp: timestamp,
+            session_id,
         }
     }
-}
 
-impl Default for MessageMetadata {
-    fn default() -> Self {
-        Self {
-            formality: Formality::Casual,
-            teaching_mode: TeachingMode::Immersive,
-        }
+    pub fn at_now(
+        formality: Formality,
+        teaching_mode: TeachingMode,
+        language: Language,
+        dialect: Dialect,
+        session_id: Uuid,
+    ) -> Self {
+        Self::new(
+            formality,
+            teaching_mode,
+            language,
+            dialect,
+            Utc::now(),
+            session_id,
+        )
     }
 }
 
 impl Message {
-    /// Create a new message
     pub fn new(
-        session_id: Uuid,
-        participant_id: String,
-        content: AgentResponse,
-        language: String,
-        formality: Formality,
-        teaching_mode: TeachingMode,
+        content: MessageContent,
+        metadata: MessageMetadata,
         parent_id: Option<Uuid>,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
-            session_id,
-            participant_id,
             content,
-            timestamp: Utc::now(),
-            language,
-            metadata: MessageMetadata::new(formality, teaching_mode),
+            metadata: metadata,
             parent_id,
         }
+    }
+
+    pub fn get_content(&self) -> String {
+        match self.content.clone() {
+            MessageContent::UserMessage { content } => content,
+            MessageContent::AgentMessage { content } => content.response,
+        }
+    }
+
+    pub fn is_agent(&self) -> bool {
+        matches!(self.content, MessageContent::AgentMessage { .. })
     }
 }
 
@@ -132,44 +160,40 @@ pub enum UserMessage {
 mod tests {
     use super::*;
 
+    fn test_metadata(session_id: Uuid) -> MessageMetadata {
+        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+    }
+
     #[test]
     fn test_new_message() {
         let session_id = Uuid::new_v4();
-        let content = AgentResponse::from("Hello!");
+        let content = MessageContent::UserMessage {
+            content: "Hello".to_string(),
+        };
         let msg = Message::new(
-            session_id,
-            "user1".to_string(),
             content.clone(),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            test_metadata(session_id),
             None,
         );
 
-        assert_eq!(msg.session_id, session_id);
-        assert_eq!(msg.participant_id, "user1");
-        assert_eq!(msg.content, content);
-        assert_eq!(msg.content.response, "Hello!");
+        assert_eq!(msg.metadata.session_id, session_id);
+        assert_eq!(msg.get_content(), "Hello");
         assert_eq!(msg.metadata.formality, Formality::Casual);
         assert_eq!(msg.metadata.teaching_mode, TeachingMode::Immersive);
     }
 
     #[test]
     fn test_metadata_serialization() {
-        let content = AgentResponse::from("Hola");
+        let content = MessageContent::UserMessage { content: "Hola".to_string() };
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
             content.clone(),
-            "es-MX".to_string(),
-            Formality::DialectRich,
-            TeachingMode::Corrective,
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"formality\":\"dialect_rich\""));
-        assert!(json.contains("\"teaching_mode\":\"corrective\""));
+        assert!(json.contains("\"formality\":\"casual\""));
+        assert!(json.contains("\"teaching_mode\":\"immersive\""));
 
         // Verify metadata fields are not null
         assert!(!json.contains("\"formality\":null"));
@@ -179,17 +203,21 @@ mod tests {
     #[test]
     fn test_user_message_with_context_basic() {
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Hola"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "Hola".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
         let branch_id = Uuid::new_v4();
-        let context = UserMessageWithContext::new(msg.clone(), vec![], vec![], vec![], vec![], branch_id, vec![]);
+        let context = UserMessageWithContext::new(
+            msg.clone(),
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            branch_id,
+            vec![],
+        );
 
         assert_eq!(context.message.id, msg.id);
         assert_eq!(context.past_mistakes.len(), 0);
@@ -205,12 +233,8 @@ mod tests {
         use crate::models::agent::{Explained, Mistake, MistakeCategory};
 
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Hola"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "Hola".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
@@ -222,10 +246,7 @@ mod tests {
             },
         );
 
-        let explained = Explained::new(
-            "órale".to_string(),
-            "Mexican slang".to_string(),
-        );
+        let explained = Explained::new("órale".to_string(), "Mexican slang".to_string());
 
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
@@ -251,12 +272,8 @@ mod tests {
         use crate::models::agent::{Mistake, MistakeCategory};
 
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Hola"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "Hola".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
@@ -269,7 +286,15 @@ mod tests {
         );
 
         let branch_id = Uuid::new_v4();
-        let context = UserMessageWithContext::new(msg, vec![mistake], vec![], vec![], vec![], branch_id, vec![]);
+        let context = UserMessageWithContext::new(
+            msg,
+            vec![mistake],
+            vec![],
+            vec![],
+            vec![],
+            branch_id,
+            vec![],
+        );
 
         let json = serde_json::to_string(&context).unwrap();
         assert!(json.contains("\"message\""));
@@ -292,19 +317,12 @@ mod tests {
         use crate::models::agent::Translated;
 
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Hola"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "Hola".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
-        let translated = Translated::new(
-            "hello".to_string(),
-            "hola".to_string(),
-        );
+        let translated = Translated::new("hello".to_string(), "hola".to_string());
 
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
@@ -326,19 +344,13 @@ mod tests {
         use crate::models::agent::Exploratory;
 
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Try this"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "Try this".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
-        let exploratory = Exploratory::new(
-            "Use subjunctive".to_string(),
-            "Try 'Si fuera'".to_string(),
-        );
+        let exploratory =
+            Exploratory::new("Use subjunctive".to_string(), "Try 'Si fuera'".to_string());
 
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
@@ -357,15 +369,11 @@ mod tests {
 
     #[test]
     fn test_user_message_with_context_all_four_types() {
-        use crate::models::agent::{Exploratory, Explained, Mistake, MistakeCategory, Translated};
+        use crate::models::agent::{Explained, Exploratory, Mistake, MistakeCategory, Translated};
 
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Test"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "Test".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
@@ -377,20 +385,12 @@ mod tests {
             },
         );
 
-        let explained = Explained::new(
-            "órale".to_string(),
-            "Mexican slang".to_string(),
-        );
+        let explained = Explained::new("órale".to_string(), "Mexican slang".to_string());
 
-        let translated = Translated::new(
-            "hello".to_string(),
-            "hola".to_string(),
-        );
+        let translated = Translated::new("hello".to_string(), "hola".to_string());
 
-        let exploratory = Exploratory::new(
-            "Use subjunctive".to_string(),
-            "Try 'Si fuera'".to_string(),
-        );
+        let exploratory =
+            Exploratory::new("Use subjunctive".to_string(), "Try 'Si fuera'".to_string());
 
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(

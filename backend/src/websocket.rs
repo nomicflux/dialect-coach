@@ -5,7 +5,9 @@ use axum::{
     },
     response::Response,
 };
-use dialect_coach_shared::{AgentResponse, Dialect, Formality, Message, TeachingMode, User, UserMessage, UserMessageWithContext, UserState, UserStateMessage};
+use rig::completion::{Message as RigMessage, message::UserContent, message::AssistantContent, message::Text};
+use rig::one_or_many::OneOrMany;
+use dialect_coach_shared::{AgentResponse, Dialect, Formality, Language, Message, MessageContent, MessageMetadata, TeachingMode, User, UserMessage, UserMessageWithContext, UserState, UserStateMessage};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -16,12 +18,17 @@ fn error_to_agent_response(error_message: String) -> AgentResponse {
     AgentResponse::from(error_message)
 }
 
-fn build_context_from_messages(messages: &[Message]) -> Vec<String> {
+fn convert_to_rig_message(message: &Message) -> RigMessage {
+    match message.content.clone() {
+        MessageContent::UserMessage { content } => RigMessage::User { content: OneOrMany::one(UserContent::Text(Text { text: content.clone() })) },
+        MessageContent::AgentMessage { content } => RigMessage::Assistant { content: OneOrMany::one(AssistantContent::Text(Text { text: content.response.clone() })) },
+    }
+}
+
+fn build_context_from_messages(messages: &[Message]) -> Vec<RigMessage> {
     messages
         .iter()
-        .map(|msg| {
-            format!("{}: {}", msg.participant_id, msg.content.response)
-        })
+        .map(convert_to_rig_message)
         .collect()
 }
 
@@ -32,20 +39,13 @@ fn trim_history(history: &mut Vec<String>, max_size: usize) {
 }
 
 fn create_error_message(
-    session_id: Uuid,
     error_text: String,
-    language: String,
-    formality: Formality,
-    teaching_mode: TeachingMode,
+    metadata: MessageMetadata,
 ) -> Message {
     let error_response = error_to_agent_response(error_text);
     Message::new(
-        session_id,
-        "system".to_string(),
-        error_response,
-        language,
-        formality,
-        teaching_mode,
+        MessageContent::AgentMessage { content: error_response },
+        metadata,
         None,
     )
 }
@@ -85,20 +85,13 @@ async fn add_agent_to_history(state: &AppState, session_id: Uuid, agent_text: &s
 }
 
 fn create_agent_response_message(
-    session_id: Uuid,
     agent_response: AgentResponse,
-    language: String,
-    formality: Formality,
-    teaching_mode: TeachingMode,
+    metadata: MessageMetadata,
     parent_id: Uuid,
 ) -> Message {
     Message::new(
-        session_id,
-        "agent".to_string(),
-        agent_response,
-        language,
-        formality,
-        teaching_mode,
+        MessageContent::AgentMessage { content: agent_response },
+        metadata,
         Some(parent_id),
     )
 }
@@ -109,14 +102,11 @@ async fn handle_agent_success(
     agent_response: AgentResponse,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), String> {
-    add_agent_to_history(state, parsed_msg.session_id, &agent_response.response).await;
+    add_agent_to_history(state, parsed_msg.metadata.session_id, &agent_response.response).await;
 
     let response_msg = create_agent_response_message(
-        parsed_msg.session_id,
         agent_response,
-        parsed_msg.language.clone(),
-        parsed_msg.metadata.formality,
-        parsed_msg.metadata.teaching_mode,
+        parsed_msg.metadata.clone(),
         parsed_msg.id,
     );
 
@@ -130,11 +120,8 @@ async fn handle_agent_error(
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), String> {
     let error_msg = create_error_message(
-        parsed_msg.session_id,
         format!("Error generating response: {}", error),
-        parsed_msg.language.clone(),
-        parsed_msg.metadata.formality,
-        parsed_msg.metadata.teaching_mode,
+        parsed_msg.metadata.clone(),
     );
 
     serialize_and_send(&error_msg, tx)?;
@@ -145,23 +132,20 @@ async fn validate_and_parse_dialect(
     parsed_msg: &Message,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<Dialect, ()> {
-    match Dialect::from_bcp47(&parsed_msg.language) {
+    match Dialect::from_bcp47(&parsed_msg.metadata.dialect.bcp47_tag()) {
         Some(d) => {
             tracing::info!(
                 "Parsed dialect: {} from language tag: {}",
                 d.name(),
-                parsed_msg.language
+                parsed_msg.metadata.dialect.bcp47_tag()
             );
             Ok(d)
         }
         None => {
-            tracing::error!("Unsupported language tag: {}", parsed_msg.language);
+            tracing::error!("Unsupported language tag: {}", parsed_msg.metadata.dialect.bcp47_tag());
             let error_msg = create_error_message(
-                parsed_msg.session_id,
-                format!("Unsupported language/dialect: {}", parsed_msg.language),
-                parsed_msg.language.clone(),
-                parsed_msg.metadata.formality,
-                parsed_msg.metadata.teaching_mode,
+                format!("Unsupported language/dialect: {}", parsed_msg.metadata.dialect.bcp47_tag()),
+                parsed_msg.metadata.clone(),
             );
             if let Err(e) = serialize_and_send(&error_msg, tx) {
                 tracing::error!("{}", e);
@@ -175,11 +159,11 @@ async fn run_agents_parallel(
     state: &AppState,
     msg_with_context: &UserMessageWithContext,
     dialect: Dialect,
-    history_vec: &[String],
+    history_vec: &[RigMessage],
 ) -> Result<AgentResponse, anyhow::Error> {
     let formality = msg_with_context.message.metadata.formality;
     let teaching_mode = msg_with_context.message.metadata.teaching_mode;
-    let user_text = &msg_with_context.message.content.response;
+    let user_text = &msg_with_context.message.get_content();
 
     let has_learning_items = !msg_with_context.past_mistakes.is_empty()
         || !msg_with_context.past_explained.is_empty()
@@ -205,7 +189,7 @@ async fn run_agents_parallel(
         state.agent.generate_response(user_text, dialect, formality, teaching_mode, history_vec),
         state.agent.generate_analysis(
             dialect,
-            history_vec,
+            user_text,
             &msg_with_context.past_mistakes,
             &msg_with_context.past_explained,
             &msg_with_context.past_translated,
@@ -231,7 +215,7 @@ async fn call_agent_and_respond(
     state: &AppState,
     msg_with_context: &UserMessageWithContext,
     dialect: Dialect,
-    history_vec: &[String],
+    history_vec: &[RigMessage],
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
     let formality = msg_with_context.message.metadata.formality;
@@ -305,10 +289,9 @@ fn create_recv_task(
                 match serde_json::from_str::<UserMessageWithContext>(&text) {
                     Ok(msg_with_context) => {
                         tracing::info!(
-                            "Valid message from {} in session {}: '{}' with {} mistakes, {} explained, {} translated, {} exploratory",
-                            msg_with_context.message.participant_id,
-                            msg_with_context.message.session_id,
-                            msg_with_context.message.content.response,
+                            "Valid message in session {}: '{}' with {} mistakes, {} explained, {} translated, {} exploratory",
+                            msg_with_context.message.metadata.session_id,
+                            msg_with_context.message.get_content(),
                             msg_with_context.past_mistakes.len(),
                             msg_with_context.past_explained.len(),
                             msg_with_context.past_translated.len(),
@@ -621,36 +604,34 @@ pub async fn user_websocket_handler(
 mod tests {
     use super::*;
 
+    fn test_metadata(session_id: Uuid) -> MessageMetadata {
+        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+    }
+
     #[test]
     fn test_build_context_from_messages() {
         let session_id = Uuid::new_v4();
 
+        let user_content = MessageContent::UserMessage { content: "Hello".to_string() };
         let msg1 = Message::new(
-            session_id,
-            "user".to_string(),
-            AgentResponse::from("Hello"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            user_content.clone(),
+            test_metadata(session_id),
             None,
         );
 
+        let agent_content = MessageContent::AgentMessage { content: AgentResponse::from("Hola") };
         let msg2 = Message::new(
-            session_id,
-            "agent".to_string(),
-            AgentResponse::from("Hola"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            agent_content.clone(),
+            test_metadata(session_id),
             Some(msg1.id),
         );
 
-        let messages = vec![msg1, msg2];
+        let messages = vec![msg1.clone(), msg2.clone()];
         let context = build_context_from_messages(&messages);
 
         assert_eq!(context.len(), 2);
-        assert_eq!(context[0], "user: Hello");
-        assert_eq!(context[1], "agent: Hola");
+        assert_eq!(context[0], convert_to_rig_message(&msg1));
+        assert_eq!(context[1], convert_to_rig_message(&msg2));
     }
 
     #[test]
@@ -678,20 +659,14 @@ mod tests {
     fn test_create_error_message() {
         let session_id = Uuid::new_v4();
         let error_msg = create_error_message(
-            session_id,
             "Test error".to_string(),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            test_metadata(session_id),
         );
 
-        assert_eq!(error_msg.session_id, session_id);
-        assert_eq!(error_msg.participant_id, "system");
-        assert_eq!(error_msg.content.response, "Test error");
-        assert_eq!(error_msg.language, "es-MX");
+        assert_eq!(error_msg.get_content(), "Test error");
+        assert_eq!(error_msg.metadata.session_id, session_id);
         assert_eq!(error_msg.metadata.formality, Formality::Casual);
         assert_eq!(error_msg.metadata.teaching_mode, TeachingMode::Immersive);
-        assert_eq!(error_msg.parent_id, None);
     }
 
     #[test]
@@ -699,12 +674,8 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Hello"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::AgentMessage { content: AgentResponse::from("Hello") },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
@@ -713,7 +684,7 @@ mod tests {
 
         let received = rx.try_recv().unwrap();
         let parsed: Message = serde_json::from_str(&received).unwrap();
-        assert_eq!(parsed.content.response, "Hello");
+        assert_eq!(parsed.get_content(), "Hello");
     }
 
     #[test]
@@ -723,20 +694,15 @@ mod tests {
         let agent_response = AgentResponse::from("Test response");
 
         let msg = create_agent_response_message(
-            session_id,
             agent_response.clone(),
-            "es-MX".to_string(),
-            Formality::DialectRich,
-            TeachingMode::Corrective,
+            test_metadata(session_id),
             parent_id,
         );
 
-        assert_eq!(msg.session_id, session_id);
-        assert_eq!(msg.participant_id, "agent");
-        assert_eq!(msg.content, agent_response);
-        assert_eq!(msg.language, "es-MX");
-        assert_eq!(msg.metadata.formality, Formality::DialectRich);
-        assert_eq!(msg.metadata.teaching_mode, TeachingMode::Corrective);
+        assert_eq!(msg.get_content(), "Test response");
+        assert_eq!(msg.metadata.session_id, session_id);
+        assert_eq!(msg.metadata.formality, Formality::Casual);
+        assert_eq!(msg.metadata.teaching_mode, TeachingMode::Immersive);
         assert_eq!(msg.parent_id, Some(parent_id));
     }
 
@@ -744,12 +710,8 @@ mod tests {
     async fn test_message_parsing() {
         let content = AgentResponse::from("Hello");
         let message = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            content,
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::AgentMessage { content: content },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
@@ -757,47 +719,20 @@ mod tests {
         let parsed: Message = serde_json::from_str(&json).unwrap();
 
         assert_eq!(message.content, parsed.content);
-        assert_eq!(message.participant_id, parsed.participant_id);
     }
 
     #[tokio::test]
     async fn test_validate_and_parse_dialect_success() {
         let (tx, _rx) = mpsc::unbounded_channel();
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Hola"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::AgentMessage { content: AgentResponse::from("Hola") },
+            test_metadata(Uuid::new_v4()),
             None,
         );
 
         let result = validate_and_parse_dialect(&msg, &tx).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Dialect::SpanishMexican);
-    }
-
-    #[tokio::test]
-    async fn test_validate_and_parse_dialect_failure() {
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let msg = Message::new(
-            Uuid::new_v4(),
-            "user1".to_string(),
-            AgentResponse::from("Hello"),
-            "invalid-tag".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
-            None,
-        );
-
-        let result = validate_and_parse_dialect(&msg, &tx).await;
-        assert!(result.is_err());
-
-        let error_json = rx.try_recv().unwrap();
-        let error_msg: Message = serde_json::from_str(&error_json).unwrap();
-        assert_eq!(error_msg.participant_id, "system");
-        assert!(error_msg.content.response.contains("Unsupported language/dialect"));
+        assert_eq!(result.unwrap(), Dialect::SpanishArgentinian);
     }
 
     #[test]

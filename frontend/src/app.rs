@@ -1,9 +1,9 @@
 mod app_state;
 pub use app_state::OptionalUserState;
-use app_state::{AppState, UIState, AppStateAction, UIStateAction, UserStateAction};
+use app_state::{AppState, AppStateAction, UIState, UIStateAction, UserStateAction};
 pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 
-use dialect_coach_shared::models::{Formality, Language, Message, TeachingMode};
+use dialect_coach_shared::models::{Formality, Language, Message, MessageContent, TeachingMode};
 use dialect_coach_shared::{Explained, Exploratory, Mistake, Translated, UserMessageWithContext};
 use log::{error, info};
 use uuid::Uuid;
@@ -13,7 +13,14 @@ use crate::components::{BranchSidebar, ChatWindow, InputBox, LearningPanel, Spee
 use crate::hooks::use_debounced_save;
 use crate::services::websocket::ConnectionState;
 
-fn extract_learning_items(user_state: &OptionalUserState) -> (Vec<Mistake>, Vec<Explained>, Vec<Translated>, Vec<Exploratory>) {
+fn extract_learning_items(
+    user_state: &OptionalUserState,
+) -> (
+    Vec<Mistake>,
+    Vec<Explained>,
+    Vec<Translated>,
+    Vec<Exploratory>,
+) {
     let mut mistakes = Vec::new();
     let mut explained = Vec::new();
     let mut translated = Vec::new();
@@ -49,7 +56,7 @@ fn render_message_undo_notification(deleted_count: usize, on_undo: Callback<()>)
 
 fn on_send_message(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>
+    user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<String> {
     let app_state = app_state.clone();
     let user_state = user_state.clone();
@@ -63,15 +70,23 @@ fn on_send_message(
         info!("Sending message: {}", content);
 
         let session_id = (*app_state).session_id().unwrap_or_else(|| Uuid::new_v4());
-        let msg = state.create_msg(session_id, &content);
+        let content = MessageContent::UserMessage {
+            content: content.clone(),
+        };
+        let msg = state.create_msg(session_id, content);
         user_state.dispatch(UserStateAction::AddMessage(msg.clone()));
 
         // Extract learning items from user state
-        let (past_mistakes, past_explained, past_translated, past_exploratory) = extract_learning_items(&user_state);
+        let (past_mistakes, past_explained, past_translated, past_exploratory) =
+            extract_learning_items(&user_state);
 
         // Get active branch context
         let active_branch_id = state.active_branch_id;
-        let context_messages = state.get_active_branch_messages().into_iter().cloned().collect();
+        let context_messages = state
+            .get_active_branch_messages()
+            .into_iter()
+            .cloned()
+            .collect();
 
         // Build UserMessageWithContext
         let msg_with_context = UserMessageWithContext::new(
@@ -85,7 +100,11 @@ fn on_send_message(
         );
 
         // Send through WebSocket
-        match (*app_state).ws_service.borrow().send_message(&msg_with_context) {
+        match (*app_state)
+            .ws_service
+            .borrow()
+            .send_message(&msg_with_context)
+        {
             Ok(_) => {
                 info!("Message sent successfully");
                 app_state.dispatch(AppStateAction::SetLoading);
@@ -132,11 +151,7 @@ fn on_prompt_click(
         wasm_bindgen_futures::spawn_local(async move {
             match app_state
                 .translation_service
-                .translate_phrase(
-                    &english_phrase,
-                    current_dialect,
-                    Some(formality),
-                )
+                .translate_phrase(&english_phrase, current_dialect, Some(formality))
                 .await
             {
                 Ok(translated) => {
@@ -248,7 +263,7 @@ fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Message>
     let app_state = app_state.clone();
 
     Callback::from(move |msg: Message| {
-        info!("Replaying message with TTS: {}", msg.content.response);
+        info!("Replaying message with TTS: {}", msg.get_content());
         app_state.dispatch(AppStateAction::Speak(msg));
     })
 }
@@ -330,8 +345,15 @@ fn on_user_state_ws_open(
     user_id: uuid::Uuid,
 ) -> Callback<()> {
     Callback::from(move |_| {
-        info!("User state WebSocket opened, loading state for user: {}", user_id);
-        if let Err(e) = app_state.user_state_ws_service.borrow().load_user_state(user_id) {
+        info!(
+            "User state WebSocket opened, loading state for user: {}",
+            user_id
+        );
+        if let Err(e) = app_state
+            .user_state_ws_service
+            .borrow()
+            .load_user_state(user_id)
+        {
             error!("Failed to request user state load: {}", e);
         }
         app_state.dispatch(AppStateAction::RetryPendingSaves);
@@ -352,11 +374,9 @@ fn on_user_state_load_response(
 }
 
 fn on_user_state_save_response() -> Callback<Result<(), String>> {
-    Callback::from(move |result: Result<(), String>| {
-        match result {
-            Ok(()) => info!("User state saved successfully to backend"),
-            Err(e) => error!("Failed to save user state to backend: {}", e),
-        }
+    Callback::from(move |result: Result<(), String>| match result {
+        Ok(()) => info!("User state saved successfully to backend"),
+        Err(e) => error!("Failed to save user state to backend: {}", e),
     })
 }
 
@@ -369,9 +389,16 @@ fn on_create_user_click(
         let username = (*ui_state).create_username_input.clone();
         // Generate new UUID for creating account (user_state is None at this point)
         let user_id = Uuid::new_v4();
-        if let Err(e) = app_state.user_ws_service.borrow().create_user(user_id, username) {
+        if let Err(e) = app_state
+            .user_ws_service
+            .borrow()
+            .create_user(user_id, username)
+        {
             error!("Failed to create user: {}", e);
-            app_state.dispatch(AppStateAction::SetError(format!("Failed to create user: {}", e)));
+            app_state.dispatch(AppStateAction::SetError(format!(
+                "Failed to create user: {}",
+                e
+            )));
         }
     })
 }
@@ -384,7 +411,10 @@ fn on_signin_click(
         let username = (*ui_state).signin_username_input.clone();
         if let Err(e) = app_state.user_ws_service.borrow().sign_in(username) {
             error!("Failed to sign in: {}", e);
-            app_state.dispatch(AppStateAction::SetError(format!("Failed to sign in: {}", e)));
+            app_state.dispatch(AppStateAction::SetError(format!(
+                "Failed to sign in: {}",
+                e
+            )));
         }
     })
 }
@@ -463,7 +493,12 @@ fn on_delete_message_callback(
 ) -> Callback<Uuid> {
     Callback::from(move |msg_id: Uuid| {
         if let Some(state) = user_state.0.as_ref() {
-            if let Some(msg) = state.conversation_history.iter().find(|m| m.id == msg_id).cloned() {
+            if let Some(msg) = state
+                .conversation_history
+                .iter()
+                .find(|m| m.id == msg_id)
+                .cloned()
+            {
                 ui_state.dispatch(UIStateAction::PushDeletedMessage(msg));
             }
             user_state.dispatch(UserStateAction::DeleteMessage(msg_id));
@@ -516,7 +551,6 @@ fn on_delete_branch(user_state: UseReducerHandle<OptionalUserState>) -> Callback
         user_state.dispatch(UserStateAction::DeleteBranch(branch_id));
     })
 }
-
 
 #[function_component(App)]
 pub fn app() -> Html {
@@ -579,23 +613,26 @@ pub fn app() -> Html {
                     let asc = app_state.clone();
                     let usc = user_state.clone();
                     ws.set_on_message(Callback::from(move |msg: Message| {
-                        info!("Received message from: {}", msg.participant_id);
                         asc.dispatch(AppStateAction::LoadingComplete);
 
                         let tts_enabled = usc.0.as_ref().map(|s| s.tts_enabled).unwrap_or(false);
-                        if msg.participant_id != "user" && tts_enabled {
-                            asc.dispatch(AppStateAction::Speak(msg.clone()));
-                        }
+                        let msg_clone = msg.clone();
+                        match msg.content {
+                            MessageContent::UserMessage { .. } => {}
+                            MessageContent::AgentMessage { content } => {
+                                if tts_enabled {
+                                    asc.dispatch(AppStateAction::Speak(msg_clone.clone()));
+                                }
 
-                        let mistakes = msg.content.mistakes.clone().unwrap_or_default();
-                        let explained = msg.content.explained.clone().unwrap_or_default();
-                        let translated = msg.content.translated.clone().unwrap_or_default();
-                        let exploratory = msg.content.exploratory.clone().unwrap_or_default();
-                        if !mistakes.is_empty() || !explained.is_empty() || !translated.is_empty() || !exploratory.is_empty() {
-                            usc.dispatch(UserStateAction::AddLearningItems(mistakes, explained, translated, exploratory));
-                        }
+                                let mistakes = content.mistakes.clone().unwrap_or_default();
+                                let explained = content.explained.clone().unwrap_or_default();
+                                let translated = content.translated.clone().unwrap_or_default();
+                                let exploratory = content.exploratory.clone().unwrap_or_default();
 
-                        if let Some(analysis) = msg.content.analysis.clone() {
+                                if !mistakes.is_empty() || !explained.is_empty() || !translated.is_empty() || !exploratory.is_empty() {
+                                    usc.dispatch(UserStateAction::AddLearningItems(mistakes, explained, translated, exploratory));
+                                }
+                        if let Some(analysis) = content.analysis.clone() {
                             info!("Received analysis with {} mistake scores, {} explained scores, {} translated scores, {} exploratory scores",
                                 analysis.mistake_scores.len(),
                                 analysis.explained_scores.len(),
@@ -604,8 +641,11 @@ pub fn app() -> Html {
                             );
                             usc.dispatch(UserStateAction::UpdateScores(analysis));
                         }
+                            }
 
-                        usc.dispatch(UserStateAction::AddMessage(msg));
+                        }
+
+                       usc.dispatch(UserStateAction::AddMessage(msg_clone.clone()));
                     }));
 
                     let asc = app_state.clone();
@@ -695,8 +735,16 @@ pub fn app() -> Html {
 
             let mut ws = (*app_state).user_ws_service.borrow_mut();
 
-            ws.set_on_create_response(on_user_create_response(app_state.clone(), ui_state.clone(), user_state.clone()));
-            ws.set_on_signin_response(on_user_signin_response(app_state.clone(), ui_state.clone(), user_state.clone()));
+            ws.set_on_create_response(on_user_create_response(
+                app_state.clone(),
+                ui_state.clone(),
+                user_state.clone(),
+            ));
+            ws.set_on_signin_response(on_user_signin_response(
+                app_state.clone(),
+                ui_state.clone(),
+                user_state.clone(),
+            ));
             ws.set_on_open(Callback::from(|_| info!("User WebSocket opened")));
             ws.connect();
 

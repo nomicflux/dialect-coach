@@ -74,11 +74,11 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                 <div class={bubble_class}>
                     {render_delete_button(&props.on_delete, props.message.id)}
                     <div class="message-header">
-                        <div class="message-author">{&props.message.participant_id}</div>
+                        <div class="message-author">{if props.message.is_agent() { "agent" } else { "user" }}</div>
                         {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
                     </div>
-                    <div class="message-content">{&props.message.content.response}</div>
-                    <div class="message-time">{props.message.timestamp.to_rfc3339()}</div>
+                    <div class="message-content">{&props.message.get_content()}</div>
+                    <div class="message-time">{props.message.metadata.timestamp.to_rfc3339()}</div>
                 </div>
             </div>
             // Branch point - displayed under the message node

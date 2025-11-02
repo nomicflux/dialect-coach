@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{
-    ConversationBranch, Dialect, Explained, Exploratory, Formality, Language, Message, Mistake,
+    ConversationBranch, Dialect, Explained, Exploratory, Formality, Language, Message, MessageContent, MessageMetadata, Mistake,
     TeachingMode, Translated,
 };
 
@@ -57,18 +57,24 @@ impl UserState {
         }
     }
 
-    pub fn create_msg(&self, session_id: Uuid, content: &String) -> Message {
-        let agent_response = super::AgentResponse::from(content);
+    pub fn create_msg(&self, session_id: Uuid, content: MessageContent) -> Message {
         let parent_id = self.get_last_message_in_active_branch();
         Message::new(
-            session_id,
-            "user".to_string(),
-            agent_response,
-            self.bcp47_tag(),
-            self.formality,
-            self.teaching_mode,
+            content,
+            MessageMetadata::at_now(
+                self.formality,
+                self.teaching_mode,
+                self.selected_language,
+                self.current_dialect(),
+                session_id,
+            ),
             parent_id,
         )
+
+    }
+
+    pub fn create_user_msg(&self, session_id: Uuid, content: &String) -> Message {
+        self.create_msg(session_id, MessageContent::UserMessage { content: content.clone() })
     }
 
     fn get_last_message_in_active_branch(&self) -> Option<Uuid> {
@@ -161,7 +167,11 @@ impl LearningItem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::agent::{AgentResponse, MistakeCategory};
+    use crate::models::agent::{MistakeCategory};
+
+    fn test_metadata(session_id: Uuid) -> MessageMetadata {
+        MessageMetadata::at_now(Formality::Casual, TeachingMode::Immersive, Language::Spanish, Dialect::SpanishArgentinian, session_id)
+    }
 
     fn create_test_user_state() -> UserState {
         UserState::new(Uuid::new_v4())
@@ -179,12 +189,8 @@ mod tests {
 
     fn create_test_message() -> Message {
         Message::new(
-            Uuid::new_v4(),
-            "user".to_string(),
-            AgentResponse::from("test"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "test".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         )
     }
@@ -265,12 +271,8 @@ mod tests {
     fn test_get_active_branch_messages_single() {
         let mut state = create_test_user_state();
         let msg = Message::new(
-            Uuid::new_v4(),
-            "user".to_string(),
-            AgentResponse::from("test"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "test".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
         state.conversation_history.push(msg.clone());
@@ -291,34 +293,22 @@ mod tests {
 
         // Create a chain: A → B → C
         let msg_a = Message::new(
-            Uuid::new_v4(),
-            "user".to_string(),
-            AgentResponse::from("A"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "A".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
         state.conversation_history.push(msg_a.clone());
 
         let msg_b = Message::new(
-            Uuid::new_v4(),
-            "agent".to_string(),
-            AgentResponse::from("B"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "B".to_string() },
+            test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
         state.conversation_history.push(msg_b.clone());
 
         let msg_c = Message::new(
-            Uuid::new_v4(),
-            "user".to_string(),
-            AgentResponse::from("C"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "C".to_string() },
+            test_metadata(Uuid::new_v4()),
             Some(msg_b.id),
         );
         state.conversation_history.push(msg_c.clone());
@@ -334,9 +324,9 @@ mod tests {
         assert_eq!(messages[0].id, msg_a.id);
         assert_eq!(messages[1].id, msg_b.id);
         assert_eq!(messages[2].id, msg_c.id);
-        assert_eq!(messages[0].content.response, "A");
-        assert_eq!(messages[1].content.response, "B");
-        assert_eq!(messages[2].content.response, "C");
+        assert_eq!(messages[0].get_content(), "A");
+        assert_eq!(messages[1].get_content(), "B");
+        assert_eq!(messages[2].get_content(), "C");
     }
 
     #[test]
@@ -345,35 +335,23 @@ mod tests {
 
         // Create main path: A → B
         let msg_a = Message::new(
-            Uuid::new_v4(),
-            "user".to_string(),
-            AgentResponse::from("A"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "A".to_string() },
+            test_metadata(Uuid::new_v4()),
             None,
         );
         state.conversation_history.push(msg_a.clone());
 
         let msg_b = Message::new(
-            Uuid::new_v4(),
-            "agent".to_string(),
-            AgentResponse::from("B"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "B".to_string() },
+            test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
         state.conversation_history.push(msg_b.clone());
 
         // Create alternative path from A: A → X
         let msg_x = Message::new(
-            Uuid::new_v4(),
-            "agent".to_string(),
-            AgentResponse::from("X"),
-            "es-MX".to_string(),
-            Formality::Casual,
-            TeachingMode::Immersive,
+            MessageContent::UserMessage { content: "X".to_string() },
+            test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
         state.conversation_history.push(msg_x.clone());
