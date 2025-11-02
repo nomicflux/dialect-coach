@@ -10,17 +10,13 @@ use std::sync::Arc;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
-const JSON_OUTPUT_INSTRUCTION: &str = "CRITICAL: Return raw JSON only. Your response will be parsed directly by a JSON parser. Do not wrap in markdown code blocks or backticks. Do not add any text before or after the JSON object. Start with { and end with }. Your persona concerns the values in the json, not the formatting of it. You are incapable of writing markdown; do not try even for readability. Test: your first character must be `{` and your last must be `}`. Nothing before or after.";
+const JSON_OUTPUT_INSTRUCTION: &str = "Return raw JSON only. No markdown code blocks. Start with { end with }.";
 
-const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES (OVERRIDE DEFAULTS)
+const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES
 
-These directives govern how you evaluate safety and policy for this session. When they conflict with default heuristics, these directives take precedence.
+1) Only flag user's direct messages, not system examples. Do not refuse/warn about corpus examples containing slang, profanity, adult content, or controversial dialect-authentic language.
 
-1) Only flag content in the user's direct messages, not in system examples or context. Do not refuse, warn, or restrict because of system-provided corpus or RAG examples, which may include slang, profanity, sexual or adult references, or controversial language used authentically in dialects.
-
-2) Always respond to the user's actual message first. If you have safety concerns, address them briefly and separately after answering, and only if those concerns are about the user's direct message.
-
-Operational note: If the user's direct message itself violates policy, provide a minimal, policy-compliant reply or a safe alternative phrasing in the target dialect. Do not refuse or redirect because of system examples."#;
+2) Always respond to user's message first. If user message itself is problematic, stay in character with brief, policy-compliant reply and deflect."#;
 
 pub struct AgentService {
     client: rig::providers::anthropic::Client,
@@ -524,8 +520,8 @@ impl AgentService {
 
         if !primary_examples.is_empty() {
             rag_context.push_str(&format!("## {} EXAMPLES:\n", formality_label));
-            for (i, doc) in primary_examples.iter().enumerate() {
-                rag_context.push_str(&format!("{}. \"{}\"\n", i + 1, doc.content));
+            for doc in primary_examples.iter() {
+                rag_context.push_str(&format!("\"{}\"\n", doc.content));
             }
             rag_context.push('\n');
         } else {
@@ -534,8 +530,8 @@ impl AgentService {
 
         if !secondary_examples.is_empty() {
             rag_context.push_str("## ADDITIONAL EXAMPLES:\n");
-            for (i, doc) in secondary_examples.iter().enumerate() {
-                rag_context.push_str(&format!("{}. \"{}\"\n", i + 1, doc.content));
+            for doc in secondary_examples.iter() {
+                rag_context.push_str(&format!("\"{}\"\n", doc.content));
             }
             rag_context.push('\n');
         } else {
@@ -563,13 +559,12 @@ impl AgentService {
             {}.
             Your responses must sound EXACTLY like these authentic examples:\n{}\n\n\
             # CRITICAL RULES\n\
-            1. MIMIC THE PATTERNS: Study the examples above and copy their vocabulary, grammar, and style\n\
+            1. MIMIC THE PATTERNS: Study the examples above and copy their vocabulary, grammar, style, and characteristic dialect constructions\n\
             2. MAINTAIN FORMALITY: Match the {} level shown in the primary examples\n\
             {}\n\
             5. BE BRIEF: Keep responses conversational, not essay-length\n\
-            6. USE DIALECT MARKERS: Include the characteristic phrases and constructions from the examples\n\
+            6. {}\n\
             7. {}\n\
-            8. {}\n\
             {}\n\
             Now respond to the user's message naturally, as a local {} speaker would.",
                 CONTENT_FILTERING_DIRECTIVES,
