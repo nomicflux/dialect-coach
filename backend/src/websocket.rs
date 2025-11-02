@@ -185,7 +185,7 @@ async fn run_agents_parallel(
     if !has_learning_items {
         return state
             .agent
-            .generate_response(user_text, dialect, formality, teaching_mode, history_vec)
+            .generate_response(user_text, dialect, formality, teaching_mode, history_vec, &msg_with_context.learning_goals)
             .await;
     }
 
@@ -200,7 +200,7 @@ async fn run_agents_parallel(
     let (response_result, analysis_result) = tokio::join!(
         state
             .agent
-            .generate_response(user_text, dialect, formality, teaching_mode, history_vec),
+            .generate_response(user_text, dialect, formality, teaching_mode, history_vec, &msg_with_context.learning_goals),
         state.agent.generate_analysis(
             dialect,
             user_text,

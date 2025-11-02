@@ -104,6 +104,7 @@ pub struct UserMessageWithContext {
     pub past_exploratory: Vec<crate::models::agent::Exploratory>,
     pub active_branch_id: Uuid,
     pub context_messages: Vec<Message>,
+    pub learning_goals: Vec<String>,
 }
 
 impl UserMessageWithContext {
@@ -115,6 +116,7 @@ impl UserMessageWithContext {
         past_exploratory: Vec<crate::models::agent::Exploratory>,
         active_branch_id: Uuid,
         context_messages: Vec<Message>,
+        learning_goals: Vec<String>,
     ) -> Self {
         Self {
             message,
@@ -124,6 +126,7 @@ impl UserMessageWithContext {
             past_exploratory,
             active_branch_id,
             context_messages,
+            learning_goals,
         }
     }
 }
@@ -217,6 +220,7 @@ mod tests {
             vec![],
             branch_id,
             vec![],
+            vec![],
         );
 
         assert_eq!(context.message.id, msg.id);
@@ -259,6 +263,7 @@ mod tests {
             vec![],
             branch_id,
             vec![],
+            vec![],
         );
 
         assert_eq!(context.past_mistakes.len(), 1);
@@ -297,6 +302,7 @@ mod tests {
             vec![],
             vec![],
             branch_id,
+            vec![],
             vec![],
         );
 
@@ -339,6 +345,7 @@ mod tests {
             vec![],
             branch_id,
             vec![],
+            vec![],
         );
 
         assert_eq!(context.past_translated.len(), 1);
@@ -368,6 +375,7 @@ mod tests {
             vec![],
             vec![exploratory.clone()],
             branch_id,
+            vec![],
             vec![],
         );
 
@@ -410,6 +418,7 @@ mod tests {
             vec![translated.clone()],
             vec![exploratory.clone()],
             branch_id,
+            vec![],
             vec![],
         );
 

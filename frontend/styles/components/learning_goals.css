@@ -1,0 +1,133 @@
+/* Learning Goals Section - in Branch Sidebar */
+
+.learning-goals-section {
+  padding: var(--s-4);
+  border-top: 1px solid rgba(78, 205, 196, 0.15);
+  background: var(--surface);
+}
+
+.goals-header {
+  margin-bottom: var(--s-3);
+}
+
+.goals-header h4 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Input section */
+.goal-input-container {
+  display: flex;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
+.goal-input {
+  flex: 1;
+  padding: var(--s-2);
+  font-size: var(--text-sm);
+  background: var(--surface-muted);
+  border: 1px solid rgba(78, 205, 196, 0.15);
+  border-radius: var(--r-s);
+  color: var(--ink);
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.goal-input:focus {
+  outline: none;
+  border-color: var(--teal);
+  background: var(--surface);
+}
+
+.goal-input::placeholder {
+  color: var(--ink-soft);
+}
+
+.add-button {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-s);
+  background: var(--teal);
+  border: none;
+  color: white;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--dur-fast) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.add-button:hover {
+  background: var(--teal);
+  transform: scale(1.05);
+}
+
+.add-button:active {
+  transform: scale(0.95);
+}
+
+/* Goals list */
+.goals-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.goal-item {
+  position: relative;
+  padding: var(--s-3);
+  background: var(--surface-muted);
+  border-radius: var(--r-m);
+  border: 1px solid rgba(78, 205, 196, 0.15);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.goal-item:hover {
+  background: var(--teal-tint);
+  border-color: var(--teal);
+}
+
+.goal-text {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.goal-item .delete-button {
+  position: relative;
+  top: unset;
+  right: unset;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--r-s);
+  color: var(--ink);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: all var(--dur-fast) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.goal-item .delete-button:hover {
+  opacity: 1;
+  background: var(--coral);
+  border-color: var(--coral);
+  color: white;
+}

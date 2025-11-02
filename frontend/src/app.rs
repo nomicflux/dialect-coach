@@ -97,6 +97,7 @@ fn on_send_message(
             past_exploratory,
             active_branch_id,
             context_messages,
+            state.learning_goals.clone(),
         );
 
         // Send through WebSocket
@@ -552,6 +553,26 @@ fn on_delete_branch(user_state: UseReducerHandle<OptionalUserState>) -> Callback
     })
 }
 
+fn on_add_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<String> {
+    Callback::from(move |goal: String| {
+        if user_state.0.is_none() {
+            return;
+        }
+        info!("Adding learning goal: {}", goal);
+        user_state.dispatch(UserStateAction::AddLearningGoal(goal));
+    })
+}
+
+fn on_delete_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<usize> {
+    Callback::from(move |index: usize| {
+        if user_state.0.is_none() {
+            return;
+        }
+        info!("Deleting learning goal at index: {}", index);
+        user_state.dispatch(UserStateAction::DeleteLearningGoal(index));
+    })
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     let app_state = use_reducer(AppState::default);
@@ -874,6 +895,9 @@ pub fn app() -> Html {
                                 branches={us.branches.clone()}
                                 active_branch_id={us.active_branch_id}
                                 messages={us.conversation_history.clone()}
+                                learning_goals={us.learning_goals.clone()}
+                                on_add_goal={on_add_goal(user_state.clone())}
+                                on_delete_goal={on_delete_goal(user_state.clone())}
                                 on_switch_branch={Some(on_switch_branch(user_state.clone()))}
                                 on_delete_branch={Some(on_delete_branch(user_state.clone()))}
                             />

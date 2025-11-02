@@ -19,6 +19,7 @@ pub struct UserState {
     pub teaching_mode: TeachingMode,
     pub active_branch_id: Uuid,
     pub branches: Vec<ConversationBranch>,
+    pub learning_goals: Vec<String>,
 }
 
 /// A learning item with its associated mastery score
@@ -54,6 +55,7 @@ impl UserState {
             teaching_mode: TeachingMode::Immersive,
             active_branch_id: initial_branch_id,
             branches: vec![initial_branch],
+            learning_goals: Vec::new(),
         }
     }
 

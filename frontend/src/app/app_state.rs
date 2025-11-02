@@ -244,6 +244,8 @@ pub enum UserStateAction {
     SwitchBranch(Uuid),
     DeleteBranch(Uuid),
     RenameBranch(Uuid, String),
+    AddLearningGoal(String),
+    DeleteLearningGoal(usize),
 }
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
@@ -331,6 +333,16 @@ fn delete_message(mut history: Vec<Message>, id: Uuid) -> Vec<Message> {
 fn undo_delete_message(mut history: Vec<Message>, msg: Message) -> Vec<Message> {
     history.push(msg);
     history
+}
+
+fn add_learning_goal(mut goals: Vec<String>, goal: String) -> Vec<String> {
+    goals.push(goal);
+    goals
+}
+
+fn delete_learning_goal(mut goals: Vec<String>, index: usize) -> Vec<String> {
+    goals.remove(index);
+    goals
 }
 
 fn default_dialect_for_language(lang: Language) -> Dialect {
@@ -504,6 +516,12 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             if let Some(branch) = next.branches.iter_mut().find(|b| b.id == branch_id) {
                 branch.name = Some(name);
             }
+        }
+        UserStateAction::AddLearningGoal(goal) => {
+            next.learning_goals = add_learning_goal(next.learning_goals, goal);
+        }
+        UserStateAction::DeleteLearningGoal(index) => {
+            next.learning_goals = delete_learning_goal(next.learning_goals, index);
         }
         UserStateAction::ClearUserState => {
             // This should never be called - ClearUserState is handled at OptionalUserState level

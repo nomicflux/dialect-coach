@@ -49,7 +49,7 @@ fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
 }
 Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
 The "correction" field should contain the direct correction of the mistake in "specific_mistake". "correction" must be correct.
-The "mistake_category.context" field should also contain a very brief explanation of the mistake. Keep to a single sentence at most, or empty of "correction" was sufficient.
+The "mistake_category.context" field should also contain a single short sentence explaining the mistake.
 Only include mistakes if user made clear errors for the dialect. Keep specific_mistake only the word or phrase that was an error. Restrict yourself to a maximum of 3 mistakes per response."#
         }
         TeachingMode::Explanatory => {
@@ -103,6 +103,19 @@ fn speaker_desc(dialect: &Dialect, formality: &Formality) -> String {
             dialect_name
         ),
     }
+}
+
+fn learning_goals_section(goals: &[String]) -> String {
+    if goals.is_empty() {
+        return String::new();
+    }
+    let goals_list = goals
+        .iter()
+        .enumerate()
+        .map(|(i, goal)| format!("{}. {}", i + 1, goal))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("\n\n# LEARNING GOALS\n## Guide the conversation toward these goals. Incorporate them into your responses, and guide the user naturally to use them in their messages.\n{}\n", goals_list)
 }
 
 fn teaching_desc(teaching_mode: &TeachingMode) -> String {
@@ -420,6 +433,7 @@ impl AgentService {
         formality: Formality,
         teaching_mode: TeachingMode,
         conversation_history: &[RigMessage],
+        learning_goals: &[String],
     ) -> Result<dialect_coach_shared::AgentResponse> {
         tracing::info!("Generating embeddings for multi-vector retrieval");
         let history_text = conversation_history
@@ -530,6 +544,7 @@ impl AgentService {
 
         let role_desc = speaker_desc(&dialect, &formality);
         let teaching_rules = teaching_desc(&teaching_mode);
+        let goals_section = learning_goals_section(learning_goals);
 
         let system_content = if teaching_mode == TeachingMode::Debug {
             format!(
@@ -555,6 +570,7 @@ impl AgentService {
             6. USE DIALECT MARKERS: Include the characteristic phrases and constructions from the examples\n\
             7. {}\n\
             8. {}\n\
+            {}\n\
             Now respond to the user's message naturally, as a local {} speaker would.",
                 CONTENT_FILTERING_DIRECTIVES,
                 role_desc,
@@ -563,6 +579,7 @@ impl AgentService {
                 teaching_rules,
                 JSON_OUTPUT_INSTRUCTION,
                 output_format_spec(&teaching_mode),
+                goals_section,
                 dialect.name()
             )
         };

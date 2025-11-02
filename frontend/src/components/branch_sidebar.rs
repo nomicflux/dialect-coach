@@ -1,12 +1,16 @@
 use dialect_coach_shared::models::{ConversationBranch, Message};
 use uuid::Uuid;
 use yew::prelude::*;
+use crate::components::LearningGoalsPanel;
 
 #[derive(Properties, PartialEq)]
 pub struct BranchSidebarProps {
     pub branches: Vec<ConversationBranch>,
     pub active_branch_id: Uuid,
     pub messages: Vec<Message>,
+    pub learning_goals: Vec<String>,
+    pub on_add_goal: Callback<String>,
+    pub on_delete_goal: Callback<usize>,
     #[prop_or_default]
     pub on_switch_branch: Option<Callback<Uuid>>,
     #[prop_or_default]
@@ -142,6 +146,11 @@ pub fn branch_sidebar(props: &BranchSidebarProps) -> Html {
                     render_branch_item(branch, &props.messages, is_active, msg_count, &props.on_switch_branch, &props.on_delete_branch)
                 })}
             </div>
+            <LearningGoalsPanel
+                goals={props.learning_goals.clone()}
+                on_add={props.on_add_goal.clone()}
+                on_delete={props.on_delete_goal.clone()}
+            />
         </div>
     }
 }
