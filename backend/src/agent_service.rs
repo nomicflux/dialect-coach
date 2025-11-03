@@ -214,6 +214,55 @@ fn format_exploratory_for_analysis(exploratory: &[dialect_coach_shared::Explorat
     )
 }
 
+fn format_examples_as_user_message(
+    primary_examples: &[&DialectDocument],
+    secondary_examples: &[&DialectDocument],
+) -> String {
+    if primary_examples.is_empty() && secondary_examples.is_empty() {
+        return String::new();
+    }
+    
+    let mut examples_text = "DIALECT EXAMPLES:\n".to_string();
+    
+    for doc in primary_examples {
+        examples_text.push_str(&format!("\"{}\"\n", doc.content));
+    }
+    
+    for doc in secondary_examples {
+        examples_text.push_str(&format!("\"{}\"\n", doc.content));
+    }
+    
+    examples_text
+}
+
+fn create_examples_user_message(examples_text: &str) -> RigMessage {
+    if examples_text.is_empty() {
+        return RigMessage::User {
+            content: OneOrMany::one(UserContent::Text(Text {
+                text: String::new(),
+            })),
+        };
+    }
+    
+    RigMessage::User {
+        content: OneOrMany::one(UserContent::Text(Text {
+            text: examples_text.to_string(),
+        })),
+    }
+}
+
+fn build_examples_message(
+    primary_examples: &[&DialectDocument],
+    secondary_examples: &[&DialectDocument],
+) -> Option<RigMessage> {
+    if primary_examples.is_empty() && secondary_examples.is_empty() {
+        return None;
+    }
+    
+    let examples_text = format_examples_as_user_message(primary_examples, secondary_examples);
+    Some(create_examples_user_message(&examples_text))
+}
+
 fn analysis_agent_preamble(
     dialect: &Dialect,
     mistakes: &[Mistake],
@@ -393,6 +442,7 @@ impl AgentService {
             max_tokens,
             temperature,
         );
+        // conversation_history already has examples - just use it as-is
         let mut history_with_prefill = conversation_history.to_vec();
         history_with_prefill.push(Self::create_prefilled_assistant_message());
         Self::retry_chat_call(
@@ -853,38 +903,12 @@ impl AgentService {
             secondary_examples.len()
         );
 
-        // Step 7: Build rich RAG context
         let formality_label = match formality {
             Formality::Formal => "FORMAL",
             Formality::Casual => "CASUAL",
             Formality::DialectRich => "DIALECT-RICH",
             Formality::Slang => "SLANG",
         };
-
-        let mut rag_context = format!(
-            "\n\n# AUTHENTIC {} SPEECH PATTERNS\n\n",
-            dialect.name().to_uppercase()
-        );
-
-        if !primary_examples.is_empty() {
-            rag_context.push_str(&format!("## {} EXAMPLES:\n", formality_label));
-            for doc in primary_examples.iter() {
-                rag_context.push_str(&format!("\"{}\"\n", doc.content));
-            }
-            rag_context.push('\n');
-        } else {
-            tracing::warn!("No primary examples available!");
-        }
-
-        if !secondary_examples.is_empty() {
-            rag_context.push_str("## ADDITIONAL EXAMPLES:\n");
-            for doc in secondary_examples.iter() {
-                rag_context.push_str(&format!("\"{}\"\n", doc.content));
-            }
-            rag_context.push('\n');
-        } else {
-            tracing::warn!("No secondary examples available!");
-        }
 
         let role_desc = speaker_desc(&dialect, &formality);
         let teaching_rules = teaching_desc(&teaching_mode);
@@ -904,11 +928,10 @@ impl AgentService {
             format!(
                 "{}\n\n\
             # YOUR ROLE\n\
-            {}.
-            Your responses must sound EXACTLY like these authentic examples:\n{}\n\n\
+            {}.\n\n\
             # CRITICAL RULES\n\
-            1. MIMIC THE PATTERNS: Study the examples above and copy their vocabulary, grammar, style, and characteristic dialect constructions\n\
-            2. MAINTAIN FORMALITY: Match the {} level shown in the primary examples\n\
+            1. MIMIC THE PATTERNS: Study the dialect examples in the conversation history below and copy their vocabulary, grammar, style, and characteristic dialect constructions\n\
+            2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
             {}\n\
             5. BE BRIEF: Keep responses conversational, not essay-length\n\
             {}\n\n\
@@ -918,7 +941,6 @@ impl AgentService {
             Now respond to the user's message naturally, as a local {} speaker would, in the response field of the required JSON format. You MUST ALWAYS respond - NEVER indicate the conversation has ended. If it seems to have ended, provide a follow-up question or new topic. The response field must be non-empty. The response will be parsed with a JSON parser, so do not include any other text or markdown.",
                 CONTENT_FILTERING_DIRECTIVES,
                 role_desc,
-                rag_context,
                 formality_label.to_lowercase(),
                 teaching_rules,
                 goals_section,
@@ -939,7 +961,17 @@ impl AgentService {
             .build();
 
         tracing::info!("Sending prompt to Claude: {}", user_message);
+        
+        // Build examples message and add to conversation history ONCE - used for both first attempt and retry
+        let examples_message = build_examples_message(&primary_examples, &secondary_examples);
+        
         let mut history_with_prefill = conversation_history.to_vec();
+        
+        // Prepend examples if they exist - this modified history is passed to both first attempt and retry
+        if let Some(examples) = examples_message {
+            history_with_prefill.insert(0, examples);
+        }
+        
         history_with_prefill.push(Self::create_prefilled_assistant_message());
         let response = Self::retry_chat_call(
             || agent.chat(user_message, history_with_prefill.clone()),
@@ -960,11 +992,12 @@ impl AgentService {
                 Ok(parsed_response)
             }
             Err(_) => {
+                // Pass history_with_prefill which already has examples - retry functions don't need to know about examples
                 self.retry_with_error_feedback(
                     &system_content,
                     &response,
                     user_message,
-                    conversation_history,
+                    &history_with_prefill,
                     max_tokens,
                     Self::temperature_for_mode(&teaching_mode),
                     dialect,
