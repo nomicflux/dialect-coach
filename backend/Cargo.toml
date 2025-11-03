@@ -7,6 +7,10 @@ edition.workspace = true
 name = "backend"
 path = "src/main.rs"
 
+[[bin]]
+name = "rag-tester"
+path = "src/bin/rag_tester.rs"
+
 [dependencies]
 dialect-coach-shared = { path = "../shared" }
 serde.workspace = true

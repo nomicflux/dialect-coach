@@ -47,7 +47,7 @@ impl QdrantService {
         query_embedding: &[f32],
         dialect: &Dialect,
         limit: usize,
-    ) -> Result<Vec<DialectDocument>> {
+    ) -> Result<Vec<(DialectDocument, f32)>> {
         let dialect_id = dialect.id().to_string();
         tracing::info!("Searching for {}", dialect_id);
         let filter = Filter::must([Condition::matches(
@@ -169,18 +169,19 @@ impl QdrantService {
         Ok(documents)
     }
 
-    /// Parse Qdrant search results into DialectDocuments
+    /// Parse Qdrant search results into DialectDocuments with scores
     fn parse_search_results(
         &self,
         results: Vec<qdrant_client::qdrant::ScoredPoint>,
         dialect: &Dialect,
-    ) -> Result<Vec<DialectDocument>> {
+    ) -> Result<Vec<(DialectDocument, f32)>> {
         let mut documents = Vec::new();
 
         tracing::info!("Found {} results", results.len());
 
         for point in results {
             let payload = point.payload;
+            let score = point.score;
 
             // Extract fields from payload
             let content = payload
@@ -204,12 +205,15 @@ impl QdrantService {
                     }
                 });
 
-            documents.push(DialectDocument {
-                content,
-                dialect: *dialect,
-                formality,
-                embedding: Vec::new(),
-            });
+            documents.push((
+                DialectDocument {
+                    content,
+                    dialect: *dialect,
+                    formality,
+                    embedding: Vec::new(),
+                },
+                score,
+            ));
         }
 
         Ok(documents)

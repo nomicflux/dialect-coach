@@ -18,6 +18,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::agent_service::AgentService;
+use crate::rag_config::RAGConfig;
 
 fn error_to_agent_response(error_message: String) -> AgentResponse {
     AgentResponse::from(error_message)
@@ -177,15 +179,22 @@ async fn run_agents_parallel(
     let teaching_mode = msg_with_context.message.metadata.teaching_mode;
     let user_text = &msg_with_context.message.get_content();
 
+    if AgentService::contains_illegal_characters(user_text) {
+        tracing::error!("User message contains illegal characters (null bytes or control chars)");
+        return Err(anyhow::anyhow!("User message contains illegal characters"));
+    }
+
     let has_learning_items = !msg_with_context.past_mistakes.is_empty()
         || !msg_with_context.past_explained.is_empty()
         || !msg_with_context.past_translated.is_empty()
         || !msg_with_context.past_exploratory.is_empty();
 
+    let rag_config = RAGConfig::new(10, 15);
+
     if !has_learning_items {
         return state
             .agent
-            .generate_response(user_text, dialect, formality, teaching_mode, history_vec, &msg_with_context.learning_goals)
+            .generate_response(user_text, dialect, formality, teaching_mode, history_vec, &msg_with_context.learning_goals, &rag_config)
             .await;
     }
 
@@ -200,7 +209,7 @@ async fn run_agents_parallel(
     let (response_result, analysis_result) = tokio::join!(
         state
             .agent
-            .generate_response(user_text, dialect, formality, teaching_mode, history_vec, &msg_with_context.learning_goals),
+            .generate_response(user_text, dialect, formality, teaching_mode, history_vec, &msg_with_context.learning_goals, &rag_config),
         state.agent.generate_analysis(
             dialect,
             user_text,
