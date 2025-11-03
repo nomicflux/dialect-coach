@@ -6,6 +6,7 @@ use qdrant_client::qdrant::{
     Condition, CreateFieldIndexCollectionBuilder, FieldType, Filter, SearchPointsBuilder,
 };
 use rand::seq::SliceRandom;
+use qdrant_client::QdrantError;
 
 const COLLECTION_NAME: &str = "dialect_documents";
 
@@ -41,6 +42,57 @@ impl QdrantService {
         Self::new(&url, &api_key).await
     }
 
+    fn is_retryable_error(error: &QdrantError) -> bool {
+        match error {
+            QdrantError::Io(_) => true,
+            QdrantError::Reqwest(_) => true,
+            _ => false,
+        }
+    }
+
+    fn calculate_backoff_delay(attempt: usize) -> tokio::time::Duration {
+        tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))
+    }
+
+    fn log_retry_attempt(attempt: usize, max_attempts: usize, error: &QdrantError, delay: tokio::time::Duration) {
+        tracing::warn!(
+            "Qdrant operation failed (attempt {}/{}): {}. Retrying in {:?}...",
+            attempt,
+            max_attempts,
+            error,
+            delay
+        );
+    }
+
+    async fn handle_retry_delay(attempt: usize, max_attempts: usize, error: &QdrantError) {
+        let delay = Self::calculate_backoff_delay(attempt);
+        Self::log_retry_attempt(attempt, max_attempts, error, delay);
+        tokio::time::sleep(delay).await;
+    }
+
+    async fn retry_qdrant_operation<F, Fut, T>(operation: F, max_attempts: usize) -> Result<T>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<T, QdrantError>>,
+    {
+        let mut last_error = None;
+        for attempt in 1..=max_attempts {
+            match operation().await {
+                Ok(result) => return Ok(result),
+                Err(e) if Self::is_retryable_error(&e) && attempt < max_attempts => {
+                    Self::handle_retry_delay(attempt, max_attempts, &e).await;
+                    last_error = Some(e);
+                }
+                Err(e) => return Err(anyhow::anyhow!("Qdrant operation failed: {}", e)),
+            }
+        }
+        Err(anyhow::anyhow!(
+            "Qdrant operation failed after {} attempts: {}",
+            max_attempts,
+            last_error.unwrap()
+        ))
+    }
+
     /// Search for relevant dialect examples
     pub async fn search_dialect_examples(
         &self,
@@ -55,23 +107,26 @@ impl QdrantService {
             MatchValue::Keyword(dialect_id),
         )]);
 
-        let search_result = self
-            .client
-            .search_points(
-                SearchPointsBuilder::new(COLLECTION_NAME, query_embedding.to_owned(), limit as u64)
-                    .filter(filter)
-                    .with_payload(true),
-            )
-            .await
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to search Qdrant collection '{}' for dialect {} (limit: {}): {}",
-                    COLLECTION_NAME,
-                    dialect.name(),
-                    limit,
-                    e
+        let search_result = Self::retry_qdrant_operation(
+            || {
+                self.client.search_points(
+                    SearchPointsBuilder::new(COLLECTION_NAME, query_embedding.to_owned(), limit as u64)
+                        .filter(filter.clone())
+                        .with_payload(true),
                 )
-            })?;
+            },
+            3,
+        )
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to search Qdrant collection '{}' for dialect {} (limit: {}): {}",
+                COLLECTION_NAME,
+                dialect.name(),
+                limit,
+                e
+            )
+        })?;
 
         let documents = self.parse_search_results(search_result.result, dialect)?;
 
@@ -97,24 +152,27 @@ impl QdrantService {
         let filter = Filter::must([Condition::matches("dialect", dialect.id().to_string())]);
 
         // Use scroll to get random samples
-        let scroll_result = self
-            .client
-            .scroll(
-                ScrollPointsBuilder::new(COLLECTION_NAME)
-                    .filter(filter)
-                    .limit(limit as u32)
-                    .with_payload(true),
-            )
-            .await
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to scroll Qdrant collection '{}' for dialect {} (limit: {}): {}",
-                    COLLECTION_NAME,
-                    dialect.name(),
-                    limit,
-                    e
+        let scroll_result = Self::retry_qdrant_operation(
+            || {
+                self.client.scroll(
+                    ScrollPointsBuilder::new(COLLECTION_NAME)
+                        .filter(filter.clone())
+                        .limit(limit as u32)
+                        .with_payload(true),
                 )
-            })?;
+            },
+            3,
+        )
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to scroll Qdrant collection '{}' for dialect {} (limit: {}): {}",
+                COLLECTION_NAME,
+                dialect.name(),
+                limit,
+                e
+            )
+        })?;
 
         // Parse retrieved points
         let mut documents = Vec::new();
