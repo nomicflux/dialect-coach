@@ -1,6 +1,6 @@
 pub mod app_state;
 pub use app_state::OptionalUserState;
-use app_state::{AppState, AppStateAction, UIState, UIStateAction, UserStateAction};
+use app_state::{AppState, AppStateAction, UIState};
 
 #[path = "app/helpers.rs"]
 pub mod app_helpers;
@@ -19,7 +19,6 @@ pub mod app_state_callbacks;
 pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 
 use log::{error, info};
-use uuid::Uuid;
 use yew::prelude::*;
 
 use crate::components::{Header, MainContent, WelcomeScreen};
