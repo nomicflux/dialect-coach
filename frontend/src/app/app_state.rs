@@ -31,6 +31,8 @@ pub enum AppStateAction {
     LoadUserState(Uuid),
     CreateSession(Uuid),
     DestroySession,
+    NotifyTTSEnabled(bool),
+    ProcessAgentMessage(Message),
 }
 
 #[derive(Clone)]
@@ -46,6 +48,7 @@ pub struct AppState {
     pub tts_service: Option<Rc<CloudTtsService>>,
     pub translation_service: Rc<TranslationService>,
     pub save_queue: Rc<PendingSaveQueue>,
+    pub autoplay_enabled: bool,
 }
 
 impl Default for AppState {
@@ -68,6 +71,7 @@ impl Default for AppState {
             tts_service: Some(Rc::new(CloudTtsService::new("http://localhost:3000"))),
             translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
             save_queue: Rc::new(PendingSaveQueue::new()),
+            autoplay_enabled: false,
         }
     }
 }
@@ -128,6 +132,25 @@ impl AppState {
             }
             AppStateAction::DestroySession => {
                 next.session_id = None;
+            }
+            AppStateAction::NotifyTTSEnabled(enabled) => {
+                next.autoplay_enabled = enabled;
+            }
+            AppStateAction::ProcessAgentMessage(msg) => {
+                // Read autoplay_enabled from AppState's own state (not from UserState handle)
+                if next.autoplay_enabled {
+                    // Dispatch Speak - same as current implementation
+                    let tts_service = next.tts_service.clone();
+                    let language_code = msg.metadata.dialect.bcp47_tag();
+                    let text = msg.get_content();
+                    wasm_bindgen_futures::spawn_local(async move {
+                        if let Some(tts) = tts_service
+                            && let Err(e) = tts.speak(&text, language_code).await
+                        {
+                            error!("Failed to replay message with TTS: {}", e);
+                        }
+                    });
+                }
             }
         }
         next

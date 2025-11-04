@@ -4,7 +4,9 @@ use app_state::{AppState, AppStateAction, UIState, UIStateAction, UserStateActio
 pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 
 use dialect_coach_shared::models::{Formality, Language, Message, MessageContent, TeachingMode};
-use dialect_coach_shared::{Explained, Exploratory, Mistake, PastLearningItems, Translated, UserMessageWithContext};
+use dialect_coach_shared::{
+    Explained, Exploratory, Mistake, PastLearningItems, Translated, UserMessageWithContext,
+};
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -268,13 +270,18 @@ fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Message>
     })
 }
 
-fn on_tts_toggle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
+fn on_tts_toggle(
+    app_state: UseReducerHandle<AppState>,
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<()> {
+    let app_state = app_state.clone();
     let user_state = user_state.clone();
     Callback::from(move |_| {
-        if user_state.0.is_none() {
-            return;
+        if let Some(state) = user_state.0.as_ref() {
+            let new_value = !state.tts_enabled;
+            user_state.dispatch(UserStateAction::ToggleTTS);
+            app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_value));
         }
-        user_state.dispatch(UserStateAction::ToggleTTS);
     })
 }
 
@@ -355,12 +362,15 @@ fn on_user_state_ws_open(
 }
 
 fn on_user_state_load_response(
+    app_state: UseReducerHandle<AppState>,
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Option<UserState>> {
+    let app_state = app_state.clone();
     Callback::from(move |loaded_state: Option<UserState>| {
         if let Some(state) = loaded_state {
             info!("Received user state from backend");
-            user_state.dispatch(UserStateAction::ReplaceUserState(state));
+            user_state.dispatch(UserStateAction::ReplaceUserState(state.clone()));
+            app_state.dispatch(AppStateAction::NotifyTTSEnabled(state.tts_enabled));
         } else {
             info!("No existing user state on backend, using current state");
         }
@@ -429,7 +439,9 @@ fn on_user_create_response(
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
 
                 // Create new UserState for the user
-                user_state.dispatch(UserStateAction::ReplaceUserState(UserState::new(user.id)));
+                let new_state = UserState::new(user.id);
+                user_state.dispatch(UserStateAction::ReplaceUserState(new_state.clone()));
+                app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));
 
                 info!("Session and UserState created for new user");
             }
@@ -457,7 +469,9 @@ fn on_user_signin_response(
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
 
                 // Create UserState - will be populated from backend via WebSocket
-                user_state.dispatch(UserStateAction::ReplaceUserState(UserState::new(user.id)));
+                let new_state = UserState::new(user.id);
+                user_state.dispatch(UserStateAction::ReplaceUserState(new_state.clone()));
+                app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));
 
                 info!("Session and UserState created for signed-in user (will load from backend)");
             }
@@ -629,14 +643,14 @@ pub fn app() -> Html {
                     ws.set_on_message(Callback::from(move |msg: Message| {
                         asc.dispatch(AppStateAction::LoadingComplete);
 
-                        let tts_enabled = usc.0.as_ref().map(|s| s.tts_enabled).unwrap_or(false);
                         let msg_clone = msg.clone();
                         match msg.content {
-                            MessageContent::UserMessage { .. } => {}
+                            MessageContent::UserMessage { .. } => {
+                                usc.dispatch(UserStateAction::AddMessage(msg_clone.clone()));
+                            }
                             MessageContent::AgentMessage { content } => {
-                                if tts_enabled {
-                                    asc.dispatch(AppStateAction::Speak(msg_clone.clone()));
-                                }
+                                // Dispatch to AppState for autoplay check (reads from AppState's own state)
+                                asc.dispatch(AppStateAction::ProcessAgentMessage(msg_clone.clone()));
 
                                 let mistakes = content.mistakes.clone().unwrap_or_default();
                                 let explained = content.explained.clone().unwrap_or_default();
@@ -720,7 +734,10 @@ pub fn app() -> Html {
                     let mut ws = ws_service_clone.borrow_mut();
 
                     ws.set_on_open(on_user_state_ws_open(app_state.clone(), user_id));
-                    ws.set_on_load_response(on_user_state_load_response(user_state.clone()));
+                    ws.set_on_load_response(on_user_state_load_response(
+                        app_state.clone(),
+                        user_state.clone(),
+                    ));
                     ws.set_on_save_response(on_user_state_save_response());
                     ws.connect();
                 }
@@ -917,7 +934,7 @@ pub fn app() -> Html {
                                 on_dialect_cycle={Some(on_dialect_cycle(user_state.clone()))}
                                 on_teaching_mode_cycle={Some(on_teaching_mode_cycle(user_state.clone()))}
                                 on_formality_cycle={Some(on_formality_cycle(user_state.clone()))}
-                                on_tts_toggle={Some(on_tts_toggle(user_state.clone()))}
+                                on_tts_toggle={Some(on_tts_toggle(app_state.clone(), user_state.clone()))}
                             />
                         <InputBox
                             on_send={{

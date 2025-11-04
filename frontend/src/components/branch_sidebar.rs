@@ -1,7 +1,7 @@
+use crate::components::LearningGoalsPanel;
 use dialect_coach_shared::models::{ConversationBranch, Message};
 use uuid::Uuid;
 use yew::prelude::*;
-use crate::components::LearningGoalsPanel;
 
 #[derive(Properties, PartialEq)]
 pub struct BranchSidebarProps {
