@@ -44,12 +44,6 @@ fn build_context_from_messages(messages: &[Message]) -> Vec<RigMessage> {
     messages.iter().map(convert_to_rig_message).collect()
 }
 
-fn trim_history(history: &mut Vec<String>, max_size: usize) {
-    if history.len() > max_size {
-        history.drain(0..history.len() - max_size);
-    }
-}
-
 fn create_error_message(error_text: String, metadata: MessageMetadata) -> Message {
     let error_response = error_to_agent_response(error_text);
     Message::new(
@@ -69,16 +63,6 @@ fn serialize_and_send(msg: &Message, tx: &mpsc::UnboundedSender<String>) -> Resu
         .map_err(|e| format!("Failed to send message: {}", e))?;
 
     Ok(())
-}
-
-async fn update_user_history(state: &AppState, session_id: Uuid, user_text: &str) -> Vec<String> {
-    let mut histories = state.session_histories.lock().await;
-    let history = histories.entry(session_id).or_insert_with(Vec::new);
-
-    history.push(format!("User: {}", user_text));
-    trim_history(history, 20);
-
-    history.clone()
 }
 
 async fn add_agent_to_history(state: &AppState, session_id: Uuid, agent_text: &str) {
@@ -189,13 +173,22 @@ async fn run_agents_parallel(
         || !msg_with_context.past_translated.is_empty()
         || !msg_with_context.past_exploratory.is_empty();
 
-    let rag_config = RAGConfig::new(10, 15);
+    let rag_config = RAGConfig::new(20, 5);
 
     if !has_learning_items {
         return state
             .agent
-            .generate_response(user_text, dialect, formality, teaching_mode, history_vec, &msg_with_context.learning_goals, &rag_config)
-            .await;
+            .generate_response(
+                user_text,
+                dialect,
+                formality,
+                teaching_mode,
+                history_vec,
+                &msg_with_context.learning_goals,
+                &rag_config,
+            )
+            .await
+            .map(|response| response.0);
     }
 
     tracing::info!(
@@ -207,9 +200,15 @@ async fn run_agents_parallel(
     );
 
     let (response_result, analysis_result) = tokio::join!(
-        state
-            .agent
-            .generate_response(user_text, dialect, formality, teaching_mode, history_vec, &msg_with_context.learning_goals, &rag_config),
+        state.agent.generate_response(
+            user_text,
+            dialect,
+            formality,
+            teaching_mode,
+            history_vec,
+            &msg_with_context.learning_goals,
+            &rag_config
+        ),
         state.agent.generate_analysis(
             dialect,
             user_text,
@@ -220,11 +219,12 @@ async fn run_agents_parallel(
         )
     );
 
-    let mut agent_response = response_result?;
+    let agent_response = response_result?;
 
     match analysis_result {
         Ok(analysis) => {
-            agent_response.analysis = Some(analysis);
+            let mut agent_response = agent_response.0;
+            agent_response.analysis = Some(analysis.0);
             Ok(agent_response)
         }
         Err(e) => {
@@ -669,27 +669,6 @@ mod tests {
         assert_eq!(context.len(), 2);
         assert_eq!(context[0], convert_to_rig_message(&msg1));
         assert_eq!(context[1], convert_to_rig_message(&msg2));
-    }
-
-    #[test]
-    fn test_trim_history() {
-        let mut history = vec![];
-
-        // Test: no trimming when under max
-        for i in 0..10 {
-            history.push(format!("msg {}", i));
-        }
-        trim_history(&mut history, 20);
-        assert_eq!(history.len(), 10);
-
-        // Test: trimming when over max
-        for i in 10..25 {
-            history.push(format!("msg {}", i));
-        }
-        trim_history(&mut history, 20);
-        assert_eq!(history.len(), 20);
-        assert_eq!(history[0], "msg 5"); // Oldest 5 removed
-        assert_eq!(history[19], "msg 24"); // Newest kept
     }
 
     #[test]

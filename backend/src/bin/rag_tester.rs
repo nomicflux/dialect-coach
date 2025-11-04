@@ -1,8 +1,8 @@
 use anyhow::Result;
 use dialect_coach_backend::{
     agent_service::AgentService, embedding_service::EmbeddingService,
-    qdrant_service::QdrantService, rag_config::RAGConfig, test_utils::run_self_chat_test,
-    test_utils::TestStats,
+    qdrant_service::QdrantService, rag_config::RAGConfig, test_utils::TestStats,
+    test_utils::run_self_chat_test,
 };
 use dialect_coach_shared::{Dialect, Formality};
 use std::sync::Arc;
@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
-    
+
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
@@ -32,7 +32,13 @@ async fn main() -> Result<()> {
             print_test_header(config, dialect);
 
             let stats = run_self_chat_test(
-                &agent, &qdrant, &embeddings, *config, *dialect, *formality, seed,
+                &agent,
+                &qdrant,
+                &embeddings,
+                *config,
+                *dialect,
+                *formality,
+                seed,
             )
             .await?;
 
@@ -72,16 +78,8 @@ fn get_test_dialects() -> Vec<(Dialect, Formality, &'static str)> {
             Formality::DialectRich,
             "¿Qué bola asere?",
         ),
-        (
-            Dialect::ArabicLevantine,
-            Formality::DialectRich,
-            "كيفك؟",
-        ),
-        (
-            Dialect::ArabicGulf,
-            Formality::DialectRich,
-            "شلونك؟",
-        ),
+        (Dialect::ArabicLevantine, Formality::DialectRich, "كيفك؟"),
+        (Dialect::ArabicGulf, Formality::DialectRich, "شلونك؟"),
         (
             Dialect::FrenchQuebecois,
             Formality::DialectRich,
@@ -129,4 +127,3 @@ fn print_summary(results: &[TestStats]) {
         );
     }
 }
-

@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument};
 use qdrant_client::Qdrant;
+use qdrant_client::QdrantError;
 use qdrant_client::qdrant::r#match::MatchValue;
 use qdrant_client::qdrant::{
     Condition, CreateFieldIndexCollectionBuilder, FieldType, Filter, SearchPointsBuilder,
 };
 use rand::seq::SliceRandom;
-use qdrant_client::QdrantError;
 
 const COLLECTION_NAME: &str = "dialect_documents";
 
@@ -54,7 +54,12 @@ impl QdrantService {
         tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))
     }
 
-    fn log_retry_attempt(attempt: usize, max_attempts: usize, error: &QdrantError, delay: tokio::time::Duration) {
+    fn log_retry_attempt(
+        attempt: usize,
+        max_attempts: usize,
+        error: &QdrantError,
+        delay: tokio::time::Duration,
+    ) {
         tracing::warn!(
             "Qdrant operation failed (attempt {}/{}): {}. Retrying in {:?}...",
             attempt,
@@ -110,9 +115,13 @@ impl QdrantService {
         let search_result = Self::retry_qdrant_operation(
             || {
                 self.client.search_points(
-                    SearchPointsBuilder::new(COLLECTION_NAME, query_embedding.to_owned(), limit as u64)
-                        .filter(filter.clone())
-                        .with_payload(true),
+                    SearchPointsBuilder::new(
+                        COLLECTION_NAME,
+                        query_embedding.to_owned(),
+                        limit as u64,
+                    )
+                    .filter(filter.clone())
+                    .with_payload(true),
                 )
             },
             3,

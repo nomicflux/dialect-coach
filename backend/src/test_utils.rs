@@ -56,12 +56,13 @@ pub async fn run_self_chat_test(
             .await?;
 
         let (cosine_mse, l2_mse) =
-            compute_corpus_similarity(&response.response, dialect, qdrant, embeddings, 10).await?;
+            compute_corpus_similarity(&response.0.response, dialect, qdrant, embeddings, 10)
+                .await?;
         cosine_mse_values.push(cosine_mse);
         l2_mse_values.push(l2_mse);
 
         // Add assistant response AFTER getting it (for next turn's context)
-        conversation_history.push(create_assistant_rig_message(&response.response));
+        conversation_history.push(create_assistant_rig_message(&response.0.response));
 
         // Generate next user message using agent
         current_message = agent
@@ -170,4 +171,3 @@ mod tests {
         assert!((variance - 0.6666666666666666).abs() < 1e-6);
     }
 }
-

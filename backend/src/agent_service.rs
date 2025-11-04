@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument, Explained, Formality, Mistake, TeachingMode};
 use rig::completion::{
-    Chat, CompletionError, Message as RigMessage, Prompt, PromptError, message::AssistantContent, message::UserContent,
-    message::Text,
+    Chat, CompletionError, Message as RigMessage, Prompt, PromptError, message::AssistantContent,
+    message::Text, message::UserContent,
 };
 use rig::one_or_many::OneOrMany;
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
@@ -48,9 +48,10 @@ fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
   "mistakes": [{"specific_mistake": "<word/phrase>", "correction": "<correct form>", "mistake_category": {"type": "<category>", "context": "<info>"}}]
 }
 Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
+CRITICAL: Only include mistakes if user made clear errors for THIS dialect. If you cannot confidently identify a mistake without needing to justify or explain why it differs from standard varieties, do NOT include it. 
+Dialectal forms that are correct for THIS dialect are NOT mistakes. This filter applies BEFORE generating the JSON structure - if a mistake is not clearly wrong for THIS dialect, do not include it in the mistakes array at all.
 The "correction" field should contain the direct correction of the mistake in "specific_mistake". "correction" must be correct.
-The "mistake_category.context" field should also contain a single short sentence explaining the mistake.
-Only include mistakes if user made clear errors for the dialect (real errors, not merely lesser-used forms). Keep specific_mistake only the word or phrase that was an error. Restrict yourself to a maximum of 3 mistakes per response."#
+The "mistake_category.context" field should also contain a single short sentence explaining the mistake."#
         }
         TeachingMode::Explanatory => {
             r#"Response format: {
@@ -221,17 +222,17 @@ fn format_examples_as_user_message(
     if primary_examples.is_empty() && secondary_examples.is_empty() {
         return String::new();
     }
-    
+
     let mut examples_text = "DIALECT EXAMPLES:\n".to_string();
-    
+
     for doc in primary_examples {
         examples_text.push_str(&format!("\"{}\"\n", doc.content));
     }
-    
+
     for doc in secondary_examples {
         examples_text.push_str(&format!("\"{}\"\n", doc.content));
     }
-    
+
     examples_text
 }
 
@@ -243,7 +244,7 @@ fn create_examples_user_message(examples_text: &str) -> RigMessage {
             })),
         };
     }
-    
+
     RigMessage::User {
         content: OneOrMany::one(UserContent::Text(Text {
             text: examples_text.to_string(),
@@ -258,7 +259,7 @@ fn build_examples_message(
     if primary_examples.is_empty() && secondary_examples.is_empty() {
         return None;
     }
-    
+
     let examples_text = format_examples_as_user_message(primary_examples, secondary_examples);
     Some(create_examples_user_message(&examples_text))
 }
@@ -275,11 +276,21 @@ fn analysis_agent_preamble(
 
 {}{}{}{}
 
-Analyze the conversation and score each item (be generous; prefer to give points when in doubt. If you see the item in the user response, do not give a score of 0.):
+Score each item (be generous; prefer to give points when in doubt. If you see the item in the user response, do not give a score of 0.).
+
+CRITICAL RULES:
+1. ALL SCORES MUST BE NUMBERS (integers from -10 to 10). NO TEXT IN THE SCORE FIELDS.
+2. DO NOT WRITE ANY EXPLANATIONS OR ANALYSIS. NO TEXT BEFORE OR AFTER THE JSON.
+3. Your response starts with {{ (already provided). Continue directly with the JSON fields - NO explanatory text after the {{.
+4. Your response must contain ONLY valid JSON from {{ to }}.
+5. If you have no scoring instructions for a category, return an empty object for that category.
+
+Example correct format:
+{{"mistake_scores": {{"id1": 8}}, "explained_scores": {{"id2": 5}}, "translated_scores": {{"id3": 10}}, "exploratory_scores": {{"id4": 7}}}}
 
 {}
 
-Return ONLY this JSON:
+Return ONLY the JSON object, starting with {{:
 {{"mistake_scores": {{}}, "explained_scores": {{}}, "translated_scores": {{}}, "exploratory_scores": {{}}}}"#,
         dialect.name(),
         format_mistakes_for_analysis(mistakes),
@@ -293,7 +304,7 @@ Return ONLY this JSON:
 fn is_retryable_error(error: &PromptError) -> bool {
     match error {
         PromptError::CompletionError(CompletionError::ProviderError(msg)) => {
-            msg.contains("Overloaded") 
+            msg.contains("Overloaded")
                 || msg.contains("Response contained no message")
                 || msg.contains("Internal server error")
         }
@@ -348,33 +359,26 @@ impl AgentService {
     fn build_retry_preamble(
         original_preamble: &str,
         failed_response: &str,
+        error_detector: impl Fn(&str) -> String,
+        additional_instructions: &str,
     ) -> String {
         let cleaned = Self::clean_response(failed_response);
         let error_detail = if Self::is_incomplete_json(failed_response) {
-            "Your previous response was TRUNCATED because it hit the token limit. The JSON was cut off mid-response, causing a parse error. You MUST keep your response shorter to fit within the token limit, or ensure the JSON is properly closed even if truncated."
+            "Your previous response was TRUNCATED because it hit the token limit. The JSON was cut off mid-response, causing a parse error. You MUST keep your response shorter to fit within the token limit, or ensure the JSON is properly closed even if truncated.".to_string()
         } else {
-            match serde_json::from_str::<dialect_coach_shared::AgentResponse>(&cleaned) {
-                Ok(parsed) if parsed.response.is_empty() => {
-                    "Your previous response had an EMPTY 'response' field. The response field must contain actual text content and cannot be empty."
-                }
-                Ok(_) => {
-                    "Your previous response was not formatted correctly and caused the system to crash."
-                }
-                Err(_) => {
-                    "Your previous response was not formatted correctly as JSON and caused the system to crash."
-                }
-            }
+            error_detector(&cleaned)
         };
-        
+
         format!(
             "{}\n\n\
             # CRITICAL ERROR - SYSTEM CRASHED\n\
             {}\n\
             Previous response (INCORRECT): {}\n\
-            You MUST respond with valid JSON only. Start with {{ and end with }}. The 'response' field MUST be non-empty. You MUST NOT end the conversation.\n",
+            You MUST respond with valid JSON only. Start with {{ and end with }}. {}\n",
             original_preamble,
             error_detail,
-            failed_response.chars().take(200).collect::<String>()
+            failed_response.chars().take(200).collect::<String>(),
+            additional_instructions
         )
     }
 
@@ -383,20 +387,21 @@ impl AgentService {
         _dialect: Dialect,
     ) -> Result<dialect_coach_shared::AgentResponse> {
         let normalized = Self::normalize_json_response(response);
-        let parsed: dialect_coach_shared::AgentResponse = serde_json::from_str(&normalized).map_err(|e| {
-            tracing::warn!(
-                "JSON parse error: {}. First 200 chars: {}",
-                e,
-                &response.chars().take(200).collect::<String>()
-            );
-            anyhow::anyhow!("JSON parse failed: {}", e)
-        })?;
-        
+        let parsed: dialect_coach_shared::AgentResponse = serde_json::from_str(&normalized)
+            .map_err(|e| {
+                tracing::warn!(
+                    "JSON parse error: {}. First 200 chars: {}",
+                    e,
+                    &response.chars().take(200).collect::<String>()
+                );
+                anyhow::anyhow!("JSON parse failed: {}", e)
+            })?;
+
         if parsed.response.is_empty() {
             tracing::warn!("Response field is empty");
             return Err(anyhow::anyhow!("Response field must be non-empty"));
         }
-        
+
         Ok(parsed)
     }
 
@@ -411,14 +416,83 @@ impl AgentService {
         );
     }
 
+    fn try_parse_analysis(response: &str) -> Result<dialect_coach_shared::AgentAnalysis> {
+        let normalized = Self::normalize_json_response(response);
+        let parsed: dialect_coach_shared::AgentAnalysis = serde_json::from_str(&normalized)
+            .map_err(|e| {
+                tracing::warn!(
+                    "JSON parse error: {}. First 200 chars: {}",
+                    e,
+                    &response.chars().take(200).collect::<String>()
+                );
+                anyhow::anyhow!("JSON parse failed: {}", e)
+            })?;
+
+        Ok(parsed)
+    }
+
+    fn log_analysis_success(parsed_analysis: &dialect_coach_shared::AgentAnalysis) {
+        tracing::info!(
+            "Generated analysis ({} mistake scores, {} explained scores, {} translated scores, {} exploratory scores)",
+            parsed_analysis.mistake_scores.len(),
+            parsed_analysis.explained_scores.len(),
+            parsed_analysis.translated_scores.len(),
+            parsed_analysis.exploratory_scores.len()
+        );
+    }
+
+    fn detect_response_error(cleaned: &str) -> String {
+        match serde_json::from_str::<dialect_coach_shared::AgentResponse>(cleaned) {
+            Ok(parsed) if parsed.response.is_empty() => {
+                "Your previous response had an EMPTY 'response' field. The response field must contain actual text content and cannot be empty.".to_string()
+            }
+            Ok(_) => {
+                "Your previous response was not formatted correctly and caused the system to crash.".to_string()
+            }
+            Err(_) => {
+                "Your previous response was not formatted correctly as JSON and caused the system to crash.".to_string()
+            }
+        }
+    }
+
+    fn detect_analysis_error(cleaned: &str) -> String {
+        match serde_json::from_str::<dialect_coach_shared::AgentAnalysis>(cleaned) {
+            Ok(_) => {
+                "Your previous response was not formatted correctly and caused the system to crash.".to_string()
+            }
+            Err(_) => {
+                "Your previous response was not formatted correctly as JSON and caused the system to crash.".to_string()
+            }
+        }
+    }
+
+    fn build_retry_response_preamble(original_preamble: &str, failed_response: &str) -> String {
+        Self::build_retry_preamble(
+            original_preamble,
+            failed_response,
+            Self::detect_response_error,
+            "The 'response' field MUST be non-empty. You MUST NOT end the conversation.",
+        )
+    }
+
+    fn build_retry_analysis_preamble(original_preamble: &str, failed_response: &str) -> String {
+        Self::build_retry_preamble(
+            original_preamble,
+            failed_response,
+            Self::detect_analysis_error,
+            "You MUST return valid JSON with numeric scores only.",
+        )
+    }
+
     fn create_retry_agent(
         &self,
         original_preamble: &str,
         failed_response: &str,
+        preamble_builder: &impl Fn(&str, &str) -> String,
         max_tokens: u64,
         temperature: f64,
     ) -> impl Chat {
-        let retry_preamble = Self::build_retry_preamble(original_preamble, failed_response);
+        let retry_preamble = preamble_builder(original_preamble, failed_response);
         self.client
             .agent(&self.model_name)
             .preamble(&retry_preamble)
@@ -431,7 +505,8 @@ impl AgentService {
         &self,
         original_preamble: &str,
         failed_response: &str,
-        user_message: &str,
+        prompt: &str,
+        preamble_builder: &impl Fn(&str, &str) -> String,
         conversation_history: &[RigMessage],
         max_tokens: u64,
         temperature: f64,
@@ -439,21 +514,23 @@ impl AgentService {
         let retry_agent = self.create_retry_agent(
             original_preamble,
             failed_response,
+            preamble_builder,
             max_tokens,
             temperature,
         );
         // conversation_history already has examples - just use it as-is
         let mut history_with_prefill = conversation_history.to_vec();
         history_with_prefill.push(Self::create_prefilled_assistant_message());
-        Self::retry_chat_call(
-            || retry_agent.chat(user_message, history_with_prefill.clone()),
-            3,
-        )
-        .await
-        .context("Failed to get retry completion from Claude")
+        Self::retry_chat_call(|| retry_agent.chat(prompt, history_with_prefill.clone()), 3)
+            .await
+            .context("Failed to get retry completion from Claude")
     }
 
-    fn build_retry_failure_error(max_retries: usize, last_error: &str, last_failed_response: &str) -> anyhow::Error {
+    fn build_retry_failure_error(
+        max_retries: usize,
+        last_error: &str,
+        last_failed_response: &str,
+    ) -> anyhow::Error {
         anyhow::anyhow!(
             "Claude returned invalid JSON after {} retry attempts: {}. Last failed response: {}",
             max_retries,
@@ -476,60 +553,80 @@ impl AgentService {
         error_str.contains("EOF while parsing") || Self::is_incomplete_json(response)
     }
 
-    fn process_retry_response(
+    fn process_retry_response<T>(
         attempt: usize,
         max_retries: usize,
         response: String,
         failed_response: &str,
-        dialect: Dialect,
-    ) -> Result<(Option<dialect_coach_shared::AgentResponse>, String), anyhow::Error> {
-        match Self::try_parse_response(&response, dialect) {
+        parse_fn: &impl Fn(&str) -> Result<T>,
+        log_success: &impl Fn(&T),
+    ) -> Result<(Option<T>, String), anyhow::Error> {
+        match parse_fn(&response) {
             Ok(parsed_response) => {
-                Self::log_response_success(dialect, &parsed_response);
+                log_success(&parsed_response);
                 Ok((Some(parsed_response), response))
             }
             Err(e) => {
                 if Self::detect_truncation_error(&e, &response) {
                     tracing::error!(
-                        "Token limit truncation detected on retry attempt {} for dialect {}",
-                        attempt,
-                        dialect.name()
+                        "Token limit truncation detected on retry attempt {}",
+                        attempt
                     );
                 }
                 Self::log_retry_parse_error(attempt, &e, &response);
                 if attempt == max_retries {
-                    return Err(Self::build_retry_failure_error(max_retries, &format!("{}", e), failed_response));
+                    return Err(Self::build_retry_failure_error(
+                        max_retries,
+                        &format!("{}", e),
+                        failed_response,
+                    ));
                 }
                 Ok((None, response))
             }
         }
     }
 
-    async fn handle_retry_attempt(
+    async fn handle_retry_attempt<T>(
         &self,
         attempt: usize,
         max_retries: usize,
         original_preamble: &str,
         failed_response: &str,
-        user_message: &str,
+        prompt: &str,
+        preamble_builder: &impl Fn(&str, &str) -> String,
         conversation_history: &[RigMessage],
         max_tokens: u64,
         temperature: f64,
-        dialect: Dialect,
-    ) -> Result<(Option<dialect_coach_shared::AgentResponse>, String)> {
-        tracing::warn!("Retrying with error feedback for dialect {} (attempt {}/{})", dialect.name(), attempt, max_retries);
-        
-        let response = self.attempt_retry_with_feedback(
-            original_preamble,
-            failed_response,
-            user_message,
-            conversation_history,
-            max_tokens,
-            temperature,
-        ).await?;
+        parse_fn: &impl Fn(&str) -> Result<T>,
+        log_success: &impl Fn(&T),
+    ) -> Result<(Option<T>, String)> {
+        tracing::warn!(
+            "Retrying with error feedback (attempt {}/{})",
+            attempt,
+            max_retries
+        );
+
+        let response = self
+            .attempt_retry_with_feedback(
+                original_preamble,
+                failed_response,
+                prompt,
+                preamble_builder,
+                conversation_history,
+                max_tokens,
+                temperature,
+            )
+            .await?;
 
         tracing::info!("Raw retry response from Claude: {}", response);
-        Self::process_retry_response(attempt, max_retries, response, failed_response, dialect)
+        Self::process_retry_response(
+            attempt,
+            max_retries,
+            response,
+            failed_response,
+            parse_fn,
+            log_success,
+        )
     }
 
     async fn retry_with_error_feedback(
@@ -542,29 +639,104 @@ impl AgentService {
         temperature: f64,
         dialect: Dialect,
     ) -> Result<dialect_coach_shared::AgentResponse> {
-        let max_retries = 3;
-        let mut last_failed_response = failed_response.to_string();
-        
-        for attempt in 1..=max_retries {
-            let (result, response) = self.handle_retry_attempt(
-                attempt,
-                max_retries,
+        let parse_fn = move |response: &str| -> Result<dialect_coach_shared::AgentResponse> {
+            Self::try_parse_response(response, dialect)
+        };
+        let log_success = move |parsed: &dialect_coach_shared::AgentResponse| {
+            Self::log_response_success(dialect, parsed);
+        };
+        let preamble_builder = move |preamble: &str, failed: &str| -> String {
+            Self::build_retry_response_preamble(preamble, failed)
+        };
+        let (result, _retry_count) = self
+            .retry_with_error_feedback_tracked(
                 original_preamble,
-                &last_failed_response,
+                failed_response,
                 user_message,
+                &preamble_builder,
                 conversation_history,
                 max_tokens,
                 temperature,
-                dialect,
-            ).await?;
-            
+                &parse_fn,
+                &log_success,
+            )
+            .await?;
+        Ok(result)
+    }
+
+    async fn retry_with_error_feedback_tracked<T>(
+        &self,
+        original_preamble: &str,
+        failed_response: &str,
+        prompt: &str,
+        preamble_builder: &impl Fn(&str, &str) -> String,
+        conversation_history: &[RigMessage],
+        max_tokens: u64,
+        temperature: f64,
+        parse_fn: &impl Fn(&str) -> Result<T>,
+        log_success: &impl Fn(&T),
+    ) -> Result<(T, u32)> {
+        let max_retries = 3;
+        let mut last_failed_response = failed_response.to_string();
+
+        for attempt in 1..=max_retries {
+            let (result, response) = self
+                .handle_retry_attempt(
+                    attempt,
+                    max_retries,
+                    original_preamble,
+                    &last_failed_response,
+                    prompt,
+                    preamble_builder,
+                    conversation_history,
+                    max_tokens,
+                    temperature,
+                    parse_fn,
+                    log_success,
+                )
+                .await?;
+
             if let Some(parsed_response) = result {
-                return Ok(parsed_response);
+                return Ok((parsed_response, attempt as u32));
             }
             last_failed_response = response;
         }
-        
-        Err(anyhow::anyhow!("Failed to get valid response after {} retry attempts", max_retries))
+
+        Err(anyhow::anyhow!(
+            "Failed to get valid response after {} retry attempts",
+            max_retries
+        ))
+    }
+
+    async fn retry_analysis_with_error_feedback_tracked(
+        &self,
+        original_preamble: &str,
+        failed_response: &str,
+        msg: &String,
+        conversation_history: &[RigMessage],
+    ) -> Result<(dialect_coach_shared::AgentAnalysis, u32)> {
+        let prompt = format!("USER MESSAGE TO ANALYZE: {msg}");
+        let parse_fn = move |response: &str| -> Result<dialect_coach_shared::AgentAnalysis> {
+            Self::try_parse_analysis(response)
+        };
+        let log_success = move |parsed: &dialect_coach_shared::AgentAnalysis| {
+            Self::log_analysis_success(parsed);
+        };
+        let preamble_builder = move |preamble: &str, failed: &str| -> String {
+            Self::build_retry_analysis_preamble(preamble, failed)
+        };
+        self.retry_with_error_feedback_tracked(
+            original_preamble,
+            failed_response,
+            &prompt,
+            &preamble_builder,
+            conversation_history,
+            1024,
+            0.2,
+            &parse_fn,
+            &log_success,
+        )
+        .await
     }
 
     pub async fn generate_analysis(
@@ -575,14 +747,14 @@ impl AgentService {
         explained: &[Explained],
         translated: &[dialect_coach_shared::Translated],
         exploratory: &[dialect_coach_shared::Exploratory],
-    ) -> Result<dialect_coach_shared::AgentAnalysis> {
+    ) -> Result<(dialect_coach_shared::AgentAnalysis, u32)> {
         if mistakes.is_empty()
             && explained.is_empty()
             && translated.is_empty()
             && exploratory.is_empty()
         {
             tracing::debug!("Skipping analysis - no learning items");
-            return Ok(dialect_coach_shared::AgentAnalysis::new());
+            return Ok((dialect_coach_shared::AgentAnalysis::new(), 0));
         }
 
         tracing::info!(
@@ -595,7 +767,7 @@ impl AgentService {
 
         let preamble =
             analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory);
-        tracing::debug!("Analysis preamble sent to Claude:\n{}", preamble);
+        tracing::info!("Analysis preamble sent to Claude:\n{}", preamble);
 
         let agent = self
             .client
@@ -606,7 +778,7 @@ impl AgentService {
             .build();
 
         let prompt = format!("USER MESSAGE TO ANALYZE: {msg}");
-        tracing::debug!("Analysis prompt sent to Claude:\n{}", prompt);
+        tracing::info!("Analysis prompt sent to Claude:\n{}", prompt);
 
         tracing::info!("Calling Claude API for analysis...");
         let mut history_with_prefill = Vec::new();
@@ -620,15 +792,28 @@ impl AgentService {
 
         tracing::info!("Raw analysis response from Claude: {}", response);
 
-        let normalized_response = Self::normalize_json_response(&response);
+        // Try initial parse
+        match Self::try_parse_analysis(&response) {
+            Ok(analysis) => {
+                Self::log_analysis_success(&analysis);
+                return Ok((analysis, 0)); // 0 retries if first attempt succeeds
+            }
+            Err(_) => {
+                // Initial parse failed, use retry logic
+                tracing::warn!("Initial analysis parse failed, attempting retries");
+            }
+        }
 
-        serde_json::from_str(&normalized_response).map_err(|e| {
-            tracing::error!("JSON parse error: {}. First 200 chars of response: {}",
-                e,
-                &response.chars().take(200).collect::<String>()
-            );
-            anyhow::anyhow!("Claude returned invalid JSON for analysis: {}. Check if response is wrapped in markdown", e)
-        })
+        // Retry with error feedback
+        let mut history_with_prefill = Vec::new();
+        history_with_prefill.push(Self::create_prefilled_assistant_message());
+        self.retry_analysis_with_error_feedback_tracked(
+            &preamble,
+            &response,
+            msg,
+            &history_with_prefill,
+        )
+        .await
     }
 
     fn retrieve_user_msg_embeddings(&self, user_message: &str) -> Result<Vec<f32>> {
@@ -697,7 +882,9 @@ impl AgentService {
     ) -> Result<Vec<DialectDocument>> {
         let mut docs = Vec::new();
         for embedding in embeddings {
-            let example_docs = self.retrieve_example(dialect, &embedding, limit_per_embedding).await?;
+            let example_docs = self
+                .retrieve_example(dialect, &embedding, limit_per_embedding)
+                .await?;
             docs.extend(example_docs);
         }
         Ok(docs)
@@ -744,16 +931,22 @@ impl AgentService {
     }
 
     pub fn contains_illegal_characters(text: &str) -> bool {
-        text.contains('\0') || text.chars().any(|c| {
-            c.is_control() && !matches!(c, '\n' | '\t' | '\r' | ' ')
-        })
+        text.contains('\0')
+            || text
+                .chars()
+                .any(|c| c.is_control() && !matches!(c, '\n' | '\t' | '\r' | ' '))
     }
 
     fn calculate_backoff_delay(attempt: usize) -> tokio::time::Duration {
         tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))
     }
 
-    fn log_retry_attempt(attempt: usize, max_attempts: usize, error: &PromptError, delay: tokio::time::Duration) {
+    fn log_retry_attempt(
+        attempt: usize,
+        max_attempts: usize,
+        error: &PromptError,
+        delay: tokio::time::Duration,
+    ) {
         match error {
             PromptError::CompletionError(CompletionError::ProviderError(msg)) => {
                 if msg.contains("Response contained no message") {
@@ -809,7 +1002,11 @@ impl AgentService {
                 Err(e) => return Err(anyhow::anyhow!("API call failed: {}", e)),
             }
         }
-        Err(anyhow::anyhow!("API call failed after {} attempts: {}", max_attempts, last_error.unwrap()))
+        Err(anyhow::anyhow!(
+            "API call failed after {} attempts: {}",
+            max_attempts,
+            last_error.unwrap()
+        ))
     }
 
     pub async fn generate_response(
@@ -821,9 +1018,11 @@ impl AgentService {
         conversation_history: &[RigMessage],
         learning_goals: &[String],
         rag_config: &RAGConfig,
-    ) -> Result<dialect_coach_shared::AgentResponse> {
+    ) -> Result<(dialect_coach_shared::AgentResponse, u32)> {
         if Self::contains_illegal_characters(user_message) {
-            tracing::error!("User message contains illegal characters (null bytes or control chars)");
+            tracing::error!(
+                "User message contains illegal characters (null bytes or control chars)"
+            );
             return Err(anyhow::anyhow!("User message contains illegal characters"));
         }
         tracing::info!("Generating embeddings for multi-vector retrieval");
@@ -834,7 +1033,9 @@ impl AgentService {
         let embeddings = self.retrieve_embeddings(user_message, &history_text)?;
 
         tracing::info!("Performing multi-vector retrieval");
-        let examples = self.retrieve_examples(&dialect, embeddings, rag_config.num_conversation_documents).await?;
+        let examples = self
+            .retrieve_examples(&dialect, embeddings, rag_config.num_conversation_documents)
+            .await?;
 
         tracing::info!("Adding random stylistic samples");
         let sample_formalities = match formality {
@@ -849,7 +1050,11 @@ impl AgentService {
             Vec::new()
         } else {
             self.qdrant
-                .random_dialect_samples(dialect, sample_formalities.clone(), rag_config.num_random_documents)
+                .random_dialect_samples(
+                    dialect,
+                    sample_formalities.clone(),
+                    rag_config.num_random_documents,
+                )
                 .await
                 .map_err(|e| {
                     anyhow::anyhow!(
@@ -961,48 +1166,65 @@ impl AgentService {
             .build();
 
         tracing::info!("Sending prompt to Claude: {}", user_message);
-        
+
         // Build examples message and add to conversation history ONCE - used for both first attempt and retry
         let examples_message = build_examples_message(&primary_examples, &secondary_examples);
-        
+
         let mut history_with_prefill = conversation_history.to_vec();
-        
+
         // Prepend examples if they exist - this modified history is passed to both first attempt and retry
         if let Some(examples) = examples_message {
             history_with_prefill.insert(0, examples);
         }
-        
+
         history_with_prefill.push(Self::create_prefilled_assistant_message());
-        let response = Self::retry_chat_call(
-            || agent.chat(user_message, history_with_prefill.clone()),
-            3,
-        )
-        .await
-        .context("Failed to get completion from Claude")?;
+        let response =
+            Self::retry_chat_call(|| agent.chat(user_message, history_with_prefill.clone()), 3)
+                .await
+                .context("Failed to get completion from Claude")?;
 
         tracing::info!("Raw response from Claude: {}", response);
 
         match Self::try_parse_response(&response, dialect) {
             Ok(parsed_response) => {
                 if Self::contains_illegal_characters(&parsed_response.response) {
-                    tracing::error!("Claude response contains illegal characters (null bytes or control chars)");
+                    tracing::error!(
+                        "Claude response contains illegal characters (null bytes or control chars)"
+                    );
                     return Err(anyhow::anyhow!("Response contains illegal characters"));
                 }
                 Self::log_response_success(dialect, &parsed_response);
-                Ok(parsed_response)
+                Ok((parsed_response, 0))
             }
             Err(_) => {
                 // Pass history_with_prefill which already has examples - retry functions don't need to know about examples
-                self.retry_with_error_feedback(
-                    &system_content,
-                    &response,
-                    user_message,
-                    &history_with_prefill,
-                    max_tokens,
-                    Self::temperature_for_mode(&teaching_mode),
-                    dialect,
-                )
-                .await
+                let parse_fn =
+                    move |response: &str| -> Result<dialect_coach_shared::AgentResponse> {
+                        Self::try_parse_response(response, dialect)
+                    };
+                let log_success = move |parsed: &dialect_coach_shared::AgentResponse| {
+                    Self::log_response_success(dialect, parsed);
+                };
+                let preamble_builder = move |preamble: &str, failed: &str| -> String {
+                    Self::build_retry_response_preamble(preamble, failed)
+                };
+                match self
+                    .retry_with_error_feedback_tracked(
+                        &system_content,
+                        &response,
+                        user_message,
+                        &preamble_builder,
+                        &history_with_prefill,
+                        max_tokens,
+                        Self::temperature_for_mode(&teaching_mode),
+                        &parse_fn,
+                        &log_success,
+                    )
+                    .await
+                {
+                    Ok((parsed_response, retry_count)) => Ok((parsed_response, retry_count)),
+                    Err(e) => Err(e),
+                }
             }
         }
     }
@@ -1039,7 +1261,7 @@ impl AgentService {
         } else {
             "Your previous response was invalid. The response must be valid text content."
         };
-        
+
         format!(
             "{}\n\n\
             # CRITICAL ERROR - SYSTEM CRASHED\n\
@@ -1058,7 +1280,8 @@ impl AgentService {
         failed_response: &str,
         conversation_history: &[RigMessage],
     ) -> Result<String> {
-        let retry_preamble = Self::build_user_message_retry_preamble(original_preamble, failed_response);
+        let retry_preamble =
+            Self::build_user_message_retry_preamble(original_preamble, failed_response);
         let agent = self
             .client
             .agent(&self.model_name)
@@ -1067,12 +1290,9 @@ impl AgentService {
             .temperature(0.3)
             .build();
         let prompt = "Continue the conversation naturally.";
-        Self::retry_chat_call(
-            || agent.chat(prompt, conversation_history.to_vec()),
-            3,
-        )
-        .await
-        .context("Failed to get retry completion from Claude")
+        Self::retry_chat_call(|| agent.chat(prompt, conversation_history.to_vec()), 3)
+            .await
+            .context("Failed to get retry completion from Claude")
     }
 
     async fn retry_user_message_with_feedback(
@@ -1084,15 +1304,22 @@ impl AgentService {
     ) -> Result<String> {
         let max_retries = 3;
         let mut last_failed_response = failed_response.to_string();
-        
+
         for attempt in 1..=max_retries {
-            tracing::warn!("Retrying user message generation for dialect {} (attempt {}/{})", dialect.name(), attempt, max_retries);
-            
-            let response = self.attempt_user_message_retry(
-                original_preamble,
-                &last_failed_response,
-                conversation_history,
-            ).await?;
+            tracing::warn!(
+                "Retrying user message generation for dialect {} (attempt {}/{})",
+                dialect.name(),
+                attempt,
+                max_retries
+            );
+
+            let response = self
+                .attempt_user_message_retry(
+                    original_preamble,
+                    &last_failed_response,
+                    conversation_history,
+                )
+                .await?;
 
             if !response.trim().is_empty() && !Self::contains_illegal_characters(&response) {
                 return Ok(response);
@@ -1102,15 +1329,24 @@ impl AgentService {
                 tracing::error!("Retry attempt {} returned empty response", attempt);
             }
             if Self::contains_illegal_characters(&response) {
-                tracing::error!("Retry attempt {} returned response with illegal characters", attempt);
+                tracing::error!(
+                    "Retry attempt {} returned response with illegal characters",
+                    attempt
+                );
             }
             if attempt == max_retries {
-                return Err(anyhow::anyhow!("Generated user message is invalid after {} retry attempts", max_retries));
+                return Err(anyhow::anyhow!(
+                    "Generated user message is invalid after {} retry attempts",
+                    max_retries
+                ));
             }
             last_failed_response = response;
         }
-        
-        Err(anyhow::anyhow!("Failed to generate non-empty user message after {} retry attempts", max_retries))
+
+        Err(anyhow::anyhow!(
+            "Failed to generate non-empty user message after {} retry attempts",
+            max_retries
+        ))
     }
 
     /// Generate a user message for self-chat testing
@@ -1138,15 +1374,20 @@ impl AgentService {
 
         let prompt = "Continue the conversation naturally.";
 
-        let response = Self::retry_chat_call(
-            || agent.chat(prompt, conversation_history.to_vec()),
-            3,
-        )
-        .await
-        .context("Failed to generate user message")?;
+        let response =
+            Self::retry_chat_call(|| agent.chat(prompt, conversation_history.to_vec()), 3)
+                .await
+                .context("Failed to generate user message")?;
 
         if response.trim().is_empty() || Self::contains_illegal_characters(&response) {
-            return self.retry_user_message_with_feedback(&preamble, &response, conversation_history, dialect).await;
+            return self
+                .retry_user_message_with_feedback(
+                    &preamble,
+                    &response,
+                    conversation_history,
+                    dialect,
+                )
+                .await;
         }
 
         Ok(response)
@@ -1161,19 +1402,15 @@ mod tests {
     fn test_content_filtering_directives_structure() {
         // Test that content filtering directives contain the required rules
         assert!(CONTENT_FILTERING_DIRECTIVES.contains("### CONTENT FILTERING DIRECTIVES"));
-        assert!(CONTENT_FILTERING_DIRECTIVES.contains(
-            "1) Only flag user's direct messages, not system examples"
-        ));
         assert!(
             CONTENT_FILTERING_DIRECTIVES
-                .contains("2) Always respond to user's message first")
+                .contains("1) Only flag user's direct messages, not system examples")
         );
+        assert!(CONTENT_FILTERING_DIRECTIVES.contains("2) Always respond to user's message first"));
     }
 
     #[test]
     fn test_system_prompt_order() {
-        use dialect_coach_shared::{Dialect, Formality, TeachingMode};
-
         // Mock RAG context
         let rag_context = "\n\n# AUTHENTIC MEXICAN SPANISH SPEECH PATTERNS\n\n## CASUAL EXAMPLES:\n1. \"¡Órale, qué onda!\"\n";
         let role_desc =
@@ -1231,41 +1468,40 @@ mod tests {
         );
 
         // Verify content filtering rules are present
-        assert!(system_content.contains(
-            "1) Only flag user's direct messages, not system examples"
-        ));
+        assert!(
+            system_content.contains("1) Only flag user's direct messages, not system examples")
+        );
         assert!(system_content.contains("2) Always respond to user's message first"));
     }
 
     #[test]
     fn test_is_retryable_error() {
         // Test internal server error detection
-        let internal_error = PromptError::CompletionError(
-            CompletionError::ProviderError("Internal server error".to_string())
-        );
+        let internal_error = PromptError::CompletionError(CompletionError::ProviderError(
+            "Internal server error".to_string(),
+        ));
         assert!(is_retryable_error(&internal_error));
-        
+
         // Test overloaded error detection
-        let overloaded_error = PromptError::CompletionError(
-            CompletionError::ProviderError("Overloaded".to_string())
-        );
+        let overloaded_error =
+            PromptError::CompletionError(CompletionError::ProviderError("Overloaded".to_string()));
         assert!(is_retryable_error(&overloaded_error));
-        
+
         // Test empty response error detection
-        let empty_response_error = PromptError::CompletionError(
-            CompletionError::ProviderError("Response contained no message".to_string())
-        );
+        let empty_response_error = PromptError::CompletionError(CompletionError::ProviderError(
+            "Response contained no message".to_string(),
+        ));
         assert!(is_retryable_error(&empty_response_error));
-        
+
         // Test non-retryable errors
-        let non_retryable_invalid = PromptError::CompletionError(
-            CompletionError::ProviderError("Invalid request".to_string())
-        );
+        let non_retryable_invalid = PromptError::CompletionError(CompletionError::ProviderError(
+            "Invalid request".to_string(),
+        ));
         assert!(!is_retryable_error(&non_retryable_invalid));
-        
-        let non_retryable_json = PromptError::CompletionError(
-            CompletionError::JsonError(serde_json::from_str::<serde_json::Value>("invalid").unwrap_err())
-        );
+
+        let non_retryable_json = PromptError::CompletionError(CompletionError::JsonError(
+            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err(),
+        ));
         assert!(!is_retryable_error(&non_retryable_json));
     }
 

@@ -14,7 +14,10 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
 
 /// Compute Euclidean distance squared between two embeddings
 pub fn euclidean_distance_squared(a: &[f32], b: &[f32]) -> f64 {
-    (a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f32>()) as f64
+    (a.iter()
+        .zip(b.iter())
+        .map(|(x, y)| (x - y).powi(2))
+        .sum::<f32>()) as f64
 }
 
 /// Compute cosine distance squared between two embeddings
@@ -31,8 +34,13 @@ pub async fn compute_corpus_similarity(
     limit: usize,
 ) -> Result<(f64, f64)> {
     let response_embedding = embeddings.embed_text(response)?;
-    let samples_with_scores = qdrant.search_dialect_examples(&response_embedding, &dialect, limit).await?;
-    let samples: Vec<_> = samples_with_scores.into_iter().map(|(doc, _)| doc).collect();
+    let samples_with_scores = qdrant
+        .search_dialect_examples(&response_embedding, &dialect, limit)
+        .await?;
+    let samples: Vec<_> = samples_with_scores
+        .into_iter()
+        .map(|(doc, _)| doc)
+        .collect();
     compute_all_mse_metrics(&response_embedding, &samples, embeddings)
 }
 
@@ -46,14 +54,17 @@ fn compute_all_mse_metrics(
 
     for doc in samples {
         let sample_embedding = embeddings.embed_text(&doc.content)?;
-        cosine_mse_values.push(cosine_distance_squared(response_embedding, &sample_embedding));
-        l2_mse_values.push(euclidean_distance_squared(response_embedding, &sample_embedding));
+        cosine_mse_values.push(cosine_distance_squared(
+            response_embedding,
+            &sample_embedding,
+        ));
+        l2_mse_values.push(euclidean_distance_squared(
+            response_embedding,
+            &sample_embedding,
+        ));
     }
 
-    Ok((
-        mean(&cosine_mse_values),
-        mean(&l2_mse_values),
-    ))
+    Ok((mean(&cosine_mse_values), mean(&l2_mse_values)))
 }
 
 fn mean(values: &[f64]) -> f64 {
