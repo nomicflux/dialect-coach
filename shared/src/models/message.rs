@@ -69,7 +69,11 @@ impl MessageMetadata {
 }
 
 impl Message {
-    pub fn user_message(content: String, metadata: MessageMetadata, parent_id: Option<Uuid>) -> Self {
+    pub fn user_message(
+        content: String,
+        metadata: MessageMetadata,
+        parent_id: Option<Uuid>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             content: MessageContent::UserMessage { content },
@@ -78,10 +82,16 @@ impl Message {
         }
     }
 
-    pub fn agent_message(content: AgentResponse, metadata: MessageMetadata, parent_id: Option<Uuid>) -> Self {
+    pub fn agent_message(
+        content: AgentResponse,
+        metadata: MessageMetadata,
+        parent_id: Option<Uuid>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
-            content: MessageContent::AgentMessage { content: Box::new(content) },
+            content: MessageContent::AgentMessage {
+                content: Box::new(content),
+            },
             metadata,
             parent_id,
         }
@@ -340,7 +350,8 @@ mod tests {
     fn test_user_message_with_context_with_exploratory() {
         use crate::models::agent::Exploratory;
 
-        let msg = Message::user_message("Try this".to_string(), test_metadata(Uuid::new_v4()), None);
+        let msg =
+            Message::user_message("Try this".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let exploratory =
             Exploratory::new("Use subjunctive".to_string(), "Try 'Si fuera'".to_string());

@@ -1,8 +1,5 @@
 use dialect_coach_shared::{Dialect, DialectDocument, Formality};
 
-// Import test support helpers
-mod support;
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -80,7 +80,11 @@ mod tests {
     #[test]
     fn test_agent_does_not_respond_to_self() {
         let session = create_test_session();
-        let msg = Message::agent_message(AgentResponse::from("Hola".to_string()), test_metadata(session.id), None);
+        let msg = Message::agent_message(
+            AgentResponse::from("Hola".to_string()),
+            test_metadata(session.id),
+            None,
+        );
 
         assert!(!should_agent_respond(&msg));
     }

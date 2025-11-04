@@ -6,12 +6,12 @@ use std::sync::Arc;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
-pub mod util;
-pub mod retry;
 pub mod analysis;
 pub mod response;
+pub mod retry;
+pub mod util;
 
-use response::{ResponseContext};
+use response::ResponseContext;
 use util::contains_illegal_characters;
 
 pub struct AgentService {
@@ -98,7 +98,6 @@ impl AgentService {
             .await
     }
 
-
     pub fn contains_illegal_characters(text: &str) -> bool {
         contains_illegal_characters(text)
     }
@@ -107,8 +106,8 @@ impl AgentService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_service::util::CONTENT_FILTERING_DIRECTIVES;
     use crate::agent_service::retry::is_retryable_error;
+    use crate::agent_service::util::CONTENT_FILTERING_DIRECTIVES;
     use crate::embedding_service::EmbeddingService;
     use crate::qdrant_service::QdrantService;
     use rig::completion::{CompletionError, PromptError};

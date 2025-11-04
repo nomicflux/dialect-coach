@@ -46,11 +46,7 @@ fn build_context_from_messages(messages: &[Message]) -> Vec<RigMessage> {
 
 fn create_error_message(error_text: String, metadata: MessageMetadata) -> Message {
     let error_response = error_to_agent_response(error_text);
-    Message::agent_message(
-        error_response,
-        metadata,
-        None,
-    )
+    Message::agent_message(error_response, metadata, None)
 }
 
 fn serialize_and_send(msg: &Message, tx: &mpsc::UnboundedSender<String>) -> Result<(), String> {
@@ -75,11 +71,7 @@ fn create_agent_response_message(
     metadata: MessageMetadata,
     parent_id: Uuid,
 ) -> Message {
-    Message::agent_message(
-        agent_response,
-        metadata,
-        Some(parent_id),
-    )
+    Message::agent_message(agent_response, metadata, Some(parent_id))
 }
 
 async fn handle_agent_success(
@@ -650,7 +642,11 @@ mod tests {
 
         let msg1 = Message::user_message("Hello".to_string(), test_metadata(session_id), None);
 
-        let msg2 = Message::agent_message(AgentResponse::from("Hola"), test_metadata(session_id), Some(msg1.id));
+        let msg2 = Message::agent_message(
+            AgentResponse::from("Hola"),
+            test_metadata(session_id),
+            Some(msg1.id),
+        );
 
         let messages = vec![msg1.clone(), msg2.clone()];
         let context = build_context_from_messages(&messages);
@@ -675,7 +671,11 @@ mod tests {
     fn test_serialize_and_send() {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
-        let msg = Message::agent_message(AgentResponse::from("Hello"), test_metadata(Uuid::new_v4()), None);
+        let msg = Message::agent_message(
+            AgentResponse::from("Hello"),
+            test_metadata(Uuid::new_v4()),
+            None,
+        );
 
         let result = serialize_and_send(&msg, &tx);
         assert!(result.is_ok());
@@ -718,7 +718,11 @@ mod tests {
     #[tokio::test]
     async fn test_validate_and_parse_dialect_success() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let msg = Message::agent_message(AgentResponse::from("Hola"), test_metadata(Uuid::new_v4()), None);
+        let msg = Message::agent_message(
+            AgentResponse::from("Hola"),
+            test_metadata(Uuid::new_v4()),
+            None,
+        );
 
         let result = validate_and_parse_dialect(&msg, &tx).await;
         assert!(result.is_ok());

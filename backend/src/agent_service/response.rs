@@ -1,8 +1,6 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument, Formality, TeachingMode};
-use rig::completion::{
-    Chat, Message as RigMessage, Prompt, message::Text, message::UserContent,
-};
+use rig::completion::{Chat, Message as RigMessage, Prompt, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
 use std::sync::Arc;
 
@@ -12,10 +10,10 @@ use crate::rag_config::RAGConfig;
 
 use super::retry::{RetryContext, build_retry_response_preamble, retry_chat_call};
 use super::util::{
-    contains_illegal_characters, create_prefilled_assistant_message, get_message_text,
-    learning_goals_section, normalize_json_response, output_format_spec, speaker_desc,
-    teaching_desc, temperature_for_mode, tokens_per_mode, CONTENT_FILTERING_DIRECTIVES,
-    JSON_OUTPUT_INSTRUCTION,
+    CONTENT_FILTERING_DIRECTIVES, JSON_OUTPUT_INSTRUCTION, contains_illegal_characters,
+    create_prefilled_assistant_message, get_message_text, learning_goals_section,
+    normalize_json_response, output_format_spec, speaker_desc, teaching_desc, temperature_for_mode,
+    tokens_per_mode,
 };
 
 pub fn format_examples_as_user_message(
@@ -72,8 +70,8 @@ pub fn try_parse_response(
     _dialect: Dialect,
 ) -> Result<dialect_coach_shared::AgentResponse> {
     let normalized = normalize_json_response(response);
-    let parsed: dialect_coach_shared::AgentResponse = serde_json::from_str(&normalized)
-        .map_err(|e| {
+    let parsed: dialect_coach_shared::AgentResponse =
+        serde_json::from_str(&normalized).map_err(|e| {
             tracing::warn!(
                 "JSON parse error: {}. First 200 chars: {}",
                 e,
@@ -144,9 +142,7 @@ fn group_examples_by_formality(
     let secondary_examples: Vec<_> = examples
         .iter()
         .filter(|doc| {
-            doc.formality.is_some()
-                && doc.formality != Some(formality)
-                && doc.formality.is_some()
+            doc.formality.is_some() && doc.formality != Some(formality) && doc.formality.is_some()
         })
         .take(secondary_limit)
         .cloned()
@@ -483,13 +479,8 @@ impl ResponseContext {
         .await
         .context("Failed to get completion from Claude")?;
 
-        self.handle_response_parsing(
-            response,
-            params,
-            &system_content,
-            history_with_prefill,
-        )
-        .await
+        self.handle_response_parsing(response, params, &system_content, history_with_prefill)
+            .await
     }
 
     /// Simple translation without RAG - for fast prompt translation
@@ -521,9 +512,7 @@ impl ResponseContext {
 mod tests {
     use super::*;
     use dialect_coach_shared::{Dialect, Formality, TeachingMode};
-    use rig::completion::{
-        message::Text, message::UserContent, Message as RigMessage,
-    };
+    use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
     use rig::one_or_many::OneOrMany;
 
     #[test]
@@ -577,29 +566,14 @@ mod tests {
     #[test]
     fn test_group_examples_by_formality() {
         let dialect = Dialect::SpanishMexican;
-        let doc1 = DialectDocument::new(
-            "Hello".to_string(),
-            dialect,
-            Some(Formality::Casual),
-        );
-        let doc2 = DialectDocument::new(
-            "Hola".to_string(),
-            dialect,
-            Some(Formality::Formal),
-        );
-        let doc3 = DialectDocument::new(
-            "Hey".to_string(),
-            dialect,
-            None,
-        );
-        let doc4 = DialectDocument::new(
-            "Hi".to_string(),
-            dialect,
-            Some(Formality::Casual),
-        );
+        let doc1 = DialectDocument::new("Hello".to_string(), dialect, Some(Formality::Casual));
+        let doc2 = DialectDocument::new("Hola".to_string(), dialect, Some(Formality::Formal));
+        let doc3 = DialectDocument::new("Hey".to_string(), dialect, None);
+        let doc4 = DialectDocument::new("Hi".to_string(), dialect, Some(Formality::Casual));
 
         let examples = vec![doc1, doc2, doc3, doc4];
-        let (primary, secondary) = group_examples_by_formality(&examples, Formality::Casual, 10, 10);
+        let (primary, secondary) =
+            group_examples_by_formality(&examples, Formality::Casual, 10, 10);
 
         assert_eq!(primary.len(), 3);
         assert_eq!(secondary.len(), 1);
@@ -657,16 +631,8 @@ mod tests {
     #[test]
     fn test_build_conversation_history_with_examples() {
         let dialect = Dialect::SpanishMexican;
-        let doc1 = DialectDocument::new(
-            "Hello".to_string(),
-            dialect,
-            Some(Formality::Casual),
-        );
-        let doc2 = DialectDocument::new(
-            "Hola".to_string(),
-            dialect,
-            Some(Formality::Formal),
-        );
+        let doc1 = DialectDocument::new("Hello".to_string(), dialect, Some(Formality::Casual));
+        let doc2 = DialectDocument::new("Hola".to_string(), dialect, Some(Formality::Formal));
 
         let conversation_history = vec![RigMessage::User {
             content: OneOrMany::one(UserContent::Text(Text {
@@ -706,11 +672,7 @@ mod tests {
             })),
         }];
 
-        let history = build_conversation_history_with_examples(
-            &conversation_history,
-            &[],
-            &[],
-        );
+        let history = build_conversation_history_with_examples(&conversation_history, &[], &[]);
 
         assert_eq!(history.len(), 2);
         match &history[0] {
@@ -723,4 +685,3 @@ mod tests {
         }
     }
 }
-

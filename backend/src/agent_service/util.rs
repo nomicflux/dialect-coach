@@ -213,4 +213,3 @@ pub fn contains_illegal_characters(text: &str) -> bool {
             .chars()
             .any(|c| c.is_control() && !matches!(c, '\n' | '\t' | '\r' | ' '))
 }
-

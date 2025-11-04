@@ -70,11 +70,7 @@ impl UserState {
     }
 
     pub fn create_user_msg(&self, session_id: Uuid, content: &str) -> Message {
-        Message::user_message(
-            content.to_string(),
-            self.create_metadata(session_id),
-            None,
-        )
+        Message::user_message(content.to_string(), self.create_metadata(session_id), None)
     }
 
     pub fn bcp47_tag(&self) -> String {
@@ -291,10 +287,18 @@ mod tests {
         let msg_a = Message::user_message("A".to_string(), test_metadata(Uuid::new_v4()), None);
         state.conversation_history.push(msg_a.clone());
 
-        let msg_b = Message::user_message("B".to_string(), test_metadata(Uuid::new_v4()), Some(msg_a.id));
+        let msg_b = Message::user_message(
+            "B".to_string(),
+            test_metadata(Uuid::new_v4()),
+            Some(msg_a.id),
+        );
         state.conversation_history.push(msg_b.clone());
 
-        let msg_c = Message::user_message("C".to_string(), test_metadata(Uuid::new_v4()), Some(msg_b.id));
+        let msg_c = Message::user_message(
+            "C".to_string(),
+            test_metadata(Uuid::new_v4()),
+            Some(msg_b.id),
+        );
         state.conversation_history.push(msg_c.clone());
 
         // Set the branch's leaf to msg_c
@@ -325,11 +329,19 @@ mod tests {
         let msg_a = Message::user_message("A".to_string(), test_metadata(Uuid::new_v4()), None);
         state.conversation_history.push(msg_a.clone());
 
-        let msg_b = Message::user_message("B".to_string(), test_metadata(Uuid::new_v4()), Some(msg_a.id));
+        let msg_b = Message::user_message(
+            "B".to_string(),
+            test_metadata(Uuid::new_v4()),
+            Some(msg_a.id),
+        );
         state.conversation_history.push(msg_b.clone());
 
         // Create alternative path from A: A → X
-        let msg_x = Message::user_message("X".to_string(), test_metadata(Uuid::new_v4()), Some(msg_a.id));
+        let msg_x = Message::user_message(
+            "X".to_string(),
+            test_metadata(Uuid::new_v4()),
+            Some(msg_a.id),
+        );
         state.conversation_history.push(msg_x.clone());
 
         // Set active branch leaf to B (so path is A → B, not A → X)

@@ -271,9 +271,12 @@ impl<'a> RetryContext<'a> {
         // conversation_history already has examples - just use it as-is
         let mut history_with_prefill = conversation_history.to_vec();
         history_with_prefill.push(util::create_prefilled_assistant_message());
-        retry_chat_call(|| retry_agent.chat(prompt_params.prompt, history_with_prefill.clone()), 3)
-            .await
-            .context("Failed to get retry completion from Claude")
+        retry_chat_call(
+            || retry_agent.chat(prompt_params.prompt, history_with_prefill.clone()),
+            3,
+        )
+        .await
+        .context("Failed to get retry completion from Claude")
     }
 
     pub async fn handle_retry_attempt<T, F>(
@@ -295,11 +298,7 @@ impl<'a> RetryContext<'a> {
         );
 
         let response = self
-            .attempt_retry_with_feedback(
-                prompt_params,
-                conversation_history,
-                config,
-            )
+            .attempt_retry_with_feedback(prompt_params, conversation_history, config)
             .await?;
 
         tracing::info!("Raw retry response from Claude: {}", response);
@@ -360,4 +359,3 @@ impl<'a> RetryContext<'a> {
         ))
     }
 }
-

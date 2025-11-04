@@ -137,11 +137,7 @@ mod tests {
     #[test]
     fn test_add_message() {
         let mut session = ChatSession::new("Test".to_string(), SessionConfig::default());
-        let msg = Message::user_message(
-            "Hello".to_string(),
-            test_metadata(session.id),
-            None,
-        );
+        let msg = Message::user_message("Hello".to_string(), test_metadata(session.id), None);
 
         session.add_message(msg);
         assert_eq!(session.messages.len(), 1);
@@ -152,11 +148,8 @@ mod tests {
         let mut session = ChatSession::new("Test".to_string(), SessionConfig::default());
 
         for i in 0..10 {
-            let msg = Message::user_message(
-                format!("Message {}", i),
-                test_metadata(session.id),
-                None,
-            );
+            let msg =
+                Message::user_message(format!("Message {}", i), test_metadata(session.id), None);
             session.add_message(msg);
         }
 

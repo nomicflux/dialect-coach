@@ -50,7 +50,9 @@ pub fn format_translated_for_analysis(translated: &[dialect_coach_shared::Transl
     )
 }
 
-pub fn format_exploratory_for_analysis(exploratory: &[dialect_coach_shared::Exploratory]) -> String {
+pub fn format_exploratory_for_analysis(
+    exploratory: &[dialect_coach_shared::Exploratory],
+) -> String {
     if exploratory.is_empty() {
         return "".to_string();
     }
@@ -104,8 +106,8 @@ Return ONLY the JSON object, starting with {{:
 
 pub fn try_parse_analysis(response: &str) -> Result<dialect_coach_shared::AgentAnalysis> {
     let normalized = normalize_json_response(response);
-    let parsed: dialect_coach_shared::AgentAnalysis = serde_json::from_str(&normalized)
-        .map_err(|e| {
+    let parsed: dialect_coach_shared::AgentAnalysis =
+        serde_json::from_str(&normalized).map_err(|e| {
             tracing::warn!(
                 "JSON parse error: {}. First 200 chars: {}",
                 e,
@@ -133,10 +135,7 @@ fn check_empty_learning_items(
     translated: &[dialect_coach_shared::Translated],
     exploratory: &[dialect_coach_shared::Exploratory],
 ) -> bool {
-    mistakes.is_empty()
-        && explained.is_empty()
-        && translated.is_empty()
-        && exploratory.is_empty()
+    mistakes.is_empty() && explained.is_empty() && translated.is_empty() && exploratory.is_empty()
 }
 
 fn log_analysis_start(
@@ -158,7 +157,11 @@ fn format_analysis_prompt(msg: &str) -> String {
     format!("USER MESSAGE TO ANALYZE: {msg}")
 }
 
-async fn call_analysis_api(retry_ctx: &RetryContext<'_>, preamble: &str, prompt: &str) -> Result<String> {
+async fn call_analysis_api(
+    retry_ctx: &RetryContext<'_>,
+    preamble: &str,
+    prompt: &str,
+) -> Result<String> {
     let agent = retry_ctx
         .client
         .agent(retry_ctx.model_name)
@@ -217,8 +220,7 @@ pub async fn generate_analysis(
 
     log_analysis_start(mistakes, explained, translated, exploratory);
 
-    let preamble =
-        analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory);
+    let preamble = analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory);
     tracing::info!("Analysis preamble sent to Claude:\n{}", preamble);
 
     let prompt = format_analysis_prompt(msg);
@@ -270,4 +272,3 @@ async fn retry_analysis_with_error_feedback_tracked(
         )
         .await
 }
-
