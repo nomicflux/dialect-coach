@@ -687,7 +687,7 @@ pub fn app() -> Html {
                         if matches!(new_state, ConnectionState::Reconnecting) {
                             // Schedule a reconnect attempt
                             let ws_clone = asc.ws_service.clone();
-                            gloo::timers::callback::Timeout::new(100, move || {
+                            gloo::timers::callback::Timeout::new(1000, move || {
                                 info!("Triggering reconnection from app layer");
                                 ws_clone.borrow_mut().reconnect();
                             })
