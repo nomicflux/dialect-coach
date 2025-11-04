@@ -1,6 +1,6 @@
 use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UserStateAction};
-use dialect_coach_shared::models::Message;
 use dialect_coach_shared::UserState;
+use dialect_coach_shared::models::Message;
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -14,10 +14,7 @@ pub fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Mess
     })
 }
 
-pub fn on_user_state_ws_open(
-    app_state: UseReducerHandle<AppState>,
-    user_id: Uuid,
-) -> Callback<()> {
+pub fn on_user_state_ws_open(app_state: UseReducerHandle<AppState>, user_id: Uuid) -> Callback<()> {
     Callback::from(move |_| {
         info!(
             "User state WebSocket opened, loading state for user: {}",

@@ -1,5 +1,7 @@
 use crate::app::app_helpers::extract_learning_items;
-use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction};
+use crate::app::app_state::{
+    AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
+};
 use dialect_coach_shared::{PastLearningItems, UserMessageWithContext, UserState};
 use log::{error, info};
 use uuid::Uuid;
