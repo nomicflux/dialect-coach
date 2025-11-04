@@ -43,11 +43,7 @@ impl QdrantService {
     }
 
     fn is_retryable_error(error: &QdrantError) -> bool {
-        match error {
-            QdrantError::Io(_) => true,
-            QdrantError::Reqwest(_) => true,
-            _ => false,
-        }
+        matches!(error, QdrantError::Io(_) | QdrantError::Reqwest(_))
     }
 
     fn calculate_backoff_delay(attempt: usize) -> tokio::time::Duration {

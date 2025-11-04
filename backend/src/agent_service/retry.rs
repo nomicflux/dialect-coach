@@ -1,7 +1,22 @@
 use anyhow::{Context, Result};
 use rig::completion::{Chat, CompletionError, Message as RigMessage, PromptError};
 
-use super::util;
+use super::util::{self, GenerationConfig};
+
+pub struct RetryAttemptParams {
+    pub attempt: usize,
+    pub max_retries: usize,
+}
+
+pub struct RetryPromptParams<'a, F>
+where
+    F: Fn(&str, &str) -> String,
+{
+    pub original_preamble: &'a str,
+    pub failed_response: &'a str,
+    pub prompt: &'a str,
+    pub preamble_builder: &'a F,
+}
 
 pub fn is_retryable_error(error: &PromptError) -> bool {
     match error {
@@ -93,29 +108,26 @@ pub fn log_retry_attempt(
     error: &PromptError,
     delay: tokio::time::Duration,
 ) {
-    match error {
-        PromptError::CompletionError(CompletionError::ProviderError(msg)) => {
-            if msg.contains("Response contained no message") {
-                tracing::error!(
-                    "Empty response error detected (attempt {}/{}): Claude returned no message.",
-                    attempt,
-                    max_attempts
-                );
-            } else if msg.contains("Internal server error") {
-                tracing::error!(
-                    "Internal server error detected (attempt {}/{}): Anthropic API server error.",
-                    attempt,
-                    max_attempts
-                );
-            } else if msg.contains("Overloaded") {
-                tracing::error!(
-                    "Overloaded error detected (attempt {}/{}): Anthropic API is overloaded.",
-                    attempt,
-                    max_attempts
-                );
-            }
+    if let PromptError::CompletionError(CompletionError::ProviderError(msg)) = error {
+        if msg.contains("Response contained no message") {
+            tracing::error!(
+                "Empty response error detected (attempt {}/{}): Claude returned no message.",
+                attempt,
+                max_attempts
+            );
+        } else if msg.contains("Internal server error") {
+            tracing::error!(
+                "Internal server error detected (attempt {}/{}): Anthropic API server error.",
+                attempt,
+                max_attempts
+            );
+        } else if msg.contains("Overloaded") {
+            tracing::error!(
+                "Overloaded error detected (attempt {}/{}): Anthropic API is overloaded.",
+                attempt,
+                max_attempts
+            );
         }
-        _ => {}
     }
     tracing::warn!(
         "API call failed (attempt {}/{}): {}. Retrying in {:?}...",
@@ -182,14 +194,16 @@ pub fn detect_truncation_error(error: &anyhow::Error, response: &str) -> bool {
     error_str.contains("EOF while parsing") || util::is_incomplete_json(response)
 }
 
-pub fn process_retry_response<T>(
-    attempt: usize,
-    max_retries: usize,
+pub fn process_retry_response<T, F>(
+    attempt_params: &RetryAttemptParams,
     response: String,
-    failed_response: &str,
+    prompt_params: &RetryPromptParams<'_, F>,
     parse_fn: &impl Fn(&str) -> Result<T>,
     log_success: &impl Fn(&T),
-) -> Result<(Option<T>, String), anyhow::Error> {
+) -> Result<(Option<T>, String), anyhow::Error>
+where
+    F: Fn(&str, &str) -> String,
+{
     match parse_fn(&response) {
         Ok(parsed_response) => {
             log_success(&parsed_response);
@@ -199,15 +213,15 @@ pub fn process_retry_response<T>(
             if detect_truncation_error(&e, &response) {
                 tracing::error!(
                     "Token limit truncation detected on retry attempt {}",
-                    attempt
+                    attempt_params.attempt
                 );
             }
-            log_retry_parse_error(attempt, &e, &response);
-            if attempt == max_retries {
+            log_retry_parse_error(attempt_params.attempt, &e, &response);
+            if attempt_params.attempt == attempt_params.max_retries {
                 return Err(build_retry_failure_error(
-                    max_retries,
+                    attempt_params.max_retries,
                     &format!("{}", e),
-                    failed_response,
+                    prompt_params.failed_response,
                 ));
             }
             Ok((None, response))
@@ -238,101 +252,97 @@ impl<'a> RetryContext<'a> {
             .build()
     }
 
-    pub async fn attempt_retry_with_feedback(
+    pub async fn attempt_retry_with_feedback<F>(
         &self,
-        original_preamble: &str,
-        failed_response: &str,
-        prompt: &str,
-        preamble_builder: &impl Fn(&str, &str) -> String,
+        prompt_params: &RetryPromptParams<'_, F>,
         conversation_history: &[RigMessage],
-        max_tokens: u64,
-        temperature: f64,
-    ) -> Result<String> {
+        config: &GenerationConfig,
+    ) -> Result<String>
+    where
+        F: Fn(&str, &str) -> String,
+    {
         let retry_agent = self.create_retry_agent(
-            original_preamble,
-            failed_response,
-            preamble_builder,
-            max_tokens,
-            temperature,
+            prompt_params.original_preamble,
+            prompt_params.failed_response,
+            prompt_params.preamble_builder,
+            config.max_tokens,
+            config.temperature,
         );
         // conversation_history already has examples - just use it as-is
         let mut history_with_prefill = conversation_history.to_vec();
         history_with_prefill.push(util::create_prefilled_assistant_message());
-        retry_chat_call(|| retry_agent.chat(prompt, history_with_prefill.clone()), 3)
+        retry_chat_call(|| retry_agent.chat(prompt_params.prompt, history_with_prefill.clone()), 3)
             .await
             .context("Failed to get retry completion from Claude")
     }
 
-    pub async fn handle_retry_attempt<T>(
+    pub async fn handle_retry_attempt<T, F>(
         &self,
-        attempt: usize,
-        max_retries: usize,
-        original_preamble: &str,
-        failed_response: &str,
-        prompt: &str,
-        preamble_builder: &impl Fn(&str, &str) -> String,
+        attempt_params: &RetryAttemptParams,
+        prompt_params: &RetryPromptParams<'_, F>,
         conversation_history: &[RigMessage],
-        max_tokens: u64,
-        temperature: f64,
+        config: &GenerationConfig,
         parse_fn: &impl Fn(&str) -> Result<T>,
         log_success: &impl Fn(&T),
-    ) -> Result<(Option<T>, String)> {
+    ) -> Result<(Option<T>, String)>
+    where
+        F: Fn(&str, &str) -> String,
+    {
         tracing::warn!(
             "Retrying with error feedback (attempt {}/{})",
-            attempt,
-            max_retries
+            attempt_params.attempt,
+            attempt_params.max_retries
         );
 
         let response = self
             .attempt_retry_with_feedback(
-                original_preamble,
-                failed_response,
-                prompt,
-                preamble_builder,
+                prompt_params,
                 conversation_history,
-                max_tokens,
-                temperature,
+                config,
             )
             .await?;
 
         tracing::info!("Raw retry response from Claude: {}", response);
         process_retry_response(
-            attempt,
-            max_retries,
+            attempt_params,
             response,
-            failed_response,
+            prompt_params,
             parse_fn,
             log_success,
         )
     }
 
-    pub async fn retry_with_error_feedback_tracked<T>(
+    pub async fn retry_with_error_feedback_tracked<T, F>(
         &self,
-        original_preamble: &str,
-        failed_response: &str,
-        prompt: &str,
-        preamble_builder: &impl Fn(&str, &str) -> String,
+        prompt_params: &RetryPromptParams<'_, F>,
         conversation_history: &[RigMessage],
-        max_tokens: u64,
-        temperature: f64,
+        config: &GenerationConfig,
         parse_fn: &impl Fn(&str) -> Result<T>,
         log_success: &impl Fn(&T),
-    ) -> Result<(T, u32)> {
+    ) -> Result<(T, u32)>
+    where
+        F: Fn(&str, &str) -> String,
+    {
         let max_retries = 3;
-        let mut last_failed_response = failed_response.to_string();
+        let mut last_failed_response = prompt_params.failed_response.to_string();
 
         for attempt in 1..=max_retries {
+            let prompt_params_iter = RetryPromptParams {
+                original_preamble: prompt_params.original_preamble,
+                failed_response: &last_failed_response,
+                prompt: prompt_params.prompt,
+                preamble_builder: prompt_params.preamble_builder,
+            };
+            let attempt_params_iter = RetryAttemptParams {
+                attempt,
+                max_retries,
+            };
             let (result, response) = self
                 .handle_retry_attempt(
-                    attempt,
-                    max_retries,
-                    original_preamble,
-                    &last_failed_response,
-                    prompt,
-                    preamble_builder,
+                    &attempt_params_iter,
+                    &prompt_params_iter,
                     conversation_history,
-                    max_tokens,
-                    temperature,
+                    config,
                     parse_fn,
                     log_success,
                 )

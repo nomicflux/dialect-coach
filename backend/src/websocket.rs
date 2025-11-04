@@ -18,7 +18,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::agent_service::AgentService;
+use crate::agent_service::{AgentService, response::GenerateResponseParams};
 use crate::rag_config::RAGConfig;
 
 fn error_to_agent_response(error_message: String) -> AgentResponse {
@@ -176,17 +176,18 @@ async fn run_agents_parallel(
     let rag_config = RAGConfig::new(20, 5);
 
     if !has_learning_items {
+        let params = GenerateResponseParams {
+            user_message: user_text,
+            dialect,
+            formality,
+            teaching_mode,
+            conversation_history: history_vec,
+            learning_goals: &msg_with_context.learning_goals,
+            rag_config: &rag_config,
+        };
         return state
             .agent
-            .generate_response(
-                user_text,
-                dialect,
-                formality,
-                teaching_mode,
-                history_vec,
-                &msg_with_context.learning_goals,
-                &rag_config,
-            )
+            .generate_response(&params)
             .await
             .map(|response| response.0);
     }
@@ -199,16 +200,18 @@ async fn run_agents_parallel(
         msg_with_context.past_exploratory.len()
     );
 
+    let params = GenerateResponseParams {
+        user_message: user_text,
+        dialect,
+        formality,
+        teaching_mode,
+        conversation_history: history_vec,
+        learning_goals: &msg_with_context.learning_goals,
+        rag_config: &rag_config,
+    };
+
     let (response_result, analysis_result) = tokio::join!(
-        state.agent.generate_response(
-            user_text,
-            dialect,
-            formality,
-            teaching_mode,
-            history_vec,
-            &msg_with_context.learning_goals,
-            &rag_config
-        ),
+        state.agent.generate_response(&params),
         state.agent.generate_analysis(
             dialect,
             user_text,

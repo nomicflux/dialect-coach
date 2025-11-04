@@ -1,12 +1,10 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::{Dialect, Explained, Formality, Mistake, TeachingMode};
-use rig::completion::Message as RigMessage;
+use dialect_coach_shared::{Dialect, Explained, Formality, Mistake};
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
 use std::sync::Arc;
 
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
-use crate::rag_config::RAGConfig;
 
 pub mod util;
 pub mod retry;
@@ -47,13 +45,7 @@ impl AgentService {
 
     pub async fn generate_response(
         &self,
-        user_message: &str,
-        dialect: Dialect,
-        formality: Formality,
-        teaching_mode: TeachingMode,
-        conversation_history: &[RigMessage],
-        learning_goals: &[String],
-        rag_config: &RAGConfig,
+        params: &response::GenerateResponseParams<'_>,
     ) -> Result<(dialect_coach_shared::AgentResponse, u32)> {
         let ctx = ResponseContext {
             client: self.client.clone(),
@@ -61,17 +53,7 @@ impl AgentService {
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
         };
-        response::ResponseContext::generate_response(
-            &ctx,
-            user_message,
-            dialect,
-            formality,
-            teaching_mode,
-            conversation_history,
-            learning_goals,
-            rag_config,
-        )
-        .await
+        response::ResponseContext::generate_response(&ctx, params).await
     }
 
     pub async fn generate_analysis(

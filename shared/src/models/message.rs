@@ -94,6 +94,15 @@ impl Message {
     }
 }
 
+/// Past learning items grouped together
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct PastLearningItems {
+    pub mistakes: Vec<Mistake>,
+    pub explained: Vec<Explained>,
+    pub translated: Vec<crate::models::agent::Translated>,
+    pub exploratory: Vec<crate::models::agent::Exploratory>,
+}
+
 /// User message with past learning items for context
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserMessageWithContext {
@@ -110,20 +119,17 @@ pub struct UserMessageWithContext {
 impl UserMessageWithContext {
     pub fn new(
         message: Message,
-        past_mistakes: Vec<Mistake>,
-        past_explained: Vec<Explained>,
-        past_translated: Vec<crate::models::agent::Translated>,
-        past_exploratory: Vec<crate::models::agent::Exploratory>,
+        past_learning_items: PastLearningItems,
         active_branch_id: Uuid,
         context_messages: Vec<Message>,
         learning_goals: Vec<String>,
     ) -> Self {
         Self {
             message,
-            past_mistakes,
-            past_explained,
-            past_translated,
-            past_exploratory,
+            past_mistakes: past_learning_items.mistakes,
+            past_explained: past_learning_items.explained,
+            past_translated: past_learning_items.translated,
+            past_exploratory: past_learning_items.exploratory,
             active_branch_id,
             context_messages,
             learning_goals,
@@ -214,10 +220,7 @@ mod tests {
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
-            vec![],
-            vec![],
-            vec![],
-            vec![],
+            PastLearningItems::default(),
             branch_id,
             vec![],
             vec![],
@@ -257,10 +260,12 @@ mod tests {
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
-            vec![mistake.clone()],
-            vec![explained.clone()],
-            vec![],
-            vec![],
+            PastLearningItems {
+                mistakes: vec![mistake.clone()],
+                explained: vec![explained.clone()],
+                translated: vec![],
+                exploratory: vec![],
+            },
             branch_id,
             vec![],
             vec![],
@@ -297,10 +302,12 @@ mod tests {
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg,
-            vec![mistake],
-            vec![],
-            vec![],
-            vec![],
+            PastLearningItems {
+                mistakes: vec![mistake],
+                explained: vec![],
+                translated: vec![],
+                exploratory: vec![],
+            },
             branch_id,
             vec![],
             vec![],
@@ -339,10 +346,12 @@ mod tests {
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
-            vec![],
-            vec![],
-            vec![translated.clone()],
-            vec![],
+            PastLearningItems {
+                mistakes: vec![],
+                explained: vec![],
+                translated: vec![translated.clone()],
+                exploratory: vec![],
+            },
             branch_id,
             vec![],
             vec![],
@@ -370,10 +379,12 @@ mod tests {
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
-            vec![],
-            vec![],
-            vec![],
-            vec![exploratory.clone()],
+            PastLearningItems {
+                mistakes: vec![],
+                explained: vec![],
+                translated: vec![],
+                exploratory: vec![exploratory.clone()],
+            },
             branch_id,
             vec![],
             vec![],
@@ -413,10 +424,12 @@ mod tests {
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
             msg.clone(),
-            vec![mistake.clone()],
-            vec![explained.clone()],
-            vec![translated.clone()],
-            vec![exploratory.clone()],
+            PastLearningItems {
+                mistakes: vec![mistake.clone()],
+                explained: vec![explained.clone()],
+                translated: vec![translated.clone()],
+                exploratory: vec![exploratory.clone()],
+            },
             branch_id,
             vec![],
             vec![],

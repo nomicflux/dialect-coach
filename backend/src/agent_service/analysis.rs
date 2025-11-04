@@ -250,15 +250,21 @@ async fn retry_analysis_with_error_feedback_tracked(
     let preamble_builder = move |preamble: &str, failed: &str| -> String {
         build_retry_analysis_preamble(preamble, failed)
     };
+    let prompt_params = super::retry::RetryPromptParams {
+        original_preamble,
+        failed_response,
+        prompt: &prompt,
+        preamble_builder: &preamble_builder,
+    };
+    let config = super::util::GenerationConfig {
+        max_tokens: 1024,
+        temperature: 0.2,
+    };
     retry_ctx
         .retry_with_error_feedback_tracked(
-            original_preamble,
-            failed_response,
-            &prompt,
-            &preamble_builder,
+            &prompt_params,
             conversation_history,
-            1024,
-            0.2,
+            &config,
             &parse_fn,
             &log_success,
         )

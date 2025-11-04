@@ -227,6 +227,17 @@ fn build_conversation_history_with_examples(
     history_with_prefill
 }
 
+/// Parameters for generating a response
+pub struct GenerateResponseParams<'a> {
+    pub user_message: &'a str,
+    pub dialect: Dialect,
+    pub formality: Formality,
+    pub teaching_mode: TeachingMode,
+    pub conversation_history: &'a [RigMessage],
+    pub learning_goals: &'a [String],
+    pub rag_config: &'a RAGConfig,
+}
+
 pub struct ResponseContext {
     pub client: rig::providers::anthropic::Client,
     pub model_name: String,
@@ -341,7 +352,7 @@ impl ResponseContext {
     ) -> Result<(Vec<DialectDocument>, Vec<DialectDocument>)> {
         let history_text = conversation_history
             .iter()
-            .map(|m| get_message_text(m))
+            .map(get_message_text)
             .collect::<Vec<String>>();
         let embeddings = self.retrieve_embeddings(user_message, &history_text)?;
         let examples = self
@@ -374,13 +385,11 @@ impl ResponseContext {
     async fn handle_response_parsing(
         &self,
         response: String,
-        dialect: Dialect,
+        params: &GenerateResponseParams<'_>,
         system_content: &str,
-        user_message: &str,
         history_with_prefill: Vec<RigMessage>,
-        teaching_mode: TeachingMode,
     ) -> Result<(dialect_coach_shared::AgentResponse, u32)> {
-        match try_parse_response(&response, dialect) {
+        match try_parse_response(&response, params.dialect) {
             Ok(parsed_response) => {
                 if contains_illegal_characters(&parsed_response.response) {
                     tracing::error!(
@@ -388,10 +397,12 @@ impl ResponseContext {
                     );
                     return Err(anyhow::anyhow!("Response contains illegal characters"));
                 }
-                log_response_success(dialect, &parsed_response);
+                log_response_success(params.dialect, &parsed_response);
                 Ok((parsed_response, 0))
             }
             Err(_) => {
+                let dialect = params.dialect;
+                let teaching_mode = params.teaching_mode;
                 let retry_ctx = RetryContext {
                     client: &self.client,
                     model_name: &self.model_name,
@@ -407,15 +418,21 @@ impl ResponseContext {
                     build_retry_response_preamble(preamble, failed)
                 };
                 let max_tokens = tokens_per_mode(&teaching_mode);
+                let prompt_params = super::retry::RetryPromptParams {
+                    original_preamble: system_content,
+                    failed_response: &response,
+                    prompt: params.user_message,
+                    preamble_builder: &preamble_builder,
+                };
+                let config = super::util::GenerationConfig {
+                    max_tokens,
+                    temperature: temperature_for_mode(&teaching_mode),
+                };
                 match retry_ctx
                     .retry_with_error_feedback_tracked(
-                        system_content,
-                        &response,
-                        user_message,
-                        &preamble_builder,
+                        &prompt_params,
                         &history_with_prefill,
-                        max_tokens,
-                        temperature_for_mode(&teaching_mode),
+                        &config,
                         &parse_fn,
                         &log_success,
                     )
@@ -430,39 +447,47 @@ impl ResponseContext {
 
     pub async fn generate_response(
         &self,
-        user_message: &str,
-        dialect: Dialect,
-        formality: Formality,
-        teaching_mode: TeachingMode,
-        conversation_history: &[RigMessage],
-        learning_goals: &[String],
-        rag_config: &RAGConfig,
+        params: &GenerateResponseParams<'_>,
     ) -> Result<(dialect_coach_shared::AgentResponse, u32)> {
-        if contains_illegal_characters(user_message) {
+        if contains_illegal_characters(params.user_message) {
             return Err(anyhow::anyhow!("User message contains illegal characters"));
         }
 
         let (primary_examples, secondary_examples) = self
-            .collect_examples(user_message, conversation_history, dialect, formality, rag_config)
+            .collect_examples(
+                params.user_message,
+                params.conversation_history,
+                params.dialect,
+                params.formality,
+                params.rag_config,
+            )
             .await?;
 
-        let system_content = build_system_content(dialect, formality, teaching_mode, learning_goals);
-        let agent = self.create_agent(&system_content, teaching_mode);
-        let history_with_prefill =
-            build_conversation_history_with_examples(conversation_history, &primary_examples, &secondary_examples);
+        let system_content = build_system_content(
+            params.dialect,
+            params.formality,
+            params.teaching_mode,
+            params.learning_goals,
+        );
+        let agent = self.create_agent(&system_content, params.teaching_mode);
+        let history_with_prefill = build_conversation_history_with_examples(
+            params.conversation_history,
+            &primary_examples,
+            &secondary_examples,
+        );
 
-        let response =
-            retry_chat_call(|| agent.chat(user_message, history_with_prefill.clone()), 3)
-                .await
-                .context("Failed to get completion from Claude")?;
+        let response = retry_chat_call(
+            || agent.chat(params.user_message, history_with_prefill.clone()),
+            3,
+        )
+        .await
+        .context("Failed to get completion from Claude")?;
 
         self.handle_response_parsing(
             response,
-            dialect,
+            params,
             &system_content,
-            user_message,
             history_with_prefill,
-            teaching_mode,
         )
         .await
     }

@@ -74,11 +74,11 @@ impl UserState {
         )
     }
 
-    pub fn create_user_msg(&self, session_id: Uuid, content: &String) -> Message {
+    pub fn create_user_msg(&self, session_id: Uuid, content: &str) -> Message {
         self.create_msg(
             session_id,
             MessageContent::UserMessage {
-                content: content.clone(),
+                content: content.to_owned(),
             },
         )
     }

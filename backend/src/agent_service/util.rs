@@ -150,6 +150,12 @@ pub fn temperature_for_mode(mode: &TeachingMode) -> f64 {
     }
 }
 
+/// Parameters for generation configuration (tokens and temperature)
+pub struct GenerationConfig {
+    pub max_tokens: u64,
+    pub temperature: f64,
+}
+
 pub fn get_user_content(content: &UserContent) -> String {
     match content {
         UserContent::Text(text) => text.text.clone(),

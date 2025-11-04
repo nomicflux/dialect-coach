@@ -4,7 +4,7 @@ use app_state::{AppState, AppStateAction, UIState, UIStateAction, UserStateActio
 pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 
 use dialect_coach_shared::models::{Formality, Language, Message, MessageContent, TeachingMode};
-use dialect_coach_shared::{Explained, Exploratory, Mistake, Translated, UserMessageWithContext};
+use dialect_coach_shared::{Explained, Exploratory, Mistake, PastLearningItems, Translated, UserMessageWithContext};
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -91,10 +91,12 @@ fn on_send_message(
         // Build UserMessageWithContext
         let msg_with_context = UserMessageWithContext::new(
             msg,
-            past_mistakes,
-            past_explained,
-            past_translated,
-            past_exploratory,
+            PastLearningItems {
+                mistakes: past_mistakes,
+                explained: past_explained,
+                translated: past_translated,
+                exploratory: past_exploratory,
+            },
             active_branch_id,
             context_messages,
             state.learning_goals.clone(),

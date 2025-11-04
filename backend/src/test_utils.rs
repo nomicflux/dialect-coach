@@ -7,6 +7,7 @@ use rig::one_or_many::OneOrMany;
 use serde::{Deserialize, Serialize};
 
 use crate::agent_service::AgentService;
+use crate::agent_service::response::GenerateResponseParams;
 use crate::agent_service::retry::retry_chat_call;
 use crate::agent_service::util::contains_illegal_characters;
 use crate::embedding_service::EmbeddingService;
@@ -45,17 +46,16 @@ pub async fn run_self_chat_test(
         // Add user message to history BEFORE calling agent (matches app behavior)
         conversation_history.push(create_user_rig_message(&current_message));
 
-        let response = agent
-            .generate_response(
-                &current_message,
-                dialect,
-                formality,
-                TeachingMode::Immersive,
-                &conversation_history,
-                &[],
-                &config,
-            )
-            .await?;
+        let params = GenerateResponseParams {
+            user_message: &current_message,
+            dialect,
+            formality,
+            teaching_mode: TeachingMode::Immersive,
+            conversation_history: &conversation_history,
+            learning_goals: &[],
+            rag_config: &config,
+        };
+        let response = agent.generate_response(&params).await?;
 
         let (cosine_mse, l2_mse) =
             compute_corpus_similarity(&response.0.response, dialect, qdrant, embeddings, 10)
@@ -128,7 +128,7 @@ fn calculate_median(values: &[f64]) -> f64 {
     let mut sorted = values.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         (sorted[mid - 1] + sorted[mid]) / 2.0
     } else {
         sorted[mid]
