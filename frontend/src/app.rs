@@ -1,12 +1,25 @@
 mod app_state;
 pub use app_state::OptionalUserState;
 use app_state::{AppState, AppStateAction, UIState, UIStateAction, UserStateAction};
+
+#[path = "app/helpers.rs"]
+mod app_helpers;
+
+#[path = "app/callbacks.rs"]
+mod app_callbacks;
+
+#[path = "app/websocket_hooks.rs"]
+mod app_websocket_hooks;
+
+#[path = "app/user_state/callbacks.rs"]
+mod user_state_callbacks;
+
+#[path = "app/app_state/callbacks.rs"]
+mod app_state_callbacks;
 pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 
-use dialect_coach_shared::models::{Formality, Language, Message, MessageContent, TeachingMode};
-use dialect_coach_shared::{
-    Explained, Exploratory, Mistake, PastLearningItems, Translated, UserMessageWithContext,
-};
+use dialect_coach_shared::models::{Message, MessageContent};
+use dialect_coach_shared::{PastLearningItems, UserMessageWithContext};
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -15,46 +28,13 @@ use crate::components::{BranchSidebar, ChatWindow, InputBox, LearningPanel, Spee
 use crate::hooks::use_debounced_save;
 use crate::services::websocket::ConnectionState;
 
-fn extract_learning_items(
-    user_state: &OptionalUserState,
-) -> (
-    Vec<Mistake>,
-    Vec<Explained>,
-    Vec<Translated>,
-    Vec<Exploratory>,
-) {
-    let mut mistakes = Vec::new();
-    let mut explained = Vec::new();
-    let mut translated = Vec::new();
-    let mut exploratory = Vec::new();
-
-    if let Some(state) = &user_state.0 {
-        for item in &state.learning_items {
-            match &item.item {
-                LearningItemType::Mistake(m) => mistakes.push(m.clone()),
-                LearningItemType::Explanation(e) => explained.push(e.clone()),
-                LearningItemType::Translation(t) => translated.push(t.clone()),
-                LearningItemType::Exploration(e) => exploratory.push(e.clone()),
-            }
-        }
-    }
-
-    (mistakes, explained, translated, exploratory)
-}
-
-fn render_message_undo_notification(deleted_count: usize, on_undo: Callback<()>) -> Html {
-    if deleted_count > 0 {
-        let onclick = Callback::from(move |_| on_undo.emit(()));
-        html! {
-            <div class="message-undo-notification">
-                <span>{"Message deleted."}</span>
-                <button class="undo-button" {onclick}>{"Undo"}</button>
-            </div>
-        }
-    } else {
-        html! {}
-    }
-}
+use app_helpers::{extract_learning_items, render_message_undo_notification};
+use user_state_callbacks::{
+    on_add_goal, on_create_branch, on_delete_branch, on_delete_goal, on_delete_learning_item_callback,
+    on_delete_message_callback, on_dialect_change, on_dialect_cycle, on_formality_change,
+    on_formality_cycle, on_language_change, on_switch_branch, on_teaching_mode_change,
+    on_teaching_mode_cycle, on_undo_message_callback,
+};
 
 fn on_send_message(
     app_state: UseReducerHandle<AppState>,
@@ -179,88 +159,6 @@ fn on_prompt_click(
     })
 }
 
-fn on_language_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
-    let user_state = user_state.clone();
-    Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-            let lang = match value.as_str() {
-                "spanish" => Language::Spanish,
-                "arabic" => Language::Arabic,
-                "french" => Language::French,
-                _ => Language::Spanish,
-            };
-            user_state.dispatch(UserStateAction::ChangeLanguage(lang));
-        }
-    })
-}
-
-fn on_dialect_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
-    let user_state = user_state.clone();
-    Callback::from(move |e: Event| {
-        let state = match user_state.0.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-
-            // Get all dialects for current language and find matching one
-            let dialects = state.current_dialects();
-            if let Some(dialect) = dialects.iter().find(|d| d.id() == value) {
-                user_state.dispatch(UserStateAction::ChangeDialect(*dialect));
-            }
-        }
-    })
-}
-
-fn on_formality_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
-    let user_state = user_state.clone();
-
-    Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-            let f = match value.as_str() {
-                "formal" => Formality::Formal,
-                "casual" => Formality::Casual,
-                "dialect_rich" => Formality::DialectRich,
-                "slang" => Formality::Slang,
-                _ => Formality::Casual,
-            };
-            user_state.dispatch(UserStateAction::ChangeFormality(f));
-        }
-    })
-}
-
-fn on_teaching_mode_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
-    let user_state = user_state.clone();
-
-    Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-            let tm = match value.as_str() {
-                "immersive" => TeachingMode::Immersive,
-                "corrective" => TeachingMode::Corrective,
-                "explanatory" => TeachingMode::Explanatory,
-                "interleaved" => TeachingMode::Interleaved,
-                "storyteller" => TeachingMode::StoryTeller,
-                "debug" => TeachingMode::Debug,
-                _ => TeachingMode::Immersive,
-            };
-            user_state.dispatch(UserStateAction::ChangeTeachingMode(tm));
-        }
-    })
-}
-
 fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Message> {
     let app_state = app_state.clone();
 
@@ -281,68 +179,6 @@ fn on_tts_toggle(
             let new_value = !state.tts_enabled;
             user_state.dispatch(UserStateAction::ToggleTTS);
             app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_value));
-        }
-    })
-}
-
-fn on_dialect_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
-    let user_state = user_state.clone();
-    Callback::from(move |_| {
-        let state = match user_state.0.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        let dialects = state.current_dialects();
-        let current = state.current_dialect();
-        if let Some(idx) = dialects.iter().position(|d| d == &current) {
-            let next_idx = (idx + 1) % dialects.len();
-            user_state.dispatch(UserStateAction::ChangeDialect(dialects[next_idx]));
-        }
-    })
-}
-
-fn on_formality_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
-    use dialect_coach_shared::models::Formality;
-    let user_state = user_state.clone();
-    Callback::from(move |_| {
-        let state = match user_state.0.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        let formalities = [
-            Formality::Formal,
-            Formality::Casual,
-            Formality::DialectRich,
-            Formality::Slang,
-        ];
-        let current = state.formality;
-        if let Some(idx) = formalities.iter().position(|f| f == &current) {
-            let next_idx = (idx + 1) % formalities.len();
-            user_state.dispatch(UserStateAction::ChangeFormality(formalities[next_idx]));
-        }
-    })
-}
-
-fn on_teaching_mode_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
-    use dialect_coach_shared::models::TeachingMode;
-    let user_state = user_state.clone();
-    Callback::from(move |_| {
-        let state = match user_state.0.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        let modes = [
-            TeachingMode::Immersive,
-            TeachingMode::Corrective,
-            TeachingMode::Explanatory,
-            TeachingMode::Interleaved,
-            TeachingMode::StoryTeller,
-            TeachingMode::Debug,
-        ];
-        let current = state.teaching_mode;
-        if let Some(idx) = modes.iter().position(|m| m == &current) {
-            let next_idx = (idx + 1) % modes.len();
-            user_state.dispatch(UserStateAction::ChangeTeachingMode(modes[next_idx]));
         }
     })
 }
@@ -492,91 +328,6 @@ fn on_signout_click(
         app_state.dispatch(AppStateAction::DestroySession);
         user_state.dispatch(UserStateAction::ClearUserState);
         app_state.dispatch(AppStateAction::ClearUser);
-    })
-}
-
-fn on_delete_message_callback(
-    ui_state: UseReducerHandle<UIState>,
-    user_state: UseReducerHandle<OptionalUserState>,
-) -> Callback<Uuid> {
-    Callback::from(move |msg_id: Uuid| {
-        if let Some(state) = user_state.0.as_ref() {
-            if let Some(msg) = state
-                .conversation_history
-                .iter()
-                .find(|m| m.id == msg_id)
-                .cloned()
-            {
-                ui_state.dispatch(UIStateAction::PushDeletedMessage(msg));
-            }
-            user_state.dispatch(UserStateAction::DeleteMessage(msg_id));
-        }
-    })
-}
-
-fn on_undo_message_callback(
-    ui_state: UseReducerHandle<UIState>,
-    user_state: UseReducerHandle<OptionalUserState>,
-) -> Callback<()> {
-    let deleted_messages = ui_state.deleted_messages.clone();
-    Callback::from(move |_| {
-        if user_state.0.is_none() {
-            return;
-        }
-        if let Some(msg) = deleted_messages.back().cloned() {
-            user_state.dispatch(UserStateAction::UndoDeleteMessage(msg));
-            ui_state.dispatch(UIStateAction::PopDeletedMessage);
-        }
-    })
-}
-
-fn on_create_branch(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Uuid> {
-    Callback::from(move |message_id: Uuid| {
-        if user_state.0.is_none() {
-            return;
-        }
-        info!("Creating branch from message: {}", message_id);
-        user_state.dispatch(UserStateAction::CreateBranch(message_id));
-    })
-}
-
-fn on_switch_branch(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Uuid> {
-    Callback::from(move |branch_id: Uuid| {
-        if user_state.0.is_none() {
-            return;
-        }
-        info!("Switching to branch: {}", branch_id);
-        user_state.dispatch(UserStateAction::SwitchBranch(branch_id));
-    })
-}
-
-fn on_delete_branch(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Uuid> {
-    Callback::from(move |branch_id: Uuid| {
-        if user_state.0.is_none() {
-            return;
-        }
-        info!("Deleting branch: {}", branch_id);
-        user_state.dispatch(UserStateAction::DeleteBranch(branch_id));
-    })
-}
-
-fn on_add_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<String> {
-    Callback::from(move |goal: String| {
-        if user_state.0.is_none() {
-            return;
-        }
-        info!("Adding learning goal: {}", goal);
-        user_state.dispatch(UserStateAction::AddLearningGoal(goal));
-    })
-}
-
-fn on_delete_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<usize> {
-    Callback::from(move |index: usize| {
-        if user_state.0.is_none() {
-            return;
-        }
-        info!("Deleting learning goal at index: {}", index);
-        user_state.dispatch(UserStateAction::DeleteLearningGoal(index));
     })
 }
 
@@ -995,25 +746,7 @@ pub fn app() -> Html {
                                         ui_state.dispatch(UIStateAction::CloseLearningPanel);
                                     })
                                 }}
-                                on_delete={{
-                                    let ui_state = ui_state.clone();
-                                    let user_state = user_state.clone();
-                                    let items = us.learning_items.clone();
-                                    Callback::from(move |id: Uuid| {
-                                if let Some(item) = items.iter().find(|i| {
-                                    let item_id = match &i.item {
-                                        LearningItemType::Mistake(m) => m.id,
-                                        LearningItemType::Explanation(e) => e.id,
-                                        LearningItemType::Translation(t) => t.id,
-                                        LearningItemType::Exploration(e) => e.id,
-                                    };
-                                    item_id == id
-                                }) {
-                                    ui_state.dispatch(UIStateAction::PushDeletedLearningItem(item.clone()));
-                                }
-                                user_state.dispatch(UserStateAction::DeleteLearningItem(id));
-                            })
-                        }}
+                                on_delete={on_delete_learning_item_callback(ui_state.clone(), user_state.clone())}
                         on_undo={{
                             let ui_state = ui_state.clone();
                             let user_state = user_state.clone();

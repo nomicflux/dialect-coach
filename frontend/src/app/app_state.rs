@@ -1,3 +1,5 @@
+pub mod callbacks;
+
 use dialect_coach_shared::models::{
     ConversationBranch, Dialect, Formality, Language, Message, TeachingMode,
 };
