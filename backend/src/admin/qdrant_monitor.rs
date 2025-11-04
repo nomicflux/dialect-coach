@@ -3,7 +3,6 @@ use crate::qdrant_service::QdrantService;
 use anyhow::Result;
 use dialect_coach_shared::Dialect;
 use qdrant_client::qdrant::{Condition, CountPointsBuilder, Filter};
-use std::collections::HashMap;
 
 const COLLECTION_NAME: &str = "dialect_documents";
 
@@ -54,47 +53,4 @@ async fn get_dialect_counts(service: &QdrantService) -> Result<Vec<DialectCount>
     }
 
     Ok(counts)
-}
-
-pub fn parse_prometheus_metrics(text: &str) -> HashMap<String, f64> {
-    let mut metrics = HashMap::new();
-
-    for line in text.lines() {
-        if line.starts_with('#') || line.is_empty() {
-            continue;
-        }
-
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() == 2
-            && let Ok(value) = parts[1].parse::<f64>()
-        {
-            metrics.insert(parts[0].to_string(), value);
-        }
-    }
-
-    metrics
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_prometheus_metrics() {
-        let sample = r#"
-# HELP process_resident_memory_bytes Resident memory size
-# TYPE process_resident_memory_bytes gauge
-process_resident_memory_bytes 134217728
-collections_total 1
-rest_responses_total 156
-"#;
-
-        let metrics = parse_prometheus_metrics(sample);
-        assert_eq!(
-            metrics.get("process_resident_memory_bytes"),
-            Some(&134217728.0)
-        );
-        assert_eq!(metrics.get("collections_total"), Some(&1.0));
-        assert_eq!(metrics.get("rest_responses_total"), Some(&156.0));
-    }
 }

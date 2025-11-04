@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use dialect_coach_shared::tts::{
     AudioFormat, TextToSpeechProvider, TtsError, TtsRequest, TtsResponse,
 };

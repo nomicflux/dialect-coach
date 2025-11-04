@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::UserPersistence;
 use anyhow::{Result, anyhow};
 use dialect_coach_shared::{User, UserState};
