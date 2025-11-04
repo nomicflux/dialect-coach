@@ -61,13 +61,7 @@ mod tests {
     #[test]
     fn test_add_message_pure() {
         let session = create_test_session();
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Hello".to_string(),
-            },
-            test_metadata(session.id),
-            None,
-        );
+        let msg = Message::user_message("Hello".to_string(), test_metadata(session.id), None);
 
         let initial_count = session.messages.len();
         let new_session = add_message_pure(session, msg);
@@ -78,13 +72,7 @@ mod tests {
     #[test]
     fn test_agent_responds_to_human() {
         let session = create_test_session();
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Hola".to_string(),
-            },
-            test_metadata(session.id),
-            None,
-        );
+        let msg = Message::user_message("Hola".to_string(), test_metadata(session.id), None);
 
         assert!(should_agent_respond(&msg));
     }
@@ -92,13 +80,7 @@ mod tests {
     #[test]
     fn test_agent_does_not_respond_to_self() {
         let session = create_test_session();
-        let msg = Message::new(
-            MessageContent::AgentMessage {
-                content: AgentResponse::from("Hola".to_string()),
-            },
-            test_metadata(session.id),
-            None,
-        );
+        let msg = Message::agent_message(AgentResponse::from("Hola".to_string()), test_metadata(session.id), None);
 
         assert!(!should_agent_respond(&msg));
     }

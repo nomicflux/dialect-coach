@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use super::{
     ConversationBranch, Dialect, Explained, Exploratory, Formality, Language, Message,
-    MessageContent, MessageMetadata, Mistake, TeachingMode, Translated,
+    MessageMetadata, Mistake, TeachingMode, Translated,
 };
 
 /// User-specific state that persists across sessions
@@ -59,35 +59,22 @@ impl UserState {
         }
     }
 
-    pub fn create_msg(&self, session_id: Uuid, content: MessageContent) -> Message {
-        let parent_id = self.get_last_message_in_active_branch();
-        Message::new(
-            content,
-            MessageMetadata::at_now(
-                self.formality,
-                self.teaching_mode,
-                self.selected_language,
-                self.current_dialect(),
-                session_id,
-            ),
-            parent_id,
+    fn create_metadata(&self, session_id: Uuid) -> MessageMetadata {
+        MessageMetadata::at_now(
+            self.formality,
+            self.teaching_mode,
+            self.selected_language,
+            self.current_dialect(),
+            session_id,
         )
     }
 
     pub fn create_user_msg(&self, session_id: Uuid, content: &str) -> Message {
-        self.create_msg(
-            session_id,
-            MessageContent::UserMessage {
-                content: content.to_owned(),
-            },
+        Message::user_message(
+            content.to_string(),
+            self.create_metadata(session_id),
+            None,
         )
-    }
-
-    fn get_last_message_in_active_branch(&self) -> Option<Uuid> {
-        self.branches
-            .iter()
-            .find(|b| b.id == self.active_branch_id)
-            .and_then(|b| b.leaf_message_id)
     }
 
     pub fn bcp47_tag(&self) -> String {
@@ -201,13 +188,7 @@ mod tests {
     }
 
     fn create_test_message() -> Message {
-        Message::new(
-            MessageContent::UserMessage {
-                content: "test".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        )
+        Message::user_message("test".to_string(), test_metadata(Uuid::new_v4()), None)
     }
 
     #[test]
@@ -285,13 +266,7 @@ mod tests {
     #[test]
     fn test_get_active_branch_messages_single() {
         let mut state = create_test_user_state();
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "test".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg = Message::user_message("test".to_string(), test_metadata(Uuid::new_v4()), None);
         state.conversation_history.push(msg.clone());
 
         // Set the branch's leaf to this message
@@ -313,31 +288,13 @@ mod tests {
         let mut state = create_test_user_state();
 
         // Create a chain: A → B → C
-        let msg_a = Message::new(
-            MessageContent::UserMessage {
-                content: "A".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg_a = Message::user_message("A".to_string(), test_metadata(Uuid::new_v4()), None);
         state.conversation_history.push(msg_a.clone());
 
-        let msg_b = Message::new(
-            MessageContent::UserMessage {
-                content: "B".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            Some(msg_a.id),
-        );
+        let msg_b = Message::user_message("B".to_string(), test_metadata(Uuid::new_v4()), Some(msg_a.id));
         state.conversation_history.push(msg_b.clone());
 
-        let msg_c = Message::new(
-            MessageContent::UserMessage {
-                content: "C".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            Some(msg_b.id),
-        );
+        let msg_c = Message::user_message("C".to_string(), test_metadata(Uuid::new_v4()), Some(msg_b.id));
         state.conversation_history.push(msg_c.clone());
 
         // Set the branch's leaf to msg_c
@@ -365,32 +322,14 @@ mod tests {
         let mut state = create_test_user_state();
 
         // Create main path: A → B
-        let msg_a = Message::new(
-            MessageContent::UserMessage {
-                content: "A".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg_a = Message::user_message("A".to_string(), test_metadata(Uuid::new_v4()), None);
         state.conversation_history.push(msg_a.clone());
 
-        let msg_b = Message::new(
-            MessageContent::UserMessage {
-                content: "B".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            Some(msg_a.id),
-        );
+        let msg_b = Message::user_message("B".to_string(), test_metadata(Uuid::new_v4()), Some(msg_a.id));
         state.conversation_history.push(msg_b.clone());
 
         // Create alternative path from A: A → X
-        let msg_x = Message::new(
-            MessageContent::UserMessage {
-                content: "X".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            Some(msg_a.id),
-        );
+        let msg_x = Message::user_message("X".to_string(), test_metadata(Uuid::new_v4()), Some(msg_a.id));
         state.conversation_history.push(msg_x.clone());
 
         // Set active branch leaf to B (so path is A → B, not A → X)

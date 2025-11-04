@@ -70,10 +70,7 @@ fn on_send_message(
         info!("Sending message: {}", content);
 
         let session_id = (*app_state).session_id().unwrap_or_else(Uuid::new_v4);
-        let content = MessageContent::UserMessage {
-            content: content.clone(),
-        };
-        let msg = state.create_msg(session_id, content);
+        let msg = state.create_user_msg(session_id, &content);
         user_state.dispatch(UserStateAction::AddMessage(msg.clone()));
 
         // Extract learning items from user state
@@ -352,13 +349,7 @@ fn on_user_state_ws_open(
             "User state WebSocket opened, loading state for user: {}",
             user_id
         );
-        if let Err(e) = app_state
-            .user_state_ws_service
-            .borrow()
-            .load_user_state(user_id)
-        {
-            error!("Failed to request user state load: {}", e);
-        }
+        app_state.dispatch(AppStateAction::LoadUserState(user_id));
         app_state.dispatch(AppStateAction::RetryPendingSaves);
     })
 }
@@ -386,7 +377,7 @@ fn on_user_state_save_response() -> Callback<Result<(), String>> {
 fn on_create_user_click(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    _user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
         let username = ui_state.create_username_input.clone();

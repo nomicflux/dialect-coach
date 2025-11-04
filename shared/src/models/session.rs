@@ -137,10 +137,8 @@ mod tests {
     #[test]
     fn test_add_message() {
         let mut session = ChatSession::new("Test".to_string(), SessionConfig::default());
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Hello".to_string(),
-            },
+        let msg = Message::user_message(
+            "Hello".to_string(),
             test_metadata(session.id),
             None,
         );
@@ -154,10 +152,8 @@ mod tests {
         let mut session = ChatSession::new("Test".to_string(), SessionConfig::default());
 
         for i in 0..10 {
-            let msg = Message::new(
-                MessageContent::UserMessage {
-                    content: format!("Message {}", i),
-                },
+            let msg = Message::user_message(
+                format!("Message {}", i),
                 test_metadata(session.id),
                 None,
             );

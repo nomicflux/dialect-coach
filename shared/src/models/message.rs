@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MessageContent {
     UserMessage { content: String },
-    AgentMessage { content: AgentResponse },
+    AgentMessage { content: Box<AgentResponse> },
 }
 
 /// A message in a chat session
@@ -69,14 +69,19 @@ impl MessageMetadata {
 }
 
 impl Message {
-    pub fn new(
-        content: MessageContent,
-        metadata: MessageMetadata,
-        parent_id: Option<Uuid>,
-    ) -> Self {
+    pub fn user_message(content: String, metadata: MessageMetadata, parent_id: Option<Uuid>) -> Self {
         Self {
             id: Uuid::new_v4(),
-            content,
+            content: MessageContent::UserMessage { content },
+            metadata,
+            parent_id,
+        }
+    }
+
+    pub fn agent_message(content: AgentResponse, metadata: MessageMetadata, parent_id: Option<Uuid>) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            content: MessageContent::AgentMessage { content: Box::new(content) },
             metadata,
             parent_id,
         }
@@ -180,10 +185,7 @@ mod tests {
     #[test]
     fn test_new_message() {
         let session_id = Uuid::new_v4();
-        let content = MessageContent::UserMessage {
-            content: "Hello".to_string(),
-        };
-        let msg = Message::new(content.clone(), test_metadata(session_id), None);
+        let msg = Message::user_message("Hello".to_string(), test_metadata(session_id), None);
 
         assert_eq!(msg.metadata.session_id, session_id);
         assert_eq!(msg.get_content(), "Hello");
@@ -193,10 +195,7 @@ mod tests {
 
     #[test]
     fn test_metadata_serialization() {
-        let content = MessageContent::UserMessage {
-            content: "Hola".to_string(),
-        };
-        let msg = Message::new(content.clone(), test_metadata(Uuid::new_v4()), None);
+        let msg = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"formality\":\"casual\""));
@@ -209,13 +208,7 @@ mod tests {
 
     #[test]
     fn test_user_message_with_context_basic() {
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Hola".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
@@ -239,13 +232,7 @@ mod tests {
     fn test_user_message_with_context_with_learning_items() {
         use crate::models::agent::{Explained, Mistake, MistakeCategory};
 
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Hola".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let mistake = Mistake::new(
             "hablar".to_string(),
@@ -283,13 +270,7 @@ mod tests {
     fn test_user_message_with_context_serialization() {
         use crate::models::agent::{Mistake, MistakeCategory};
 
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Hola".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let mistake = Mistake::new(
             "hablar".to_string(),
@@ -333,13 +314,7 @@ mod tests {
     fn test_user_message_with_context_with_translated() {
         use crate::models::agent::Translated;
 
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Hola".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let translated = Translated::new("hello".to_string(), "hola".to_string());
 
@@ -365,13 +340,7 @@ mod tests {
     fn test_user_message_with_context_with_exploratory() {
         use crate::models::agent::Exploratory;
 
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Try this".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg = Message::user_message("Try this".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let exploratory =
             Exploratory::new("Use subjunctive".to_string(), "Try 'Si fuera'".to_string());
@@ -398,13 +367,7 @@ mod tests {
     fn test_user_message_with_context_all_four_types() {
         use crate::models::agent::{Explained, Exploratory, Mistake, MistakeCategory, Translated};
 
-        let msg = Message::new(
-            MessageContent::UserMessage {
-                content: "Test".to_string(),
-            },
-            test_metadata(Uuid::new_v4()),
-            None,
-        );
+        let msg = Message::user_message("Test".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let mistake = Mistake::new(
             "hablar".to_string(),

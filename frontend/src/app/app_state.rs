@@ -532,32 +532,6 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
     next
 }
 
-// Newtype wrapper to implement Reducible (orphan rule workaround)
-#[derive(Clone, PartialEq)]
-pub struct UserStateWrapper(pub UserState);
-
-impl std::ops::Deref for UserStateWrapper {
-    type Target = UserState;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<UserState> for UserStateWrapper {
-    fn from(state: UserState) -> Self {
-        UserStateWrapper(state)
-    }
-}
-
-impl Reducible for UserStateWrapper {
-    type Action = UserStateAction;
-
-    fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
-        UserStateWrapper(apply_user_state_action(&self.0, action)).into()
-    }
-}
-
-// Wrapper for optional user state - None until authenticated
 #[derive(Clone, PartialEq)]
 pub struct OptionalUserState(pub Option<UserState>);
 
@@ -583,15 +557,12 @@ impl Reducible for OptionalUserState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::models::MessageContent;
     use dialect_coach_shared::models::MessageMetadata;
     use dialect_coach_shared::models::{Dialect, Formality, Language, TeachingMode};
 
     fn create_test_message(session_id: Uuid, parent_id: Option<Uuid>) -> Message {
-        Message::new(
-            MessageContent::UserMessage {
-                content: "test".to_string(),
-            },
+        Message::user_message(
+            "test".to_string(),
             MessageMetadata::at_now(
                 Formality::Casual,
                 TeachingMode::Immersive,
