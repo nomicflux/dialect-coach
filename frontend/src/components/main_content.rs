@@ -1,8 +1,6 @@
 use crate::app::app_callbacks::{on_prompt_click, on_send_message, on_tts_toggle};
 use crate::app::app_helpers::render_message_undo_notification;
-use crate::app::app_state::{
-    AppState, OptionalUserState, UIState, UIStateAction, UserStateAction,
-};
+use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction, UserStateAction};
 use crate::app::app_state_callbacks::on_replay_message;
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,

@@ -80,8 +80,8 @@ pub fn app() -> Html {
                 user_state={user_state.clone()}
             />
 
-            <main 
-                class="app-main" 
+            <main
+                class="app-main"
                 data-sidebar-collapsed={if ui_state.sidebar_collapsed { "true" } else { "false" }}
                 data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
             >

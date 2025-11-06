@@ -8,6 +8,7 @@ pub mod language;
 pub mod message;
 pub mod participant;
 pub mod session;
+pub mod usage_stats;
 pub mod user;
 pub mod user_state;
 
@@ -21,5 +22,6 @@ pub use language::*;
 pub use message::*;
 pub use participant::*;
 pub use session::*;
+pub use usage_stats::*;
 pub use user::*;
 pub use user_state::*;

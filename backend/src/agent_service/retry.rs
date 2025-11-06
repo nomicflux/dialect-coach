@@ -1,7 +1,13 @@
 use anyhow::{Context, Result};
-use rig::completion::{Chat, CompletionError, Message as RigMessage, PromptError};
+use dialect_coach_shared::AgentUsage;
+use rig::OneOrMany;
+use rig::completion::{
+    AssistantContent, Chat, Completion, CompletionError, CompletionResponse, Message as RigMessage,
+    PromptError,
+};
+use rig::providers::anthropic::completion::CompletionResponse as AnthropicResponse;
 
-use super::util::{self, GenerationConfig};
+use super::util::{self, GenerationConfig, get_message_text};
 
 pub struct RetryAttemptParams {
     pub attempt: usize,
@@ -98,6 +104,14 @@ pub fn build_retry_analysis_preamble(original_preamble: &str, failed_response: &
     )
 }
 
+pub fn estimate_input_tokens(preamble: &str, history: &[RigMessage], prompt: &str) -> u64 {
+    let preamble_chars = preamble.len();
+    let history_chars: usize = history.iter().map(|msg| get_message_text(msg).len()).sum();
+    let prompt_chars = prompt.len();
+    let total_chars = preamble_chars + history_chars + prompt_chars;
+    (total_chars as f64 * 0.25).ceil() as u64
+}
+
 pub fn calculate_backoff_delay(attempt: usize) -> tokio::time::Duration {
     tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))
 }
@@ -142,6 +156,122 @@ pub async fn handle_retry_delay(attempt: usize, max_attempts: usize, error: &Pro
     let delay = calculate_backoff_delay(attempt);
     log_retry_attempt(attempt, max_attempts, error, delay);
     tokio::time::sleep(delay).await;
+}
+
+fn create_usage_entry(is_retry: bool, is_estimate: bool, input: u64, output: u64) -> AgentUsage {
+    AgentUsage {
+        timestamp: chrono::Utc::now().timestamp(),
+        input_tokens: input,
+        output_tokens: output,
+        is_retry,
+        is_estimate,
+    }
+}
+
+fn extract_text_from_choice(choice: &OneOrMany<AssistantContent>) -> Result<String> {
+    let text: String = choice
+        .iter()
+        .filter_map(|c| match c {
+            AssistantContent::Text(t) => Some(t.text.as_str()),
+            _ => None,
+        })
+        .collect();
+    if text.is_empty() {
+        Err(anyhow::anyhow!("No text in response"))
+    } else {
+        Ok(text)
+    }
+}
+
+enum AttemptResult {
+    Success(String, AgentUsage),
+    Retry(AgentUsage, CompletionError),
+    Failed(AgentUsage, CompletionError),
+}
+
+async fn attempt_completion<F, Fut>(
+    completion_call: F,
+    estimate_input: impl Fn() -> u64,
+    is_retry: bool,
+) -> AttemptResult
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<CompletionResponse<AnthropicResponse>, CompletionError>>,
+{
+    match completion_call().await {
+        Ok(response) => {
+            let text = match extract_text_from_choice(&response.choice) {
+                Ok(t) => t,
+                Err(e) => {
+                    let usage = create_usage_entry(is_retry, true, estimate_input(), 0);
+                    return AttemptResult::Failed(
+                        usage,
+                        CompletionError::ResponseError(e.to_string()),
+                    );
+                }
+            };
+            let usage = create_usage_entry(
+                is_retry,
+                false,
+                response.raw_response.usage.input_tokens,
+                response.raw_response.usage.output_tokens,
+            );
+            AttemptResult::Success(text, usage)
+        }
+        Err(e) if is_retryable_completion_error(&e) => {
+            let usage = create_usage_entry(is_retry, true, estimate_input(), 0);
+            AttemptResult::Retry(usage, e)
+        }
+        Err(e) => {
+            let usage = create_usage_entry(is_retry, true, estimate_input(), 0);
+            AttemptResult::Failed(usage, e)
+        }
+    }
+}
+
+fn is_retryable_completion_error(error: &CompletionError) -> bool {
+    matches!(
+        error,
+        CompletionError::ProviderError(_) | CompletionError::ResponseError(_)
+    )
+}
+
+async fn handle_completion_retry_delay(attempt: usize, max: usize, error: &CompletionError) {
+    tracing::warn!("Retry {}/{}: {}", attempt, max, error);
+    tokio::time::sleep(tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))).await;
+}
+
+pub async fn retry_completion_call<F, Fut>(
+    completion_call: F,
+    estimate_input: impl Fn() -> u64,
+    max_attempts: usize,
+) -> Result<(String, Vec<AgentUsage>)>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<CompletionResponse<AnthropicResponse>, CompletionError>>,
+{
+    let mut usages = Vec::new();
+
+    for attempt in 1..=max_attempts {
+        let is_retry = attempt > 1;
+        match attempt_completion(&completion_call, &estimate_input, is_retry).await {
+            AttemptResult::Success(text, usage) => {
+                usages.push(usage);
+                return Ok((text, usages));
+            }
+            AttemptResult::Retry(usage, error) => {
+                usages.push(usage);
+                if attempt < max_attempts {
+                    handle_completion_retry_delay(attempt, max_attempts, &error).await;
+                }
+            }
+            AttemptResult::Failed(usage, error) => {
+                usages.push(usage);
+                return Err(anyhow::anyhow!("API call failed: {}", error));
+            }
+        }
+    }
+    Err(anyhow::anyhow!("Failed after {} attempts", max_attempts))
 }
 
 pub async fn retry_chat_call<F, Fut>(chat_call: F, max_attempts: usize) -> Result<String>
@@ -257,22 +387,34 @@ impl<'a> RetryContext<'a> {
         prompt_params: &RetryPromptParams<'_, F>,
         conversation_history: &[RigMessage],
         config: &GenerationConfig,
-    ) -> Result<String>
+    ) -> Result<(String, Vec<AgentUsage>)>
     where
         F: Fn(&str, &str) -> String,
     {
-        let retry_agent = self.create_retry_agent(
+        let retry_preamble = (prompt_params.preamble_builder)(
             prompt_params.original_preamble,
             prompt_params.failed_response,
-            prompt_params.preamble_builder,
-            config.max_tokens,
-            config.temperature,
         );
-        // conversation_history already has examples - just use it as-is
         let mut history_with_prefill = conversation_history.to_vec();
         history_with_prefill.push(util::create_prefilled_assistant_message());
-        retry_chat_call(
-            || retry_agent.chat(prompt_params.prompt, history_with_prefill.clone()),
+        let estimate_fn =
+            || estimate_input_tokens(&retry_preamble, &history_with_prefill, prompt_params.prompt);
+        let agent = self
+            .client
+            .agent(self.model_name)
+            .preamble(&retry_preamble)
+            .max_tokens(config.max_tokens)
+            .temperature(config.temperature)
+            .build();
+        retry_completion_call(
+            || async {
+                agent
+                    .completion(prompt_params.prompt, history_with_prefill.clone())
+                    .await?
+                    .send()
+                    .await
+            },
+            estimate_fn,
             3,
         )
         .await
@@ -287,7 +429,7 @@ impl<'a> RetryContext<'a> {
         config: &GenerationConfig,
         parse_fn: &impl Fn(&str) -> Result<T>,
         log_success: &impl Fn(&T),
-    ) -> Result<(Option<T>, String)>
+    ) -> Result<(Option<T>, String, Vec<AgentUsage>)>
     where
         F: Fn(&str, &str) -> String,
     {
@@ -297,18 +439,19 @@ impl<'a> RetryContext<'a> {
             attempt_params.max_retries
         );
 
-        let response = self
+        let (response, usage) = self
             .attempt_retry_with_feedback(prompt_params, conversation_history, config)
             .await?;
 
         tracing::info!("Raw retry response from Claude: {}", response);
-        process_retry_response(
+        let (result, response_str) = process_retry_response(
             attempt_params,
             response,
             prompt_params,
             parse_fn,
             log_success,
-        )
+        )?;
+        Ok((result, response_str, usage))
     }
 
     pub async fn retry_with_error_feedback_tracked<T, F>(
@@ -318,12 +461,13 @@ impl<'a> RetryContext<'a> {
         config: &GenerationConfig,
         parse_fn: &impl Fn(&str) -> Result<T>,
         log_success: &impl Fn(&T),
-    ) -> Result<(T, u32)>
+    ) -> Result<(T, Vec<AgentUsage>)>
     where
         F: Fn(&str, &str) -> String,
     {
         let max_retries = 3;
         let mut last_failed_response = prompt_params.failed_response.to_string();
+        let mut all_usage = Vec::new();
 
         for attempt in 1..=max_retries {
             let prompt_params_iter = RetryPromptParams {
@@ -336,7 +480,7 @@ impl<'a> RetryContext<'a> {
                 attempt,
                 max_retries,
             };
-            let (result, response) = self
+            let (result, response, usage) = self
                 .handle_retry_attempt(
                     &attempt_params_iter,
                     &prompt_params_iter,
@@ -347,8 +491,10 @@ impl<'a> RetryContext<'a> {
                 )
                 .await?;
 
+            all_usage.extend(usage);
+
             if let Some(parsed_response) = result {
-                return Ok((parsed_response, attempt as u32));
+                return Ok((parsed_response, all_usage));
             }
             last_failed_response = response;
         }
@@ -357,5 +503,104 @@ impl<'a> RetryContext<'a> {
             "Failed to get valid response after {} retry attempts",
             max_retries
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rig::completion::message::{AssistantContent, Text, UserContent};
+
+    #[test]
+    fn test_create_usage_entry() {
+        let usage = create_usage_entry(false, false, 100, 50);
+        assert_eq!(usage.input_tokens, 100);
+        assert_eq!(usage.output_tokens, 50);
+        assert_eq!(usage.is_retry, false);
+        assert_eq!(usage.is_estimate, false);
+        assert!(usage.timestamp > 0);
+    }
+
+    #[test]
+    fn test_create_usage_entry_retry() {
+        let usage = create_usage_entry(true, false, 100, 50);
+        assert_eq!(usage.is_retry, true);
+        assert_eq!(usage.is_estimate, false);
+    }
+
+    #[test]
+    fn test_create_usage_entry_estimate() {
+        let usage = create_usage_entry(false, true, 100, 0);
+        assert_eq!(usage.is_retry, false);
+        assert_eq!(usage.is_estimate, true);
+        assert_eq!(usage.output_tokens, 0);
+    }
+
+    #[test]
+    fn test_extract_text_from_choice_single() {
+        let text = Text {
+            text: "Hello world".to_string(),
+        };
+        let choice = OneOrMany::one(AssistantContent::Text(text));
+        let result = extract_text_from_choice(&choice).unwrap();
+        assert_eq!(result, "Hello world");
+    }
+
+    #[test]
+    fn test_extract_text_from_choice_no_text() {
+        use rig::completion::message::{ToolCall, ToolFunction};
+        let tool_call = ToolCall {
+            id: "test".to_string(),
+            function: ToolFunction {
+                name: "test_fn".to_string(),
+                arguments: serde_json::json!({}),
+            },
+        };
+        let choice = OneOrMany::one(AssistantContent::ToolCall(tool_call));
+        let result = extract_text_from_choice(&choice);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_estimate_input_tokens() {
+        let preamble = "You are a helpful assistant";
+        let history = vec![];
+        let prompt = "Hello";
+        let tokens = estimate_input_tokens(preamble, &history, prompt);
+        let expected = ((preamble.len() + prompt.len()) as f64 * 0.25).ceil() as u64;
+        assert_eq!(tokens, expected);
+    }
+
+    #[test]
+    fn test_estimate_input_tokens_with_history() {
+        let preamble = "System";
+        let history = vec![RigMessage::User {
+            content: OneOrMany::one(UserContent::Text(Text {
+                text: "First message".to_string(),
+            })),
+        }];
+        let prompt = "Second";
+        let tokens = estimate_input_tokens(preamble, &history, prompt);
+        assert!(tokens > 0);
+    }
+
+    #[test]
+    fn test_is_retryable_completion_error_provider() {
+        let error = CompletionError::ProviderError("Overloaded".to_string());
+        assert!(is_retryable_completion_error(&error));
+    }
+
+    #[test]
+    fn test_is_retryable_completion_error_response() {
+        let error = CompletionError::ResponseError("Empty response".to_string());
+        assert!(is_retryable_completion_error(&error));
+    }
+
+    #[test]
+    fn test_is_retryable_completion_error_json() {
+        let error = CompletionError::JsonError(
+            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err(),
+        );
+        assert!(!is_retryable_completion_error(&error));
     }
 }

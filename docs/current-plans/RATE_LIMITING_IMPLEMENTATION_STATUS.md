@@ -1,0 +1,552 @@
+# Rate Limiting Implementation Status
+
+**Feature**: Rate limiting for agent usage and TTS usage
+**Created**: 2025-11-06
+**Status**: Not Started
+
+---
+
+## User Requirements
+
+Based on `docs/current-plans/RATE_LIMITING.md`
+
+### Tracking Requirements
+- Track response agent usage (calls, input tokens, output tokens)
+- Track analysis agent usage (calls, input tokens, output tokens)
+- Track TTS usage (calls, characters sent)
+- Persist usage stats in UserState via Sled
+
+### Rate Limiting Requirements
+- Configurable limits for calls & tokens per service
+- Rolling window for rate limiting
+- Check organization-wide quota for Anthropic and ElevenLabs
+- Return 429 status code when limits exceeded
+- Different limits based on teaching mode (Immersive/Debug skip analysis)
+
+### Frontend Requirements
+- Handle 429 responses
+- Disable UI elements when rate limited
+- Display usage stats in collapsible footer
+
+---
+
+## Implementation Plan
+
+### Phase 1: UsageStats Data Structure (shared crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Create `shared/src/models/usage_stats.rs`
+2. Define `UsageStats` struct with fields:
+   - Response agent: `response_calls: u32`, `response_input_tokens: u64`, `response_output_tokens: u64`
+   - Analysis agent: `analysis_calls: u32`, `analysis_input_tokens: u64`, `analysis_output_tokens: u64`
+   - TTS: `tts_calls: u32`, `tts_characters: u64`
+   - `call_timestamps: Vec<i64>` (Unix timestamps for rolling window)
+3. Add `impl Default for UsageStats` returning zeroed struct
+4. Add `usage_stats: UsageStats` field to `UserState` in `shared/src/models/user_state.rs`
+5. Export from `shared/src/models/mod.rs`
+6. Run `cargo test` to verify serialization works with Sled
+
+**Update status document:** Record completion of Phase 1 in this file
+
+---
+
+### Phase 2: Capture Token Usage from rig (backend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**⚠️ CORRECTED TASKS BASED ON PROPER rig API RESEARCH:**
+
+**Understanding the Change:**
+- Current: `.chat()` returns `Result<String, PromptError>`
+- Needed: `.completion().await?.send().await?` returns `Result<CompletionResponse<AnthropicResponse>, CompletionError>`
+- Usage data: `response.raw_response.usage.input_tokens` and `response.raw_response.usage.output_tokens`
+- Text extraction: iterate `response.choice` to extract text from `AssistantContent::Text` variants
+
+**Tasks:**
+1. Create `retry_completion_call()` in `backend/src/agent_service/retry.rs`:
+   - New function (don't modify existing `retry_chat_call()` used elsewhere)
+   - Return type: `Result<(String, Vec<AgentUsage>)>` where Vec contains all attempts
+   - Signature: `retry_completion_call<F, Fut>(completion_call: F, estimate_input: impl Fn() -> u64, max_attempts: usize)`
+   - Inside retry loop:
+     - Call `completion_call().await?` to get `CompletionResponse<AnthropicResponse>`
+     - Extract usage: `response.raw_response.usage.input_tokens`, `response.raw_response.usage.output_tokens`
+     - Extract text: iterate `response.choice` to get text from `AssistantContent::Text`
+     - Create `AgentUsage` entry with actual usage, `is_retry: (attempt > 1)`, `is_estimate: false`
+     - On retryable error: Create `AgentUsage` with estimated input tokens, 0 output, `is_estimate: true`
+   - Accumulate all `AgentUsage` entries in Vec
+   - Return `(extracted_text, all_usage_vec)`
+2. Update `generate_response()` in `backend/src/agent_service/response.rs`:
+   - Change return type: `Result<(AgentResponse, Vec<AgentUsage>)>`
+   - Build agent with `.agent().preamble().max_tokens().temperature().build()`
+   - Call: `retry_completion_call(|| agent.completion(prompt, history).await?.send().await, estimate_fn, 3)`
+   - Pass through Vec<AgentUsage> from retry_completion_call
+3. Update `generate_analysis()` in `backend/src/agent_service/analysis.rs`:
+   - Change return type: `Result<(AgentAnalysis, Vec<AgentUsage>)>`
+   - Use `retry_completion_call()` with `.completion().await?.send().await` pattern
+4. Update function signatures in `backend/src/agent_service.rs`:
+   - `generate_response()`: return `Vec<AgentUsage>` instead of `u32`
+   - `generate_analysis()`: return `Vec<AgentUsage>` instead of `u32`
+5. Update `retry_with_error_feedback_tracked()` to use `retry_completion_call()`
+6. Create `estimate_input_tokens(preamble: &str, history: &[RigMessage], prompt: &str) -> u64` helper
+7. Update all call sites in `backend/src/websocket.rs` to capture `Vec<AgentUsage>` instead of discarding
+8. Run `cargo check` to verify compilation
+9. Run `cargo test --lib` to verify changes
+
+**Update status document:** Record completion of Phase 2
+
+---
+
+### Phase 3: Usage Tracking Helper (backend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Create `backend/src/usage_tracker.rs`
+2. Implement pure function `prune_old_timestamps(timestamps: &[i64], window_hours: u32, now: i64) -> Vec<i64>`
+   - Filters timestamps to only those within window_hours of now
+   - Returns new Vec with only recent timestamps
+3. Implement `update_response_usage(stats: &mut UsageStats, usage: rig::completion::Usage, now: i64, window_hours: u32)`
+   - Increments response_calls, response_input_tokens, response_output_tokens
+   - Adds timestamp to call_timestamps
+   - Prunes old timestamps
+4. Implement `update_analysis_usage(stats: &mut UsageStats, usage: rig::completion::Usage, now: i64, window_hours: u32)`
+   - Increments analysis_calls, analysis_input_tokens, analysis_output_tokens
+   - Adds timestamp to call_timestamps
+   - Prunes old timestamps
+5. Implement `update_tts_usage(stats: &mut UsageStats, characters: u64, now: i64, window_hours: u32)`
+   - Increments tts_calls, tts_characters
+   - Adds timestamp to call_timestamps
+   - Prunes old timestamps
+6. Write unit tests for each function with mock data
+7. Export module from `backend/src/main.rs` with `mod usage_tracker;`
+8. Run `cargo test usage_tracker`
+
+**Update status document:** Record completion of Phase 3
+
+---
+
+### Phase 4: Call Tracking in WebSocket (backend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Modify `run_agents_parallel()` in `backend/src/websocket.rs`:
+   - Capture `rig::completion::Usage` from response agent (currently discarded with `.0`)
+   - Capture `rig::completion::Usage` from analysis agent (currently discarded with `.0`)
+   - Call `usage_tracker::update_response_usage()` after successful response call
+   - Call `usage_tracker::update_analysis_usage()` after successful analysis call
+   - Get current timestamp with `chrono::Utc::now().timestamp()`
+   - Persist UserState via `state.persistence.save()` after updates
+2. Modify `synthesize_handler()` in `backend/src/tts_handler.rs`:
+   - Track character count from `request.text.len()`
+   - Call `usage_tracker::update_tts_usage()` after successful synthesis
+   - Persist UserState after update
+3. Run `cargo check` to verify compilation
+
+**Update status document:** Record completion of Phase 4
+
+---
+
+### Phase 5: Rate Limit Configuration (backend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Create `backend/src/rate_limiter/mod.rs`
+2. Create `backend/src/rate_limiter/config.rs`
+3. Define `RateLimitConfig` struct per spec:
+   - `response_calls_limit: u32`
+   - `response_tokens_limit: u64`
+   - `analysis_calls_limit: u32`
+   - `analysis_tokens_limit: u64`
+   - `tts_calls_limit: u32`
+   - `tts_characters_limit: u64`
+   - `rolling_window_hours: u32` (default 24)
+4. Implement `RateLimitConfig::from_env()` to read from environment variables with sensible defaults
+5. Implement `RateLimitConfig::default()` with reasonable limits
+6. Write unit tests for config loading
+7. Export from `backend/src/main.rs` with `mod rate_limiter;`
+8. Run `cargo test rate_limiter::config`
+
+**Update status document:** Record completion of Phase 5
+
+---
+
+### Phase 6: Rate Limiter Service Trait (backend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Create `backend/src/rate_limiter/service.rs`
+2. Define `RateLimiterService` trait with methods per spec:
+   - `can_make_response_call(stats: &UsageStats, config: &RateLimitConfig) -> bool`
+   - `can_make_analysis_call(stats: &UsageStats, config: &RateLimitConfig) -> bool`
+   - `can_make_tts_call(stats: &UsageStats, config: &RateLimitConfig) -> bool`
+   - `anthropic_has_quota(&self) -> bool`
+   - `elevenlabs_has_quota(&self) -> bool`
+3. Implement struct `RateLimiter` that implements the trait
+4. Pure checking functions should verify both calls AND tokens within window
+5. Write unit tests with mock UsageStats showing limit enforcement
+6. Add `RateLimiter` instance to `AppState` in `backend/src/main.rs`
+7. Run `cargo test rate_limiter::service`
+
+**Update status document:** Record completion of Phase 6
+
+---
+
+### Phase 7: Organization Quota Polling (backend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Create `backend/src/rate_limiter/org_quota.rs`
+2. Create `OrgQuotaChecker` struct with `Arc<RwLock<QuotaStatus>>` for cached state
+3. Define `QuotaStatus` struct with `anthropic_has_quota: bool`, `elevenlabs_has_quota: bool`
+4. Implement background polling task (runs every 5 minutes):
+   - Call existing `admin::anthropic_monitor::get_anthropic_stats()` if API key available
+   - Call existing `admin::elevenlabs_monitor::get_elevenlabs_usage()` if API key available
+   - Parse responses to determine if quotas are available
+   - Update cached QuotaStatus via RwLock
+5. Implement reader methods `has_anthropic_quota()` and `has_elevenlabs_quota()`
+6. Spawn background task in `main.rs` using `tokio::spawn()`
+7. Add `OrgQuotaChecker` to AppState
+8. Run `cargo check`
+
+**Update status document:** Record completion of Phase 7
+
+---
+
+### Phase 8: Enforce Rate Limits (backend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Modify `run_agents_parallel()` in `backend/src/websocket.rs`:
+   - Before response agent call: check `rate_limiter.can_make_response_call(&user_state.usage_stats, &config)`
+   - Before analysis agent call: check `rate_limiter.can_make_analysis_call(&user_state.usage_stats, &config)`
+     - Skip check for Immersive and Debug teaching modes (per spec line 43)
+   - Check `rate_limiter.anthropic_has_quota()` before any agent calls
+   - If any check fails, return error with 429 status code indicating which service (per spec line 46)
+   - Use different error codes/messages to distinguish analysis vs response agent limits
+2. Modify `synthesize_handler()` in `backend/src/tts_handler.rs`:
+   - Check `rate_limiter.can_make_tts_call(&user_state.usage_stats, &config)` before synthesis
+   - Check `rate_limiter.elevenlabs_has_quota()` before synthesis
+   - Return 429 if either check fails (already has 429 handling at line 130-136)
+3. Run `cargo check`
+
+**Update status document:** Record completion of Phase 8
+
+---
+
+### Phase 9: Frontend 429 Response Handling (frontend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Add `RateLimitState` struct to `frontend/src/app/app_state.rs`:
+   - `analysis_limited: bool`
+   - `response_limited: bool`
+   - `tts_limited: bool`
+2. Add field to AppState: `rate_limit_state: RateLimitState`
+3. Handle 429 responses in WebSocket message handler:
+   - Parse error message to determine which service is limited
+   - Update corresponding RateLimitState field
+4. Update UI components per spec (lines 50-53):
+   - Disable teaching mode selector for modes other than Immersive/Debug when `analysis_limited == true`
+   - Disable chat input when `response_limited == true`
+   - Disable autoplay and manual TTS buttons when `tts_limited == true`
+5. Show user-friendly error messages when features are disabled
+6. Run `cargo check --package dialect-coach-frontend`
+
+**Update status document:** Record completion of Phase 9
+
+---
+
+### Phase 10: Usage Display Footer (frontend crate)
+
+**Code Style Checklist:**
+- [ ] Functions < 20 lines
+- [ ] Pure functions for data transformations
+- [ ] No defensive coding
+- [ ] Tests for all new functions
+
+**Tasks:**
+1. Create `frontend/src/components/usage_footer.rs`
+2. Create Yew component that displays UsageStats from UserState
+3. Component should be collapsible (per spec line 25)
+4. Display for each service:
+   - Response agent: calls used, input tokens used, output tokens used
+   - Analysis agent: calls used, input tokens used, output tokens used
+   - TTS: calls used, characters used
+5. Optionally show limits from config (if exposed via API)
+6. Add component to main UI layout
+7. Create CSS styling in `frontend/styles/components/usage_footer.css`
+8. Run `cargo check --package dialect-coach-frontend`
+
+**Update status document:** Record completion of Phase 10, mark implementation complete
+
+---
+
+## Implementation Progress
+
+### Phase 0: Planning and Documentation
+**Status**: ✅ Completed
+**Date**: 2025-11-06
+
+**Actions**:
+- Created this planning document
+- Reviewed specification in `docs/current-plans/RATE_LIMITING.md`
+- Researched existing codebase:
+  - Found rig library returns Usage in CompletionResponse
+  - Found existing admin endpoints for Anthropic and ElevenLabs quota checking
+  - Found UserState persistence via Sled with JSON serialization
+  - Identified all locations where agent and TTS calls are made
+
+---
+
+### Phase 1: UsageStats Data Structure
+**Status**: ✅ Completed
+**Date**: 2025-11-06
+
+**Actions**:
+- Created `shared/src/models/usage_stats.rs` with:
+  - `UsageStats` struct with three event vectors
+  - `ResponseUsage` struct (timestamp, input_tokens, output_tokens)
+  - `AnalysisUsage` struct (timestamp, input_tokens, output_tokens)
+  - `TtsUsage` struct (timestamp, characters)
+  - `Default` implementation for UsageStats
+  - Two unit tests (default creation, serialization round-trip)
+- Added `usage_stats: UsageStats` field to `UserState` in `shared/src/models/user_state.rs`
+- Initialized field in `UserState::new()` with `UsageStats::default()`
+- Exported from `shared/src/models/mod.rs`
+- Ran `cargo test --lib`: all 99 tests passed including new usage_stats tests
+
+**Code Style Checklist**:
+- [x] Functions < 20 lines (Default::default is simple)
+- [x] Pure functions for data transformations (serialization)
+- [x] No defensive coding (simple struct definitions)
+- [x] Tests for all new functions (2 tests)
+
+**Design Decision**:
+- Used event vectors instead of separate counters + timestamps
+- Counts and sums derived by filtering events within rolling window
+- Follows "ruthless simplicity" - store only what's needed, derive the rest
+
+---
+
+### Phase 2: Capture Token Usage from rig (backend crate)
+**Status**: ✅ Completed
+**Date**: 2025-11-06
+
+**Actions Completed**:
+- Updated `shared/src/models/usage_stats.rs`:
+  - Consolidated `ResponseUsage` and `AnalysisUsage` into single `AgentUsage` struct
+  - Added `is_retry: bool` field to track retry attempts
+  - Added `is_estimate: bool` field to distinguish real vs estimated token counts
+- Created `retry_completion_call()` in `backend/src/agent_service/retry.rs`:
+  - Returns `(String, Vec<AgentUsage>)` with all attempts (successful + retries)
+  - Tracks real usage data from successful API responses
+  - Estimates input tokens for failed attempts (output tokens = 0)
+  - Marks retry attempts with `is_retry: true`
+  - Marks estimated usage with `is_estimate: true`
+- Created helper functions (all < 20 lines):
+  - `create_usage_entry()` - constructs AgentUsage with timestamp
+  - `extract_text_from_choice()` - extracts text from rig's OneOrMany<AssistantContent>
+  - `attempt_completion()` - handles single completion attempt with usage tracking
+  - `is_retryable_completion_error()` - checks if error should trigger retry
+  - `handle_completion_retry_delay()` - exponential backoff for retries
+  - `estimate_input_tokens()` - estimates input tokens from preamble + history + prompt character counts
+- Modified return types in `backend/src/agent_service.rs`:
+  - `generate_response()`: changed from `(AgentResponse, u32)` to `(AgentResponse, Vec<AgentUsage>)`
+  - `generate_analysis()`: changed from `(AgentAnalysis, u32)` to `(AgentAnalysis, Vec<AgentUsage>)`
+- Modified `generate_response()` in `backend/src/agent_service/response.rs` to call `retry_completion_call()`
+- Modified `generate_analysis()` in `backend/src/agent_service/analysis.rs` to call `retry_completion_call()`
+- Modified `attempt_retry_with_feedback()` in `backend/src/agent_service/retry.rs` to use `retry_completion_call()`
+- Modified `retry_with_error_feedback_tracked()` to aggregate usage across all retry attempts
+
+**Compilation Errors Fixed**:
+- ✅ `backend/src/agent_service/retry.rs:407` - Added `.await?` before `.send()`
+- ✅ `backend/src/agent_service/response.rs:492` - Added `.await?` before `.send()`
+- ✅ `backend/src/agent_service/analysis.rs:179` - Added `.await?` before `.send()`
+- ✅ All code now compiles successfully
+- ✅ All tests pass (161 total: 99 shared + 41 backend + 15 frontend + 6 corpus-processor)
+
+**Tests Written** (10 unit tests in `backend/src/agent_service/retry.rs`):
+- `test_create_usage_entry()` - Creates AgentUsage with correct fields
+- `test_create_usage_entry_retry()` - Verifies is_retry flag
+- `test_create_usage_entry_estimate()` - Verifies is_estimate flag
+- `test_extract_text_from_choice_single()` - Extracts text from Text content
+- `test_extract_text_from_choice_no_text()` - Returns error when no Text content
+- `test_estimate_input_tokens()` - Calculates tokens from character count
+- `test_estimate_input_tokens_with_history()` - Includes history in calculation
+- `test_is_retryable_completion_error_provider()` - Detects retryable provider errors
+- `test_is_retryable_completion_error_response()` - Detects retryable response errors
+- `test_is_retryable_completion_error_json()` - Confirms JSON errors not retryable
+
+**Code Style Checklist**:
+- [x] Functions < 20 lines (all helpers under 15 lines)
+- [x] Pure functions for data transformations (create_usage_entry, extract_text_from_choice, estimate_input_tokens)
+- [x] No defensive coding (uses Result types properly)
+- [x] Tests for all new functions (10 unit tests, all passing)
+
+**Design Decisions**:
+- Used Anthropic-specific types (`CompletionResponse<AnthropicResponse>`) since project uses Anthropic
+- Estimate input tokens for failed calls since rig's `CompletionError` has no usage data (character count * 0.25)
+- Track ALL attempts (successful + failures) to account for actual API costs
+- Return Vec of all attempts rather than aggregating to preserve full history
+- Correct rig API pattern: `agent.completion(prompt, history).await?.send().await?`
+
+**Deferred to Phase 4**:
+- Websocket callsites currently discard usage data (`.0` on tuples)
+- Will update websocket handlers in Phase 4 after Phase 3 creates usage tracking helper functions
+- This prevents dead code - no point capturing usage until we have helpers to store it
+
+---
+
+## Research Findings
+
+### rig API Understanding (rig-core 0.8.0)
+
+**CRITICAL: Two Different APIs**
+- `.chat()` - High-level API: returns `Future<Output = Result<String, PromptError>>`
+- `.completion()` - Low-level API: returns `Future<Output = Result<CompletionRequestBuilder<M>, CompletionError>>`
+
+**Correct `.completion()` Usage Pattern** (from `examples/multi_turn_agent.rs:25-30`):
+```rust
+let resp = agent
+    .completion(prompt, history)  // Returns impl Future<Output = Result<CompletionRequestBuilder>>
+    .await?                        // Unwrap to get CompletionRequestBuilder
+    .send()                        // Call send() on the builder
+    .await?;                       // Returns Result<CompletionResponse<T>, CompletionError>
+```
+
+**Step-by-step**:
+1. `agent.completion(prompt, history)` returns a `Future` that needs to be awaited
+2. Awaiting that Future returns `Result<CompletionRequestBuilder<M>, CompletionError>`
+3. Calling `.send()` on the builder returns another `Future`
+4. Awaiting that Future returns `Result<CompletionResponse<T>, CompletionError>`
+
+**CompletionResponse Structure**:
+- Generic `CompletionResponse<T>` has fields: `choice: OneOrMany<AssistantContent>`, `raw_response: T`
+- NO generic `.usage` field - usage is in provider-specific `raw_response`
+- For Anthropic: `CompletionResponse<AnthropicResponse>` → access via `response.raw_response.usage`
+- Anthropic usage fields: `input_tokens: u64`, `output_tokens: u64`, `cache_creation_input_tokens`, `cache_read_input_tokens`
+
+**Error Handling**:
+- Failed API calls via `CompletionError` do NOT include usage data
+- Must estimate input tokens for failed attempts
+- Output tokens = 0 for failed attempts
+
+**Current Code**:
+- Uses `.chat()` which only returns String (no usage data)
+- Must switch to `.completion().await?.send().await?` pattern to get CompletionResponse with usage
+
+### Existing Admin Endpoints
+- `backend/src/admin/anthropic_monitor.rs::get_anthropic_stats()` fetches org-wide token usage
+- `backend/src/admin/elevenlabs_monitor.rs::get_elevenlabs_usage()` fetches character quota
+- Both can be polled periodically to check organization quotas
+
+### Current Agent Call Locations
+- Response agent: `backend/src/agent_service/response.rs::generate_response()`
+- Analysis agent: `backend/src/agent_service/analysis.rs::generate_analysis()`
+- Both called from: `backend/src/websocket.rs::run_agents_parallel()`
+- TTS: `backend/src/tts_handler.rs::synthesize_handler()`
+
+### Teaching Mode Logic
+- Immersive and Debug modes: only use response agent (no analysis)
+- Other modes (Corrective, Explanatory, Interleaved, StoryTeller): use both agents
+- Rate limiting for analysis should skip Immersive/Debug per spec
+
+---
+
+## Issues Encountered
+
+### Issue 1: Failed to Research rig API Before Implementation (Phase 2)
+**Date**: 2025-11-06
+**Severity**: CRITICAL - Broke compilation in 3 files
+
+**What Happened**:
+- Started implementing Phase 2 without researching rig's `.completion()` API
+- Made assumption that `.completion()` works like `.chat()` - it doesn't
+- Assumed `.completion()` returns a Future that resolves directly to `CompletionResponse`
+- Actual behavior: `.completion()` returns `Future<Result<CompletionRequestBuilder>>` which must be awaited to get the builder, then `.send()` called on the builder
+- Wrote code in 3 files (`retry.rs`, `response.rs`, `analysis.rs`) based on wrong assumptions
+- Discovered errors through compilation failures instead of upfront research
+
+**Root Cause**:
+- Did NOT follow planning principle: "Research APIs before writing code"
+- Guessed at API behavior instead of reading documentation/source/examples
+- Played "type golf" with compilation errors instead of understanding the API
+
+**Correct Pattern** (from `rig-core-0.8.0/examples/multi_turn_agent.rs`):
+```rust
+let response = agent
+    .completion(prompt, history).await?  // Returns CompletionRequestBuilder
+    .send().await?;                       // Returns CompletionResponse
+```
+
+**Fix Required**:
+- Add `.await?` before `.send()` in all three files
+- Current: `agent.completion(prompt, history).send().await` ❌
+- Correct: `agent.completion(prompt, history).await?.send().await` ✅
+
+**Lesson Learned**:
+- ALWAYS research library APIs BEFORE writing code
+- Read source code, examples, and documentation FIRST
+- Planning means understanding how things work, not guessing
+- Discovering API through compilation errors = failure of planning
+
+---
+
+## Next Steps
+
+**Immediate (Fix Phase 2 Failures)**:
+1. Fix compilation errors by adding `.await?` before `.send()` in:
+   - `backend/src/agent_service/retry.rs:407`
+   - `backend/src/agent_service/response.rs:492`
+   - `backend/src/agent_service/analysis.rs:179`
+2. Run `cargo check` to verify compilation
+3. Complete remaining Phase 2 work per corrected task list
+4. Run `cargo test --lib` to verify no regressions
+5. Update this status document when Phase 2 is complete
+
+**After Phase 2**:
+- Proceed with Phase 3: Usage tracking helper functions

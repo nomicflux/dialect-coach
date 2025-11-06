@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::{Dialect, Explained, Mistake};
-use rig::completion::{Chat, Message as RigMessage};
+use dialect_coach_shared::{AgentUsage, Dialect, Explained, Mistake};
+use rig::completion::{Completion, Message as RigMessage};
 
-use super::retry::{RetryContext, build_retry_analysis_preamble};
+use super::retry::{
+    RetryContext, build_retry_analysis_preamble, estimate_input_tokens, retry_completion_call,
+};
 use super::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response};
 
 pub fn format_mistakes_for_analysis(mistakes: &[Mistake]) -> String {
@@ -161,7 +163,10 @@ async fn call_analysis_api(
     retry_ctx: &RetryContext<'_>,
     preamble: &str,
     prompt: &str,
-) -> Result<String> {
+) -> Result<(String, Vec<AgentUsage>)> {
+    let mut history_with_prefill = Vec::new();
+    history_with_prefill.push(super::util::create_prefilled_assistant_message());
+    let estimate_fn = || estimate_input_tokens(preamble, &history_with_prefill, prompt);
     let agent = retry_ctx
         .client
         .agent(retry_ctx.model_name)
@@ -169,37 +174,48 @@ async fn call_analysis_api(
         .temperature(0.2)
         .preamble(preamble)
         .build();
-    let mut history_with_prefill = Vec::new();
-    history_with_prefill.push(super::util::create_prefilled_assistant_message());
-    agent
-        .chat(prompt, history_with_prefill)
-        .await
-        .context("Failed to get analysis from Claude")
+    retry_completion_call(
+        || async {
+            agent
+                .completion(prompt, history_with_prefill.clone())
+                .await?
+                .send()
+                .await
+        },
+        estimate_fn,
+        3,
+    )
+    .await
+    .context("Failed to get analysis from Claude")
 }
 
 async fn handle_analysis_response(
     retry_ctx: &RetryContext<'_>,
     response: &str,
+    initial_usage: Vec<AgentUsage>,
     preamble: &str,
     msg: &String,
-) -> Result<(dialect_coach_shared::AgentAnalysis, u32)> {
+) -> Result<(dialect_coach_shared::AgentAnalysis, Vec<AgentUsage>)> {
     match try_parse_analysis(response) {
         Ok(analysis) => {
             log_analysis_success(&analysis);
-            Ok((analysis, 0))
+            Ok((analysis, initial_usage))
         }
         Err(_) => {
             tracing::warn!("Initial analysis parse failed, attempting retries");
             let mut history_with_prefill = Vec::new();
             history_with_prefill.push(super::util::create_prefilled_assistant_message());
-            retry_analysis_with_error_feedback_tracked(
+            let (analysis, retry_usage) = retry_analysis_with_error_feedback_tracked(
                 retry_ctx,
                 preamble,
                 response,
                 msg,
                 &history_with_prefill,
             )
-            .await
+            .await?;
+            let mut all_usage = initial_usage;
+            all_usage.extend(retry_usage);
+            Ok((analysis, all_usage))
         }
     }
 }
@@ -212,10 +228,10 @@ pub async fn generate_analysis(
     explained: &[Explained],
     translated: &[dialect_coach_shared::Translated],
     exploratory: &[dialect_coach_shared::Exploratory],
-) -> Result<(dialect_coach_shared::AgentAnalysis, u32)> {
+) -> Result<(dialect_coach_shared::AgentAnalysis, Vec<AgentUsage>)> {
     if check_empty_learning_items(mistakes, explained, translated, exploratory) {
         tracing::debug!("Skipping analysis - no learning items");
-        return Ok((dialect_coach_shared::AgentAnalysis::new(), 0));
+        return Ok((dialect_coach_shared::AgentAnalysis::new(), Vec::new()));
     }
 
     log_analysis_start(mistakes, explained, translated, exploratory);
@@ -227,12 +243,12 @@ pub async fn generate_analysis(
     tracing::info!("Analysis prompt sent to Claude:\n{}", prompt);
 
     tracing::info!("Calling Claude API for analysis...");
-    let response = call_analysis_api(retry_ctx, &preamble, &prompt).await?;
+    let (response, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await?;
 
     tracing::info!("Received analysis response from Claude API");
     tracing::info!("Raw analysis response from Claude: {}", response);
 
-    handle_analysis_response(retry_ctx, &response, &preamble, msg).await
+    handle_analysis_response(retry_ctx, &response, usage, &preamble, msg).await
 }
 
 async fn retry_analysis_with_error_feedback_tracked(
@@ -241,7 +257,7 @@ async fn retry_analysis_with_error_feedback_tracked(
     failed_response: &str,
     msg: &String,
     conversation_history: &[RigMessage],
-) -> Result<(dialect_coach_shared::AgentAnalysis, u32)> {
+) -> Result<(dialect_coach_shared::AgentAnalysis, Vec<AgentUsage>)> {
     let prompt = format!("USER MESSAGE TO ANALYZE: {msg}");
     let parse_fn = move |response: &str| -> Result<dialect_coach_shared::AgentAnalysis> {
         try_parse_analysis(response)

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::{Dialect, Explained, Formality, Mistake};
+use dialect_coach_shared::{AgentUsage, Dialect, Explained, Formality, Mistake};
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
 use std::sync::Arc;
 
@@ -46,7 +46,7 @@ impl AgentService {
     pub async fn generate_response(
         &self,
         params: &response::GenerateResponseParams<'_>,
-    ) -> Result<(dialect_coach_shared::AgentResponse, u32)> {
+    ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
         let ctx = ResponseContext {
             client: self.client.clone(),
             model_name: self.model_name.clone(),
@@ -64,7 +64,7 @@ impl AgentService {
         explained: &[Explained],
         translated: &[dialect_coach_shared::Translated],
         exploratory: &[dialect_coach_shared::Exploratory],
-    ) -> Result<(dialect_coach_shared::AgentAnalysis, u32)> {
+    ) -> Result<(dialect_coach_shared::AgentAnalysis, Vec<AgentUsage>)> {
         let retry_ctx = retry::RetryContext {
             client: &self.client,
             model_name: &self.model_name,

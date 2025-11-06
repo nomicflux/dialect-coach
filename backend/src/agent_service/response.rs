@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::{Dialect, DialectDocument, Formality, TeachingMode};
-use rig::completion::{Chat, Message as RigMessage, Prompt, message::Text, message::UserContent};
+use dialect_coach_shared::{AgentUsage, Dialect, DialectDocument, Formality, TeachingMode};
+use rig::completion::{
+    Chat, Completion, Message as RigMessage, Prompt, message::Text, message::UserContent,
+};
 use rig::one_or_many::OneOrMany;
 use std::sync::Arc;
 
@@ -8,7 +10,9 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
 
-use super::retry::{RetryContext, build_retry_response_preamble, retry_chat_call};
+use super::retry::{
+    RetryContext, build_retry_response_preamble, estimate_input_tokens, retry_completion_call,
+};
 use super::util::{
     CONTENT_FILTERING_DIRECTIVES, JSON_OUTPUT_INSTRUCTION, contains_illegal_characters,
     create_prefilled_assistant_message, get_message_text, learning_goals_section,
@@ -381,10 +385,11 @@ impl ResponseContext {
     async fn handle_response_parsing(
         &self,
         response: String,
+        initial_usage: Vec<AgentUsage>,
         params: &GenerateResponseParams<'_>,
         system_content: &str,
         history_with_prefill: Vec<RigMessage>,
-    ) -> Result<(dialect_coach_shared::AgentResponse, u32)> {
+    ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
         match try_parse_response(&response, params.dialect) {
             Ok(parsed_response) => {
                 if contains_illegal_characters(&parsed_response.response) {
@@ -394,7 +399,7 @@ impl ResponseContext {
                     return Err(anyhow::anyhow!("Response contains illegal characters"));
                 }
                 log_response_success(params.dialect, &parsed_response);
-                Ok((parsed_response, 0))
+                Ok((parsed_response, initial_usage))
             }
             Err(_) => {
                 let dialect = params.dialect;
@@ -434,7 +439,11 @@ impl ResponseContext {
                     )
                     .await
                 {
-                    Ok((parsed_response, retry_count)) => Ok((parsed_response, retry_count)),
+                    Ok((parsed_response, retry_usage)) => {
+                        let mut all_usage = initial_usage;
+                        all_usage.extend(retry_usage);
+                        Ok((parsed_response, all_usage))
+                    }
                     Err(e) => Err(e),
                 }
             }
@@ -444,7 +453,7 @@ impl ResponseContext {
     pub async fn generate_response(
         &self,
         params: &GenerateResponseParams<'_>,
-    ) -> Result<(dialect_coach_shared::AgentResponse, u32)> {
+    ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
         if contains_illegal_characters(params.user_message) {
             return Err(anyhow::anyhow!("User message contains illegal characters"));
         }
@@ -465,22 +474,43 @@ impl ResponseContext {
             params.teaching_mode,
             params.learning_goals,
         );
-        let agent = self.create_agent(&system_content, params.teaching_mode);
         let history_with_prefill = build_conversation_history_with_examples(
             params.conversation_history,
             &primary_examples,
             &secondary_examples,
         );
+        let estimate_fn =
+            || estimate_input_tokens(&system_content, &history_with_prefill, params.user_message);
+        let agent = self
+            .client
+            .agent(&self.model_name)
+            .preamble(&system_content)
+            .max_tokens(tokens_per_mode(&params.teaching_mode))
+            .temperature(temperature_for_mode(&params.teaching_mode))
+            .build();
 
-        let response = retry_chat_call(
-            || agent.chat(params.user_message, history_with_prefill.clone()),
+        let (response, usage) = retry_completion_call(
+            || async {
+                agent
+                    .completion(params.user_message, history_with_prefill.clone())
+                    .await?
+                    .send()
+                    .await
+            },
+            estimate_fn,
             3,
         )
         .await
         .context("Failed to get completion from Claude")?;
 
-        self.handle_response_parsing(response, params, &system_content, history_with_prefill)
-            .await
+        self.handle_response_parsing(
+            response,
+            usage,
+            params,
+            &system_content,
+            history_with_prefill,
+        )
+        .await
     }
 
     /// Simple translation without RAG - for fast prompt translation

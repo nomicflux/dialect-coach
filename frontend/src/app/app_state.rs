@@ -215,7 +215,9 @@ impl UIState {
             UIStateAction::OpenLearningPanel => next.learning_panel_open = true,
             UIStateAction::CloseLearningPanel => next.learning_panel_open = false,
             UIStateAction::ToggleSidebar => next.sidebar_collapsed = !next.sidebar_collapsed,
-            UIStateAction::ToggleLearningPanel => next.learning_panel_collapsed = !next.learning_panel_collapsed,
+            UIStateAction::ToggleLearningPanel => {
+                next.learning_panel_collapsed = !next.learning_panel_collapsed
+            }
             UIStateAction::SetCreateUsernameInput(input) => next.create_username_input = input,
             UIStateAction::SetSigninUsernameInput(input) => next.signin_username_input = input,
             UIStateAction::ClearCreateUsernameInput => next.create_username_input = String::new(),

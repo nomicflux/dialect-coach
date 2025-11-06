@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use super::{
     ConversationBranch, Dialect, Explained, Exploratory, Formality, Language, Message,
-    MessageMetadata, Mistake, TeachingMode, Translated,
+    MessageMetadata, Mistake, TeachingMode, Translated, UsageStats,
 };
 
 /// User-specific state that persists across sessions
@@ -20,6 +20,7 @@ pub struct UserState {
     pub active_branch_id: Uuid,
     pub branches: Vec<ConversationBranch>,
     pub learning_goals: Vec<String>,
+    pub usage_stats: UsageStats,
 }
 
 /// A learning item with its associated mastery score
@@ -56,6 +57,7 @@ impl UserState {
             active_branch_id: initial_branch_id,
             branches: vec![initial_branch],
             learning_goals: Vec::new(),
+            usage_stats: UsageStats::default(),
         }
     }
 

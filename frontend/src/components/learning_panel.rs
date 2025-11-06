@@ -88,15 +88,14 @@ fn render_collapsed_type_indicator(
     count: usize,
     items: &[LearningItem],
 ) -> Html {
-    let items_of_type: Vec<String> = items.iter()
-        .filter(|item| {
-            match (type_name, &item.item) {
-                ("mistake", LearningItemType::Mistake(_)) => true,
-                ("explanation", LearningItemType::Explanation(_)) => true,
-                ("translation", LearningItemType::Translation(_)) => true,
-                ("exploration", LearningItemType::Exploration(_)) => true,
-                _ => false,
-            }
+    let items_of_type: Vec<String> = items
+        .iter()
+        .filter(|item| match (type_name, &item.item) {
+            ("mistake", LearningItemType::Mistake(_)) => true,
+            ("explanation", LearningItemType::Explanation(_)) => true,
+            ("translation", LearningItemType::Translation(_)) => true,
+            ("exploration", LearningItemType::Exploration(_)) => true,
+            _ => false,
         })
         .map(|item| get_item_content(item))
         .collect();
