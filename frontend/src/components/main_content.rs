@@ -1,7 +1,7 @@
 use crate::app::app_callbacks::{on_prompt_click, on_send_message, on_tts_toggle};
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::{
-    AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
+    AppState, OptionalUserState, UIState, UIStateAction, UserStateAction,
 };
 use crate::app::app_state_callbacks::on_replay_message;
 use crate::app::user_state_callbacks::{
@@ -13,6 +13,10 @@ use crate::components::{
     BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls,
 };
 use crate::services::websocket::ConnectionState;
+use gloo::events::EventListener;
+use gloo::utils::window;
+use wasm_bindgen::JsCast;
+use web_sys::KeyboardEvent;
 use yew::prelude::*;
 
 #[derive(Properties)]
@@ -41,6 +45,23 @@ pub fn main_content(props: &MainContentProps) -> Html {
         None => return html! {},
     };
 
+    // Keyboard shortcut: Ctrl/Cmd + B to toggle sidebar
+    {
+        let ui_state = ui_state.clone();
+        use_effect_with((), move |_| {
+            let listener = EventListener::new(&window(), "keydown", move |e| {
+                if let Some(event) = e.dyn_ref::<KeyboardEvent>() {
+                    let is_ctrl_or_cmd = event.ctrl_key() || event.meta_key();
+                    if is_ctrl_or_cmd && (event.key() == "b" || event.key() == "B") {
+                        event.prevent_default();
+                        ui_state.dispatch(UIStateAction::ToggleSidebar);
+                    }
+                }
+            });
+            move || drop(listener)
+        });
+    }
+
     html! {
         <>
             // Branch navigation sidebar - positioned off to the side
@@ -51,6 +72,13 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 learning_goals={us.learning_goals.clone()}
                 on_add_goal={on_add_goal(user_state.clone())}
                 on_delete_goal={on_delete_goal(user_state.clone())}
+                is_collapsed={ui_state.sidebar_collapsed}
+                on_toggle={Callback::from({
+                    let ui_state = ui_state.clone();
+                    move |_| {
+                        ui_state.dispatch(UIStateAction::ToggleSidebar);
+                    }
+                })}
                 on_switch_branch={Some(on_switch_branch(user_state.clone()))}
                 on_delete_branch={Some(on_delete_branch(user_state.clone()))}
             />
@@ -113,31 +141,23 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     <span>{"Practice Settings"}</span>
                 </button>
 
-                // Learning panel toggle button
-                <button class="learning-panel-toggle" onclick={{
-                    let ui_state = ui_state.clone();
-                    Callback::from(move |_| {
-                        ui_state.dispatch(if ui_state.learning_panel_open {
-                            UIStateAction::CloseLearningPanel
-                        } else {
-                            UIStateAction::OpenLearningPanel
-                        })
-                    })
-                }}>
-                    <span>{"📚"}</span>
-                    <span>{"Learning Progress"}</span>
-                </button>
-
                 // Learning panel
                 <LearningPanel
                     items={us.learning_items.clone()}
-                    is_open={ui_state.learning_panel_open}
+                    is_open={true}
+                    is_collapsed={ui_state.learning_panel_collapsed}
                     on_close={{
                         let ui_state = ui_state.clone();
                         Callback::from(move |_| {
                             ui_state.dispatch(UIStateAction::CloseLearningPanel);
                         })
                     }}
+                    on_toggle={Callback::from({
+                        let ui_state = ui_state.clone();
+                        move |_| {
+                            ui_state.dispatch(UIStateAction::ToggleLearningPanel);
+                        }
+                    })}
                     on_delete={on_delete_learning_item_callback(ui_state.clone(), user_state.clone())}
                     on_undo={{
                         let ui_state = ui_state.clone();

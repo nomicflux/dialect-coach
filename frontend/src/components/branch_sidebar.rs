@@ -11,6 +11,8 @@ pub struct BranchSidebarProps {
     pub learning_goals: Vec<String>,
     pub on_add_goal: Callback<String>,
     pub on_delete_goal: Callback<usize>,
+    pub is_collapsed: bool,
+    pub on_toggle: Callback<()>,
     #[prop_or_default]
     pub on_switch_branch: Option<Callback<Uuid>>,
     #[prop_or_default]
@@ -76,6 +78,34 @@ fn get_branch_display_name(messages: &[Message], branch: &ConversationBranch) ->
     }
 }
 
+fn render_collapsed_branch_indicator(
+    branch: &ConversationBranch,
+    is_active: bool,
+    message_count: usize,
+    on_switch: &Option<Callback<Uuid>>,
+) -> Html {
+    let indicator_class = if is_active {
+        "branch-indicator branch-indicator--active"
+    } else {
+        "branch-indicator"
+    };
+    let branch_id = branch.id;
+
+    html! {
+        <div
+            class={indicator_class}
+            title={format!("{} messages", message_count)}
+            onclick={if let Some(callback) = on_switch {
+                let cb = callback.clone();
+                Some(Callback::from(move |_| cb.emit(branch_id)))
+            } else {
+                None
+            }}
+        >
+        </div>
+    }
+}
+
 fn render_branch_item(
     branch: &ConversationBranch,
     messages: &[Message],
@@ -132,13 +162,22 @@ fn render_branch_item(
     }
 }
 
-#[function_component(BranchSidebar)]
-pub fn branch_sidebar(props: &BranchSidebarProps) -> Html {
+fn render_expanded_view(props: &BranchSidebarProps) -> Html {
     html! {
-        <div class="branch-sidebar">
+        <>
             <div class="branch-sidebar-header">
                 <h3>{"Conversation Branches"}</h3>
             </div>
+            <button
+                class="sidebar-toggle"
+                onclick={Callback::from({
+                    let on_toggle = props.on_toggle.clone();
+                    move |_| on_toggle.emit(())
+                })}
+                title="Collapse sidebar"
+            >
+                {"◄"}
+            </button>
             <div class="branch-list">
                 {for props.branches.iter().map(|branch| {
                     let is_active = branch.id == props.active_branch_id;
@@ -151,6 +190,57 @@ pub fn branch_sidebar(props: &BranchSidebarProps) -> Html {
                 on_add={props.on_add_goal.clone()}
                 on_delete={props.on_delete_goal.clone()}
             />
+        </>
+    }
+}
+
+fn render_collapsed_view(props: &BranchSidebarProps) -> Html {
+    let goals_count = props.learning_goals.len();
+
+    html! {
+        <>
+            <div class="branch-sidebar-header">
+            </div>
+            <button
+                class="sidebar-toggle"
+                onclick={Callback::from({
+                    let on_toggle = props.on_toggle.clone();
+                    move |_| on_toggle.emit(())
+                })}
+                title="Expand sidebar"
+            >
+                {"►"}
+            </button>
+            <div class="branch-indicators">
+                {for props.branches.iter().map(|branch| {
+                    let is_active = branch.id == props.active_branch_id;
+                    let msg_count = count_branch_messages(&props.messages, branch);
+                    render_collapsed_branch_indicator(branch, is_active, msg_count, &props.on_switch_branch)
+                })}
+            </div>
+            <div class="learning-goals-count" title="Learning Goals">
+                <span class="learning-goals-label">{"Goals"}</span>
+                <span class="learning-goals-number">{goals_count}</span>
+            </div>
+        </>
+    }
+}
+
+#[function_component(BranchSidebar)]
+pub fn branch_sidebar(props: &BranchSidebarProps) -> Html {
+    let sidebar_class = if props.is_collapsed {
+        "branch-sidebar branch-sidebar--collapsed"
+    } else {
+        "branch-sidebar"
+    };
+
+    html! {
+        <div class={sidebar_class}>
+            {if props.is_collapsed {
+                render_collapsed_view(props)
+            } else {
+                render_expanded_view(props)
+            }}
         </div>
     }
 }
