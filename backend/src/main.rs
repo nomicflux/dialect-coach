@@ -40,6 +40,8 @@ pub struct AppState {
     pub embeddings: Arc<embedding_service::EmbeddingService>,
     pub session_histories: Arc<Mutex<HashMap<Uuid, Vec<String>>>>,
     pub user_persistence: Arc<dyn UserPersistence>,
+    pub rate_limiter: Arc<rate_limiter::service::RateLimiter>,
+    pub rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
 }
 
 /// Serve admin HTML page
@@ -153,12 +155,17 @@ async fn main() -> Result<()> {
         }
     };
 
+    let rate_limiter = Arc::new(rate_limiter::service::RateLimiter::new());
+    let rate_limit_config = Arc::new(rate_limiter::config::RateLimitConfig::from_env());
+
     let state = AppState {
         qdrant,
         agent: Arc::new(agent),
         embeddings,
         session_histories: Arc::new(Mutex::new(HashMap::new())),
         user_persistence,
+        rate_limiter,
+        rate_limit_config,
     };
 
     // Build main application with routes
