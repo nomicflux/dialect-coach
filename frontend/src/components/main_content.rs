@@ -1,7 +1,7 @@
 use crate::app::app_callbacks::{on_prompt_click, on_send_message, on_tts_toggle};
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction, UserStateAction};
-use crate::app::app_state_callbacks::on_replay_message;
+use crate::app::app_state::callbacks::on_replay_message;
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
     on_delete_learning_item_callback, on_delete_message_callback, on_dialect_cycle,
@@ -9,6 +9,7 @@ use crate::app::user_state_callbacks::{
 };
 use crate::components::{
     BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls,
+    UsageFooter,
 };
 use crate::services::websocket::ConnectionState;
 use gloo::events::EventListener;
@@ -36,7 +37,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
         app_state,
         ui_state,
         user_state,
-    } = props.clone();
+    } = props;
 
     let us = match user_state.0.as_ref() {
         Some(s) => s,
@@ -175,6 +176,17 @@ pub fn main_content(props: &MainContentProps) -> Html {
             <SettingsPanel
                 user_state={user_state.clone()}
                 ui_state={ui_state.clone()}
+            />
+
+            <UsageFooter
+                usage_stats={us.usage_stats.clone()}
+                is_collapsed={ui_state.usage_footer_collapsed}
+                on_toggle={Callback::from({
+                    let ui_state = ui_state.clone();
+                    move |_| {
+                        ui_state.dispatch(UIStateAction::ToggleUsageFooter);
+                    }
+                })}
             />
         </>
     }

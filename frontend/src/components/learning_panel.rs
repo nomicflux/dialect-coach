@@ -90,16 +90,17 @@ fn render_collapsed_type_indicator(
 ) -> Html {
     let items_of_type: Vec<String> = items
         .iter()
-        .filter(|item| match (type_name, &item.item) {
-            ("mistake", LearningItemType::Mistake(_)) => true,
-            ("explanation", LearningItemType::Explanation(_)) => true,
-            ("translation", LearningItemType::Translation(_)) => true,
-            ("exploration", LearningItemType::Exploration(_)) => true,
-            _ => false,
+        .filter(|item| {
+            matches!(
+                (type_name, &item.item),
+                ("mistake", LearningItemType::Mistake(_))
+                    | ("explanation", LearningItemType::Explanation(_))
+                    | ("translation", LearningItemType::Translation(_))
+                    | ("exploration", LearningItemType::Exploration(_))
+            )
         })
-        .map(|item| get_item_content(item))
+        .map(get_item_content)
         .collect();
-
     let tooltip_text = if items_of_type.is_empty() {
         format!("{} items", count)
     } else {

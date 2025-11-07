@@ -2,8 +2,7 @@ use anyhow::{Context, Result};
 use dialect_coach_shared::AgentUsage;
 use rig::OneOrMany;
 use rig::completion::{
-    AssistantContent, Chat, Completion, CompletionError, CompletionResponse, Message as RigMessage,
-    PromptError,
+    AssistantContent, Completion, CompletionError, CompletionResponse, Message as RigMessage,
 };
 use rig::providers::anthropic::completion::CompletionResponse as AnthropicResponse;
 
@@ -22,17 +21,6 @@ where
     pub failed_response: &'a str,
     pub prompt: &'a str,
     pub preamble_builder: &'a F,
-}
-
-pub fn is_retryable_error(error: &PromptError) -> bool {
-    match error {
-        PromptError::CompletionError(CompletionError::ProviderError(msg)) => {
-            msg.contains("Overloaded")
-                || msg.contains("Response contained no message")
-                || msg.contains("Internal server error")
-        }
-        _ => false,
-    }
 }
 
 pub fn build_retry_preamble(
@@ -110,52 +98,6 @@ pub fn estimate_input_tokens(preamble: &str, history: &[RigMessage], prompt: &st
     let prompt_chars = prompt.len();
     let total_chars = preamble_chars + history_chars + prompt_chars;
     (total_chars as f64 * 0.25).ceil() as u64
-}
-
-pub fn calculate_backoff_delay(attempt: usize) -> tokio::time::Duration {
-    tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))
-}
-
-pub fn log_retry_attempt(
-    attempt: usize,
-    max_attempts: usize,
-    error: &PromptError,
-    delay: tokio::time::Duration,
-) {
-    if let PromptError::CompletionError(CompletionError::ProviderError(msg)) = error {
-        if msg.contains("Response contained no message") {
-            tracing::error!(
-                "Empty response error detected (attempt {}/{}): Claude returned no message.",
-                attempt,
-                max_attempts
-            );
-        } else if msg.contains("Internal server error") {
-            tracing::error!(
-                "Internal server error detected (attempt {}/{}): Anthropic API server error.",
-                attempt,
-                max_attempts
-            );
-        } else if msg.contains("Overloaded") {
-            tracing::error!(
-                "Overloaded error detected (attempt {}/{}): Anthropic API is overloaded.",
-                attempt,
-                max_attempts
-            );
-        }
-    }
-    tracing::warn!(
-        "API call failed (attempt {}/{}): {}. Retrying in {:?}...",
-        attempt,
-        max_attempts,
-        error,
-        delay
-    );
-}
-
-pub async fn handle_retry_delay(attempt: usize, max_attempts: usize, error: &PromptError) {
-    let delay = calculate_backoff_delay(attempt);
-    log_retry_attempt(attempt, max_attempts, error, delay);
-    tokio::time::sleep(delay).await;
 }
 
 fn create_usage_entry(is_retry: bool, is_estimate: bool, input: u64, output: u64) -> AgentUsage {
@@ -274,29 +216,6 @@ where
     Err(anyhow::anyhow!("Failed after {} attempts", max_attempts))
 }
 
-pub async fn retry_chat_call<F, Fut>(chat_call: F, max_attempts: usize) -> Result<String>
-where
-    F: Fn() -> Fut,
-    Fut: std::future::Future<Output = Result<String, PromptError>>,
-{
-    let mut last_error = None;
-    for attempt in 1..=max_attempts {
-        match chat_call().await {
-            Ok(response) => return Ok(response),
-            Err(e) if is_retryable_error(&e) && attempt < max_attempts => {
-                handle_retry_delay(attempt, max_attempts, &e).await;
-                last_error = Some(e);
-            }
-            Err(e) => return Err(anyhow::anyhow!("API call failed: {}", e)),
-        }
-    }
-    Err(anyhow::anyhow!(
-        "API call failed after {} attempts: {}",
-        max_attempts,
-        last_error.unwrap()
-    ))
-}
-
 pub fn build_retry_failure_error(
     max_retries: usize,
     last_error: &str,
@@ -365,23 +284,6 @@ pub struct RetryContext<'a> {
 }
 
 impl<'a> RetryContext<'a> {
-    pub fn create_retry_agent(
-        &self,
-        original_preamble: &str,
-        failed_response: &str,
-        preamble_builder: &impl Fn(&str, &str) -> String,
-        max_tokens: u64,
-        temperature: f64,
-    ) -> impl Chat {
-        let retry_preamble = preamble_builder(original_preamble, failed_response);
-        self.client
-            .agent(self.model_name)
-            .preamble(&retry_preamble)
-            .max_tokens(max_tokens)
-            .temperature(temperature)
-            .build()
-    }
-
     pub async fn attempt_retry_with_feedback<F>(
         &self,
         prompt_params: &RetryPromptParams<'_, F>,

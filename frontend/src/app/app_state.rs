@@ -203,6 +203,7 @@ pub enum UIStateAction {
     CloseLearningPanel,
     ToggleSidebar,
     ToggleLearningPanel,
+    ToggleUsageFooter,
     SetCreateUsernameInput(String),
     SetSigninUsernameInput(String),
     ClearCreateUsernameInput,
@@ -221,6 +222,7 @@ pub struct UIState {
     pub learning_panel_open: bool,
     pub sidebar_collapsed: bool,
     pub learning_panel_collapsed: bool,
+    pub usage_footer_collapsed: bool,
     pub create_username_input: String,
     pub signin_username_input: String,
     pub deleted_learning_items: VecDeque<LearningItem>,
@@ -242,6 +244,9 @@ impl UIState {
             UIStateAction::ToggleSidebar => next.sidebar_collapsed = !next.sidebar_collapsed,
             UIStateAction::ToggleLearningPanel => {
                 next.learning_panel_collapsed = !next.learning_panel_collapsed
+            }
+            UIStateAction::ToggleUsageFooter => {
+                next.usage_footer_collapsed = !next.usage_footer_collapsed
             }
             UIStateAction::SetCreateUsernameInput(input) => next.create_username_input = input,
             UIStateAction::SetSigninUsernameInput(input) => next.signin_username_input = input,

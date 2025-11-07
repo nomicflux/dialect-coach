@@ -21,7 +21,7 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
     let SettingsPanelProps {
         user_state,
         ui_state,
-    } = props.clone();
+    } = props;
 
     let us = match user_state.0.as_ref() {
         Some(s) => s,

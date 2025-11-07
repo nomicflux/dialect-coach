@@ -164,8 +164,7 @@ async fn call_analysis_api(
     preamble: &str,
     prompt: &str,
 ) -> Result<(String, Vec<AgentUsage>)> {
-    let mut history_with_prefill = Vec::new();
-    history_with_prefill.push(super::util::create_prefilled_assistant_message());
+    let history_with_prefill = vec![super::util::create_prefilled_assistant_message()];
     let estimate_fn = || estimate_input_tokens(preamble, &history_with_prefill, prompt);
     let agent = retry_ctx
         .client
@@ -203,8 +202,7 @@ async fn handle_analysis_response(
         }
         Err(_) => {
             tracing::warn!("Initial analysis parse failed, attempting retries");
-            let mut history_with_prefill = Vec::new();
-            history_with_prefill.push(super::util::create_prefilled_assistant_message());
+            let history_with_prefill = vec![super::util::create_prefilled_assistant_message()];
             let (analysis, retry_usage) = retry_analysis_with_error_feedback_tracked(
                 retry_ctx,
                 preamble,

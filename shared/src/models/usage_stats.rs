@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct UsageStats {
     pub response_events: Vec<AgentUsage>,
     pub analysis_events: Vec<AgentUsage>,
@@ -20,16 +20,6 @@ pub struct AgentUsage {
 pub struct TtsUsage {
     pub timestamp: i64,
     pub characters: u64,
-}
-
-impl Default for UsageStats {
-    fn default() -> Self {
-        Self {
-            response_events: Vec::new(),
-            analysis_events: Vec::new(),
-            tts_events: Vec::new(),
-        }
-    }
 }
 
 #[cfg(test)]

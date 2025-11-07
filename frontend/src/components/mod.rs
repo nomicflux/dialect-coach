@@ -9,6 +9,7 @@ pub mod main_content;
 pub mod message_bubble;
 pub mod settings_panel;
 pub mod speech_controls;
+pub mod usage_footer;
 pub mod welcome_screen;
 
 pub use branch_sidebar::BranchSidebar;
@@ -21,4 +22,5 @@ pub use main_content::MainContent;
 pub use message_bubble::MessageBubble;
 pub use settings_panel::SettingsPanel;
 pub use speech_controls::SpeechControls;
+pub use usage_footer::UsageFooter;
 pub use welcome_screen::WelcomeScreen;

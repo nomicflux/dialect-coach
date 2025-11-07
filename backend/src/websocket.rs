@@ -149,6 +149,13 @@ async fn update_and_save_usage(
     analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     now: i64,
 ) {
+    tracing::info!(
+        "Updating usage stats for user {}: {} response events, {} analysis events",
+        user_state.user_id,
+        response_usage.len(),
+        analysis_usage.len()
+    );
+
     crate::usage_tracker::add_response_usage(&mut user_state.usage_stats, response_usage, now, 24);
     if !analysis_usage.is_empty() {
         crate::usage_tracker::add_analysis_usage(
@@ -159,7 +166,16 @@ async fn update_and_save_usage(
         );
     }
 
-    let _ = state.user_persistence.save(&user_state).await;
+    tracing::info!(
+        "After update: {} total response events, {} total analysis events",
+        user_state.usage_stats.response_events.len(),
+        user_state.usage_stats.analysis_events.len()
+    );
+
+    match state.user_persistence.save(&user_state).await {
+        Ok(_) => tracing::info!("Successfully saved usage stats for user {}", user_state.user_id),
+        Err(e) => tracing::error!("Failed to save usage stats for user {}: {}", user_state.user_id, e),
+    }
 }
 
 fn should_check_analysis_limit(

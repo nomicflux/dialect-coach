@@ -106,11 +106,9 @@ impl AgentService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_service::retry::is_retryable_error;
     use crate::agent_service::util::CONTENT_FILTERING_DIRECTIVES;
     use crate::embedding_service::EmbeddingService;
     use crate::qdrant_service::QdrantService;
-    use rig::completion::{CompletionError, PromptError};
 
     #[test]
     fn test_content_filtering_directives_structure() {
@@ -186,37 +184,6 @@ mod tests {
             system_content.contains("1) Only flag user's direct messages, not system examples")
         );
         assert!(system_content.contains("2) Always respond to user's message first"));
-    }
-
-    #[test]
-    fn test_is_retryable_error() {
-        // Test internal server error detection
-        let internal_error = PromptError::CompletionError(CompletionError::ProviderError(
-            "Internal server error".to_string(),
-        ));
-        assert!(is_retryable_error(&internal_error));
-
-        // Test overloaded error detection
-        let overloaded_error =
-            PromptError::CompletionError(CompletionError::ProviderError("Overloaded".to_string()));
-        assert!(is_retryable_error(&overloaded_error));
-
-        // Test empty response error detection
-        let empty_response_error = PromptError::CompletionError(CompletionError::ProviderError(
-            "Response contained no message".to_string(),
-        ));
-        assert!(is_retryable_error(&empty_response_error));
-
-        // Test non-retryable errors
-        let non_retryable_invalid = PromptError::CompletionError(CompletionError::ProviderError(
-            "Invalid request".to_string(),
-        ));
-        assert!(!is_retryable_error(&non_retryable_invalid));
-
-        let non_retryable_json = PromptError::CompletionError(CompletionError::JsonError(
-            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err(),
-        ));
-        assert!(!is_retryable_error(&non_retryable_json));
     }
 
     #[tokio::test]

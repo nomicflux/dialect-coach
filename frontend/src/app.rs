@@ -14,8 +14,7 @@ pub mod app_websocket_hooks;
 #[path = "app/user_state/callbacks.rs"]
 pub mod user_state_callbacks;
 
-#[path = "app/app_state/callbacks.rs"]
-pub mod app_state_callbacks;
+pub use app_state::callbacks;
 pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 
 use log::{error, info};

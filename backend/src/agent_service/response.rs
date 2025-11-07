@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{AgentUsage, Dialect, DialectDocument, Formality, TeachingMode};
 use rig::completion::{
-    Chat, Completion, Message as RigMessage, Prompt, message::Text, message::UserContent,
+    Completion, Message as RigMessage, Prompt, message::Text, message::UserContent,
 };
 use rig::one_or_many::OneOrMany;
 use std::sync::Arc;
@@ -370,16 +370,6 @@ impl ResponseContext {
             rag_config.num_random_documents,
         );
         Ok((primary, secondary))
-    }
-
-    fn create_agent(&self, system_content: &str, teaching_mode: TeachingMode) -> impl Chat {
-        let max_tokens = tokens_per_mode(&teaching_mode);
-        self.client
-            .agent(&self.model_name)
-            .preamble(system_content)
-            .max_tokens(max_tokens)
-            .temperature(temperature_for_mode(&teaching_mode))
-            .build()
     }
 
     async fn handle_response_parsing(

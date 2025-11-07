@@ -22,7 +22,7 @@ pub fn header(props: &HeaderProps) -> Html {
         app_state,
         ui_state,
         user_state,
-    } = props.clone();
+    } = props;
 
     html! {
         <header class="app-header">
