@@ -4,6 +4,7 @@ mod embedding_service;
 mod persistence;
 mod qdrant_service;
 mod rag_config;
+mod rate_limiter;
 mod translation_handler;
 mod tts_handler;
 mod tts_service;

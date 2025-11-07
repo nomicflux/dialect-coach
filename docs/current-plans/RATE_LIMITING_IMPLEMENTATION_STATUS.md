@@ -553,6 +553,51 @@ Based on `docs/current-plans/RATE_LIMITING.md`
 
 ---
 
+### Phase 5: Rate Limit Configuration (backend crate)
+**Status**: ✅ Completed
+**Date**: 2025-11-06
+
+**Actions Completed:**
+- Created `backend/src/rate_limiter/mod.rs` and `backend/src/rate_limiter/config.rs`
+- Defined `RateLimitConfig` struct with all required fields:
+  - `response_calls_limit: u32` (default 100)
+  - `response_tokens_limit: u64` (default 100,000)
+  - `analysis_calls_limit: u32` (default 100)
+  - `analysis_tokens_limit: u64` (default 50,000)
+  - `tts_calls_limit: u32` (default 200)
+  - `tts_characters_limit: u64` (default 50,000)
+  - `rolling_window_hours: u32` (default 24)
+- Implemented `RateLimitConfig::from_env()`:
+  - Reads from environment variables (`RATE_LIMIT_RESPONSE_CALLS`, etc.)
+  - Falls back to defaults when env vars missing or invalid
+  - Uses helper function `parse_env()` for type-safe parsing
+- Implemented `RateLimitConfig::default()` with sensible defaults
+- Added `mod rate_limiter;` to `backend/src/main.rs`
+
+**Tests Written** (4 unit tests in `backend/src/rate_limiter/config.rs`):
+- `test_default_config` - Verifies default values
+- `test_from_env_uses_defaults_when_no_env` - Confirms fallback to defaults
+- `test_from_env_reads_env_vars` - Verifies environment variable parsing
+- `test_from_env_ignores_invalid_values` - Confirms graceful handling of bad input
+
+**Test Results:**
+- ✅ All 4 tests pass when run serially (`-- --test-threads=1`)
+- Note: Tests modify environment variables, require serial execution
+
+**Code Style Checklist:**
+- [x] Functions < 20 lines (parse_env is 5 lines, both constructors under 15)
+- [x] Pure functions for data transformations (parse_env is pure)
+- [x] No defensive coding (simple env var reading with defaults)
+- [x] Tests for all new functions (4 comprehensive tests)
+
+**Design Decisions:**
+- Environment variable names follow pattern `RATE_LIMIT_<SERVICE>_<METRIC>`
+- Invalid env var values silently fall back to defaults (no errors/panics)
+- All limits configurable independently for flexibility
+- Rolling window hours configurable to adjust time window globally
+
+---
+
 ## Research Findings
 
 ### rig API Understanding (rig-core 0.8.0)
