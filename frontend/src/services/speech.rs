@@ -238,7 +238,11 @@ impl CloudTtsService {
             .map_err(|e| format!("Failed to call TTS API: {}", e))?;
 
         if !response.ok() {
-            return Err(format!("TTS API error: {}", response.status()));
+            let status = response.status();
+            if status == 429 {
+                return Err("TTS_RATE_LIMIT_EXCEEDED".to_string());
+            }
+            return Err(format!("TTS API error: {}", status));
         }
 
         let tts_response: TtsSynthesizeResponse = response

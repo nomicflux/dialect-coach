@@ -35,6 +35,16 @@ pub enum AppStateAction {
     DestroySession,
     NotifyTTSEnabled(bool),
     ProcessAgentMessage(Message),
+    SetResponseRateLimited(bool),
+    SetAnalysisRateLimited(bool),
+    SetTtsRateLimited(bool),
+}
+
+#[derive(Clone, Default)]
+pub struct RateLimitState {
+    pub response_limited: bool,
+    pub analysis_limited: bool,
+    pub tts_limited: bool,
 }
 
 #[derive(Clone)]
@@ -51,6 +61,7 @@ pub struct AppState {
     pub translation_service: Rc<TranslationService>,
     pub save_queue: Rc<PendingSaveQueue>,
     pub autoplay_enabled: bool,
+    pub rate_limit_state: RateLimitState,
 }
 
 impl Default for AppState {
@@ -74,6 +85,7 @@ impl Default for AppState {
             translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
             save_queue: Rc::new(PendingSaveQueue::new()),
             autoplay_enabled: false,
+            rate_limit_state: RateLimitState::default(),
         }
     }
 }
@@ -157,6 +169,15 @@ impl AppState {
                         }
                     });
                 }
+            }
+            AppStateAction::SetResponseRateLimited(limited) => {
+                next.rate_limit_state.response_limited = limited;
+            }
+            AppStateAction::SetAnalysisRateLimited(limited) => {
+                next.rate_limit_state.analysis_limited = limited;
+            }
+            AppStateAction::SetTtsRateLimited(limited) => {
+                next.rate_limit_state.tts_limited = limited;
             }
         }
         next

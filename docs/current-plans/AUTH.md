@@ -6,9 +6,11 @@ on sign-in.
 As usual, when turning this into a plan:
 1. The plan must be output to the docs/current-plans folder.
 2. Each phase must start with the code style checklist using CLAUDE.md code style guidelines.
-3. Each phase must end with a reminder to update a status document with progress.
-4. Research the code before coming up with the plan.
-5. If after researching the code you have questions, ask for clarification.
+3. Each phase must end with a reminder to run the FULL test suite, and upon 100% success update a status document with progress.
+4. Each phase must include a precise list of files to be updated, created, or deleted. This will be the context for that
+   phase.
+5. Research the code and relevant libraries before coming up with the plan.
+6. If after researching the code you have questions, ask for clarification.
 
 ## Decide on Auth method
 

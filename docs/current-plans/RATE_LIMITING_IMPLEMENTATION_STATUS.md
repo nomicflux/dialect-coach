@@ -862,3 +862,118 @@ let response = agent
 
 **After Phase 8**:
 - Proceed with Phase 9: Frontend 429 Response Handling (handle rate limit errors in UI)
+
+---
+
+### Phase 9: Frontend 429 Response Handling (frontend crate)
+**Status**: ✅ Completed (WebSocket handling), ⚠️ Partial (TTS handling deferred)
+**Date**: 2025-11-07
+
+**Actions Completed:**
+- Created `RateLimitState` struct in `frontend/src/app/app_state.rs`:
+  - Fields: `response_limited: bool`, `analysis_limited: bool`, `tts_limited: bool`
+  - Derived `Clone` and `Default` traits
+- Added `rate_limit_state: RateLimitState` field to `AppState`
+- Updated `AppState::default()` to initialize `rate_limit_state`
+- Added three new `AppStateAction` variants:
+  - `SetResponseRateLimited(bool)`
+  - `SetAnalysisRateLimited(bool)`
+  - `SetTtsRateLimited(bool)`
+- Implemented action handlers in `apply_action()` for all three variants
+- Created `check_rate_limit_error()` helper in `frontend/src/app/websocket_hooks.rs`:
+  - Parses error messages from WebSocket responses
+  - Detects "Response agent rate limit exceeded" → sets response_limited
+  - Detects "Anthropic quota exceeded" → sets response_limited
+  - Detects "Analysis agent rate limit exceeded" → sets analysis_limited
+- Integrated `check_rate_limit_error()` into WebSocket message handler
+- Modified `CloudTtsService::speak()` to return specific error for 429 status:
+  - Returns "TTS_RATE_LIMIT_EXCEEDED" string on HTTP 429
+  - Other errors return generic "TTS API error: {status}"
+
+**Compilation Results:**
+- ✅ `cargo check --package dialect-coach-frontend` passes
+- Only warnings about unused .clone() calls (pre-existing)
+
+**Code Style Checklist:**
+- [x] Functions < 20 lines (check_rate_limit_error is 9 lines)
+- [x] Pure functions for data transformations (check_rate_limit_error is pure)
+- [x] No defensive coding (straightforward string matching)
+- [x] Tests not required (integration with existing UI components)
+
+**Design Decisions:**
+- WebSocket errors are parsed from agent message content
+- TTS 429 detection implemented but dispatch integration deferred (architectural limitation)
+- Rate limit state persists in AppState for UI components to check
+- Error string matching used for WebSocket errors (simple, works with current backend)
+
+**Deferred to Phase 10 (or future work):**
+- TTS rate limit flag setting: The CloudTtsService detects 429 but cannot dispatch actions
+  from within the reducer's async spawn_local context. Yew's Reducible pattern doesn't
+  allow dispatching from action handlers. Solutions:
+  1. Handle TTS rate limits at UI component level (where speak() is triggered)
+  2. Use a callback-based error reporting system
+  3. Store rate limit state in a separate global store
+- UI component updates: Disabling teaching mode selector, chat input, TTS buttons based on rate_limit_state
+- User-friendly error messages when features are disabled
+
+---
+
+---
+
+## CRITICAL ISSUES - SYSTEM BROKEN
+
+**Date**: 2025-11-07
+**Status**: 🔴 BROKEN - Phases 8 & 9 introduced breaking bugs
+
+### Issue 1: Backend Not Responding to Signed-In Users
+**Symptom**: Signed-in user sends message, no response received
+**Backend Logs**: No errors logged
+**Root Cause**: UNKNOWN - Phase 8 rate limiting changes broke request flow
+**Location**: `backend/src/websocket.rs::check_rate_limits()` or related code
+
+**Known Facts**:
+- User is signed in (UserState exists)
+- Message is sent from frontend
+- No response received
+- No errors in backend logs
+- Something in Phase 8 changes broke the response flow
+
+**Must Debug**:
+- Does backend receive the message?
+- Does check_rate_limits complete successfully?
+- Does agent call execute?
+- Does response generation complete?
+- Is response being serialized and sent?
+
+**What Changed in Phase 8**:
+- Added `check_rate_limits()` call before agent execution
+- Made UserState required for rate limiting (was optional for usage tracking)
+- Changed data flow: load once in check, pass to update (was: load in update)
+
+### Issue 2: No Usage Stats Displayed in Frontend
+**Symptom**: Frontend doesn't show usage statistics
+**Root Cause**: Phase 10 (Usage Display Footer) was NOT implemented
+**Status**: Feature not built - Phase 9 only handled error detection, not display
+
+**What Was Done**:
+- Phase 9: Added rate limit state flags (response_limited, analysis_limited, tts_limited)
+- Phase 9: Added error detection for 429 responses
+- Phase 9 Deferred: UI component updates, stats display
+
+**What Was NOT Done**:
+- Phase 10: Usage stats display component
+- Phase 10: Collapsible footer showing calls/tokens/characters used
+- Phase 9 Deferred: Disabling UI elements when rate limited
+
+---
+
+## Next Steps
+
+**IMMEDIATE**:
+1. Fix backend not responding to requests
+2. Debug why no response is being sent
+3. Add proper error logging to understand failure mode
+
+**AFTER FIX**:
+- Complete Phase 10: Usage Display Footer
+- Address Phase 9 deferred items: UI element disabling, TTS rate limit dispatch

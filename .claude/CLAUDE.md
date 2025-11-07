@@ -34,8 +34,8 @@
 ## Build Commands
 
 ```bash
-cargo check          # Check all crates
-cargo test --lib     # Run library tests
+cargo check    # Check all crates
+cargo test     # Run library
 cd backend && cargo run       # Run backend server
 cd frontend && trunk serve    # Run frontend dev server
 ```

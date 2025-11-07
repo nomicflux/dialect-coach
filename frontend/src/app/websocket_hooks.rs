@@ -8,6 +8,17 @@ use dialect_coach_shared::models::{Message, MessageContent};
 use log::{error, info};
 use yew::prelude::*;
 
+fn check_rate_limit_error(error_text: &str, app_state: &UseReducerHandle<AppState>) {
+    if error_text.contains("Response agent rate limit exceeded")
+        || error_text.contains("Anthropic quota exceeded")
+    {
+        app_state.dispatch(AppStateAction::SetResponseRateLimited(true));
+    }
+    if error_text.contains("Analysis agent rate limit exceeded") {
+        app_state.dispatch(AppStateAction::SetAnalysisRateLimited(true));
+    }
+}
+
 #[hook]
 pub fn use_chat_websocket(
     app_state: UseReducerHandle<AppState>,
@@ -54,6 +65,8 @@ pub fn use_chat_websocket(
                             usc.dispatch(UserStateAction::AddMessage(msg_clone.clone()));
                         }
                         MessageContent::AgentMessage { content } => {
+                            check_rate_limit_error(&content.response, &asc);
+
                             // Dispatch to AppState for autoplay check (reads from AppState's own state)
                             asc.dispatch(AppStateAction::ProcessAgentMessage(msg_clone.clone()));
 
