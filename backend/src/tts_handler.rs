@@ -9,12 +9,27 @@ use serde::Serialize;
 use std::sync::Arc;
 use tracing::{error, info};
 
+use crate::persistence::UserPersistence;
 use crate::tts_service::TtsService;
 
 /// Axum state for TTS handlers
 #[derive(Clone)]
 pub struct TtsState {
     pub service: Arc<TtsService>,
+    pub user_persistence: Arc<dyn UserPersistence>,
+}
+
+async fn track_tts_usage(state: &TtsState, user_id: uuid::Uuid, characters: u64) {
+    let now = chrono::Utc::now().timestamp();
+
+    let mut user_state = match state.user_persistence.load(user_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) | Err(_) => return,
+    };
+
+    crate::usage_tracker::add_tts_usage(&mut user_state.usage_stats, characters, now, 24);
+
+    let _ = state.user_persistence.save(&user_state).await;
 }
 
 /// Response format for TTS API (frontend expects base64)
@@ -36,11 +51,16 @@ pub async fn synthesize_handler(
         request.language_code
     );
 
+    let characters = request.text.len() as u64;
+    let user_id = request.user_id;
+
     let response = state
         .service
         .synthesize(request)
         .await
         .map_err(TtsErrorResponse::from_tts_error)?;
+
+    track_tts_usage(&state, user_id, characters).await;
 
     // Convert binary audio data to base64 for frontend
     let audio_base64 = base64::Engine::encode(

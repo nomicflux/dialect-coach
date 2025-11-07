@@ -121,6 +121,7 @@ pub struct PastLearningItems {
 /// User message with past learning items for context
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserMessageWithContext {
+    pub user_id: Uuid,
     pub message: Message,
     pub past_mistakes: Vec<Mistake>,
     pub past_explained: Vec<Explained>,
@@ -133,6 +134,7 @@ pub struct UserMessageWithContext {
 
 impl UserMessageWithContext {
     pub fn new(
+        user_id: Uuid,
         message: Message,
         past_learning_items: PastLearningItems,
         active_branch_id: Uuid,
@@ -140,6 +142,7 @@ impl UserMessageWithContext {
         learning_goals: Vec<String>,
     ) -> Self {
         Self {
+            user_id,
             message,
             past_mistakes: past_learning_items.mistakes,
             past_explained: past_learning_items.explained,
@@ -220,8 +223,10 @@ mod tests {
     fn test_user_message_with_context_basic() {
         let msg = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
 
+        let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
+            user_id,
             msg.clone(),
             PastLearningItems::default(),
             branch_id,
@@ -254,8 +259,10 @@ mod tests {
 
         let explained = Explained::new("órale".to_string(), "Mexican slang".to_string());
 
+        let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
+            user_id,
             msg.clone(),
             PastLearningItems {
                 mistakes: vec![mistake.clone()],
@@ -290,8 +297,10 @@ mod tests {
             },
         );
 
+        let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
+            user_id,
             msg,
             PastLearningItems {
                 mistakes: vec![mistake],
@@ -328,8 +337,10 @@ mod tests {
 
         let translated = Translated::new("hello".to_string(), "hola".to_string());
 
+        let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
+            user_id,
             msg.clone(),
             PastLearningItems {
                 mistakes: vec![],
@@ -356,8 +367,10 @@ mod tests {
         let exploratory =
             Exploratory::new("Use subjunctive".to_string(), "Try 'Si fuera'".to_string());
 
+        let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
+            user_id,
             msg.clone(),
             PastLearningItems {
                 mistakes: vec![],
@@ -395,8 +408,10 @@ mod tests {
         let exploratory =
             Exploratory::new("Use subjunctive".to_string(), "Try 'Si fuera'".to_string());
 
+        let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
         let context = UserMessageWithContext::new(
+            user_id,
             msg.clone(),
             PastLearningItems {
                 mistakes: vec![mistake.clone()],

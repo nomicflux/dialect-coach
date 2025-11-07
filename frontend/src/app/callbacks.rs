@@ -40,6 +40,7 @@ pub fn on_send_message(
 
         // Build UserMessageWithContext
         let msg_with_context = UserMessageWithContext::new(
+            state.user_id,
             msg,
             PastLearningItems {
                 mistakes: past_mistakes,

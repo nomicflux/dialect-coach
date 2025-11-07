@@ -141,6 +141,31 @@ async fn validate_and_parse_dialect(
     }
 }
 
+async fn update_and_save_usage(
+    state: &AppState,
+    user_id: Uuid,
+    response_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
+    analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
+    now: i64,
+) {
+    let mut user_state = match state.user_persistence.load(user_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) | Err(_) => return,
+    };
+
+    crate::usage_tracker::add_response_usage(&mut user_state.usage_stats, response_usage, now, 24);
+    if !analysis_usage.is_empty() {
+        crate::usage_tracker::add_analysis_usage(
+            &mut user_state.usage_stats,
+            analysis_usage,
+            now,
+            24,
+        );
+    }
+
+    let _ = state.user_persistence.save(&user_state).await;
+}
+
 async fn run_agents_parallel(
     state: &AppState,
     msg_with_context: &UserMessageWithContext,
@@ -162,6 +187,7 @@ async fn run_agents_parallel(
         || !msg_with_context.past_exploratory.is_empty();
 
     let rag_config = RAGConfig::new(20, 5);
+    let now = chrono::Utc::now().timestamp();
 
     if !has_learning_items {
         let params = GenerateResponseParams {
@@ -173,11 +199,11 @@ async fn run_agents_parallel(
             learning_goals: &msg_with_context.learning_goals,
             rag_config: &rag_config,
         };
-        return state
-            .agent
-            .generate_response(&params)
-            .await
-            .map(|response| response.0);
+        let (agent_response, response_usage) = state.agent.generate_response(&params).await?;
+
+        update_and_save_usage(state, msg_with_context.user_id, response_usage, vec![], now).await;
+
+        return Ok(agent_response);
     }
 
     tracing::info!(
@@ -210,12 +236,22 @@ async fn run_agents_parallel(
         )
     );
 
-    let agent_response = response_result?;
+    let (agent_response, response_usage) = response_result?;
 
     match analysis_result {
-        Ok(analysis) => {
-            let mut agent_response = agent_response.0;
-            agent_response.analysis = Some(analysis.0);
+        Ok((analysis, analysis_usage)) => {
+            let mut agent_response = agent_response;
+            agent_response.analysis = Some(analysis);
+
+            update_and_save_usage(
+                state,
+                msg_with_context.user_id,
+                response_usage,
+                analysis_usage,
+                now,
+            )
+            .await;
+
             Ok(agent_response)
         }
         Err(e) => {

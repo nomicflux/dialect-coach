@@ -14,6 +14,9 @@ pub trait TextToSpeechProvider: Send + Sync {
 /// Request for text-to-speech synthesis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TtsRequest {
+    /// User ID for usage tracking
+    pub user_id: uuid::Uuid,
+
     /// Text to synthesize
     pub text: String,
 
@@ -26,8 +29,9 @@ pub struct TtsRequest {
 
 impl TtsRequest {
     /// Create a simple TTS request with just text and language
-    pub fn new(text: String, language_code: String) -> Self {
+    pub fn new(user_id: uuid::Uuid, text: String, language_code: String) -> Self {
         Self {
+            user_id,
             text,
             language_code,
             rate: None,
@@ -168,16 +172,18 @@ mod tests {
 
     #[test]
     fn test_cache_key_generation() {
-        let request1 = TtsRequest::new("Hello".to_string(), "en-US".to_string());
-        let request2 = TtsRequest::new("Hello".to_string(), "en-US".to_string());
+        let user_id = uuid::Uuid::new_v4();
+        let request1 = TtsRequest::new(user_id, "Hello".to_string(), "en-US".to_string());
+        let request2 = TtsRequest::new(user_id, "Hello".to_string(), "en-US".to_string());
 
         assert_eq!(generate_cache_key(&request1), generate_cache_key(&request2));
     }
 
     #[test]
     fn test_different_text_different_key() {
-        let request1 = TtsRequest::new("Hello".to_string(), "en-US".to_string());
-        let request2 = TtsRequest::new("Goodbye".to_string(), "en-US".to_string());
+        let user_id = uuid::Uuid::new_v4();
+        let request1 = TtsRequest::new(user_id, "Hello".to_string(), "en-US".to_string());
+        let request2 = TtsRequest::new(user_id, "Goodbye".to_string(), "en-US".to_string());
 
         assert_ne!(generate_cache_key(&request1), generate_cache_key(&request2));
     }

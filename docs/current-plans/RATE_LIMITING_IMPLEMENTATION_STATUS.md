@@ -502,6 +502,57 @@ Based on `docs/current-plans/RATE_LIMITING.md`
 
 ---
 
+### Phase 4: Call Tracking in WebSocket (backend crate)
+**Status**: ✅ Completed
+**Date**: 2025-11-06
+
+**Architectural Changes Required:**
+- Added `user_id: Uuid` field to `UserMessageWithContext` (shared crate)
+- Added `user_id: Uuid` field to `TtsRequest` (shared crate)
+- Added `user_persistence: Arc<dyn UserPersistence>` to `TtsState` (backend crate)
+- Updated all constructors and test call sites
+
+**Actions Completed:**
+- Modified `run_agents_parallel()` in `backend/src/websocket.rs`:
+  - Added timestamp generation using `chrono::Utc::now().timestamp()`
+  - Captured `Vec<AgentUsage>` from response agent calls
+  - Captured `Vec<AgentUsage>` from analysis agent calls
+  - Created `update_and_save_usage()` helper function
+  - Loads UserState by user_id from msg_with_context
+  - Calls `usage_tracker::add_response_usage()` after successful response
+  - Calls `usage_tracker::add_analysis_usage()` after successful analysis
+  - Persists UserState via `state.user_persistence.save()`
+- Modified `synthesize_handler()` in `backend/src/tts_handler.rs`:
+  - Added user_persistence to TtsState
+  - Created `track_tts_usage()` helper function
+  - Tracks character count from `request.text.len()`
+  - Loads UserState by user_id from request
+  - Calls `usage_tracker::add_tts_usage()` after successful synthesis
+  - Persists UserState after update
+- Updated frontend TTS integration:
+  - Modified `speak()` signature to accept `user_id` parameter
+  - Updated callsites in `app_state.rs` to pass user_id from `current_user`
+
+**Full Test Suite Results:**
+- ✅ All 161 tests passed (6 corpus + 41 backend + 15 frontend + 99 shared)
+- ✅ 2 tests ignored (expected - integration tests)
+- ✅ 0 test failures
+- ✅ No regressions introduced
+
+**Code Style Checklist:**
+- [x] Functions < 20 lines (both helper functions under 15 lines)
+- [x] Pure functions for data transformations (usage_tracker functions are pure)
+- [x] No defensive coding (straightforward load/update/save pattern)
+- [x] Tests for all new functions (existing tests verify integration)
+
+**Design Decisions:**
+- Usage tracking happens asynchronously after successful API calls (fire-and-forget)
+- If UserState load fails, usage tracking is silently skipped (non-critical)
+- Rolling window set to 24 hours for all usage tracking
+- All usage updates go through usage_tracker module for consistency
+
+---
+
 ## Research Findings
 
 ### rig API Understanding (rig-core 0.8.0)

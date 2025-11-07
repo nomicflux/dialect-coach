@@ -140,6 +140,7 @@ async fn main() -> Result<()> {
             tracing::info!("TTS service is available");
             Some(tts_handler::TtsState {
                 service: Arc::new(tts_service),
+                user_persistence: user_persistence.clone(),
             })
         }
         Err(e) => {

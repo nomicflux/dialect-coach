@@ -208,7 +208,12 @@ impl CloudTtsService {
     }
 
     /// Synthesize and play speech using backend TTS
-    pub async fn speak(&self, text: &str, language_code: &str) -> Result<(), String> {
+    pub async fn speak(
+        &self,
+        user_id: uuid::Uuid,
+        text: &str,
+        language_code: &str,
+    ) -> Result<(), String> {
         if text.is_empty() {
             return Err("Cannot speak empty text".to_string());
         }
@@ -217,6 +222,7 @@ impl CloudTtsService {
 
         // Build request
         let request = TtsRequest {
+            user_id,
             text: text.to_string(),
             language_code: language_code.to_string(),
             rate: Some(1.0),
