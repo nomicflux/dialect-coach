@@ -43,6 +43,7 @@ pub struct AppState {
     pub rate_limiter: Arc<rate_limiter::service::RateLimiter>,
     pub rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
     pub org_quota_checker: Arc<rate_limiter::org_quota::OrgQuotaChecker>,
+    pub user_state_connections: Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
 }
 
 /// Serve admin HTML page
@@ -179,6 +180,7 @@ async fn main() -> Result<()> {
         rate_limiter,
         rate_limit_config,
         org_quota_checker,
+        user_state_connections: Arc::new(Mutex::new(HashMap::new())),
     };
 
     // Build main application with routes

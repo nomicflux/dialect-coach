@@ -14,6 +14,7 @@ pub struct UserStateWebSocketService {
     url: String,
     on_load_response: Callback<Option<UserState>>,
     on_save_response: Callback<Result<(), String>>,
+    on_usage_stats_update: Callback<dialect_coach_shared::UsageStats>,
     on_open: Callback<()>,
 }
 
@@ -25,6 +26,7 @@ impl UserStateWebSocketService {
             url: url.to_string(),
             on_load_response: Callback::noop(),
             on_save_response: Callback::noop(),
+            on_usage_stats_update: Callback::noop(),
             on_open: Callback::noop(),
         }
     }
@@ -37,6 +39,11 @@ impl UserStateWebSocketService {
     /// Set callback for save responses
     pub fn set_on_save_response(&mut self, callback: Callback<Result<(), String>>) {
         self.on_save_response = callback;
+    }
+
+    /// Set callback for usage stats updates
+    pub fn set_on_usage_stats_update(&mut self, callback: Callback<dialect_coach_shared::UsageStats>) {
+        self.on_usage_stats_update = callback;
     }
 
     /// Set callback for connection open
@@ -62,6 +69,7 @@ impl UserStateWebSocketService {
 
         let on_load = self.on_load_response.clone();
         let on_save = self.on_save_response.clone();
+        let on_usage_stats_update = self.on_usage_stats_update.clone();
         let on_open = self.on_open.clone();
 
         // Spawn send task
@@ -81,7 +89,7 @@ impl UserStateWebSocketService {
 
             while let Some(msg) = read.next().await {
                 if let Ok(WsMessage::Text(text)) = msg {
-                    process_message(&text, &on_load, &on_save);
+                    process_message(&text, &on_load, &on_save, &on_usage_stats_update);
                 }
             }
 
@@ -121,37 +129,84 @@ fn process_message(
     text: &str,
     on_load: &Callback<Option<UserState>>,
     on_save: &Callback<Result<(), String>>,
+    on_usage_stats_update: &Callback<dialect_coach_shared::UsageStats>,
 ) {
     match serde_json::from_str::<UserStateMessage>(text) {
-        Ok(UserStateMessage::LoadResponse(user_state)) => {
-            if let Some(ref state) = user_state {
-                let user_id = state.user_id;
-                info!(
-                    "Received LoadResponse for user {} with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
-                    user_id,
-                    state.usage_stats.response_count(),
-                    state.usage_stats.response_input_tokens(),
-                    state.usage_stats.response_output_tokens(),
-                    state.usage_stats.analysis_count(),
-                    state.usage_stats.analysis_input_tokens(),
-                    state.usage_stats.analysis_output_tokens(),
-                    state.usage_stats.tts_count(),
-                    state.usage_stats.tts_characters()
-                );
-            } else {
-                info!("Received LoadResponse with no user state");
-            }
-            on_load.emit(user_state);
-        }
-        Ok(UserStateMessage::SaveResponse(result)) => {
-            info!("Received SaveResponse: {:?}", result.is_ok());
-            on_save.emit(result);
-        }
-        Ok(_) => {
-            error!("Received unexpected UserStateMessage variant");
-        }
-        Err(e) => {
-            error!("Failed to parse UserStateMessage: {}", e);
-        }
+        Ok(msg) => handle_user_state_message(msg, on_load, on_save, on_usage_stats_update),
+        Err(e) => error!("Failed to parse UserStateMessage: {}", e),
     }
+}
+
+fn handle_user_state_message(
+    msg: UserStateMessage,
+    on_load: &Callback<Option<UserState>>,
+    on_save: &Callback<Result<(), String>>,
+    on_usage_stats_update: &Callback<dialect_coach_shared::UsageStats>,
+) {
+    match msg {
+        UserStateMessage::LoadResponse(user_state) => handle_load_response(user_state, on_load),
+        UserStateMessage::SaveResponse(result) => handle_save_response(result, on_save),
+        UserStateMessage::UsageStatsUpdate(usage_stats) => {
+            handle_usage_stats_update(usage_stats, on_usage_stats_update)
+        }
+        _ => error!("Received unexpected UserStateMessage variant"),
+    }
+}
+
+fn handle_save_response(
+    result: Result<(), String>,
+    on_save: &Callback<Result<(), String>>,
+) {
+    info!("Received SaveResponse: {:?}", result.is_ok());
+    on_save.emit(result);
+}
+
+fn handle_load_response(
+    user_state: Option<UserState>,
+    on_load: &Callback<Option<UserState>>,
+) {
+    if let Some(ref state) = user_state {
+        log_load_response(state);
+    } else {
+        info!("Received LoadResponse with no user state");
+    }
+    on_load.emit(user_state);
+}
+
+fn log_load_response(state: &UserState) {
+    let user_id = state.user_id;
+    info!(
+        "Received LoadResponse for user {} with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
+        user_id,
+        state.usage_stats.response_count(),
+        state.usage_stats.response_input_tokens(),
+        state.usage_stats.response_output_tokens(),
+        state.usage_stats.analysis_count(),
+        state.usage_stats.analysis_input_tokens(),
+        state.usage_stats.analysis_output_tokens(),
+        state.usage_stats.tts_count(),
+        state.usage_stats.tts_characters()
+    );
+}
+
+fn handle_usage_stats_update(
+    usage_stats: dialect_coach_shared::UsageStats,
+    on_usage_stats_update: &Callback<dialect_coach_shared::UsageStats>,
+) {
+    log_usage_stats_update(&usage_stats);
+    on_usage_stats_update.emit(usage_stats);
+}
+
+fn log_usage_stats_update(usage_stats: &dialect_coach_shared::UsageStats) {
+    info!(
+        "Received UsageStatsUpdate: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
+        usage_stats.response_count(),
+        usage_stats.response_input_tokens(),
+        usage_stats.response_output_tokens(),
+        usage_stats.analysis_count(),
+        usage_stats.analysis_input_tokens(),
+        usage_stats.analysis_output_tokens(),
+        usage_stats.tts_count(),
+        usage_stats.tts_characters()
+    );
 }

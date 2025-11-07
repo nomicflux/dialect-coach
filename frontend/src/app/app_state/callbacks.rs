@@ -47,3 +47,12 @@ pub fn on_user_state_save_response() -> Callback<Result<(), String>> {
         Err(e) => error!("Failed to save user state to backend: {}", e),
     })
 }
+
+pub fn on_user_state_usage_stats_update(
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<dialect_coach_shared::UsageStats> {
+    Callback::from(move |usage_stats: dialect_coach_shared::UsageStats| {
+        info!("Received usage stats update");
+        user_state.dispatch(UserStateAction::UpdateUsageStats(usage_stats));
+    })
+}

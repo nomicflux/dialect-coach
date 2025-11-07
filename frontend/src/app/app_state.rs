@@ -4,7 +4,7 @@ use dialect_coach_shared::models::{
     ConversationBranch, Dialect, Formality, Language, Message, TeachingMode,
 };
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
-use dialect_coach_shared::{LearningItem, LearningItemType, User, UserState};
+use dialect_coach_shared::{LearningItem, LearningItemType, UsageStats, User, UserState};
 use log::error;
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
@@ -298,6 +298,7 @@ pub enum UserStateAction {
     ChangeTeachingMode(TeachingMode),
     ToggleTTS,
     ReplaceUserState(UserState),
+    UpdateUsageStats(UsageStats),
     ClearUserState,
     DeleteLearningItem(Uuid),
     UndoDeleteLearningItem(LearningItem),
@@ -519,6 +520,9 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::ReplaceUserState(new_state) => {
             next = new_state;
+        }
+        UserStateAction::UpdateUsageStats(new_stats) => {
+            next.usage_stats = new_stats;
         }
         UserStateAction::DeleteLearningItem(id) => {
             next.learning_items = delete_learning_item(next.learning_items, id);

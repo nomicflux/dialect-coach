@@ -2,7 +2,7 @@
 
 use super::UserPersistence;
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{User, UserState};
+use dialect_coach_shared::{User, UserState, UsageStats};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -15,6 +15,7 @@ use uuid::Uuid;
 pub struct InMemoryPersistence {
     state: Arc<Mutex<HashMap<Uuid, UserState>>>,
     users: Arc<Mutex<HashMap<String, User>>>,
+    usage_stats: Arc<Mutex<HashMap<Uuid, UsageStats>>>,
 }
 
 impl InMemoryPersistence {
@@ -24,6 +25,7 @@ impl InMemoryPersistence {
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
             users: Arc::new(Mutex::new(HashMap::new())),
+            usage_stats: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -42,8 +44,11 @@ impl UserPersistence for InMemoryPersistence {
     }
 
     async fn save(&self, user_state: &UserState) -> Result<()> {
+        let mut clean = user_state.clone();
+        clean.usage_stats = UsageStats::default();
+
         let mut state = self.state.lock().await;
-        state.insert(user_state.user_id, user_state.clone());
+        state.insert(clean.user_id, clean);
         tracing::debug!(
             "Saved user state to in-memory storage: {}",
             user_state.user_id
@@ -53,7 +58,15 @@ impl UserPersistence for InMemoryPersistence {
 
     async fn load(&self, user_id: Uuid) -> Result<Option<UserState>> {
         let state = self.state.lock().await;
-        let result = state.get(&user_id).cloned();
+        let mut result = state.get(&user_id).cloned();
+
+        if let Some(ref mut s) = result {
+            drop(state);
+            if let Some(stats) = self.load_usage_stats(user_id).await? {
+                s.usage_stats = stats;
+            }
+        }
+
         tracing::debug!(
             "Loaded user state from in-memory storage: {} (found: {})",
             user_id,
@@ -83,6 +96,27 @@ impl UserPersistence for InMemoryPersistence {
         tracing::debug!(
             "Loaded user by username: {} (found: {})",
             username,
+            result.is_some()
+        );
+        Ok(result)
+    }
+
+    async fn save_usage_stats(&self, user_id: Uuid, usage_stats: &UsageStats) -> Result<()> {
+        let mut stats = self.usage_stats.lock().await;
+        stats.insert(user_id, usage_stats.clone());
+        tracing::debug!(
+            "Saved usage stats to in-memory storage: {}",
+            user_id
+        );
+        Ok(())
+    }
+
+    async fn load_usage_stats(&self, user_id: Uuid) -> Result<Option<UsageStats>> {
+        let stats = self.usage_stats.lock().await;
+        let result = stats.get(&user_id).cloned();
+        tracing::debug!(
+            "Loaded usage stats from in-memory storage: {} (found: {})",
+            user_id,
             result.is_some()
         );
         Ok(result)
@@ -229,5 +263,37 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+    }
+
+    #[tokio::test]
+    async fn test_save_and_load_usage_stats() {
+        let persistence = InMemoryPersistence::new();
+        persistence.initialize().await.unwrap();
+
+        let user_id = Uuid::new_v4();
+        let mut stats = UsageStats::default();
+        stats.response_events.push(dialect_coach_shared::models::AgentUsage {
+            timestamp: 1000,
+            input_tokens: 100,
+            output_tokens: 50,
+            is_retry: false,
+            is_estimate: false,
+        });
+
+        persistence.save_usage_stats(user_id, &stats).await.unwrap();
+
+        let loaded = persistence.load_usage_stats(user_id).await.unwrap();
+        assert!(loaded.is_some());
+        assert_eq!(loaded.unwrap().response_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_load_usage_stats_nonexistent() {
+        let persistence = InMemoryPersistence::new();
+        persistence.initialize().await.unwrap();
+
+        let user_id = Uuid::new_v4();
+        let loaded = persistence.load_usage_stats(user_id).await.unwrap();
+        assert!(loaded.is_none());
     }
 }

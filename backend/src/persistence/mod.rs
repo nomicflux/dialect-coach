@@ -2,7 +2,7 @@ pub mod in_memory;
 pub mod sled;
 
 use anyhow::Result;
-use dialect_coach_shared::{User, UserState};
+use dialect_coach_shared::{User, UserState, UsageStats};
 use uuid::Uuid;
 
 pub use sled::SledPersistence;
@@ -111,4 +111,36 @@ pub trait UserPersistence: Send + Sync {
     ///
     /// Returns an error if the load operation fails (but not if user is not found)
     async fn load_user_by_username(&self, username: &str) -> Result<Option<User>>;
+
+    /// Save usage stats for a user
+    ///
+    /// Saves only the usage statistics separately from UserState.
+    /// This is called frequently during API operations to track usage.
+    ///
+    /// # Arguments
+    ///
+    /// * `user_id` - The UUID of the user
+    /// * `usage_stats` - The usage statistics to save
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the save operation fails
+    async fn save_usage_stats(&self, user_id: Uuid, usage_stats: &UsageStats) -> Result<()>;
+
+    /// Load usage stats for a user
+    ///
+    /// # Arguments
+    ///
+    /// * `user_id` - The UUID of the user
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(UsageStats))` if stats exist
+    /// - `Ok(None)` if no stats exist (return default)
+    /// - `Err(_)` if the load operation fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the load operation fails (but not if stats don't exist)
+    async fn load_usage_stats(&self, user_id: Uuid) -> Result<Option<UsageStats>>;
 }

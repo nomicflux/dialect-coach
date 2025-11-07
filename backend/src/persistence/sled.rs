@@ -1,6 +1,6 @@
 use super::UserPersistence;
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{User, UserState};
+use dialect_coach_shared::{User, UserState, UsageStats};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -22,6 +22,10 @@ impl SledPersistence {
     fn user_states_tree(&self) -> Result<sled::Tree> {
         Ok(self.db.open_tree("user_states")?)
     }
+
+    fn usage_stats_tree(&self) -> Result<sled::Tree> {
+        Ok(self.db.open_tree("usage_stats")?)
+    }
 }
 
 fn serialize_to_json<T: Serialize>(value: &T) -> Result<Vec<u8>> {
@@ -40,21 +44,31 @@ impl UserPersistence for SledPersistence {
     }
 
     async fn save(&self, user_state: &UserState) -> Result<()> {
+        let mut clean = user_state.clone();
+        clean.usage_stats = UsageStats::default();
+
         let tree = self.user_states_tree()?;
-        let key = user_state.user_id.to_string();
-        let value = serialize_to_json(user_state)?;
+        let key = clean.user_id.to_string();
+        let value = serialize_to_json(&clean)?;
         tree.insert(key.as_bytes(), value)?;
-        tracing::debug!("Saved user state to sled: {}", user_state.user_id);
+        tracing::debug!("Saved user state to sled: {}", clean.user_id);
         Ok(())
     }
 
     async fn load(&self, user_id: Uuid) -> Result<Option<UserState>> {
         let tree = self.user_states_tree()?;
         let key = user_id.to_string();
-        let result = tree
+        let mut result: Option<UserState> = tree
             .get(key.as_bytes())?
             .map(|bytes| deserialize_from_json(&bytes))
             .transpose()?;
+
+        if let Some(ref mut state) = result {
+            if let Some(stats) = self.load_usage_stats(user_id).await? {
+                state.usage_stats = stats;
+            }
+        }
+
         tracing::debug!(
             "Loaded user state from sled: {} (found: {})",
             user_id,
@@ -88,6 +102,30 @@ impl UserPersistence for SledPersistence {
         tracing::debug!(
             "Loaded user by username: {} (found: {})",
             username,
+            result.is_some()
+        );
+        Ok(result)
+    }
+
+    async fn save_usage_stats(&self, user_id: Uuid, usage_stats: &UsageStats) -> Result<()> {
+        let tree = self.usage_stats_tree()?;
+        let key = user_id.to_string();
+        let value = serialize_to_json(usage_stats)?;
+        tree.insert(key.as_bytes(), value)?;
+        tracing::debug!("Saved usage stats to sled: {}", user_id);
+        Ok(())
+    }
+
+    async fn load_usage_stats(&self, user_id: Uuid) -> Result<Option<UsageStats>> {
+        let tree = self.usage_stats_tree()?;
+        let key = user_id.to_string();
+        let result = tree
+            .get(key.as_bytes())?
+            .map(|bytes| deserialize_from_json(&bytes))
+            .transpose()?;
+        tracing::debug!(
+            "Loaded usage stats from sled: {} (found: {})",
+            user_id,
             result.is_some()
         );
         Ok(result)

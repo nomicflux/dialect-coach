@@ -24,10 +24,10 @@ pub struct TtsState {
 
 async fn track_tts_usage(
     state: &TtsState,
-    mut user_state: dialect_coach_shared::UserState,
+    user_id: uuid::Uuid,
+    mut usage_stats: dialect_coach_shared::UsageStats,
     characters: u64,
 ) {
-    let user_id = user_state.user_id;
     let now = chrono::Utc::now().timestamp();
 
     tracing::info!(
@@ -37,9 +37,9 @@ async fn track_tts_usage(
         now
     );
 
-    crate::usage_tracker::add_tts_usage(&mut user_state.usage_stats, characters, now, 24);
+    crate::usage_tracker::add_tts_usage(&mut usage_stats, characters, now, 24);
 
-    match state.user_persistence.save(&user_state).await {
+    match state.user_persistence.save_usage_stats(user_id, &usage_stats).await {
         Ok(_) => tracing::info!(
             user_id = %user_id,
             "Successfully saved TTS usage stats"
@@ -54,11 +54,12 @@ async fn track_tts_usage(
 
 async fn handle_tts_success(
     state: &TtsState,
-    user_state: dialect_coach_shared::UserState,
+    user_id: uuid::Uuid,
+    usage_stats: dialect_coach_shared::UsageStats,
     response: dialect_coach_shared::tts::TtsResponse,
     characters: u64,
 ) -> Json<TtsSynthesizeApiResponse> {
-    track_tts_usage(state, user_state, characters).await;
+    track_tts_usage(state, user_id, usage_stats, characters).await;
     let audio_base64 = base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
         &response.audio_data,
@@ -79,19 +80,16 @@ pub struct TtsSynthesizeApiResponse {
 async fn check_tts_rate_limits(
     state: &TtsState,
     user_id: uuid::Uuid,
-) -> Result<dialect_coach_shared::UserState, TtsErrorResponse> {
-    let user_state = state
+) -> Result<dialect_coach_shared::UsageStats, TtsErrorResponse> {
+    let usage_stats = state
         .user_persistence
-        .load(user_id)
+        .load_usage_stats(user_id)
         .await
         .map_err(|_| TtsErrorResponse {
             status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to load user state".to_string(),
+            message: "Failed to load usage stats".to_string(),
         })?
-        .ok_or_else(|| TtsErrorResponse {
-            status: StatusCode::NOT_FOUND,
-            message: "User not found".to_string(),
-        })?;
+        .unwrap_or_default();
 
     if !state.rate_limiter.elevenlabs_has_quota().await {
         return Err(TtsErrorResponse {
@@ -102,7 +100,7 @@ async fn check_tts_rate_limits(
 
     if !state
         .rate_limiter
-        .can_make_tts_call(&user_state.usage_stats, &state.rate_limit_config)
+        .can_make_tts_call(&usage_stats, &state.rate_limit_config)
     {
         return Err(TtsErrorResponse {
             status: StatusCode::TOO_MANY_REQUESTS,
@@ -110,7 +108,7 @@ async fn check_tts_rate_limits(
         });
     }
 
-    Ok(user_state)
+    Ok(usage_stats)
 }
 
 /// POST /api/tts/synthesize
@@ -127,12 +125,12 @@ pub async fn synthesize_handler(
 
     let characters = request.text.len() as u64;
     let user_id = request.user_id;
-    let user_state = check_tts_rate_limits(&state, user_id).await?;
+    let usage_stats = check_tts_rate_limits(&state, user_id).await?;
 
     match state.service.synthesize(request).await {
-        Ok(response) => Ok(handle_tts_success(&state, user_state, response, characters).await),
+        Ok(response) => Ok(handle_tts_success(&state, user_id, usage_stats.clone(), response, characters).await),
         Err(e) => {
-            track_tts_usage(&state, user_state, characters).await;
+            track_tts_usage(&state, user_id, usage_stats, characters).await;
             Err(TtsErrorResponse::from_tts_error(e))
         }
     }

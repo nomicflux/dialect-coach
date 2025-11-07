@@ -1,5 +1,5 @@
 use super::{
-    AgentResponse, Dialect, Explained, Formality, Language, Mistake, TeachingMode, User, UserState,
+    AgentResponse, Dialect, Explained, Formality, Language, Mistake, TeachingMode, UsageStats, User, UserState,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -166,6 +166,8 @@ pub enum UserStateMessage {
     SaveResponse(Result<(), String>),
     /// Response to load request (Some = found, None = not found)
     LoadResponse(Option<UserState>),
+    /// Update usage stats (sent after saving usage stats)
+    UsageStatsUpdate(UsageStats),
 }
 
 /// WebSocket messages for User management
