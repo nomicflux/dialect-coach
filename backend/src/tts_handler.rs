@@ -10,6 +10,7 @@ use std::sync::Arc;
 use tracing::{error, info};
 
 use crate::persistence::UserPersistence;
+use crate::rate_limiter::service::RateLimiterService;
 use crate::tts_service::TtsService;
 
 /// Axum state for TTS handlers
@@ -17,6 +18,8 @@ use crate::tts_service::TtsService;
 pub struct TtsState {
     pub service: Arc<TtsService>,
     pub user_persistence: Arc<dyn UserPersistence>,
+    pub rate_limiter: Arc<crate::rate_limiter::service::RateLimiter>,
+    pub rate_limit_config: Arc<crate::rate_limiter::config::RateLimitConfig>,
 }
 
 async fn track_tts_usage(state: &TtsState, user_id: uuid::Uuid, characters: u64) {
@@ -39,6 +42,43 @@ pub struct TtsSynthesizeApiResponse {
     pub duration_ms: u32,
 }
 
+async fn check_tts_rate_limits(
+    state: &TtsState,
+    user_id: uuid::Uuid,
+) -> Result<(), TtsErrorResponse> {
+    let user_state = state
+        .user_persistence
+        .load(user_id)
+        .await
+        .map_err(|_| TtsErrorResponse {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to load user state".to_string(),
+        })?
+        .ok_or_else(|| TtsErrorResponse {
+            status: StatusCode::NOT_FOUND,
+            message: "User not found".to_string(),
+        })?;
+
+    if !state.rate_limiter.elevenlabs_has_quota().await {
+        return Err(TtsErrorResponse {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: "ElevenLabs quota exceeded".to_string(),
+        });
+    }
+
+    if !state
+        .rate_limiter
+        .can_make_tts_call(&user_state.usage_stats, &state.rate_limit_config)
+    {
+        return Err(TtsErrorResponse {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: "TTS rate limit exceeded".to_string(),
+        });
+    }
+
+    Ok(())
+}
+
 /// POST /api/tts/synthesize
 /// Synthesize speech from text
 pub async fn synthesize_handler(
@@ -53,6 +93,8 @@ pub async fn synthesize_handler(
 
     let characters = request.text.len() as u64;
     let user_id = request.user_id;
+
+    check_tts_rate_limits(&state, user_id).await?;
 
     let response = state
         .service

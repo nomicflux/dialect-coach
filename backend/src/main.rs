@@ -138,6 +138,13 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to initialize user persistence")?;
 
+    let rate_limit_config = Arc::new(rate_limiter::config::RateLimitConfig::from_env());
+
+    let org_quota_checker = Arc::new(rate_limiter::org_quota::OrgQuotaChecker::new());
+    let rate_limiter = Arc::new(rate_limiter::service::RateLimiter::new(
+        org_quota_checker.clone(),
+    ));
+
     let tts_state = match ElevenLabsTtsProvider::from_env() {
         Ok(tts_provider) => {
             let tts_service = tts_service::TtsService::new(Arc::new(tts_provider));
@@ -145,6 +152,8 @@ async fn main() -> Result<()> {
             Some(tts_handler::TtsState {
                 service: Arc::new(tts_service),
                 user_persistence: user_persistence.clone(),
+                rate_limiter: rate_limiter.clone(),
+                rate_limit_config: rate_limit_config.clone(),
             })
         }
         Err(e) => {
@@ -155,13 +164,6 @@ async fn main() -> Result<()> {
             None
         }
     };
-
-    let rate_limit_config = Arc::new(rate_limiter::config::RateLimitConfig::from_env());
-
-    let org_quota_checker = Arc::new(rate_limiter::org_quota::OrgQuotaChecker::new());
-    let rate_limiter = Arc::new(rate_limiter::service::RateLimiter::new(
-        org_quota_checker.clone(),
-    ));
     let anthropic_admin_key = std::env::var("ANTHROPIC_ADMIN_API_KEY").ok();
     let elevenlabs_api_key = std::env::var("ELEVENLABS_API_KEY").ok();
     org_quota_checker

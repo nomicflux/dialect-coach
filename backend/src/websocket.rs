@@ -20,6 +20,7 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::agent_service::{AgentService, response::GenerateResponseParams};
 use crate::rag_config::RAGConfig;
+use crate::rate_limiter::service::RateLimiterService;
 
 fn error_to_agent_response(error_message: String) -> AgentResponse {
     AgentResponse::from(error_message)
@@ -166,6 +167,51 @@ async fn update_and_save_usage(
     let _ = state.user_persistence.save(&user_state).await;
 }
 
+fn should_check_analysis_limit(
+    teaching_mode: dialect_coach_shared::TeachingMode,
+    needs_analysis: bool,
+) -> bool {
+    if !needs_analysis {
+        return false;
+    }
+    teaching_mode != dialect_coach_shared::TeachingMode::Immersive
+        && teaching_mode != dialect_coach_shared::TeachingMode::Debug
+}
+
+async fn check_rate_limits(
+    state: &AppState,
+    user_id: Uuid,
+    teaching_mode: dialect_coach_shared::TeachingMode,
+    needs_analysis: bool,
+) -> Result<dialect_coach_shared::UserState, anyhow::Error> {
+    let user_state = state
+        .user_persistence
+        .load(user_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("User state not found"))?;
+
+    if !state.rate_limiter.anthropic_has_quota().await {
+        return Err(anyhow::anyhow!("Anthropic quota exceeded"));
+    }
+
+    if !state
+        .rate_limiter
+        .can_make_response_call(&user_state.usage_stats, &state.rate_limit_config)
+    {
+        return Err(anyhow::anyhow!("Response agent rate limit exceeded"));
+    }
+
+    if should_check_analysis_limit(teaching_mode, needs_analysis)
+        && !state
+            .rate_limiter
+            .can_make_analysis_call(&user_state.usage_stats, &state.rate_limit_config)
+    {
+        return Err(anyhow::anyhow!("Analysis agent rate limit exceeded"));
+    }
+
+    Ok(user_state)
+}
+
 async fn run_agents_parallel(
     state: &AppState,
     msg_with_context: &UserMessageWithContext,
@@ -185,6 +231,14 @@ async fn run_agents_parallel(
         || !msg_with_context.past_explained.is_empty()
         || !msg_with_context.past_translated.is_empty()
         || !msg_with_context.past_exploratory.is_empty();
+
+    check_rate_limits(
+        state,
+        msg_with_context.user_id,
+        teaching_mode,
+        has_learning_items,
+    )
+    .await?;
 
     let rag_config = RAGConfig::new(20, 5);
     let now = chrono::Utc::now().timestamp();
