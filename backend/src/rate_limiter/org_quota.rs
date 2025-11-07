@@ -19,7 +19,6 @@ impl Default for QuotaStatus {
 
 #[derive(Clone, Default)]
 pub struct OrgQuotaChecker {
-
     status: Arc<RwLock<QuotaStatus>>,
 }
 

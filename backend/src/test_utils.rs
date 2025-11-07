@@ -1,14 +1,15 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, Formality, TeachingMode};
 use rig::completion::{
-    Completion, Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
+    Completion, Message as RigMessage, message::AssistantContent, message::Text,
+    message::UserContent,
 };
 use rig::one_or_many::OneOrMany;
 use serde::{Deserialize, Serialize};
 
 use crate::agent_service::AgentService;
 use crate::agent_service::response::GenerateResponseParams;
-use crate::agent_service::retry::{retry_completion_call, estimate_input_tokens};
+use crate::agent_service::retry::{estimate_input_tokens, retry_completion_call};
 use crate::agent_service::util::contains_illegal_characters;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
@@ -55,16 +56,16 @@ pub async fn run_self_chat_test(
             learning_goals: &[],
             rag_config: &config,
         };
-        let response = agent.generate_response(&params).await?;
+        let (result, _usage) = agent.generate_response(&params).await;
+        let response = result?;
 
         let (cosine_mse, l2_mse) =
-            compute_corpus_similarity(&response.0.response, dialect, qdrant, embeddings, 10)
-                .await?;
+            compute_corpus_similarity(&response.response, dialect, qdrant, embeddings, 10).await?;
         cosine_mse_values.push(cosine_mse);
         l2_mse_values.push(l2_mse);
 
         // Add assistant response AFTER getting it (for next turn's context)
-        conversation_history.push(create_assistant_rig_message(&response.0.response));
+        conversation_history.push(create_assistant_rig_message(&response.response));
 
         // Generate next user message using agent
         current_message = generate_user_message(
@@ -179,7 +180,7 @@ pub async fn attempt_user_message_retry(
         .build();
     let prompt = "Continue the conversation naturally.";
     let estimate_fn = || estimate_input_tokens(&retry_preamble, conversation_history, prompt);
-    let (response, _) = retry_completion_call(
+    let (result, _) = retry_completion_call(
         || async {
             agent
                 .completion(prompt, conversation_history.to_vec())
@@ -190,8 +191,8 @@ pub async fn attempt_user_message_retry(
         estimate_fn,
         3,
     )
-    .await
-    .context("Failed to get retry completion from Claude")?;
+    .await;
+    let response = result.context("Failed to get retry completion from Claude")?;
     Ok(response)
 }
 
@@ -276,7 +277,7 @@ pub async fn generate_user_message(
 
     let prompt = "Continue the conversation naturally.";
     let estimate_fn = || estimate_input_tokens(&preamble, conversation_history, prompt);
-    let (response, _) = retry_completion_call(
+    let (result, _) = retry_completion_call(
         || async {
             agent
                 .completion(prompt, conversation_history.to_vec())
@@ -287,8 +288,8 @@ pub async fn generate_user_message(
         estimate_fn,
         3,
     )
-    .await
-    .context("Failed to generate user message")?;
+    .await;
+    let response = result.context("Failed to generate user message")?;
 
     if response.trim().is_empty() || contains_illegal_characters(&response) {
         return retry_user_message_with_feedback(

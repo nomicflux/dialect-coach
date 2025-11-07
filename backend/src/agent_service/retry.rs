@@ -187,7 +187,7 @@ pub async fn retry_completion_call<F, Fut>(
     completion_call: F,
     estimate_input: impl Fn() -> u64,
     max_attempts: usize,
-) -> Result<(String, Vec<AgentUsage>)>
+) -> (Result<String, anyhow::Error>, Vec<AgentUsage>)
 where
     F: Fn() -> Fut,
     Fut: std::future::Future<Output = Result<CompletionResponse<AnthropicResponse>, CompletionError>>,
@@ -199,7 +199,7 @@ where
         match attempt_completion(&completion_call, &estimate_input, is_retry).await {
             AttemptResult::Success(text, usage) => {
                 usages.push(usage);
-                return Ok((text, usages));
+                return (Ok(text), usages);
             }
             AttemptResult::Retry(usage, error) => {
                 usages.push(usage);
@@ -209,11 +209,14 @@ where
             }
             AttemptResult::Failed(usage, error) => {
                 usages.push(usage);
-                return Err(anyhow::anyhow!("API call failed: {}", error));
+                return (Err(anyhow::anyhow!("API call failed: {}", error)), usages);
             }
         }
     }
-    Err(anyhow::anyhow!("Failed after {} attempts", max_attempts))
+    (
+        Err(anyhow::anyhow!("Failed after {} attempts", max_attempts)),
+        usages,
+    )
 }
 
 pub fn build_retry_failure_error(
@@ -308,7 +311,7 @@ impl<'a> RetryContext<'a> {
             .max_tokens(config.max_tokens)
             .temperature(config.temperature)
             .build();
-        retry_completion_call(
+        let (result, usage) = retry_completion_call(
             || async {
                 agent
                     .completion(prompt_params.prompt, history_with_prefill.clone())
@@ -319,8 +322,9 @@ impl<'a> RetryContext<'a> {
             estimate_fn,
             3,
         )
-        .await
-        .context("Failed to get retry completion from Claude")
+        .await;
+        let response = result.context("Failed to get retry completion from Claude")?;
+        Ok((response, usage))
     }
 
     pub async fn handle_retry_attempt<T, F>(
@@ -504,5 +508,22 @@ mod tests {
             serde_json::from_str::<serde_json::Value>("invalid").unwrap_err(),
         );
         assert!(!is_retryable_completion_error(&error));
+    }
+
+    #[tokio::test]
+    async fn test_retry_completion_call_returns_usage_on_error() {
+        let completion_call = || async {
+            Err::<CompletionResponse<AnthropicResponse>, CompletionError>(
+                CompletionError::ProviderError("API error".to_string()),
+            )
+        };
+        let estimate_fn = || 100u64;
+        let (result, usage) = retry_completion_call(completion_call, estimate_fn, 3).await;
+
+        assert!(result.is_err());
+        assert!(!usage.is_empty());
+        assert_eq!(usage.len(), 3);
+        assert!(usage.iter().all(|u| u.is_estimate));
+        assert!(usage.iter().all(|u| u.input_tokens > 0));
     }
 }

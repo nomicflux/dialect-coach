@@ -46,7 +46,10 @@ impl AgentService {
     pub async fn generate_response(
         &self,
         params: &response::GenerateResponseParams<'_>,
-    ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
+    ) -> (
+        Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
+        Vec<AgentUsage>,
+    ) {
         let ctx = ResponseContext {
             client: self.client.clone(),
             model_name: self.model_name.clone(),
@@ -64,7 +67,10 @@ impl AgentService {
         explained: &[Explained],
         translated: &[dialect_coach_shared::Translated],
         exploratory: &[dialect_coach_shared::Exploratory],
-    ) -> Result<(dialect_coach_shared::AgentAnalysis, Vec<AgentUsage>)> {
+    ) -> (
+        Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
+        Vec<AgentUsage>,
+    ) {
         let retry_ctx = retry::RetryContext {
             client: &self.client,
             model_name: &self.model_name,

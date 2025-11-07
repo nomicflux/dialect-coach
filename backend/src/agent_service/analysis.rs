@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use dialect_coach_shared::{AgentUsage, Dialect, Explained, Mistake};
 use rig::completion::{Completion, Message as RigMessage};
 
@@ -163,7 +163,7 @@ async fn call_analysis_api(
     retry_ctx: &RetryContext<'_>,
     preamble: &str,
     prompt: &str,
-) -> Result<(String, Vec<AgentUsage>)> {
+) -> (Result<String, anyhow::Error>, Vec<AgentUsage>) {
     let history_with_prefill = vec![super::util::create_prefilled_assistant_message()];
     let estimate_fn = || estimate_input_tokens(preamble, &history_with_prefill, prompt);
     let agent = retry_ctx
@@ -173,7 +173,7 @@ async fn call_analysis_api(
         .temperature(0.2)
         .preamble(preamble)
         .build();
-    retry_completion_call(
+    let (result, usage) = retry_completion_call(
         || async {
             agent
                 .completion(prompt, history_with_prefill.clone())
@@ -184,8 +184,28 @@ async fn call_analysis_api(
         estimate_fn,
         3,
     )
-    .await
-    .context("Failed to get analysis from Claude")
+    .await;
+    match result {
+        Ok(response) => (Ok(response), usage),
+        Err(e) => (Err(e.context("Failed to get analysis from Claude")), usage),
+    }
+}
+
+async fn handle_successful_analysis(
+    retry_ctx: &RetryContext<'_>,
+    response: String,
+    usage: Vec<AgentUsage>,
+    preamble: &str,
+    msg: &String,
+) -> (
+    Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
+    Vec<AgentUsage>,
+) {
+    tracing::info!("Raw analysis response from Claude: {}", response);
+    match handle_analysis_response(retry_ctx, &response, usage.clone(), preamble, msg).await {
+        Ok((analysis, final_usage)) => (Ok(analysis), final_usage),
+        Err(e) => (Err(e), usage),
+    }
 }
 
 async fn handle_analysis_response(
@@ -226,10 +246,13 @@ pub async fn generate_analysis(
     explained: &[Explained],
     translated: &[dialect_coach_shared::Translated],
     exploratory: &[dialect_coach_shared::Exploratory],
-) -> Result<(dialect_coach_shared::AgentAnalysis, Vec<AgentUsage>)> {
+) -> (
+    Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
+    Vec<AgentUsage>,
+) {
     if check_empty_learning_items(mistakes, explained, translated, exploratory) {
         tracing::debug!("Skipping analysis - no learning items");
-        return Ok((dialect_coach_shared::AgentAnalysis::new(), Vec::new()));
+        return (Ok(dialect_coach_shared::AgentAnalysis::new()), Vec::new());
     }
 
     log_analysis_start(mistakes, explained, translated, exploratory);
@@ -241,12 +264,14 @@ pub async fn generate_analysis(
     tracing::info!("Analysis prompt sent to Claude:\n{}", prompt);
 
     tracing::info!("Calling Claude API for analysis...");
-    let (response, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await?;
+    let (result, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await;
 
-    tracing::info!("Received analysis response from Claude API");
-    tracing::info!("Raw analysis response from Claude: {}", response);
-
-    handle_analysis_response(retry_ctx, &response, usage, &preamble, msg).await
+    match result {
+        Ok(response) => {
+            handle_successful_analysis(retry_ctx, response, usage, &preamble, msg).await
+        }
+        Err(e) => (Err(e.context("Failed to get analysis from Claude")), usage),
+    }
 }
 
 async fn retry_analysis_with_error_feedback_tracked(

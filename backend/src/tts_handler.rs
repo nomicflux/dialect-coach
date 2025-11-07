@@ -32,6 +32,23 @@ async fn track_tts_usage(
     let _ = state.user_persistence.save(&user_state).await;
 }
 
+async fn handle_tts_success(
+    state: &TtsState,
+    user_state: dialect_coach_shared::UserState,
+    response: dialect_coach_shared::tts::TtsResponse,
+    characters: u64,
+) -> Json<TtsSynthesizeApiResponse> {
+    track_tts_usage(state, user_state, characters).await;
+    let audio_base64 = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        &response.audio_data,
+    );
+    Json(TtsSynthesizeApiResponse {
+        audio_base64,
+        duration_ms: response.duration_ms,
+    })
+}
+
 /// Response format for TTS API (frontend expects base64)
 #[derive(Debug, Serialize)]
 pub struct TtsSynthesizeApiResponse {
@@ -90,29 +107,15 @@ pub async fn synthesize_handler(
 
     let characters = request.text.len() as u64;
     let user_id = request.user_id;
-
     let user_state = check_tts_rate_limits(&state, user_id).await?;
 
-    let response = state
-        .service
-        .synthesize(request)
-        .await
-        .map_err(TtsErrorResponse::from_tts_error)?;
-
-    track_tts_usage(&state, user_state, characters).await;
-
-    // Convert binary audio data to base64 for frontend
-    let audio_base64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &response.audio_data,
-    );
-
-    let api_response = TtsSynthesizeApiResponse {
-        audio_base64,
-        duration_ms: response.duration_ms,
-    };
-
-    Ok(Json(api_response))
+    match state.service.synthesize(request).await {
+        Ok(response) => Ok(handle_tts_success(&state, user_state, response, characters).await),
+        Err(e) => {
+            track_tts_usage(&state, user_state, characters).await;
+            Err(TtsErrorResponse::from_tts_error(e))
+        }
+    }
 }
 
 /// GET /api/tts/status

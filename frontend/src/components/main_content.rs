@@ -1,15 +1,14 @@
 use crate::app::app_callbacks::{on_prompt_click, on_send_message, on_tts_toggle};
 use crate::app::app_helpers::render_message_undo_notification;
-use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction, UserStateAction};
 use crate::app::app_state::callbacks::on_replay_message;
+use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction, UserStateAction};
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
     on_delete_learning_item_callback, on_delete_message_callback, on_dialect_cycle,
     on_formality_cycle, on_switch_branch, on_teaching_mode_cycle, on_undo_message_callback,
 };
 use crate::components::{
-    BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls,
-    UsageFooter,
+    BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls, UsageFooter,
 };
 use crate::services::websocket::ConnectionState;
 use gloo::events::EventListener;

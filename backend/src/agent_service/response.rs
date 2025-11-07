@@ -372,6 +372,32 @@ impl ResponseContext {
         Ok((primary, secondary))
     }
 
+    async fn handle_successful_completion(
+        &self,
+        response: String,
+        usage: Vec<AgentUsage>,
+        params: &GenerateResponseParams<'_>,
+        system_content: &str,
+        history_with_prefill: Vec<RigMessage>,
+    ) -> (
+        Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
+        Vec<AgentUsage>,
+    ) {
+        match self
+            .handle_response_parsing(
+                response,
+                usage.clone(),
+                params,
+                system_content,
+                history_with_prefill,
+            )
+            .await
+        {
+            Ok((agent_response, final_usage)) => (Ok(agent_response), final_usage),
+            Err(e) => (Err(e), usage),
+        }
+    }
+
     async fn handle_response_parsing(
         &self,
         response: String,
@@ -443,12 +469,18 @@ impl ResponseContext {
     pub async fn generate_response(
         &self,
         params: &GenerateResponseParams<'_>,
-    ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
+    ) -> (
+        Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
+        Vec<AgentUsage>,
+    ) {
         if contains_illegal_characters(params.user_message) {
-            return Err(anyhow::anyhow!("User message contains illegal characters"));
+            return (
+                Err(anyhow::anyhow!("User message contains illegal characters")),
+                Vec::new(),
+            );
         }
 
-        let (primary_examples, secondary_examples) = self
+        let (primary_examples, secondary_examples) = match self
             .collect_examples(
                 params.user_message,
                 params.conversation_history,
@@ -456,7 +488,11 @@ impl ResponseContext {
                 params.formality,
                 params.rag_config,
             )
-            .await?;
+            .await
+        {
+            Ok(examples) => examples,
+            Err(e) => return (Err(e), Vec::new()),
+        };
 
         let system_content = build_system_content(
             params.dialect,
@@ -479,7 +515,7 @@ impl ResponseContext {
             .temperature(temperature_for_mode(&params.teaching_mode))
             .build();
 
-        let (response, usage) = retry_completion_call(
+        let (result, usage) = retry_completion_call(
             || async {
                 agent
                     .completion(params.user_message, history_with_prefill.clone())
@@ -490,17 +526,23 @@ impl ResponseContext {
             estimate_fn,
             3,
         )
-        .await
-        .context("Failed to get completion from Claude")?;
-
-        self.handle_response_parsing(
-            response,
-            usage,
-            params,
-            &system_content,
-            history_with_prefill,
-        )
-        .await
+        .await;
+        match result {
+            Ok(response) => {
+                self.handle_successful_completion(
+                    response,
+                    usage,
+                    params,
+                    &system_content,
+                    history_with_prefill,
+                )
+                .await
+            }
+            Err(e) => (
+                Err(e.context("Failed to get completion from Claude")),
+                usage,
+            ),
+        }
     }
 
     /// Simple translation without RAG - for fast prompt translation

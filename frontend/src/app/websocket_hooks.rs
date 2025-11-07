@@ -1,8 +1,8 @@
 use crate::app::app_callbacks::{on_user_create_response, on_user_signin_response};
-use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UserStateAction};
 use crate::app::app_state::callbacks::{
     on_user_state_load_response, on_user_state_save_response, on_user_state_ws_open,
 };
+use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UserStateAction};
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{Message, MessageContent};
 use log::{error, info};

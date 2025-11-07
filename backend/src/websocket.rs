@@ -173,8 +173,15 @@ async fn update_and_save_usage(
     );
 
     match state.user_persistence.save(&user_state).await {
-        Ok(_) => tracing::info!("Successfully saved usage stats for user {}", user_state.user_id),
-        Err(e) => tracing::error!("Failed to save usage stats for user {}: {}", user_state.user_id, e),
+        Ok(_) => tracing::info!(
+            "Successfully saved usage stats for user {}",
+            user_state.user_id
+        ),
+        Err(e) => tracing::error!(
+            "Failed to save usage stats for user {}: {}",
+            user_state.user_id,
+            e
+        ),
     }
 }
 
@@ -223,6 +230,35 @@ async fn check_rate_limits(
     Ok(user_state)
 }
 
+async fn handle_parallel_agents_success(
+    state: &AppState,
+    user_state: dialect_coach_shared::UserState,
+    response_result: Result<AgentResponse, anyhow::Error>,
+    response_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
+    analysis_result: Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
+    analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
+    now: i64,
+) -> Result<AgentResponse, anyhow::Error> {
+    match response_result {
+        Ok(mut agent_response) => match analysis_result {
+            Ok(analysis) => {
+                agent_response.analysis = Some(analysis);
+                update_and_save_usage(state, user_state, response_usage, analysis_usage, now).await;
+                Ok(agent_response)
+            }
+            Err(e) => {
+                tracing::error!("Analysis agent failed: {}", e);
+                update_and_save_usage(state, user_state, response_usage, analysis_usage, now).await;
+                Ok(agent_response)
+            }
+        },
+        Err(e) => {
+            update_and_save_usage(state, user_state, response_usage, analysis_usage, now).await;
+            Err(e)
+        }
+    }
+}
+
 async fn run_agents_parallel(
     state: &AppState,
     msg_with_context: &UserMessageWithContext,
@@ -264,11 +300,9 @@ async fn run_agents_parallel(
             learning_goals: &msg_with_context.learning_goals,
             rag_config: &rag_config,
         };
-        let (agent_response, response_usage) = state.agent.generate_response(&params).await?;
-
+        let (result, response_usage) = state.agent.generate_response(&params).await;
         update_and_save_usage(state, user_state, response_usage, vec![], now).await;
-
-        return Ok(agent_response);
+        return result;
     }
 
     tracing::info!(
@@ -289,7 +323,7 @@ async fn run_agents_parallel(
         rag_config: &rag_config,
     };
 
-    let (response_result, analysis_result) = tokio::join!(
+    let ((response_result, response_usage), (analysis_result, analysis_usage)) = tokio::join!(
         state.agent.generate_response(&params),
         state.agent.generate_analysis(
             dialect,
@@ -301,22 +335,16 @@ async fn run_agents_parallel(
         )
     );
 
-    let (agent_response, response_usage) = response_result?;
-
-    match analysis_result {
-        Ok((analysis, analysis_usage)) => {
-            let mut agent_response = agent_response;
-            agent_response.analysis = Some(analysis);
-
-            update_and_save_usage(state, user_state, response_usage, analysis_usage, now).await;
-
-            Ok(agent_response)
-        }
-        Err(e) => {
-            tracing::error!("Analysis agent failed: {}", e);
-            Err(e)
-        }
-    }
+    handle_parallel_agents_success(
+        state,
+        user_state,
+        response_result,
+        response_usage,
+        analysis_result,
+        analysis_usage,
+        now,
+    )
+    .await
 }
 
 async fn call_agent_and_respond(
