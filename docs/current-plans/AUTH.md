@@ -6,11 +6,14 @@ on sign-in.
 As usual, when turning this into a plan:
 1. The plan must be output to the docs/current-plans folder.
 2. Each phase must start with the code style checklist using CLAUDE.md code style guidelines.
-3. Each phase must end with a reminder to run the FULL test suite, and upon 100% success update a status document with progress.
-4. Each phase must include a precise list of files to be updated, created, or deleted. This will be the context for that
+3. Each phase must start with the desired subagent to carry out tasks:
+  - kiss-code-generator for simple, well-explained code steps in a single file (try to plan for this one the most often)
+  - modular-builder for building out new files and cross-file work
+4. Each phase must end with a reminder to run the FULL test suite, and upon 100% success update a status document with progress.
+5. Each phase must include a precise list of files to be updated, created, or deleted. This will be the context for that
    phase.
-5. Research the code and relevant libraries before coming up with the plan.
-6. If after researching the code you have questions, ask for clarification.
+6. Research the code and relevant libraries before coming up with the plan.
+7. If after researching the code you have questions, ask for clarification.
 
 ## Decide on Auth method
 

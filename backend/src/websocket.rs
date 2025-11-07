@@ -152,10 +152,15 @@ async fn update_and_save_usage(
     let user_id = user_state.user_id;
     log_response_usage(&user_id, &response_usage);
     crate::usage_tracker::add_response_usage(&mut user_state.usage_stats, response_usage, now, 24);
-    
+
     if !analysis_usage.is_empty() {
         log_analysis_usage(&user_id, &analysis_usage);
-        crate::usage_tracker::add_analysis_usage(&mut user_state.usage_stats, analysis_usage, now, 24);
+        crate::usage_tracker::add_analysis_usage(
+            &mut user_state.usage_stats,
+            analysis_usage,
+            now,
+            24,
+        );
     }
 
     log_total_usage(&user_id, &user_state.usage_stats);
@@ -163,12 +168,18 @@ async fn update_and_save_usage(
     save_usage_and_notify(state, user_state, usage_stats, user_id).await;
 }
 
-fn log_response_usage(user_id: &Uuid, usage: &[dialect_coach_shared::models::usage_stats::AgentUsage]) {
-    let input_tokens = dialect_coach_shared::models::usage_stats::AgentUsage::input_tokens_total(usage);
-    let output_tokens = dialect_coach_shared::models::usage_stats::AgentUsage::output_tokens_total(usage);
+fn log_response_usage(
+    user_id: &Uuid,
+    usage: &[dialect_coach_shared::models::usage_stats::AgentUsage],
+) {
+    let input_tokens =
+        dialect_coach_shared::models::usage_stats::AgentUsage::input_tokens_total(usage);
+    let output_tokens =
+        dialect_coach_shared::models::usage_stats::AgentUsage::output_tokens_total(usage);
     let retry_count = dialect_coach_shared::models::usage_stats::AgentUsage::retry_count(usage);
-    let estimate_count = dialect_coach_shared::models::usage_stats::AgentUsage::estimate_count(usage);
-    
+    let estimate_count =
+        dialect_coach_shared::models::usage_stats::AgentUsage::estimate_count(usage);
+
     tracing::info!(
         user_id = %user_id,
         "Updating usage stats: {} response events ({} input, {} output tokens, {} retries, {} estimates)",
@@ -180,12 +191,18 @@ fn log_response_usage(user_id: &Uuid, usage: &[dialect_coach_shared::models::usa
     );
 }
 
-fn log_analysis_usage(user_id: &Uuid, usage: &[dialect_coach_shared::models::usage_stats::AgentUsage]) {
-    let input_tokens = dialect_coach_shared::models::usage_stats::AgentUsage::input_tokens_total(usage);
-    let output_tokens = dialect_coach_shared::models::usage_stats::AgentUsage::output_tokens_total(usage);
+fn log_analysis_usage(
+    user_id: &Uuid,
+    usage: &[dialect_coach_shared::models::usage_stats::AgentUsage],
+) {
+    let input_tokens =
+        dialect_coach_shared::models::usage_stats::AgentUsage::input_tokens_total(usage);
+    let output_tokens =
+        dialect_coach_shared::models::usage_stats::AgentUsage::output_tokens_total(usage);
     let retry_count = dialect_coach_shared::models::usage_stats::AgentUsage::retry_count(usage);
-    let estimate_count = dialect_coach_shared::models::usage_stats::AgentUsage::estimate_count(usage);
-    
+    let estimate_count =
+        dialect_coach_shared::models::usage_stats::AgentUsage::estimate_count(usage);
+
     tracing::info!(
         user_id = %user_id,
         "Updating usage stats: {} analysis events ({} input, {} output tokens, {} retries, {} estimates)",
@@ -212,7 +229,11 @@ async fn save_usage_and_notify(
     usage_stats: dialect_coach_shared::UsageStats,
     user_id: Uuid,
 ) {
-    match state.user_persistence.save_usage_stats(user_id, &usage_stats).await {
+    match state
+        .user_persistence
+        .save_usage_stats(user_id, &usage_stats)
+        .await
+    {
         Ok(_) => {
             tracing::info!(user_id = %user_id, "Successfully saved usage stats");
             send_usage_stats_update(state, user_id, usage_stats).await;
@@ -231,7 +252,9 @@ async fn send_usage_stats_update(
         let msg = UserStateMessage::UsageStatsUpdate(usage_stats);
         match send_user_state_message(&msg, tx) {
             Ok(_) => tracing::info!(user_id = %user_id, "Sent usage stats update to frontend"),
-            Err(e) => tracing::warn!(user_id = %user_id, "Failed to send usage stats update: {:?}", e),
+            Err(e) => {
+                tracing::warn!(user_id = %user_id, "Failed to send usage stats update: {:?}", e)
+            }
         }
     }
 }
@@ -689,10 +712,7 @@ async fn run_user_state_receive_task(
     unregister_user_state_connection(&state, &tx).await;
 }
 
-async fn unregister_user_state_connection(
-    state: &AppState,
-    tx: &mpsc::UnboundedSender<String>,
-) {
+async fn unregister_user_state_connection(state: &AppState, tx: &mpsc::UnboundedSender<String>) {
     let mut connections = state.user_state_connections.lock().await;
     let user_id_to_remove: Option<Uuid> = connections
         .iter()

@@ -1,6 +1,6 @@
 use super::UserPersistence;
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{User, UserState, UsageStats};
+use dialect_coach_shared::{UsageStats, User, UserState};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

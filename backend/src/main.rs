@@ -43,7 +43,8 @@ pub struct AppState {
     pub rate_limiter: Arc<rate_limiter::service::RateLimiter>,
     pub rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
     pub org_quota_checker: Arc<rate_limiter::org_quota::OrgQuotaChecker>,
-    pub user_state_connections: Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
+    pub user_state_connections:
+        Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
 }
 
 /// Serve admin HTML page

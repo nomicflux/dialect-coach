@@ -42,7 +42,10 @@ impl UserStateWebSocketService {
     }
 
     /// Set callback for usage stats updates
-    pub fn set_on_usage_stats_update(&mut self, callback: Callback<dialect_coach_shared::UsageStats>) {
+    pub fn set_on_usage_stats_update(
+        &mut self,
+        callback: Callback<dialect_coach_shared::UsageStats>,
+    ) {
         self.on_usage_stats_update = callback;
     }
 
@@ -153,18 +156,12 @@ fn handle_user_state_message(
     }
 }
 
-fn handle_save_response(
-    result: Result<(), String>,
-    on_save: &Callback<Result<(), String>>,
-) {
+fn handle_save_response(result: Result<(), String>, on_save: &Callback<Result<(), String>>) {
     info!("Received SaveResponse: {:?}", result.is_ok());
     on_save.emit(result);
 }
 
-fn handle_load_response(
-    user_state: Option<UserState>,
-    on_load: &Callback<Option<UserState>>,
-) {
+fn handle_load_response(user_state: Option<UserState>, on_load: &Callback<Option<UserState>>) {
     if let Some(ref state) = user_state {
         log_load_response(state);
     } else {

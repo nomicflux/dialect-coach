@@ -1,5 +1,6 @@
 use super::{
-    AgentResponse, Dialect, Explained, Formality, Language, Mistake, TeachingMode, UsageStats, User, UserState,
+    AgentResponse, Dialect, Explained, Formality, Language, Mistake, TeachingMode, UsageStats,
+    User, UserState,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

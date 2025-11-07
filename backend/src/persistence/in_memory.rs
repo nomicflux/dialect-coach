@@ -2,7 +2,7 @@
 
 use super::UserPersistence;
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{User, UserState, UsageStats};
+use dialect_coach_shared::{UsageStats, User, UserState};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -104,10 +104,7 @@ impl UserPersistence for InMemoryPersistence {
     async fn save_usage_stats(&self, user_id: Uuid, usage_stats: &UsageStats) -> Result<()> {
         let mut stats = self.usage_stats.lock().await;
         stats.insert(user_id, usage_stats.clone());
-        tracing::debug!(
-            "Saved usage stats to in-memory storage: {}",
-            user_id
-        );
+        tracing::debug!("Saved usage stats to in-memory storage: {}", user_id);
         Ok(())
     }
 
@@ -272,13 +269,15 @@ mod tests {
 
         let user_id = Uuid::new_v4();
         let mut stats = UsageStats::default();
-        stats.response_events.push(dialect_coach_shared::models::AgentUsage {
-            timestamp: 1000,
-            input_tokens: 100,
-            output_tokens: 50,
-            is_retry: false,
-            is_estimate: false,
-        });
+        stats
+            .response_events
+            .push(dialect_coach_shared::models::AgentUsage {
+                timestamp: 1000,
+                input_tokens: 100,
+                output_tokens: 50,
+                is_retry: false,
+                is_estimate: false,
+            });
 
         persistence.save_usage_stats(user_id, &stats).await.unwrap();
 

@@ -39,7 +39,11 @@ async fn track_tts_usage(
 
     crate::usage_tracker::add_tts_usage(&mut usage_stats, characters, now, 24);
 
-    match state.user_persistence.save_usage_stats(user_id, &usage_stats).await {
+    match state
+        .user_persistence
+        .save_usage_stats(user_id, &usage_stats)
+        .await
+    {
         Ok(_) => tracing::info!(
             user_id = %user_id,
             "Successfully saved TTS usage stats"
@@ -128,7 +132,12 @@ pub async fn synthesize_handler(
     let usage_stats = check_tts_rate_limits(&state, user_id).await?;
 
     match state.service.synthesize(request).await {
-        Ok(response) => Ok(handle_tts_success(&state, user_id, usage_stats.clone(), response, characters).await),
+        Ok(response) => {
+            Ok(
+                handle_tts_success(&state, user_id, usage_stats.clone(), response, characters)
+                    .await,
+            )
+        }
         Err(e) => {
             track_tts_usage(&state, user_id, usage_stats, characters).await;
             Err(TtsErrorResponse::from_tts_error(e))

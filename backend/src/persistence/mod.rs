@@ -2,7 +2,7 @@ pub mod in_memory;
 pub mod sled;
 
 use anyhow::Result;
-use dialect_coach_shared::{User, UserState, UsageStats};
+use dialect_coach_shared::{UsageStats, User, UserState};
 use uuid::Uuid;
 
 pub use sled::SledPersistence;
