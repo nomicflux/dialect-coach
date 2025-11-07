@@ -144,16 +144,11 @@ async fn validate_and_parse_dialect(
 
 async fn update_and_save_usage(
     state: &AppState,
-    user_id: Uuid,
+    mut user_state: dialect_coach_shared::UserState,
     response_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     now: i64,
 ) {
-    let mut user_state = match state.user_persistence.load(user_id).await {
-        Ok(Some(s)) => s,
-        Ok(None) | Err(_) => return,
-    };
-
     crate::usage_tracker::add_response_usage(&mut user_state.usage_stats, response_usage, now, 24);
     if !analysis_usage.is_empty() {
         crate::usage_tracker::add_analysis_usage(
@@ -232,7 +227,7 @@ async fn run_agents_parallel(
         || !msg_with_context.past_translated.is_empty()
         || !msg_with_context.past_exploratory.is_empty();
 
-    check_rate_limits(
+    let user_state = check_rate_limits(
         state,
         msg_with_context.user_id,
         teaching_mode,
@@ -255,7 +250,7 @@ async fn run_agents_parallel(
         };
         let (agent_response, response_usage) = state.agent.generate_response(&params).await?;
 
-        update_and_save_usage(state, msg_with_context.user_id, response_usage, vec![], now).await;
+        update_and_save_usage(state, user_state, response_usage, vec![], now).await;
 
         return Ok(agent_response);
     }
@@ -297,14 +292,7 @@ async fn run_agents_parallel(
             let mut agent_response = agent_response;
             agent_response.analysis = Some(analysis);
 
-            update_and_save_usage(
-                state,
-                msg_with_context.user_id,
-                response_usage,
-                analysis_usage,
-                now,
-            )
-            .await;
+            update_and_save_usage(state, user_state, response_usage, analysis_usage, now).await;
 
             Ok(agent_response)
         }

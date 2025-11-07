@@ -22,16 +22,13 @@ pub struct TtsState {
     pub rate_limit_config: Arc<crate::rate_limiter::config::RateLimitConfig>,
 }
 
-async fn track_tts_usage(state: &TtsState, user_id: uuid::Uuid, characters: u64) {
+async fn track_tts_usage(
+    state: &TtsState,
+    mut user_state: dialect_coach_shared::UserState,
+    characters: u64,
+) {
     let now = chrono::Utc::now().timestamp();
-
-    let mut user_state = match state.user_persistence.load(user_id).await {
-        Ok(Some(s)) => s,
-        Ok(None) | Err(_) => return,
-    };
-
     crate::usage_tracker::add_tts_usage(&mut user_state.usage_stats, characters, now, 24);
-
     let _ = state.user_persistence.save(&user_state).await;
 }
 
@@ -45,7 +42,7 @@ pub struct TtsSynthesizeApiResponse {
 async fn check_tts_rate_limits(
     state: &TtsState,
     user_id: uuid::Uuid,
-) -> Result<(), TtsErrorResponse> {
+) -> Result<dialect_coach_shared::UserState, TtsErrorResponse> {
     let user_state = state
         .user_persistence
         .load(user_id)
@@ -76,7 +73,7 @@ async fn check_tts_rate_limits(
         });
     }
 
-    Ok(())
+    Ok(user_state)
 }
 
 /// POST /api/tts/synthesize
@@ -94,7 +91,7 @@ pub async fn synthesize_handler(
     let characters = request.text.len() as u64;
     let user_id = request.user_id;
 
-    check_tts_rate_limits(&state, user_id).await?;
+    let user_state = check_tts_rate_limits(&state, user_id).await?;
 
     let response = state
         .service
@@ -102,7 +99,7 @@ pub async fn synthesize_handler(
         .await
         .map_err(TtsErrorResponse::from_tts_error)?;
 
-    track_tts_usage(&state, user_id, characters).await;
+    track_tts_usage(&state, user_state, characters).await;
 
     // Convert binary audio data to base64 for frontend
     let audio_base64 = base64::Engine::encode(
