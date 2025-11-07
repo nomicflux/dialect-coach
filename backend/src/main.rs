@@ -42,6 +42,7 @@ pub struct AppState {
     pub user_persistence: Arc<dyn UserPersistence>,
     pub rate_limiter: Arc<rate_limiter::service::RateLimiter>,
     pub rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
+    pub org_quota_checker: Arc<rate_limiter::org_quota::OrgQuotaChecker>,
 }
 
 /// Serve admin HTML page
@@ -155,8 +156,17 @@ async fn main() -> Result<()> {
         }
     };
 
-    let rate_limiter = Arc::new(rate_limiter::service::RateLimiter::new());
     let rate_limit_config = Arc::new(rate_limiter::config::RateLimitConfig::from_env());
+
+    let org_quota_checker = Arc::new(rate_limiter::org_quota::OrgQuotaChecker::new());
+    let rate_limiter = Arc::new(rate_limiter::service::RateLimiter::new(
+        org_quota_checker.clone(),
+    ));
+    let anthropic_admin_key = std::env::var("ANTHROPIC_ADMIN_API_KEY").ok();
+    let elevenlabs_api_key = std::env::var("ELEVENLABS_API_KEY").ok();
+    org_quota_checker
+        .clone()
+        .spawn_background_task(anthropic_admin_key, elevenlabs_api_key);
 
     let state = AppState {
         qdrant,
@@ -166,6 +176,7 @@ async fn main() -> Result<()> {
         user_persistence,
         rate_limiter,
         rate_limit_config,
+        org_quota_checker,
     };
 
     // Build main application with routes

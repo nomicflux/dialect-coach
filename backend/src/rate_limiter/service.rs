@@ -1,26 +1,30 @@
 use dialect_coach_shared::models::usage_stats::UsageStats;
+use std::sync::Arc;
 
 use super::config::RateLimitConfig;
+use super::org_quota::OrgQuotaChecker;
 
 pub trait RateLimiterService {
     fn can_make_response_call(&self, stats: &UsageStats, config: &RateLimitConfig) -> bool;
     fn can_make_analysis_call(&self, stats: &UsageStats, config: &RateLimitConfig) -> bool;
     fn can_make_tts_call(&self, stats: &UsageStats, config: &RateLimitConfig) -> bool;
-    fn anthropic_has_quota(&self) -> bool;
-    fn elevenlabs_has_quota(&self) -> bool;
+    async fn anthropic_has_quota(&self) -> bool;
+    async fn elevenlabs_has_quota(&self) -> bool;
 }
 
-pub struct RateLimiter;
+pub struct RateLimiter {
+    quota_checker: Arc<OrgQuotaChecker>,
+}
 
 impl RateLimiter {
-    pub fn new() -> Self {
-        Self
+    pub fn new(quota_checker: Arc<OrgQuotaChecker>) -> Self {
+        Self { quota_checker }
     }
 }
 
 impl Default for RateLimiter {
     fn default() -> Self {
-        Self::new()
+        Self::new(Arc::new(OrgQuotaChecker::new()))
     }
 }
 
@@ -112,12 +116,12 @@ impl RateLimiterService for RateLimiter {
         calls < config.tts_calls_limit && characters < config.tts_characters_limit
     }
 
-    fn anthropic_has_quota(&self) -> bool {
-        true
+    async fn anthropic_has_quota(&self) -> bool {
+        self.quota_checker.has_anthropic_quota().await
     }
 
-    fn elevenlabs_has_quota(&self) -> bool {
-        true
+    async fn elevenlabs_has_quota(&self) -> bool {
+        self.quota_checker.has_elevenlabs_quota().await
     }
 }
 
@@ -128,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_can_make_response_call_within_limits() {
-        let limiter = RateLimiter::new();
+        let limiter = RateLimiter::default();
         let config = RateLimitConfig::default();
         let now = chrono::Utc::now().timestamp();
 
@@ -149,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_can_make_response_call_exceeds_call_limit() {
-        let limiter = RateLimiter::new();
+        let limiter = RateLimiter::default();
         let mut config = RateLimitConfig::default();
         config.response_calls_limit = 2;
         let now = chrono::Utc::now().timestamp();
@@ -180,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_can_make_response_call_exceeds_token_limit() {
-        let limiter = RateLimiter::new();
+        let limiter = RateLimiter::default();
         let mut config = RateLimitConfig::default();
         config.response_tokens_limit = 2000;
         let now = chrono::Utc::now().timestamp();
@@ -202,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_can_make_tts_call_within_limits() {
-        let limiter = RateLimiter::new();
+        let limiter = RateLimiter::default();
         let config = RateLimitConfig::default();
         let now = chrono::Utc::now().timestamp();
 
@@ -218,15 +222,15 @@ mod tests {
         assert!(limiter.can_make_tts_call(&stats, &config));
     }
 
-    #[test]
-    fn test_anthropic_quota_defaults_true() {
-        let limiter = RateLimiter::new();
-        assert!(limiter.anthropic_has_quota());
+    #[tokio::test]
+    async fn test_anthropic_quota_defaults_true() {
+        let limiter = RateLimiter::default();
+        assert!(limiter.anthropic_has_quota().await);
     }
 
-    #[test]
-    fn test_elevenlabs_quota_defaults_true() {
-        let limiter = RateLimiter::new();
-        assert!(limiter.elevenlabs_has_quota());
+    #[tokio::test]
+    async fn test_elevenlabs_quota_defaults_true() {
+        let limiter = RateLimiter::default();
+        assert!(limiter.elevenlabs_has_quota().await);
     }
 }
