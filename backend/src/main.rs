@@ -7,6 +7,7 @@ mod rag_config;
 mod translation_handler;
 mod tts_handler;
 mod tts_service;
+mod usage_tracker;
 mod websocket;
 
 use anyhow::{Context, Result};

@@ -441,6 +441,67 @@ Based on `docs/current-plans/RATE_LIMITING.md`
 
 ---
 
+### Phase 3: Usage Tracking Helper (backend crate)
+**Status**: ✅ Completed
+**Date**: 2025-11-06
+
+**Actions Completed**:
+- Created `backend/src/usage_tracker.rs` with helper functions
+- Implemented pure function `prune_old_agent_events()`:
+  - Filters AgentUsage events to only those within rolling window
+  - Uses `timestamp > cutoff` comparison (excludes events exactly at boundary)
+  - Returns new Vec with recent events only
+- Implemented pure function `prune_old_tts_events()`:
+  - Filters TtsUsage events to only those within rolling window
+  - Uses `timestamp > cutoff` comparison (excludes events exactly at boundary)
+  - Returns new Vec with recent events only
+- Implemented `add_response_usage()`:
+  - Accepts `Vec<AgentUsage>` to support multiple attempts from retry logic
+  - Extends response_events with new usage data
+  - Prunes old events automatically
+- Implemented `add_analysis_usage()`:
+  - Accepts `Vec<AgentUsage>` to support multiple attempts from retry logic
+  - Extends analysis_events with new usage data
+  - Prunes old events automatically
+- Implemented `add_tts_usage()`:
+  - Accepts character count and creates TtsUsage event
+  - Appends to tts_events
+  - Prunes old events automatically
+- Added `mod usage_tracker;` to `backend/src/main.rs`
+- All functions follow "ruthless simplicity" - no defensive coding
+- All functions are pure or have clearly separated side effects
+
+**Tests Written** (9 unit tests in `backend/src/usage_tracker.rs`):
+- `test_prune_old_agent_events_keeps_recent` - Keeps events within window
+- `test_prune_old_agent_events_removes_old` - Removes events outside window
+- `test_prune_old_tts_events_keeps_recent` - Keeps TTS events within window
+- `test_add_response_usage` - Adds response usage and verifies storage
+- `test_add_response_usage_prunes_old` - Verifies old events are removed
+- `test_add_response_usage_multiple_events` - Handles multiple events from retries
+- `test_add_analysis_usage` - Adds analysis usage and verifies storage
+- `test_add_tts_usage` - Creates and adds TTS event
+- `test_add_tts_usage_prunes_old` - Verifies old TTS events are removed
+
+**Full Test Suite Results**:
+- ✅ All 161 tests passed (6 corpus-processor + 41 backend + 15 frontend + 99 shared)
+- ✅ 2 tests ignored (expected - integration tests)
+- ✅ 0 test failures
+- ✅ No regressions introduced
+
+**Code Style Checklist**:
+- [x] Functions < 20 lines (all functions 7-11 lines)
+- [x] Pure functions for data transformations (prune functions are pure)
+- [x] No defensive coding (simple filters and Vec operations)
+- [x] Tests for all new functions (9 comprehensive tests)
+
+**Design Decisions**:
+- Used `timestamp > cutoff` instead of `>=` to exclude boundary events
+- Functions accept `&[T]` and return `Vec<T>` for immutability
+- Pruning happens automatically on every add operation
+- All add functions modify `UsageStats` in place for efficiency
+
+---
+
 ## Research Findings
 
 ### rig API Understanding (rig-core 0.8.0)
