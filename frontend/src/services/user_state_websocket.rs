@@ -124,7 +124,23 @@ fn process_message(
 ) {
     match serde_json::from_str::<UserStateMessage>(text) {
         Ok(UserStateMessage::LoadResponse(user_state)) => {
-            info!("Received LoadResponse");
+            if let Some(ref state) = user_state {
+                let user_id = state.user_id;
+                info!(
+                    "Received LoadResponse for user {} with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
+                    user_id,
+                    state.usage_stats.response_count(),
+                    state.usage_stats.response_input_tokens(),
+                    state.usage_stats.response_output_tokens(),
+                    state.usage_stats.analysis_count(),
+                    state.usage_stats.analysis_input_tokens(),
+                    state.usage_stats.analysis_output_tokens(),
+                    state.usage_stats.tts_count(),
+                    state.usage_stats.tts_characters()
+                );
+            } else {
+                info!("Received LoadResponse with no user state");
+            }
             on_load.emit(user_state);
         }
         Ok(UserStateMessage::SaveResponse(result)) => {

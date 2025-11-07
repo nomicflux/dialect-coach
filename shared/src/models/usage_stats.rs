@@ -7,6 +7,62 @@ pub struct UsageStats {
     pub tts_events: Vec<TtsUsage>,
 }
 
+impl UsageStats {
+    pub fn response_count(&self) -> usize {
+        self.response_events.len()
+    }
+
+    pub fn analysis_count(&self) -> usize {
+        self.analysis_events.len()
+    }
+
+    pub fn tts_count(&self) -> usize {
+        self.tts_events.len()
+    }
+
+    pub fn response_input_tokens(&self) -> u64 {
+        self.response_events.iter().map(|u| u.input_tokens).sum()
+    }
+
+    pub fn response_output_tokens(&self) -> u64 {
+        self.response_events.iter().map(|u| u.output_tokens).sum()
+    }
+
+    pub fn analysis_input_tokens(&self) -> u64 {
+        self.analysis_events.iter().map(|u| u.input_tokens).sum()
+    }
+
+    pub fn analysis_output_tokens(&self) -> u64 {
+        self.analysis_events.iter().map(|u| u.output_tokens).sum()
+    }
+
+    pub fn tts_characters(&self) -> u64 {
+        self.tts_events.iter().map(|u| u.characters).sum()
+    }
+
+    pub fn response_retry_count(&self) -> usize {
+        self.response_events.iter().filter(|u| u.is_retry).count()
+    }
+
+    pub fn response_estimate_count(&self) -> usize {
+        self.response_events
+            .iter()
+            .filter(|u| u.is_estimate)
+            .count()
+    }
+
+    pub fn analysis_retry_count(&self) -> usize {
+        self.analysis_events.iter().filter(|u| u.is_retry).count()
+    }
+
+    pub fn analysis_estimate_count(&self) -> usize {
+        self.analysis_events
+            .iter()
+            .filter(|u| u.is_estimate)
+            .count()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentUsage {
     pub timestamp: i64,
@@ -14,6 +70,24 @@ pub struct AgentUsage {
     pub output_tokens: u64,
     pub is_retry: bool,
     pub is_estimate: bool,
+}
+
+impl AgentUsage {
+    pub fn input_tokens_total(events: &[AgentUsage]) -> u64 {
+        events.iter().map(|u| u.input_tokens).sum()
+    }
+
+    pub fn output_tokens_total(events: &[AgentUsage]) -> u64 {
+        events.iter().map(|u| u.output_tokens).sum()
+    }
+
+    pub fn retry_count(events: &[AgentUsage]) -> usize {
+        events.iter().filter(|u| u.is_retry).count()
+    }
+
+    pub fn estimate_count(events: &[AgentUsage]) -> usize {
+        events.iter().filter(|u| u.is_estimate).count()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -149,15 +149,53 @@ async fn update_and_save_usage(
     analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     now: i64,
 ) {
+    let user_id = user_state.user_id;
+
+    let response_input_tokens =
+        dialect_coach_shared::models::usage_stats::AgentUsage::input_tokens_total(&response_usage);
+    let response_output_tokens =
+        dialect_coach_shared::models::usage_stats::AgentUsage::output_tokens_total(&response_usage);
+    let response_retry_count =
+        dialect_coach_shared::models::usage_stats::AgentUsage::retry_count(&response_usage);
+    let response_estimate_count =
+        dialect_coach_shared::models::usage_stats::AgentUsage::estimate_count(&response_usage);
+
     tracing::info!(
-        "Updating usage stats for user {}: {} response events, {} analysis events",
-        user_state.user_id,
+        user_id = %user_id,
+        "Updating usage stats: {} response events ({} input, {} output tokens, {} retries, {} estimates)",
         response_usage.len(),
-        analysis_usage.len()
+        response_input_tokens,
+        response_output_tokens,
+        response_retry_count,
+        response_estimate_count
     );
 
     crate::usage_tracker::add_response_usage(&mut user_state.usage_stats, response_usage, now, 24);
+
     if !analysis_usage.is_empty() {
+        let analysis_input_tokens =
+            dialect_coach_shared::models::usage_stats::AgentUsage::input_tokens_total(
+                &analysis_usage,
+            );
+        let analysis_output_tokens =
+            dialect_coach_shared::models::usage_stats::AgentUsage::output_tokens_total(
+                &analysis_usage,
+            );
+        let analysis_retry_count =
+            dialect_coach_shared::models::usage_stats::AgentUsage::retry_count(&analysis_usage);
+        let analysis_estimate_count =
+            dialect_coach_shared::models::usage_stats::AgentUsage::estimate_count(&analysis_usage);
+
+        tracing::info!(
+            user_id = %user_id,
+            "Updating usage stats: {} analysis events ({} input, {} output tokens, {} retries, {} estimates)",
+            analysis_usage.len(),
+            analysis_input_tokens,
+            analysis_output_tokens,
+            analysis_retry_count,
+            analysis_estimate_count
+        );
+
         crate::usage_tracker::add_analysis_usage(
             &mut user_state.usage_stats,
             analysis_usage,
@@ -167,19 +205,20 @@ async fn update_and_save_usage(
     }
 
     tracing::info!(
-        "After update: {} total response events, {} total analysis events",
-        user_state.usage_stats.response_events.len(),
-        user_state.usage_stats.analysis_events.len()
+        user_id = %user_id,
+        "Usage stats updated: {} total response events, {} total analysis events",
+        user_state.usage_stats.response_count(),
+        user_state.usage_stats.analysis_count()
     );
 
     match state.user_persistence.save(&user_state).await {
         Ok(_) => tracing::info!(
-            "Successfully saved usage stats for user {}",
-            user_state.user_id
+            user_id = %user_id,
+            "Successfully saved usage stats"
         ),
         Err(e) => tracing::error!(
-            "Failed to save usage stats for user {}: {}",
-            user_state.user_id,
+            user_id = %user_id,
+            "Failed to save usage stats: {}",
             e
         ),
     }
@@ -512,12 +551,28 @@ async fn handle_load_user_state(
     user_id: Uuid,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
-    tracing::info!("Loading user state for user: {}", user_id);
+    tracing::info!(user_id = %user_id, "Loading user state");
 
     let response = match state.user_persistence.load(user_id).await {
-        Ok(user_state) => UserStateMessage::LoadResponse(user_state),
+        Ok(user_state) => {
+            if let Some(ref state) = user_state {
+                tracing::info!(
+                    user_id = %user_id,
+                    "Loaded user state with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
+                    state.usage_stats.response_count(),
+                    state.usage_stats.response_input_tokens(),
+                    state.usage_stats.response_output_tokens(),
+                    state.usage_stats.analysis_count(),
+                    state.usage_stats.analysis_input_tokens(),
+                    state.usage_stats.analysis_output_tokens(),
+                    state.usage_stats.tts_count(),
+                    state.usage_stats.tts_characters()
+                );
+            }
+            UserStateMessage::LoadResponse(user_state)
+        }
         Err(e) => {
-            tracing::error!("Failed to load user state: {}", e);
+            tracing::error!(user_id = %user_id, "Failed to load user state: {}", e);
             UserStateMessage::LoadResponse(None)
         }
     };
@@ -530,11 +585,35 @@ fn send_user_state_message(
     msg: &UserStateMessage,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
-    let json = serde_json::to_string(msg)
-        .map_err(|e| tracing::error!("Failed to serialize UserStateMessage: {}", e))?;
+    if let UserStateMessage::LoadResponse(Some(user_state)) = msg {
+        let user_id = user_state.user_id;
+        let json = serde_json::to_string(msg)
+            .map_err(|e| tracing::error!("Failed to serialize UserStateMessage: {}", e))?;
+        let message_size = json.len();
 
-    tx.send(json)
-        .map_err(|e| tracing::error!("Failed to send UserStateMessage: {}", e))?;
+        tracing::info!(
+            user_id = %user_id,
+            "Sending LoadResponse with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters), message size: {} bytes",
+            user_state.usage_stats.response_count(),
+            user_state.usage_stats.response_input_tokens(),
+            user_state.usage_stats.response_output_tokens(),
+            user_state.usage_stats.analysis_count(),
+            user_state.usage_stats.analysis_input_tokens(),
+            user_state.usage_stats.analysis_output_tokens(),
+            user_state.usage_stats.tts_count(),
+            user_state.usage_stats.tts_characters(),
+            message_size
+        );
+
+        tx.send(json)
+            .map_err(|e| tracing::error!("Failed to send UserStateMessage: {}", e))?;
+    } else {
+        let json = serde_json::to_string(msg)
+            .map_err(|e| tracing::error!("Failed to serialize UserStateMessage: {}", e))?;
+
+        tx.send(json)
+            .map_err(|e| tracing::error!("Failed to send UserStateMessage: {}", e))?;
+    }
 
     Ok(())
 }

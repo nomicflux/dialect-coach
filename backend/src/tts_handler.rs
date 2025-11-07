@@ -27,9 +27,29 @@ async fn track_tts_usage(
     mut user_state: dialect_coach_shared::UserState,
     characters: u64,
 ) {
+    let user_id = user_state.user_id;
     let now = chrono::Utc::now().timestamp();
+
+    tracing::info!(
+        user_id = %user_id,
+        "Tracking TTS usage: {} characters at timestamp {}",
+        characters,
+        now
+    );
+
     crate::usage_tracker::add_tts_usage(&mut user_state.usage_stats, characters, now, 24);
-    let _ = state.user_persistence.save(&user_state).await;
+
+    match state.user_persistence.save(&user_state).await {
+        Ok(_) => tracing::info!(
+            user_id = %user_id,
+            "Successfully saved TTS usage stats"
+        ),
+        Err(e) => tracing::error!(
+            user_id = %user_id,
+            "Failed to save TTS usage stats: {}",
+            e
+        ),
+    }
 }
 
 async fn handle_tts_success(

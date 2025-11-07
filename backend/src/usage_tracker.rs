@@ -1,4 +1,5 @@
 use dialect_coach_shared::models::usage_stats::{AgentUsage, TtsUsage, UsageStats};
+use tracing::info;
 
 /// Filters agent events to only those within the rolling window
 pub fn prune_old_agent_events(
@@ -8,22 +9,40 @@ pub fn prune_old_agent_events(
 ) -> Vec<AgentUsage> {
     let window_seconds = (window_hours as i64) * 3600;
     let cutoff = now - window_seconds;
-    events
+    let initial_count = events.len();
+    let pruned: Vec<AgentUsage> = events
         .iter()
         .filter(|e| e.timestamp > cutoff)
         .cloned()
-        .collect()
+        .collect();
+    let removed_count = initial_count - pruned.len();
+    if removed_count > 0 {
+        info!(
+            "Pruned {} old agent events (cutoff: {}, window: {} hours)",
+            removed_count, cutoff, window_hours
+        );
+    }
+    pruned
 }
 
 /// Filters TTS events to only those within the rolling window
 pub fn prune_old_tts_events(events: &[TtsUsage], window_hours: u32, now: i64) -> Vec<TtsUsage> {
     let window_seconds = (window_hours as i64) * 3600;
     let cutoff = now - window_seconds;
-    events
+    let initial_count = events.len();
+    let pruned: Vec<TtsUsage> = events
         .iter()
         .filter(|e| e.timestamp > cutoff)
         .cloned()
-        .collect()
+        .collect();
+    let removed_count = initial_count - pruned.len();
+    if removed_count > 0 {
+        info!(
+            "Pruned {} old TTS events (cutoff: {}, window: {} hours)",
+            removed_count, cutoff, window_hours
+        );
+    }
+    pruned
 }
 
 /// Adds response agent usage events and prunes old events
@@ -33,6 +52,17 @@ pub fn add_response_usage(
     now: i64,
     window_hours: u32,
 ) {
+    let count = new_usages.len();
+    let total_input_tokens = AgentUsage::input_tokens_total(&new_usages);
+    let total_output_tokens = AgentUsage::output_tokens_total(&new_usages);
+    let retry_count = AgentUsage::retry_count(&new_usages);
+    let estimate_count = AgentUsage::estimate_count(&new_usages);
+
+    info!(
+        "Adding {} response usage events: {} input tokens, {} output tokens, {} retries, {} estimates",
+        count, total_input_tokens, total_output_tokens, retry_count, estimate_count
+    );
+
     stats.response_events.extend(new_usages);
     stats.response_events = prune_old_agent_events(&stats.response_events, window_hours, now);
 }
@@ -44,12 +74,28 @@ pub fn add_analysis_usage(
     now: i64,
     window_hours: u32,
 ) {
+    let count = new_usages.len();
+    let total_input_tokens = AgentUsage::input_tokens_total(&new_usages);
+    let total_output_tokens = AgentUsage::output_tokens_total(&new_usages);
+    let retry_count = AgentUsage::retry_count(&new_usages);
+    let estimate_count = AgentUsage::estimate_count(&new_usages);
+
+    info!(
+        "Adding {} analysis usage events: {} input tokens, {} output tokens, {} retries, {} estimates",
+        count, total_input_tokens, total_output_tokens, retry_count, estimate_count
+    );
+
     stats.analysis_events.extend(new_usages);
     stats.analysis_events = prune_old_agent_events(&stats.analysis_events, window_hours, now);
 }
 
 /// Adds TTS usage event and prunes old events
 pub fn add_tts_usage(stats: &mut UsageStats, characters: u64, now: i64, window_hours: u32) {
+    info!(
+        "Adding TTS usage event: {} characters at timestamp {}",
+        characters, now
+    );
+
     let tts_event = TtsUsage {
         timestamp: now,
         characters,

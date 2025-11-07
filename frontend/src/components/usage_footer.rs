@@ -1,4 +1,4 @@
-use dialect_coach_shared::models::{AgentUsage, TtsUsage, UsageStats};
+use dialect_coach_shared::models::UsageStats;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -6,25 +6,6 @@ pub struct UsageFooterProps {
     pub usage_stats: UsageStats,
     pub is_collapsed: bool,
     pub on_toggle: Callback<()>,
-}
-
-fn count_agent_calls(events: &[AgentUsage]) -> usize {
-    events.len()
-}
-
-fn sum_agent_tokens(events: &[AgentUsage]) -> u64 {
-    events
-        .iter()
-        .map(|e| e.input_tokens + e.output_tokens)
-        .sum()
-}
-
-fn count_tts_calls(events: &[TtsUsage]) -> usize {
-    events.len()
-}
-
-fn sum_tts_characters(events: &[TtsUsage]) -> u64 {
-    events.iter().map(|e| e.characters).sum()
 }
 
 fn render_stat(label: &str, value: String) -> Html {
@@ -58,12 +39,12 @@ fn render_toggle_button(is_collapsed: bool, on_toggle: Callback<()>) -> Html {
 }
 
 fn render_content(stats: &UsageStats) -> Html {
-    let response_calls = count_agent_calls(&stats.response_events);
-    let response_tokens = sum_agent_tokens(&stats.response_events);
-    let analysis_calls = count_agent_calls(&stats.analysis_events);
-    let analysis_tokens = sum_agent_tokens(&stats.analysis_events);
-    let tts_calls = count_tts_calls(&stats.tts_events);
-    let tts_chars = sum_tts_characters(&stats.tts_events);
+    let response_calls = stats.response_count();
+    let response_tokens = stats.response_input_tokens() + stats.response_output_tokens();
+    let analysis_calls = stats.analysis_count();
+    let analysis_tokens = stats.analysis_input_tokens() + stats.analysis_output_tokens();
+    let tts_calls = stats.tts_count();
+    let tts_chars = stats.tts_characters();
 
     html! {
         <div class="usage-footer__content">
