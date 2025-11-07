@@ -468,6 +468,12 @@ fn remove_branch_messages(
     messages
 }
 
+fn prepare_state_for_action(state: &UserState) -> UserState {
+    let mut prepared = state.clone();
+    prepared.rebuild_branches_from_history();
+    prepared
+}
+
 fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserState {
     let mut next = state.clone();
     match action {
@@ -607,13 +613,15 @@ impl Reducible for OptionalUserState {
 
     fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
         match action {
-            UserStateAction::ReplaceUserState(new_state) => {
+            UserStateAction::ReplaceUserState(mut new_state) => {
+                new_state.rebuild_branches_from_history();
                 OptionalUserState(Some(new_state)).into()
             }
             UserStateAction::ClearUserState => OptionalUserState(None).into(),
             _ => match &self.0 {
                 Some(state) => {
-                    OptionalUserState(Some(apply_user_state_action(state, action))).into()
+                    let prepared = prepare_state_for_action(state);
+                    OptionalUserState(Some(apply_user_state_action(&prepared, action))).into()
                 }
                 None => self,
             },
@@ -626,6 +634,7 @@ mod tests {
     use super::*;
     use dialect_coach_shared::models::MessageMetadata;
     use dialect_coach_shared::models::{Dialect, Formality, Language, TeachingMode};
+    use std::rc::Rc;
 
     fn create_test_message(session_id: Uuid, parent_id: Option<Uuid>) -> Message {
         Message::user_message(
@@ -1022,5 +1031,47 @@ mod tests {
         assert!(state.conversation_history.iter().any(|m| m.id == msg_y.id));
         assert!(!state.conversation_history.iter().any(|m| m.id == msg_c.id));
         assert!(!state.conversation_history.iter().any(|m| m.id == msg_d.id));
+    }
+
+    #[test]
+    fn test_update_usage_stats_preserves_conversation_branches() {
+        let mut state = UserState::new(Uuid::new_v4());
+        let msg = create_test_message(Uuid::new_v4(), None);
+        state = apply_user_state_action(&state, UserStateAction::AddMessage(msg.clone()));
+        let history_len = state.conversation_history.len();
+        let branch_ids: Vec<Uuid> = state.branches.iter().map(|b| b.id).collect();
+
+        let updated = apply_user_state_action(
+            &state,
+            UserStateAction::UpdateUsageStats(UsageStats::default()),
+        );
+
+        assert_eq!(updated.conversation_history.len(), history_len);
+        let updated_ids: Vec<Uuid> = updated.branches.iter().map(|b| b.id).collect();
+        assert_eq!(updated_ids, branch_ids);
+    }
+
+    #[test]
+    fn test_optional_user_state_rebuilds_missing_branches_before_update() {
+        let mut base = UserState::new(Uuid::new_v4());
+        let msg = create_test_message(Uuid::new_v4(), None);
+        base.conversation_history.push(msg.clone());
+        base.branches.clear();
+        base.active_branch_id = Uuid::new_v4();
+
+        let optional = Rc::new(OptionalUserState(Some(base)));
+        let updated = OptionalUserState::reduce(
+            optional,
+            UserStateAction::UpdateUsageStats(UsageStats::default()),
+        );
+        let updated_state = updated.0.as_ref().unwrap();
+
+        assert!(!updated_state.branches.is_empty());
+        assert!(
+            updated_state
+                .branches
+                .iter()
+                .any(|branch| branch.leaf_message_id == Some(msg.id))
+        );
     }
 }

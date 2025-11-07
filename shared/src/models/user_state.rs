@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use super::{
@@ -108,11 +109,25 @@ impl UserState {
     }
 
     pub fn get_active_branch_messages(&self) -> Vec<&Message> {
+        if self.branches.is_empty() {
+            return Vec::new();
+        }
+
+        let branch_id = if self
+            .branches
+            .iter()
+            .any(|branch| branch.id == self.active_branch_id)
+        {
+            self.active_branch_id
+        } else {
+            self.select_active_branch(&self.branches)
+        };
+
         let leaf_id = self
             .branches
             .iter()
-            .find(|b| b.id == self.active_branch_id)
-            .and_then(|b| b.leaf_message_id);
+            .find(|branch| branch.id == branch_id)
+            .and_then(|branch| branch.leaf_message_id);
 
         self.get_path_to_message(leaf_id)
     }
@@ -146,6 +161,90 @@ impl UserState {
             .iter()
             .find(|branch| branch.id == branch_id)
             .and_then(|branch| branch.parent_message_id)
+    }
+
+    pub fn rebuild_branches_from_history(&mut self) -> bool {
+        if !self.branches.is_empty() {
+            return false;
+        }
+
+        if self.conversation_history.is_empty() {
+            self.reset_branches_to_root();
+            return true;
+        }
+
+        let leaves = self.find_leaf_message_ids();
+        if leaves.is_empty() {
+            self.reset_branches_to_root();
+            return true;
+        }
+
+        let branches = self.build_branches_from_leaves(leaves);
+        self.apply_rebuilt_branches(branches);
+        true
+    }
+
+    fn reset_branches_to_root(&mut self) {
+        let branch = ConversationBranch::new(None, None, None);
+        self.active_branch_id = branch.id;
+        self.branches = vec![branch];
+    }
+
+    fn find_leaf_message_ids(&self) -> Vec<Uuid> {
+        let mut parents = HashSet::new();
+        for msg in &self.conversation_history {
+            if let Some(parent) = msg.parent_id {
+                parents.insert(parent);
+            }
+        }
+
+        self.conversation_history
+            .iter()
+            .filter(|msg| !parents.contains(&msg.id))
+            .map(|msg| msg.id)
+            .collect()
+    }
+
+    fn build_branches_from_leaves(&self, leaves: Vec<Uuid>) -> Vec<ConversationBranch> {
+        let mut branches = Vec::with_capacity(leaves.len());
+        for leaf_id in leaves {
+            let parent_id = self.find_message(leaf_id).and_then(|msg| msg.parent_id);
+            branches.push(ConversationBranch::new(parent_id, None, Some(leaf_id)));
+        }
+        branches
+    }
+
+    fn apply_rebuilt_branches(&mut self, branches: Vec<ConversationBranch>) {
+        if branches.is_empty() {
+            self.reset_branches_to_root();
+            return;
+        }
+
+        let active_branch_id = self.select_active_branch(&branches);
+        self.active_branch_id = active_branch_id;
+        self.branches = branches;
+    }
+
+    fn select_active_branch(&self, branches: &[ConversationBranch]) -> Uuid {
+        self.branch_with_latest_leaf(branches)
+            .unwrap_or_else(|| branches[0].id)
+    }
+
+    fn branch_with_latest_leaf(&self, branches: &[ConversationBranch]) -> Option<Uuid> {
+        branches
+            .iter()
+            .filter_map(|branch| {
+                branch.leaf_message_id.and_then(|leaf_id| {
+                    self.find_message(leaf_id)
+                        .map(|msg| (branch.id, msg.metadata.timestamp))
+                })
+            })
+            .max_by_key(|(_, timestamp)| *timestamp)
+            .map(|(branch_id, _)| branch_id)
+    }
+
+    fn find_message(&self, id: Uuid) -> Option<&Message> {
+        self.conversation_history.iter().find(|msg| msg.id == id)
     }
 }
 
@@ -402,5 +501,39 @@ mod tests {
         let fake_branch_id = Uuid::new_v4();
         let root = state.find_branch_root(fake_branch_id);
         assert_eq!(root, None);
+    }
+
+    #[test]
+    fn test_rebuild_branches_from_history_creates_branch() {
+        let mut state = create_test_user_state();
+        let msg = create_test_message();
+        state.conversation_history.push(msg.clone());
+        state.branches.clear();
+        state.active_branch_id = Uuid::new_v4();
+
+        let rebuilt = state.rebuild_branches_from_history();
+
+        assert!(rebuilt);
+        assert_eq!(state.branches.len(), 1);
+        let branch = &state.branches[0];
+        assert_eq!(branch.leaf_message_id, Some(msg.id));
+        assert_eq!(state.active_branch_id, branch.id);
+    }
+
+    #[test]
+    fn test_get_active_branch_messages_fallbacks_to_existing_branch() {
+        let mut state = create_test_user_state();
+        let msg = create_test_message();
+        state.conversation_history.push(msg.clone());
+
+        if let Some(branch) = state.branches.first_mut() {
+            branch.leaf_message_id = Some(msg.id);
+        }
+        state.active_branch_id = Uuid::new_v4();
+
+        let messages = state.get_active_branch_messages();
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].id, msg.id);
     }
 }

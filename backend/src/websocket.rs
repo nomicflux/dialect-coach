@@ -223,6 +223,23 @@ fn log_total_usage(user_id: &Uuid, stats: &dialect_coach_shared::UsageStats) {
     );
 }
 
+fn log_branch_metadata(event: &str, state: &dialect_coach_shared::UserState) {
+    let branch_count = state.branches.len();
+    let active_branch_id = state.active_branch_id;
+    let has_active_branch = state.branches.iter().any(|b| b.id == active_branch_id);
+    let missing_leaf_count = state
+        .branches
+        .iter()
+        .filter(|branch| branch.leaf_message_id.is_none())
+        .count();
+
+    tracing::info!(user_id = %state.user_id, event, branch_count, conversation_len = state.conversation_history.len(), has_active_branch, missing_leaf_count, "Branch metadata snapshot");
+
+    if branch_count == 0 || !has_active_branch {
+        tracing::error!(user_id = %state.user_id, event, branch_count, has_active_branch, "Branch metadata invalid");
+    }
+}
+
 async fn save_usage_and_notify(
     state: &AppState,
     _user_state: dialect_coach_shared::UserState,
@@ -257,6 +274,62 @@ async fn send_usage_stats_update(
             }
         }
     }
+}
+
+async fn register_user_state_connection(
+    state: &AppState,
+    user_id: Uuid,
+    tx: &mpsc::UnboundedSender<String>,
+) {
+    let mut connections = state.user_state_connections.lock().await;
+    connections.insert(user_id, tx.clone());
+    tracing::info!(user_id = %user_id, "Registered user state WebSocket connection");
+}
+
+async fn load_user_state_response(state: &AppState, user_id: Uuid) -> UserStateMessage {
+    match state.user_persistence.load(user_id).await {
+        Ok(user_state) => create_load_response(user_id, user_state),
+        Err(e) => {
+            tracing::error!(user_id = %user_id, "Failed to load user state: {}", e);
+            UserStateMessage::LoadResponse(None)
+        }
+    }
+}
+
+fn create_load_response(user_id: Uuid, user_state: Option<UserState>) -> UserStateMessage {
+    match user_state {
+        Some(mut state) => {
+            if state.rebuild_branches_from_history() {
+                tracing::warn!(user_id = %user_id, "Rebuilt branch metadata from conversation history");
+            }
+            log_branch_metadata("load_user_state", &state);
+            log_usage_stats_snapshot(user_id, &state);
+            UserStateMessage::LoadResponse(Some(state))
+        }
+        None => UserStateMessage::LoadResponse(None),
+    }
+}
+
+fn log_usage_stats_snapshot(user_id: Uuid, state: &UserState) {
+    tracing::info!(
+        user_id = %user_id,
+        "Loaded user state with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
+        state.usage_stats.response_count(),
+        state.usage_stats.response_input_tokens(),
+        state.usage_stats.response_output_tokens(),
+        state.usage_stats.analysis_count(),
+        state.usage_stats.analysis_input_tokens(),
+        state.usage_stats.analysis_output_tokens(),
+        state.usage_stats.tts_count(),
+        state.usage_stats.tts_characters()
+    );
+}
+
+fn prepare_user_state_for_save(user_state: &mut UserState) {
+    if user_state.rebuild_branches_from_history() {
+        tracing::warn!(user_id = %user_state.user_id, "Rebuilt branch metadata before save");
+    }
+    log_branch_metadata("save_user_state", user_state);
 }
 
 fn should_check_analysis_limit(
@@ -567,6 +640,8 @@ async fn handle_save_user_state(
     user_state: UserState,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
+    let mut user_state = user_state;
+    prepare_user_state_for_save(&mut user_state);
     tracing::info!("Saving user state for user: {}", user_state.user_id);
 
     let response = match state.user_persistence.save(&user_state).await {
@@ -588,39 +663,8 @@ async fn handle_load_user_state(
 ) -> Result<(), ()> {
     tracing::info!(user_id = %user_id, "Loading user state");
 
-    {
-        let mut connections = state.user_state_connections.lock().await;
-        connections.insert(user_id, tx.clone());
-        tracing::info!(
-            user_id = %user_id,
-            "Registered user state WebSocket connection"
-        );
-    }
-
-    let response = match state.user_persistence.load(user_id).await {
-        Ok(user_state) => {
-            if let Some(ref state) = user_state {
-                tracing::info!(
-                    user_id = %user_id,
-                    "Loaded user state with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
-                    state.usage_stats.response_count(),
-                    state.usage_stats.response_input_tokens(),
-                    state.usage_stats.response_output_tokens(),
-                    state.usage_stats.analysis_count(),
-                    state.usage_stats.analysis_input_tokens(),
-                    state.usage_stats.analysis_output_tokens(),
-                    state.usage_stats.tts_count(),
-                    state.usage_stats.tts_characters()
-                );
-            }
-            UserStateMessage::LoadResponse(user_state)
-        }
-        Err(e) => {
-            tracing::error!(user_id = %user_id, "Failed to load user state: {}", e);
-            UserStateMessage::LoadResponse(None)
-        }
-    };
-
+    register_user_state_connection(state, user_id, tx).await;
+    let response = load_user_state_response(state, user_id).await;
     send_user_state_message(&response, tx)
 }
 
