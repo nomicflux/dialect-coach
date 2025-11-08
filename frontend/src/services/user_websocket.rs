@@ -1,10 +1,9 @@
-use dialect_coach_shared::{User, UserMessage};
+use dialect_coach_shared::{AuthCredentials, User, UserMessage};
 use futures_util::{SinkExt, StreamExt};
 use gloo_net::websocket::{Message as WsMessage, futures::WebSocket};
 use log::{error, info};
 use std::cell::RefCell;
 use std::rc::Rc;
-use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use yew::Callback;
 
@@ -90,8 +89,17 @@ impl UserWebSocketService {
     }
 
     /// Create a new user
-    pub fn create_user(&self, user_id: Uuid, username: String) -> Result<(), String> {
-        let msg = UserMessage::CreateUser { user_id, username };
+    pub fn create_user(
+        &self,
+        username: String,
+        email: String,
+        credentials: AuthCredentials,
+    ) -> Result<(), String> {
+        let msg = UserMessage::CreateUser {
+            username,
+            email,
+            credentials,
+        };
         self.send_message(&msg)
     }
 

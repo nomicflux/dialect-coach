@@ -1,12 +1,13 @@
 use anyhow::Result;
-use dialect_coach_backend::persistence::{SledPersistence, UserPersistence};
+use dialect_coach_backend::persistence::{self, SledPersistence, UserPersistence};
 use dialect_coach_shared::InviteCode;
 use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
-    let db = SledPersistence::new("./data/sled.db")?;
+    let db_path = persistence::get_db_path();
+    let db = SledPersistence::new(&db_path)?;
 
     match args.get(1).map(String::as_str) {
         Some("generate-invite") => generate_invite(&db, &args).await,

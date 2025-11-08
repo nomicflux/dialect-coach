@@ -1,6 +1,6 @@
 use super::{
-    AgentResponse, Dialect, Explained, Formality, Language, Mistake, TeachingMode, UsageStats,
-    User, UserState,
+    AgentResponse, AuthCredentials, Dialect, Explained, Formality, Language, Mistake,
+    TeachingMode, UsageStats, User, UserState,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -175,7 +175,11 @@ pub enum UserStateMessage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum UserMessage {
     /// Request to create a new user (Client → Server)
-    CreateUser { user_id: Uuid, username: String },
+    CreateUser {
+        username: String,
+        email: String,
+        credentials: AuthCredentials,
+    },
     /// Response to create user request (Server → Client)
     CreateUserResponse(Result<User, String>),
     /// Request to sign in with username (Client → Server)
@@ -525,17 +529,19 @@ mod tests {
 
     #[test]
     fn test_user_message_create_user_serialization() {
-        let user_id = Uuid::new_v4();
         let username = "testuser".to_string();
+        let email = "test@example.com".to_string();
+        let credentials = AuthCredentials::InviteCode("CODE123".to_string());
         let msg = UserMessage::CreateUser {
-            user_id,
             username: username.clone(),
+            email: email.clone(),
+            credentials: credentials.clone(),
         };
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"CreateUser\""));
-        assert!(json.contains(&user_id.to_string()));
         assert!(json.contains("testuser"));
+        assert!(json.contains("test@example.com"));
 
         let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, msg);
@@ -572,8 +578,10 @@ mod tests {
     #[test]
     fn test_user_message_sign_in_serialization() {
         let username = "bob".to_string();
+        let credentials = AuthCredentials::InviteCode("CODE456".to_string());
         let msg = UserMessage::SignIn {
             username: username.clone(),
+            credentials: credentials.clone(),
         };
 
         let json = serde_json::to_string(&msg).unwrap();

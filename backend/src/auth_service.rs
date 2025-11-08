@@ -11,7 +11,7 @@ pub enum AuthCredentials {
     Token(String),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum AuthError {
     #[error("User already exists")]
     UserExists,
@@ -53,7 +53,7 @@ pub trait AuthService: Send + Sync {
         credentials: AuthCredentials,
     ) -> Result<User>;
 
-    async fn authenticate(&self, username: &str, credentials: AuthCredentials) -> Result<User>;
+    async fn authenticate(&self, username: &str) -> Result<User>;
 
     async fn is_authorized(&self, user_id: Uuid) -> Result<bool>;
 }
@@ -101,7 +101,7 @@ impl AuthService for InviteCodeAuthService {
         Ok(user)
     }
 
-    async fn authenticate(&self, username: &str, _credentials: AuthCredentials) -> Result<User> {
+    async fn authenticate(&self, username: &str) -> Result<User> {
         self.persistence
             .load_user_by_username(username)
             .await
@@ -120,11 +120,17 @@ impl AuthService for InviteCodeAuthService {
 
 impl InviteCodeAuthService {
     async fn validate_invite_code(&self, code: &str) -> Result<dialect_coach_shared::InviteCode, AuthError> {
+        tracing::info!("Validating invite code, length: {}, bytes: {:?}, trimmed: '{}'",
+            code.len(), code.as_bytes(), code.trim());
+
         let invite = self.persistence
             .load_invite_code(code)
             .await
             .map_err(|e| AuthError::Persistence(e.to_string()))?
-            .ok_or_else(|| AuthError::Unauthorized(UnauthorizedReason::InviteCodeInvalid))?;
+            .ok_or_else(|| {
+                tracing::error!("Invite code not found in database: '{}'", code);
+                AuthError::Unauthorized(UnauthorizedReason::InviteCodeInvalid)
+            })?;
 
         let now = Self::current_timestamp();
 

@@ -627,80 +627,61 @@ async fn list_invite_codes(
 
 ---
 
-### Phase 9: Frontend - User Creation UI (Research First)
-
-**Subagent**: modular-builder (need to research frontend structure first)
-
-**Research required**:
-1. Find frontend user creation code (Yew components)
-2. Find current username-only creation flow
-3. Understand WebSocket message protocol
-4. Find shared message types for user creation
-
-**Files to research** (examples, actual paths TBD):
-- frontend/src/components/user_creation.rs (or similar)
-- frontend/src/services/websocket.rs (or similar)
-- shared/src/models/events.rs (WebSocket events)
-
-**Specification** (after research):
-- Replace username-only input with button "Create Account"
-- Button opens form with fields:
-  - Username (text input, required)
-  - Email (email input, required)
-  - Invite Code (text input, required)
-- Form validation (non-empty, valid email format)
-- Submit → WebSocket message to backend
-- Handle response (success → login, error → display message)
-
-**Phase 9 tasks**: To be defined after research
-
-**Next step**: Research frontend codebase, create detailed spec, update this doc
-
----
-
-### Phase 10: Frontend - Sign-In UI
+### Phase 9: Frontend - User Creation UI
 
 **Subagent**: modular-builder
 
-**Prerequisites**: Phase 9 complete (understand frontend structure)
+**Research Complete** (2025-11-07):
+- Current UI: Simple username-only forms in header.rs (lines 48-86)
+- UIState manages form inputs: `create_username_input`, `signin_username_input`
+- UserWebSocketService sends messages (user_websocket.rs)
+- Callbacks in callbacks.rs handle creation/sign-in (lines 149-246)
+- UserMessage enum in shared/src/models/message.rs defines protocol
 
-**Specification** (after research):
-- Sign-in form with fields:
-  - Username (text input, required)
-  - Invite Code (text input, required) - Note: might be removed later for returning users
-- Submit → WebSocket authenticate message
-- Handle response (success → login, error → display)
+**Files to modify**:
+- `shared/src/models/message.rs` - Extend UserMessage enum with email and invite_code fields
+- `frontend/src/app/app_state.rs` - Add email_input and invite_code_input to UIState
+- `frontend/src/components/header.rs` - Add email and invite code input fields to forms
+- `frontend/src/services/user_websocket.rs` - Update create_user and sign_in method signatures
+- `frontend/src/app/callbacks.rs` - Update callbacks to handle new fields
 
-**Phase 10 tasks**: To be defined after Phase 9 research
+**Specification**:
+1. Update UserMessage::CreateUser to include email and invite_code fields
+2. Update UserMessage::SignIn to include invite_code field
+3. Add to UIState:
+   - `create_email_input: String`
+   - `create_invite_code_input: String`
+   - `signin_invite_code_input: String`
+4. Update header.rs forms:
+   - Create Account: username + email + invite code inputs
+   - Sign In: username + invite code inputs
+5. Update UserWebSocketService methods to accept new parameters
+6. Update callbacks to extract and validate new fields
+7. Add error display for invalid invite codes
 
-**Next step**: After Phase 9, define detailed tasks, update this doc
+**Next step**: Implement Phase 9 changes
 
 ---
 
-### Phase 11: Backend - WebSocket Integration
+### Phase 10: Backend - WebSocket Integration
 
-**Subagent**: modular-builder (integrate AuthService into WebSocket handlers)
+**Subagent**: modular-builder
 
-**Prerequisites**: Phases 1-8 complete (backend auth service ready)
+**Prerequisites**: Phases 1-9 complete
 
-**Research required**:
-1. Find WebSocket handler code
-2. Understand current user creation/login flow
-3. Find where UserPersistence is currently used
+**Files to modify**:
+- `backend/src/websocket.rs` - Integrate AuthService into user message handlers
+- `backend/src/main.rs` - Add AuthService to application state
 
-**Files to research**:
-- backend/src/websocket.rs (or similar)
-- backend/src/main.rs (startup, dependency injection)
+**Specification**:
+1. Add InviteCodeAuthService to WebSocketState
+2. Update `handle_user_message` function:
+   - CreateUser: Call auth_service.create_user() instead of persistence.create_user()
+   - SignIn: Call auth_service.authenticate() instead of persistence.load_user_by_username()
+3. Handle AuthError responses (convert to clear error messages for frontend)
+4. Remove old direct persistence calls for user creation
 
-**Specification** (after research):
-- Add AuthService to WebSocket handler state
-- Create handler for user creation message (calls AuthService::create_user)
-- Create handler for authenticate message (calls AuthService::authenticate)
-- Return clear error messages to frontend
-
-**Phase 11 tasks**: To be defined after research
-
-**Next step**: After Phases 1-8, research WebSocket code, create detailed spec, update this doc
+**Next step**: After Phase 9, implement backend integration
 
 ---
 
@@ -723,11 +704,36 @@ async fn list_invite_codes(
   - 16 User::new() calls updated across codebase
   - 369+ tests passing, 100% success rate
 
+- **Phase 3-5** (2025-11-07): Extended UserPersistence trait and implemented invite code persistence
+  - Added 5 methods to UserPersistence trait: create_invite_code, load_invite_code, save_invite_code, list_invite_codes, delete_invite_code
+  - Implemented in SledPersistence using "invite_codes" tree
+  - Implemented in InMemoryPersistence using HashMap
+  - All existing tests passing
+
+- **Phase 6** (2025-11-07): Created AuthService trait
+  - Created backend/src/auth_service.rs
+  - Defined AuthService trait with create_user, authenticate, is_authorized methods
+  - Defined AuthError with grouped Unauthorized variants
+  - cargo check passes
+
+- **Phase 7** (2025-11-07): Implemented InviteCodeAuthService
+  - Implemented InviteCodeAuthService struct
+  - All AuthService trait methods implemented
+  - Helper functions: validate_invite_code, check_username_available, create_and_persist_user, mark_code_used
+  - All functions < 20 lines
+  - Comprehensive tests passing
+
+- **Phase 8** (2025-11-07): Created admin CLI
+  - Created backend/src/bin/admin.rs
+  - Commands: generate-invite, list-invites, delete-invite
+  - All functions < 20 lines
+  - Manually tested and working
+
 ## Next Actions
 
-1. Phase 3: Extend UserPersistence trait with invite code methods
-2. Phase 4: Implement Sled persistence for invite codes
-3. Phase 5: Implement InMemory persistence for invite codes
+1. Phase 9: Research frontend structure (user creation flow, WebSocket protocol, message types)
+2. Phase 10: Implement frontend sign-in UI
+3. Phase 11: Integrate AuthService into WebSocket handlers
 
 ## Questions / Clarifications Needed
 

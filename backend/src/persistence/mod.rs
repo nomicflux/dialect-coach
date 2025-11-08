@@ -7,6 +7,19 @@ use uuid::Uuid;
 
 pub use sled::SledPersistence;
 
+pub fn get_db_path() -> String {
+    std::env::var("DB_PATH").unwrap_or_else(|_| {
+        let workspace_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("Failed to get workspace root")
+            .to_path_buf();
+        workspace_root.join("data").join("dialect-coach.db")
+            .to_str()
+            .expect("Invalid path")
+            .to_string()
+    })
+}
+
 /// Trait for persisting user state
 ///
 /// Implementations can use any storage backend and handle their own interior mutability.

@@ -1,4 +1,4 @@
-use crate::app::app_callbacks::{on_create_user_click, on_signin_click, on_signout_click};
+use crate::app::app_callbacks::{on_signin_click, on_signout_click};
 use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UIState, UIStateAction};
 use crate::services::websocket::ConnectionState;
 use yew::prelude::*;
@@ -13,6 +13,63 @@ pub struct HeaderProps {
 impl PartialEq for HeaderProps {
     fn eq(&self, _other: &Self) -> bool {
         false
+    }
+}
+
+fn create_input_field(
+    value: String,
+    action: impl Fn(String) -> UIStateAction + 'static,
+    ui_state: &UseReducerHandle<UIState>,
+    input_type: String,
+    placeholder: String,
+) -> Html {
+    let ui_state = ui_state.clone();
+    html! {
+        <input
+            type={input_type}
+            placeholder={placeholder}
+            value={value}
+            oninput={Callback::from(move |e: InputEvent| {
+                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                    ui_state.dispatch(action(input.value()));
+                }
+            })}
+        />
+    }
+}
+
+fn render_create_button(ui_state: &UseReducerHandle<UIState>) -> Html {
+    let ui_state = ui_state.clone();
+    html! {
+        <button
+            class="btn btn--primary"
+            onclick={Callback::from(move |_: MouseEvent| {
+                ui_state.dispatch(UIStateAction::ShowUserCreationPage);
+            })}
+        >
+            {"Create Account"}
+        </button>
+    }
+}
+
+fn render_signin_form(
+    app_state: &UseReducerHandle<AppState>,
+    ui_state: &UseReducerHandle<UIState>,
+) -> Html {
+    html! {
+        <div class="user-form">
+            <label>{"Sign In"}</label>
+            {create_input_field(
+                ui_state.signin_username_input.clone(),
+                UIStateAction::SetSigninUsernameInput,
+                ui_state,
+                "text".to_string(),
+                "Username".to_string()
+            )}
+            <button onclick={on_signin_click(app_state.clone(), ui_state.clone())}>
+                {"Sign In"}
+            </button>
+        </div>
     }
 }
 
@@ -32,7 +89,6 @@ pub fn header(props: &HeaderProps) -> Html {
                     <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p>
                 </div>
 
-                // User management section
                 <div class="user-section">
                     {if let Some(user) = app_state.current_user.as_ref() {
                         html! {
@@ -46,42 +102,8 @@ pub fn header(props: &HeaderProps) -> Html {
                     } else {
                         html! {
                             <div class="user-forms">
-                                <div class="user-form">
-                                    <label>{"Create: "}</label>
-                                    <input
-                                        type="text"
-                                        value={ui_state.create_username_input.clone()}
-                                        oninput={{
-                                            let ui_state = ui_state.clone();
-                                            Callback::from(move |e: InputEvent| {
-                                                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                    ui_state.dispatch(UIStateAction::SetCreateUsernameInput(input.value()));
-                                                }
-                                            })
-                                        }}
-                                    />
-                                    <button onclick={on_create_user_click(app_state.clone(), ui_state.clone(), user_state.clone())}>
-                                        {"Create Account"}
-                                    </button>
-                                </div>
-                                <div class="user-form">
-                                    <label>{"Sign In: "}</label>
-                                    <input
-                                        type="text"
-                                        value={ui_state.signin_username_input.clone()}
-                                        oninput={{
-                                            let ui_state = ui_state.clone();
-                                            Callback::from(move |e: InputEvent| {
-                                                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                    ui_state.dispatch(UIStateAction::SetSigninUsernameInput(input.value()));
-                                                }
-                                            })
-                                        }}
-                                    />
-                                    <button onclick={on_signin_click(app_state.clone(), ui_state.clone())}>
-                                        {"Sign In"}
-                                    </button>
-                                </div>
+                                {render_create_button(ui_state)}
+                                {render_signin_form(app_state, ui_state)}
                             </div>
                         }
                     }}

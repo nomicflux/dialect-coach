@@ -41,6 +41,7 @@ pub struct AppState {
     pub embeddings: Arc<embedding_service::EmbeddingService>,
     pub session_histories: Arc<Mutex<HashMap<Uuid, Vec<String>>>>,
     pub user_persistence: Arc<dyn UserPersistence>,
+    pub auth_service: Arc<dyn auth_service::AuthService>,
     pub rate_limiter: Arc<rate_limiter::service::RateLimiter>,
     pub rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
     pub org_quota_checker: Arc<rate_limiter::org_quota::OrgQuotaChecker>,
@@ -132,14 +133,16 @@ async fn main() -> Result<()> {
         .context("Failed to initialize agent service")?;
 
     tracing::info!("Initializing user persistence...");
-    let db_path =
-        std::env::var("DB_PATH").unwrap_or_else(|_| "./data/dialect-coach.db".to_string());
+    let db_path = persistence::get_db_path();
     let user_persistence: Arc<dyn UserPersistence> =
         Arc::new(SledPersistence::new(&db_path).context("Failed to create SledPersistence")?);
     user_persistence
         .initialize()
         .await
         .context("Failed to initialize user persistence")?;
+
+    let auth_service: Arc<dyn auth_service::AuthService> =
+        Arc::new(auth_service::InviteCodeAuthService::new(user_persistence.clone()));
 
     let rate_limit_config = Arc::new(rate_limiter::config::RateLimitConfig::from_env());
 
@@ -179,6 +182,7 @@ async fn main() -> Result<()> {
         embeddings,
         session_histories: Arc::new(Mutex::new(HashMap::new())),
         user_persistence,
+        auth_service,
         rate_limiter,
         rate_limit_config,
         org_quota_checker,

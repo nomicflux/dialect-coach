@@ -2,7 +2,7 @@ use crate::app::app_helpers::extract_learning_items;
 use crate::app::app_state::{
     AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
 };
-use dialect_coach_shared::{PastLearningItems, UserMessageWithContext, UserState};
+use dialect_coach_shared::{AuthCredentials, PastLearningItems, UserMessageWithContext, UserState};
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -153,12 +153,14 @@ pub fn on_create_user_click(
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
         let username = ui_state.create_username_input.clone();
-        // Generate new UUID for creating account (user_state is None at this point)
-        let user_id = Uuid::new_v4();
+        let email = ui_state.create_email_input.clone();
+        let invite_code = ui_state.create_invite_code_input.clone();
+        let credentials = AuthCredentials::InviteCode(invite_code);
+
         if let Err(e) = app_state
             .user_ws_service
             .borrow()
-            .create_user(user_id, username)
+            .create_user(username, email, credentials)
         {
             error!("Failed to create user: {}", e);
             app_state.dispatch(AppStateAction::SetError(format!(
@@ -175,6 +177,7 @@ pub fn on_signin_click(
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
         let username = ui_state.signin_username_input.clone();
+
         if let Err(e) = app_state.user_ws_service.borrow().sign_in(username) {
             error!("Failed to sign in: {}", e);
             app_state.dispatch(AppStateAction::SetError(format!(
@@ -183,6 +186,12 @@ pub fn on_signin_click(
             )));
         }
     })
+}
+
+fn clear_create_form_inputs(ui_state: &UseReducerHandle<UIState>) {
+    ui_state.dispatch(UIStateAction::ClearCreateUsernameInput);
+    ui_state.dispatch(UIStateAction::ClearCreateEmailInput);
+    ui_state.dispatch(UIStateAction::ClearCreateInviteCodeInput);
 }
 
 pub fn on_user_create_response(
@@ -194,13 +203,12 @@ pub fn on_user_create_response(
         match result {
             Ok(user) => {
                 info!("User created successfully: {}", user.username);
-                ui_state.dispatch(UIStateAction::ClearCreateUsernameInput);
+                clear_create_form_inputs(&ui_state);
+                ui_state.dispatch(UIStateAction::HideUserCreationPage);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
 
-                // Create new session
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
 
-                // Create new UserState for the user
                 let new_state = UserState::new(user.id);
                 user_state.dispatch(UserStateAction::ReplaceUserState(new_state.clone()));
                 app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));
@@ -215,6 +223,11 @@ pub fn on_user_create_response(
     })
 }
 
+fn clear_signin_form_inputs(ui_state: &UseReducerHandle<UIState>) {
+    ui_state.dispatch(UIStateAction::ClearSigninUsernameInput);
+    ui_state.dispatch(UIStateAction::ClearSigninInviteCodeInput);
+}
+
 pub fn on_user_signin_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
@@ -224,13 +237,11 @@ pub fn on_user_signin_response(
         match result {
             Ok(user) => {
                 info!("Signed in successfully as: {}", user.username);
-                ui_state.dispatch(UIStateAction::ClearSigninUsernameInput);
+                clear_signin_form_inputs(&ui_state);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
 
-                // Create new session
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
 
-                // Create UserState - will be populated from backend via WebSocket
                 let new_state = UserState::new(user.id);
                 user_state.dispatch(UserStateAction::ReplaceUserState(new_state.clone()));
                 app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));

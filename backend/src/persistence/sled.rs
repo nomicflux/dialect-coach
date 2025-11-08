@@ -10,7 +10,9 @@ pub struct SledPersistence {
 
 impl SledPersistence {
     pub fn new(path: &str) -> Result<Self> {
-        tracing::info!("Initializing sled database at: {}", path);
+        let abs_path = std::fs::canonicalize(std::path::Path::new(path).parent().unwrap())
+            .unwrap_or_else(|_| std::path::PathBuf::from(path));
+        tracing::info!("Initializing sled database at: {} (resolved: {:?})", path, abs_path);
         let db = sled::open(path)?;
         Ok(Self { db })
     }
@@ -144,10 +146,23 @@ impl UserPersistence for SledPersistence {
 
     async fn load_invite_code(&self, code: &str) -> Result<Option<InviteCode>> {
         let tree = self.invite_codes_tree()?;
+        tracing::info!("Loading invite code: '{}' (len: {}, bytes: {:?})", code, code.len(), code.as_bytes());
+
+        // Debug: List all codes in tree
+        tracing::info!("All codes in database:");
+        for item in tree.iter() {
+            if let Ok((key, _)) = item {
+                let key_str = String::from_utf8_lossy(&key);
+                tracing::info!("  - '{}' (len: {}, bytes: {:?})", key_str, key.len(), &key[..]);
+            }
+        }
+
         let result = tree
             .get(code.as_bytes())?
             .map(|bytes| deserialize_from_json(&bytes))
             .transpose()?;
+
+        tracing::info!("Load result: {}", if result.is_some() { "FOUND" } else { "NOT FOUND" });
         Ok(result)
     }
 

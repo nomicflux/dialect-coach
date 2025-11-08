@@ -206,12 +206,20 @@ pub enum UIStateAction {
     ToggleUsageFooter,
     SetCreateUsernameInput(String),
     SetSigninUsernameInput(String),
+    SetCreateEmailInput(String),
+    SetCreateInviteCodeInput(String),
+    SetSigninInviteCodeInput(String),
     ClearCreateUsernameInput,
     ClearSigninUsernameInput,
+    ClearCreateEmailInput,
+    ClearCreateInviteCodeInput,
+    ClearSigninInviteCodeInput,
     PushDeletedLearningItem(LearningItem),
     PopDeletedLearningItem,
     PushDeletedMessage(Message),
     PopDeletedMessage,
+    ShowUserCreationPage,
+    HideUserCreationPage,
 }
 
 #[derive(Clone, Default)]
@@ -225,8 +233,12 @@ pub struct UIState {
     pub usage_footer_collapsed: bool,
     pub create_username_input: String,
     pub signin_username_input: String,
+    pub create_email_input: String,
+    pub create_invite_code_input: String,
+    pub signin_invite_code_input: String,
     pub deleted_learning_items: VecDeque<LearningItem>,
     pub deleted_messages: VecDeque<Message>,
+    pub show_user_creation_page: bool,
 }
 
 impl UIState {
@@ -250,8 +262,18 @@ impl UIState {
             }
             UIStateAction::SetCreateUsernameInput(input) => next.create_username_input = input,
             UIStateAction::SetSigninUsernameInput(input) => next.signin_username_input = input,
+            UIStateAction::SetCreateEmailInput(input) => next.create_email_input = input,
+            UIStateAction::SetCreateInviteCodeInput(input) => next.create_invite_code_input = input,
+            UIStateAction::SetSigninInviteCodeInput(input) => next.signin_invite_code_input = input,
             UIStateAction::ClearCreateUsernameInput => next.create_username_input = String::new(),
             UIStateAction::ClearSigninUsernameInput => next.signin_username_input = String::new(),
+            UIStateAction::ClearCreateEmailInput => next.create_email_input = String::new(),
+            UIStateAction::ClearCreateInviteCodeInput => {
+                next.create_invite_code_input = String::new()
+            }
+            UIStateAction::ClearSigninInviteCodeInput => {
+                next.signin_invite_code_input = String::new()
+            }
             UIStateAction::PushDeletedLearningItem(item) => {
                 next.deleted_learning_items.push_back(item);
                 if next.deleted_learning_items.len() > 10 {
@@ -269,6 +291,12 @@ impl UIState {
             }
             UIStateAction::PopDeletedMessage => {
                 next.deleted_messages.pop_back();
+            }
+            UIStateAction::ShowUserCreationPage => {
+                next.show_user_creation_page = true;
+            }
+            UIStateAction::HideUserCreationPage => {
+                next.show_user_creation_page = false;
             }
         }
         next

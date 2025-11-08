@@ -6,7 +6,7 @@ use axum::{
     response::Response,
 };
 use dialect_coach_shared::{
-    AgentResponse, Dialect, Message, MessageContent, MessageMetadata, User, UserMessage,
+    AgentResponse, Dialect, Message, MessageContent, MessageMetadata, UserMessage,
     UserMessageWithContext, UserState, UserStateMessage,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -21,6 +21,26 @@ use crate::AppState;
 use crate::agent_service::{AgentService, response::GenerateResponseParams};
 use crate::rag_config::RAGConfig;
 use crate::rate_limiter::service::RateLimiterService;
+
+fn auth_error_to_message(error: crate::auth_service::AuthError) -> String {
+    use crate::auth_service::{AuthError, UnauthorizedReason};
+    match error {
+        AuthError::UserExists => "Username already taken".to_string(),
+        AuthError::InvalidCredentials => "Invalid credentials".to_string(),
+        AuthError::UserNotFound => "User not found".to_string(),
+        AuthError::Unauthorized(UnauthorizedReason::InviteCodeExpired) => {
+            "Invite code has expired".to_string()
+        }
+        AuthError::Unauthorized(UnauthorizedReason::InviteCodeInvalid) => {
+            "Invalid invite code".to_string()
+        }
+        AuthError::Unauthorized(UnauthorizedReason::InviteCodeUsed) => {
+            "Invite code already used".to_string()
+        }
+        AuthError::Unauthorized(UnauthorizedReason::Other(msg)) => msg,
+        AuthError::Persistence(msg) => format!("Authentication error: {}", msg),
+    }
+}
 
 fn error_to_agent_response(error_message: String) -> AgentResponse {
     AgentResponse::from(error_message)
@@ -795,21 +815,36 @@ async fn handle_user_state_socket(socket: WebSocket, state: AppState) {
     tracing::info!("User state WebSocket connection closed: {}", connection_id);
 }
 
+fn convert_auth_credentials(creds: dialect_coach_shared::AuthCredentials) -> crate::auth_service::AuthCredentials {
+    match creds {
+        dialect_coach_shared::AuthCredentials::InviteCode(code) => {
+            tracing::info!("Converting invite code, length: {}, content: '{}'", code.len(), code);
+            crate::auth_service::AuthCredentials::Token(code)
+        },
+    }
+}
+
 /// Handle create user request
 async fn handle_create_user(
     state: &AppState,
-    user_id: Uuid,
     username: String,
+    email: String,
+    credentials: dialect_coach_shared::AuthCredentials,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
-    tracing::info!("Creating user: {} with id {}", username, user_id);
+    tracing::info!("Creating user: {} with email {}", username, email);
 
-    let user = User::new(user_id, username.clone(), "user@example.com".to_string());
-    let response = match state.user_persistence.create_user(&user).await {
-        Ok(_) => UserMessage::CreateUserResponse(Ok(user)),
+    let auth_creds = convert_auth_credentials(credentials);
+    let response = match state.auth_service.create_user(username, email, auth_creds).await {
+        Ok(user) => UserMessage::CreateUserResponse(Ok(user)),
         Err(e) => {
-            tracing::error!("Failed to create user: {}", e);
-            UserMessage::CreateUserResponse(Err(e.to_string()))
+            let error_msg = if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
+                auth_error_to_message(auth_error.clone())
+            } else {
+                format!("Failed to create user: {}", e)
+            };
+            tracing::error!("{}", error_msg);
+            UserMessage::CreateUserResponse(Err(error_msg))
         }
     };
 
@@ -824,19 +859,16 @@ async fn handle_sign_in(
 ) -> Result<(), ()> {
     tracing::info!("Sign in request for user: {}", username);
 
-    let response = match state
-        .user_persistence
-        .load_user_by_username(&username)
-        .await
-    {
-        Ok(Some(user)) => UserMessage::SignInResponse(Ok(user)),
-        Ok(None) => {
-            tracing::warn!("User not found: {}", username);
-            UserMessage::SignInResponse(Err("User not found".to_string()))
-        }
+    let response = match state.auth_service.authenticate(&username).await {
+        Ok(user) => UserMessage::SignInResponse(Ok(user)),
         Err(e) => {
-            tracing::error!("Failed to load user: {}", e);
-            UserMessage::SignInResponse(Err(e.to_string()))
+            let error_msg = if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
+                auth_error_to_message(auth_error.clone())
+            } else {
+                format!("Authentication failed: {}", e)
+            };
+            tracing::warn!("{}", error_msg);
+            UserMessage::SignInResponse(Err(error_msg))
         }
     };
 
@@ -857,8 +889,12 @@ fn send_user_message(msg: &UserMessage, tx: &mpsc::UnboundedSender<String>) -> R
 /// Process incoming user message
 async fn process_user_message_ws(state: &AppState, text: &str, tx: &mpsc::UnboundedSender<String>) {
     match serde_json::from_str::<UserMessage>(text) {
-        Ok(UserMessage::CreateUser { user_id, username }) => {
-            let _ = handle_create_user(state, user_id, username, tx).await;
+        Ok(UserMessage::CreateUser {
+            username,
+            email,
+            credentials,
+        }) => {
+            let _ = handle_create_user(state, username, email, credentials, tx).await;
         }
         Ok(UserMessage::SignIn { username }) => {
             let _ = handle_sign_in(state, username, tx).await;
@@ -926,7 +962,7 @@ pub async fn user_websocket_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::{Dialect, Formality, Language, TeachingMode};
+    use dialect_coach_shared::{Dialect, Formality, Language, TeachingMode, User};
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
         MessageMetadata::at_now(

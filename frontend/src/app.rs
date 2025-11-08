@@ -20,7 +20,7 @@ pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 use log::{error, info};
 use yew::prelude::*;
 
-use crate::components::{Header, MainContent, WelcomeScreen};
+use crate::components::{Header, MainContent, UserCreation, WelcomeScreen};
 use crate::hooks::use_debounced_save;
 
 use app_websocket_hooks::{use_chat_websocket, use_user_state_websocket, use_user_websocket};
@@ -84,7 +84,15 @@ pub fn app() -> Html {
                 data-sidebar-collapsed={if ui_state.sidebar_collapsed { "true" } else { "false" }}
                 data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
             >
-                {if user_state.0.is_some() {
+                {if ui_state.show_user_creation_page {
+                    html! {
+                        <UserCreation
+                            app_state={app_state.clone()}
+                            ui_state={ui_state.clone()}
+                            user_state={user_state.clone()}
+                        />
+                    }
+                } else if user_state.0.is_some() {
                     html! {
                         <MainContent
                             app_state={app_state.clone()}
