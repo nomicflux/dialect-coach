@@ -543,7 +543,7 @@ mod tests {
 
     #[test]
     fn test_user_message_create_user_response_ok() {
-        let user = User::new(Uuid::new_v4(), "alice".to_string());
+        let user = User::new(Uuid::new_v4(), "alice".to_string(), "alice@example.com".to_string());
         let msg = UserMessage::CreateUserResponse(Ok(user.clone()));
 
         let json = serde_json::to_string(&msg).unwrap();
@@ -586,7 +586,7 @@ mod tests {
 
     #[test]
     fn test_user_message_sign_in_response_ok() {
-        let user = User::new(Uuid::new_v4(), "charlie".to_string());
+        let user = User::new(Uuid::new_v4(), "charlie".to_string(), "charlie@example.com".to_string());
         let msg = UserMessage::SignInResponse(Ok(user.clone()));
 
         let json = serde_json::to_string(&msg).unwrap();

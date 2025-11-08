@@ -804,7 +804,7 @@ async fn handle_create_user(
 ) -> Result<(), ()> {
     tracing::info!("Creating user: {} with id {}", username, user_id);
 
-    let user = User::new(user_id, username.clone());
+    let user = User::new(user_id, username.clone(), "user@example.com".to_string());
     let response = match state.user_persistence.create_user(&user).await {
         Ok(_) => UserMessage::CreateUserResponse(Ok(user)),
         Err(e) => {
@@ -1079,7 +1079,7 @@ mod tests {
     #[test]
     fn test_send_user_message_create_user_response_ok() {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let user = User::new(Uuid::new_v4(), "testuser".to_string());
+        let user = User::new(Uuid::new_v4(), "testuser".to_string(), "test@example.com".to_string());
         let response = UserMessage::CreateUserResponse(Ok(user.clone()));
 
         let result = send_user_message(&response, &tx);
@@ -1114,7 +1114,7 @@ mod tests {
     #[test]
     fn test_send_user_message_serialization() {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let user = User::new(Uuid::new_v4(), "bob".to_string());
+        let user = User::new(Uuid::new_v4(), "bob".to_string(), "bob@example.com".to_string());
         let response = UserMessage::SignInResponse(Ok(user.clone()));
 
         let result = send_user_message(&response, &tx);

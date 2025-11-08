@@ -1,6 +1,6 @@
 use super::UserPersistence;
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{UsageStats, User, UserState};
+use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -25,6 +25,10 @@ impl SledPersistence {
 
     fn usage_stats_tree(&self) -> Result<sled::Tree> {
         Ok(self.db.open_tree("usage_stats")?)
+    }
+
+    fn invite_codes_tree(&self) -> Result<sled::Tree> {
+        Ok(self.db.open_tree("invite_codes")?)
     }
 }
 
@@ -129,5 +133,45 @@ impl UserPersistence for SledPersistence {
             result.is_some()
         );
         Ok(result)
+    }
+
+    async fn create_invite_code(&self, invite_code: &InviteCode) -> Result<()> {
+        let tree = self.invite_codes_tree()?;
+        let value = serialize_to_json(invite_code)?;
+        tree.insert(invite_code.code.as_bytes(), value)?;
+        Ok(())
+    }
+
+    async fn load_invite_code(&self, code: &str) -> Result<Option<InviteCode>> {
+        let tree = self.invite_codes_tree()?;
+        let result = tree
+            .get(code.as_bytes())?
+            .map(|bytes| deserialize_from_json(&bytes))
+            .transpose()?;
+        Ok(result)
+    }
+
+    async fn save_invite_code(&self, invite_code: &InviteCode) -> Result<()> {
+        let tree = self.invite_codes_tree()?;
+        let value = serialize_to_json(invite_code)?;
+        tree.insert(invite_code.code.as_bytes(), value)?;
+        Ok(())
+    }
+
+    async fn list_invite_codes(&self) -> Result<Vec<InviteCode>> {
+        let tree = self.invite_codes_tree()?;
+        let mut codes = Vec::new();
+        for item in tree.iter() {
+            let (_key, bytes) = item?;
+            let code: InviteCode = deserialize_from_json(&bytes)?;
+            codes.push(code);
+        }
+        Ok(codes)
+    }
+
+    async fn delete_invite_code(&self, code: &str) -> Result<()> {
+        let tree = self.invite_codes_tree()?;
+        tree.remove(code.as_bytes())?;
+        Ok(())
     }
 }

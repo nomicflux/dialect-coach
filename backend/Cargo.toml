@@ -7,6 +7,10 @@ edition.workspace = true
 name = "backend"
 path = "src/main.rs"
 
+[[bin]]
+name = "admin"
+path = "src/bin/admin.rs"
+
 [dependencies]
 dialect-coach-shared = { path = "../shared" }
 serde.workspace = true

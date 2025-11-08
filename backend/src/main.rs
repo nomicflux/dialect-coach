@@ -1,5 +1,6 @@
 mod admin;
 mod agent_service;
+mod auth_service;
 mod embedding_service;
 mod persistence;
 mod qdrant_service;

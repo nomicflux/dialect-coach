@@ -2,7 +2,7 @@ pub mod in_memory;
 pub mod sled;
 
 use anyhow::Result;
-use dialect_coach_shared::{UsageStats, User, UserState};
+use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
 use uuid::Uuid;
 
 pub use sled::SledPersistence;
@@ -143,4 +143,14 @@ pub trait UserPersistence: Send + Sync {
     ///
     /// Returns an error if the load operation fails (but not if stats don't exist)
     async fn load_usage_stats(&self, user_id: Uuid) -> Result<Option<UsageStats>>;
+
+    async fn create_invite_code(&self, invite_code: &InviteCode) -> Result<()>;
+
+    async fn load_invite_code(&self, code: &str) -> Result<Option<InviteCode>>;
+
+    async fn save_invite_code(&self, invite_code: &InviteCode) -> Result<()>;
+
+    async fn list_invite_codes(&self) -> Result<Vec<InviteCode>>;
+
+    async fn delete_invite_code(&self, code: &str) -> Result<()>;
 }

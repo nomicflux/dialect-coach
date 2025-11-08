@@ -2,7 +2,7 @@
 
 use super::UserPersistence;
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{UsageStats, User, UserState};
+use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -16,6 +16,7 @@ pub struct InMemoryPersistence {
     state: Arc<Mutex<HashMap<Uuid, UserState>>>,
     users: Arc<Mutex<HashMap<String, User>>>,
     usage_stats: Arc<Mutex<HashMap<Uuid, UsageStats>>>,
+    invite_codes: Arc<Mutex<HashMap<String, InviteCode>>>,
 }
 
 impl InMemoryPersistence {
@@ -26,6 +27,7 @@ impl InMemoryPersistence {
             state: Arc::new(Mutex::new(HashMap::new())),
             users: Arc::new(Mutex::new(HashMap::new())),
             usage_stats: Arc::new(Mutex::new(HashMap::new())),
+            invite_codes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -118,6 +120,34 @@ impl UserPersistence for InMemoryPersistence {
         );
         Ok(result)
     }
+
+    async fn create_invite_code(&self, invite_code: &InviteCode) -> Result<()> {
+        let mut codes = self.invite_codes.lock().await;
+        codes.insert(invite_code.code.clone(), invite_code.clone());
+        Ok(())
+    }
+
+    async fn load_invite_code(&self, code: &str) -> Result<Option<InviteCode>> {
+        let codes = self.invite_codes.lock().await;
+        Ok(codes.get(code).cloned())
+    }
+
+    async fn save_invite_code(&self, invite_code: &InviteCode) -> Result<()> {
+        let mut codes = self.invite_codes.lock().await;
+        codes.insert(invite_code.code.clone(), invite_code.clone());
+        Ok(())
+    }
+
+    async fn list_invite_codes(&self) -> Result<Vec<InviteCode>> {
+        let codes = self.invite_codes.lock().await;
+        Ok(codes.values().cloned().collect())
+    }
+
+    async fn delete_invite_code(&self, code: &str) -> Result<()> {
+        let mut codes = self.invite_codes.lock().await;
+        codes.remove(code);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -201,7 +231,7 @@ mod tests {
         let persistence = InMemoryPersistence::new();
         persistence.initialize().await.unwrap();
 
-        let user = User::new(Uuid::new_v4(), "testuser".to_string());
+        let user = User::new(Uuid::new_v4(), "testuser".to_string(), "test@example.com".to_string());
         let result = persistence.create_user(&user).await;
 
         assert!(result.is_ok());
@@ -212,8 +242,8 @@ mod tests {
         let persistence = InMemoryPersistence::new();
         persistence.initialize().await.unwrap();
 
-        let user1 = User::new(Uuid::new_v4(), "duplicate".to_string());
-        let user2 = User::new(Uuid::new_v4(), "duplicate".to_string());
+        let user1 = User::new(Uuid::new_v4(), "duplicate".to_string(), "user1@example.com".to_string());
+        let user2 = User::new(Uuid::new_v4(), "duplicate".to_string(), "user2@example.com".to_string());
 
         persistence.create_user(&user1).await.unwrap();
         let result = persistence.create_user(&user2).await;
@@ -228,7 +258,7 @@ mod tests {
         persistence.initialize().await.unwrap();
 
         let user_id = Uuid::new_v4();
-        let user = User::new(user_id, "alice".to_string());
+        let user = User::new(user_id, "alice".to_string(), "alice@example.com".to_string());
         persistence.create_user(&user).await.unwrap();
 
         let loaded = persistence.load_user_by_username("alice").await.unwrap();
@@ -255,7 +285,7 @@ mod tests {
         let persistence = InMemoryPersistence::new();
         persistence.initialize().await.unwrap();
 
-        let user = User::new(Uuid::new_v4(), "".to_string());
+        let user = User::new(Uuid::new_v4(), "".to_string(), "test@example.com".to_string());
         let result = persistence.create_user(&user).await;
 
         assert!(result.is_err());
