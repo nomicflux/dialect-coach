@@ -112,16 +112,20 @@ fn extract_code(args: &[String]) -> Result<String> {
 }
 
 fn parse_expires_days(args: &[String]) -> Result<Option<u32>> {
-    match args.iter().position(|a| a == "--expires-days") {
-        Some(idx) => {
+    for arg in args {
+        if arg == "--expires-days" {
+            let idx = args.iter().position(|a| a == arg).unwrap();
             let days: u32 = args
                 .get(idx + 1)
                 .ok_or_else(|| anyhow::anyhow!("--expires-days requires a number"))?
                 .parse()?;
-            Ok(Some(days))
+            return Ok(Some(days));
+        } else if let Some(value) = arg.strip_prefix("--expires-days=") {
+            let days: u32 = value.parse()?;
+            return Ok(Some(days));
         }
-        None => Ok(None),
     }
+    Ok(None)
 }
 
 fn format_invite_response(invite: &InviteResponse) -> Result<()> {
@@ -221,6 +225,17 @@ mod tests {
             "generate-invite".to_string(),
             "--expires-days".to_string(),
             "7".to_string(),
+        ];
+        let result = parse_expires_days(&args).unwrap();
+        assert_eq!(result, Some(7));
+    }
+
+    #[test]
+    fn test_parse_expires_days_equals_syntax() {
+        let args = vec![
+            "admin".to_string(),
+            "generate-invite".to_string(),
+            "--expires-days=7".to_string(),
         ];
         let result = parse_expires_days(&args).unwrap();
         assert_eq!(result, Some(7));

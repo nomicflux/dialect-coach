@@ -35,7 +35,9 @@ fn calculate_invite_status(invite: &InviteCode, current_time: i64) -> String {
     }
 }
 
-fn verify_admin_token(headers: &HeaderMap, expected_token: &str) -> Result<(), StatusCode> {
+fn verify_admin_token(headers: &HeaderMap, admin_token: &Option<String>) -> Result<(), StatusCode> {
+    let expected_token = admin_token.as_ref().ok_or(StatusCode::UNAUTHORIZED)?;
+
     let auth_header = headers
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
@@ -185,7 +187,8 @@ mod tests {
     fn test_verify_admin_token_valid() {
         let mut headers = HeaderMap::new();
         headers.insert("Authorization", "Bearer secret123".parse().unwrap());
-        let result = verify_admin_token(&headers, "secret123");
+        let admin_token = Some("secret123".to_string());
+        let result = verify_admin_token(&headers, &admin_token);
         assert!(result.is_ok());
     }
 
@@ -193,7 +196,8 @@ mod tests {
     fn test_verify_admin_token_invalid() {
         let mut headers = HeaderMap::new();
         headers.insert("Authorization", "Bearer wrongtoken".parse().unwrap());
-        let result = verify_admin_token(&headers, "secret123");
+        let admin_token = Some("secret123".to_string());
+        let result = verify_admin_token(&headers, &admin_token);
         assert_eq!(result, Err(StatusCode::UNAUTHORIZED));
     }
 
@@ -201,14 +205,25 @@ mod tests {
     fn test_verify_admin_token_missing_bearer() {
         let mut headers = HeaderMap::new();
         headers.insert("Authorization", "secret123".parse().unwrap());
-        let result = verify_admin_token(&headers, "secret123");
+        let admin_token = Some("secret123".to_string());
+        let result = verify_admin_token(&headers, &admin_token);
         assert_eq!(result, Err(StatusCode::UNAUTHORIZED));
     }
 
     #[test]
     fn test_verify_admin_token_missing_header() {
         let headers = HeaderMap::new();
-        let result = verify_admin_token(&headers, "secret123");
+        let admin_token = Some("secret123".to_string());
+        let result = verify_admin_token(&headers, &admin_token);
+        assert_eq!(result, Err(StatusCode::UNAUTHORIZED));
+    }
+
+    #[test]
+    fn test_verify_admin_token_not_configured() {
+        let mut headers = HeaderMap::new();
+        headers.insert("Authorization", "Bearer secret123".parse().unwrap());
+        let admin_token = None;
+        let result = verify_admin_token(&headers, &admin_token);
         assert_eq!(result, Err(StatusCode::UNAUTHORIZED));
     }
 }

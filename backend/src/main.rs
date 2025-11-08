@@ -48,7 +48,7 @@ pub struct AppState {
     pub org_quota_checker: Arc<rate_limiter::org_quota::OrgQuotaChecker>,
     pub user_state_connections:
         Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
-    pub admin_token: String,
+    pub admin_token: Option<String>,
 }
 
 /// Serve admin HTML page
@@ -179,7 +179,7 @@ async fn main() -> Result<()> {
         .clone()
         .spawn_background_task(anthropic_admin_key, elevenlabs_api_key);
 
-    let admin_token = std::env::var("ADMIN_TOKEN").expect("ADMIN_TOKEN must be set");
+    let admin_token = std::env::var("ADMIN_TOKEN").ok();
 
     let state = AppState {
         qdrant,
@@ -213,7 +213,7 @@ async fn main() -> Result<()> {
         .route("/admin/api/invites", post(admin_invites::create_invite))
         .route("/admin/api/invites", get(admin_invites::list_invites))
         .route(
-            "/admin/api/invites/:code",
+            "/admin/api/invites/{code}",
             delete(admin_invites::delete_invite),
         );
 
