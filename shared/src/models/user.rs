@@ -11,7 +11,11 @@ pub struct User {
 
 impl User {
     pub fn new(id: Uuid, username: String, email: String) -> Self {
-        Self { id, username, email }
+        Self {
+            id,
+            username,
+            email,
+        }
     }
 }
 
@@ -33,7 +37,11 @@ mod tests {
 
     #[test]
     fn test_user_serialization() {
-        let user = User::new(Uuid::new_v4(), "testuser".to_string(), "test@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
         let json = serde_json::to_string(&user).unwrap();
 
         assert!(json.contains("\"id\""));
@@ -45,7 +53,11 @@ mod tests {
 
     #[test]
     fn test_user_deserialization() {
-        let user = User::new(Uuid::new_v4(), "testuser".to_string(), "test@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
         let json = serde_json::to_string(&user).unwrap();
         let deserialized: User = serde_json::from_str(&json).unwrap();
 
@@ -57,7 +69,11 @@ mod tests {
     #[test]
     fn test_user_unicode_username() {
         let arabic_name = "أحمد".to_string();
-        let user = User::new(Uuid::new_v4(), arabic_name.clone(), "test@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            arabic_name.clone(),
+            "test@example.com".to_string(),
+        );
 
         assert_eq!(user.username, arabic_name);
 
@@ -68,7 +84,11 @@ mod tests {
 
     #[test]
     fn test_user_clone() {
-        let user = User::new(Uuid::new_v4(), "testuser".to_string(), "test@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
         let cloned = user.clone();
 
         assert_eq!(user.id, cloned.id);

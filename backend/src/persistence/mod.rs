@@ -13,7 +13,9 @@ pub fn get_db_path() -> String {
             .parent()
             .expect("Failed to get workspace root")
             .to_path_buf();
-        workspace_root.join("data").join("dialect-coach.db")
+        workspace_root
+            .join("data")
+            .join("dialect-coach.db")
             .to_str()
             .expect("Invalid path")
             .to_string()

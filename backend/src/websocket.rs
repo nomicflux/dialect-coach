@@ -815,12 +815,18 @@ async fn handle_user_state_socket(socket: WebSocket, state: AppState) {
     tracing::info!("User state WebSocket connection closed: {}", connection_id);
 }
 
-fn convert_auth_credentials(creds: dialect_coach_shared::AuthCredentials) -> crate::auth_service::AuthCredentials {
+fn convert_auth_credentials(
+    creds: dialect_coach_shared::AuthCredentials,
+) -> crate::auth_service::AuthCredentials {
     match creds {
         dialect_coach_shared::AuthCredentials::InviteCode(code) => {
-            tracing::info!("Converting invite code, length: {}, content: '{}'", code.len(), code);
+            tracing::info!(
+                "Converting invite code, length: {}, content: '{}'",
+                code.len(),
+                code
+            );
             crate::auth_service::AuthCredentials::Token(code)
-        },
+        }
     }
 }
 
@@ -835,14 +841,19 @@ async fn handle_create_user(
     tracing::info!("Creating user: {} with email {}", username, email);
 
     let auth_creds = convert_auth_credentials(credentials);
-    let response = match state.auth_service.create_user(username, email, auth_creds).await {
+    let response = match state
+        .auth_service
+        .create_user(username, email, auth_creds)
+        .await
+    {
         Ok(user) => UserMessage::CreateUserResponse(Ok(user)),
         Err(e) => {
-            let error_msg = if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
-                auth_error_to_message(auth_error.clone())
-            } else {
-                format!("Failed to create user: {}", e)
-            };
+            let error_msg =
+                if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
+                    auth_error_to_message(auth_error.clone())
+                } else {
+                    format!("Failed to create user: {}", e)
+                };
             tracing::error!("{}", error_msg);
             UserMessage::CreateUserResponse(Err(error_msg))
         }
@@ -862,11 +873,12 @@ async fn handle_sign_in(
     let response = match state.auth_service.authenticate(&username).await {
         Ok(user) => UserMessage::SignInResponse(Ok(user)),
         Err(e) => {
-            let error_msg = if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
-                auth_error_to_message(auth_error.clone())
-            } else {
-                format!("Authentication failed: {}", e)
-            };
+            let error_msg =
+                if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
+                    auth_error_to_message(auth_error.clone())
+                } else {
+                    format!("Authentication failed: {}", e)
+                };
             tracing::warn!("{}", error_msg);
             UserMessage::SignInResponse(Err(error_msg))
         }
@@ -1115,7 +1127,11 @@ mod tests {
     #[test]
     fn test_send_user_message_create_user_response_ok() {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let user = User::new(Uuid::new_v4(), "testuser".to_string(), "test@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
         let response = UserMessage::CreateUserResponse(Ok(user.clone()));
 
         let result = send_user_message(&response, &tx);
@@ -1150,7 +1166,11 @@ mod tests {
     #[test]
     fn test_send_user_message_serialization() {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let user = User::new(Uuid::new_v4(), "bob".to_string(), "bob@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "bob".to_string(),
+            "bob@example.com".to_string(),
+        );
         let response = UserMessage::SignInResponse(Ok(user.clone()));
 
         let result = send_user_message(&response, &tx);

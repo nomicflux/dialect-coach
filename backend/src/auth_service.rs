@@ -119,11 +119,19 @@ impl AuthService for InviteCodeAuthService {
 }
 
 impl InviteCodeAuthService {
-    async fn validate_invite_code(&self, code: &str) -> Result<dialect_coach_shared::InviteCode, AuthError> {
-        tracing::info!("Validating invite code, length: {}, bytes: {:?}, trimmed: '{}'",
-            code.len(), code.as_bytes(), code.trim());
+    async fn validate_invite_code(
+        &self,
+        code: &str,
+    ) -> Result<dialect_coach_shared::InviteCode, AuthError> {
+        tracing::info!(
+            "Validating invite code, length: {}, bytes: {:?}, trimmed: '{}'",
+            code.len(),
+            code.as_bytes(),
+            code.trim()
+        );
 
-        let invite = self.persistence
+        let invite = self
+            .persistence
             .load_invite_code(code)
             .await
             .map_err(|e| AuthError::Persistence(e.to_string()))?
@@ -138,14 +146,17 @@ impl InviteCodeAuthService {
             return Err(AuthError::Unauthorized(UnauthorizedReason::InviteCodeUsed));
         }
         if invite.is_expired(now) {
-            return Err(AuthError::Unauthorized(UnauthorizedReason::InviteCodeExpired));
+            return Err(AuthError::Unauthorized(
+                UnauthorizedReason::InviteCodeExpired,
+            ));
         }
 
         Ok(invite)
     }
 
     async fn check_username_available(&self, username: &str) -> Result<(), AuthError> {
-        let existing = self.persistence
+        let existing = self
+            .persistence
             .load_user_by_username(username)
             .await
             .map_err(|e| AuthError::Persistence(e.to_string()))?;
@@ -156,7 +167,11 @@ impl InviteCodeAuthService {
         Ok(())
     }
 
-    async fn create_and_persist_user(&self, username: String, email: String) -> Result<User, AuthError> {
+    async fn create_and_persist_user(
+        &self,
+        username: String,
+        email: String,
+    ) -> Result<User, AuthError> {
         let user = User::new(Uuid::new_v4(), username, email);
         self.persistence
             .create_user(&user)
@@ -165,7 +180,11 @@ impl InviteCodeAuthService {
         Ok(user)
     }
 
-    async fn mark_code_used(&self, invite: &mut dialect_coach_shared::InviteCode, user_id: Uuid) -> Result<(), AuthError> {
+    async fn mark_code_used(
+        &self,
+        invite: &mut dialect_coach_shared::InviteCode,
+        user_id: Uuid,
+    ) -> Result<(), AuthError> {
         invite.mark_used(user_id);
         self.persistence
             .save_invite_code(invite)
@@ -178,8 +197,8 @@ impl InviteCodeAuthService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::InviteCode;
     use crate::persistence::in_memory::InMemoryPersistence;
+    use dialect_coach_shared::InviteCode;
 
     fn test_persistence() -> Arc<dyn UserPersistence> {
         Arc::new(InMemoryPersistence::new())
@@ -195,11 +214,14 @@ mod tests {
         persistence.create_invite_code(&invite).await.unwrap();
 
         let service = InviteCodeAuthService::new(persistence);
-        let user = service.create_user(
-            "testuser".to_string(),
-            "test@example.com".to_string(),
-            AuthCredentials::Token(code.to_string()),
-        ).await.unwrap();
+        let user = service
+            .create_user(
+                "testuser".to_string(),
+                "test@example.com".to_string(),
+                AuthCredentials::Token(code.to_string()),
+            )
+            .await
+            .unwrap();
 
         assert_eq!(user.username, "testuser");
         assert_eq!(user.email, "test@example.com");
@@ -209,14 +231,18 @@ mod tests {
     async fn test_create_user_invalid_code() {
         let service = InviteCodeAuthService::new(test_persistence());
 
-        let result = service.create_user(
-            "testuser".to_string(),
-            "test@example.com".to_string(),
-            AuthCredentials::Token("INVALID".to_string()),
-        ).await;
+        let result = service
+            .create_user(
+                "testuser".to_string(),
+                "test@example.com".to_string(),
+                AuthCredentials::Token("INVALID".to_string()),
+            )
+            .await;
 
-        assert!(matches!(result.unwrap_err().downcast::<AuthError>().unwrap(),
-            AuthError::Unauthorized(UnauthorizedReason::InviteCodeInvalid)));
+        assert!(matches!(
+            result.unwrap_err().downcast::<AuthError>().unwrap(),
+            AuthError::Unauthorized(UnauthorizedReason::InviteCodeInvalid)
+        ));
     }
 
     #[tokio::test]
@@ -230,14 +256,18 @@ mod tests {
         persistence.create_invite_code(&invite).await.unwrap();
 
         let service = InviteCodeAuthService::new(persistence);
-        let result = service.create_user(
-            "testuser".to_string(),
-            "test@example.com".to_string(),
-            AuthCredentials::Token(code.to_string()),
-        ).await;
+        let result = service
+            .create_user(
+                "testuser".to_string(),
+                "test@example.com".to_string(),
+                AuthCredentials::Token(code.to_string()),
+            )
+            .await;
 
-        assert!(matches!(result.unwrap_err().downcast::<AuthError>().unwrap(),
-            AuthError::Unauthorized(UnauthorizedReason::InviteCodeExpired)));
+        assert!(matches!(
+            result.unwrap_err().downcast::<AuthError>().unwrap(),
+            AuthError::Unauthorized(UnauthorizedReason::InviteCodeExpired)
+        ));
     }
 
     #[tokio::test]
@@ -251,14 +281,18 @@ mod tests {
         persistence.create_invite_code(&invite).await.unwrap();
 
         let service = InviteCodeAuthService::new(persistence);
-        let result = service.create_user(
-            "testuser".to_string(),
-            "test@example.com".to_string(),
-            AuthCredentials::Token(code.to_string()),
-        ).await;
+        let result = service
+            .create_user(
+                "testuser".to_string(),
+                "test@example.com".to_string(),
+                AuthCredentials::Token(code.to_string()),
+            )
+            .await;
 
-        assert!(matches!(result.unwrap_err().downcast::<AuthError>().unwrap(),
-            AuthError::Unauthorized(UnauthorizedReason::InviteCodeUsed)));
+        assert!(matches!(
+            result.unwrap_err().downcast::<AuthError>().unwrap(),
+            AuthError::Unauthorized(UnauthorizedReason::InviteCodeUsed)
+        ));
     }
 
     #[tokio::test]
@@ -268,36 +302,55 @@ mod tests {
 
         let code1 = "CODE1";
         let code2 = "CODE2";
-        persistence.create_invite_code(&InviteCode::new(code1.to_string(), None)).await.unwrap();
-        persistence.create_invite_code(&InviteCode::new(code2.to_string(), None)).await.unwrap();
+        persistence
+            .create_invite_code(&InviteCode::new(code1.to_string(), None))
+            .await
+            .unwrap();
+        persistence
+            .create_invite_code(&InviteCode::new(code2.to_string(), None))
+            .await
+            .unwrap();
 
         let service = InviteCodeAuthService::new(persistence);
-        service.create_user(
-            "testuser".to_string(),
-            "test1@example.com".to_string(),
-            AuthCredentials::Token(code1.to_string()),
-        ).await.unwrap();
+        service
+            .create_user(
+                "testuser".to_string(),
+                "test1@example.com".to_string(),
+                AuthCredentials::Token(code1.to_string()),
+            )
+            .await
+            .unwrap();
 
-        let result = service.create_user(
-            "testuser".to_string(),
-            "test2@example.com".to_string(),
-            AuthCredentials::Token(code2.to_string()),
-        ).await;
+        let result = service
+            .create_user(
+                "testuser".to_string(),
+                "test2@example.com".to_string(),
+                AuthCredentials::Token(code2.to_string()),
+            )
+            .await;
 
-        assert!(matches!(result.unwrap_err().downcast::<AuthError>().unwrap(), AuthError::UserExists));
+        assert!(matches!(
+            result.unwrap_err().downcast::<AuthError>().unwrap(),
+            AuthError::UserExists
+        ));
     }
 
     #[tokio::test]
     async fn test_create_user_wrong_credential_type() {
         let service = InviteCodeAuthService::new(test_persistence());
 
-        let result = service.create_user(
-            "testuser".to_string(),
-            "test@example.com".to_string(),
-            AuthCredentials::Password("password".to_string()),
-        ).await;
+        let result = service
+            .create_user(
+                "testuser".to_string(),
+                "test@example.com".to_string(),
+                AuthCredentials::Password("password".to_string()),
+            )
+            .await;
 
-        assert!(matches!(result.unwrap_err().downcast::<AuthError>().unwrap(), AuthError::InvalidCredentials));
+        assert!(matches!(
+            result.unwrap_err().downcast::<AuthError>().unwrap(),
+            AuthError::InvalidCredentials
+        ));
     }
 
     #[tokio::test]
@@ -305,11 +358,15 @@ mod tests {
         let persistence = test_persistence();
         persistence.initialize().await.unwrap();
 
-        let user = User::new(Uuid::new_v4(), "testuser".to_string(), "test@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
         persistence.create_user(&user).await.unwrap();
 
         let service = InviteCodeAuthService::new(persistence);
-        let result = service.authenticate("testuser", AuthCredentials::Token("any".to_string())).await.unwrap();
+        let result = service.authenticate("testuser").await.unwrap();
 
         assert_eq!(result.username, "testuser");
     }
@@ -318,9 +375,12 @@ mod tests {
     async fn test_authenticate_not_found() {
         let service = InviteCodeAuthService::new(test_persistence());
 
-        let result = service.authenticate("nonexistent", AuthCredentials::Token("any".to_string())).await;
+        let result = service.authenticate("nonexistent").await;
 
-        assert!(matches!(result.unwrap_err().downcast::<AuthError>().unwrap(), AuthError::UserNotFound));
+        assert!(matches!(
+            result.unwrap_err().downcast::<AuthError>().unwrap(),
+            AuthError::UserNotFound
+        ));
     }
 
     #[tokio::test]
@@ -367,9 +427,21 @@ mod tests {
 
     #[test]
     fn test_unauthorized_reason_display() {
-        assert_eq!(UnauthorizedReason::InviteCodeExpired.to_string(), "invite code expired");
-        assert_eq!(UnauthorizedReason::InviteCodeInvalid.to_string(), "invite code invalid");
-        assert_eq!(UnauthorizedReason::InviteCodeUsed.to_string(), "invite code already used");
-        assert_eq!(UnauthorizedReason::Other("custom".to_string()).to_string(), "custom");
+        assert_eq!(
+            UnauthorizedReason::InviteCodeExpired.to_string(),
+            "invite code expired"
+        );
+        assert_eq!(
+            UnauthorizedReason::InviteCodeInvalid.to_string(),
+            "invite code invalid"
+        );
+        assert_eq!(
+            UnauthorizedReason::InviteCodeUsed.to_string(),
+            "invite code already used"
+        );
+        assert_eq!(
+            UnauthorizedReason::Other("custom".to_string()).to_string(),
+            "custom"
+        );
     }
 }

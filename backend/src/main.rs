@@ -1,4 +1,5 @@
 mod admin;
+mod admin_invites;
 mod agent_service;
 mod auth_service;
 mod embedding_service;
@@ -47,6 +48,7 @@ pub struct AppState {
     pub org_quota_checker: Arc<rate_limiter::org_quota::OrgQuotaChecker>,
     pub user_state_connections:
         Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
+    pub admin_token: String,
 }
 
 /// Serve admin HTML page
@@ -141,8 +143,9 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to initialize user persistence")?;
 
-    let auth_service: Arc<dyn auth_service::AuthService> =
-        Arc::new(auth_service::InviteCodeAuthService::new(user_persistence.clone()));
+    let auth_service: Arc<dyn auth_service::AuthService> = Arc::new(
+        auth_service::InviteCodeAuthService::new(user_persistence.clone()),
+    );
 
     let rate_limit_config = Arc::new(rate_limiter::config::RateLimitConfig::from_env());
 
@@ -176,6 +179,8 @@ async fn main() -> Result<()> {
         .clone()
         .spawn_background_task(anthropic_admin_key, elevenlabs_api_key);
 
+    let admin_token = std::env::var("ADMIN_TOKEN").expect("ADMIN_TOKEN must be set");
+
     let state = AppState {
         qdrant,
         agent: Arc::new(agent),
@@ -187,6 +192,7 @@ async fn main() -> Result<()> {
         rate_limit_config,
         org_quota_checker,
         user_state_connections: Arc::new(Mutex::new(HashMap::new())),
+        admin_token,
     };
 
     // Build main application with routes
@@ -203,7 +209,13 @@ async fn main() -> Result<()> {
             post(translation_handler::translate_handler),
         )
         .route("/admin", get(serve_admin_html))
-        .route("/admin/api/status", get(get_admin_status));
+        .route("/admin/api/status", get(get_admin_status))
+        .route("/admin/api/invites", post(admin_invites::create_invite))
+        .route("/admin/api/invites", get(admin_invites::list_invites))
+        .route(
+            "/admin/api/invites/:code",
+            delete(admin_invites::delete_invite),
+        );
 
     // Add TTS routes only if TTS service is available
     if let Some(tts_state) = tts_state {

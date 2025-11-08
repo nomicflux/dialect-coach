@@ -41,3 +41,29 @@ pub struct DialectCount {
     pub dialect: String,
     pub count: u64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateInviteRequest {
+    pub expires_days: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InviteResponse {
+    pub code: String,
+    pub created_at: i64,
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InviteListItem {
+    pub code: String,
+    pub created_at: i64,
+    pub expires_at: Option<i64>,
+    pub used_at: Option<i64>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InviteListResponse {
+    pub invites: Vec<InviteListItem>,
+}

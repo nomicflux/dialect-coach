@@ -199,8 +199,8 @@ pub fn on_user_create_response(
     ui_state: UseReducerHandle<UIState>,
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<dialect_coach_shared::User, String>> {
-    Callback::from(move |result: Result<dialect_coach_shared::User, String>| {
-        match result {
+    Callback::from(
+        move |result: Result<dialect_coach_shared::User, String>| match result {
             Ok(user) => {
                 info!("User created successfully: {}", user.username);
                 clear_create_form_inputs(&ui_state);
@@ -219,8 +219,8 @@ pub fn on_user_create_response(
                 error!("Failed to create user: {}", e);
                 app_state.dispatch(AppStateAction::SetError(format!("Create failed: {}", e)));
             }
-        }
-    })
+        },
+    )
 }
 
 fn clear_signin_form_inputs(ui_state: &UseReducerHandle<UIState>) {
@@ -233,8 +233,8 @@ pub fn on_user_signin_response(
     ui_state: UseReducerHandle<UIState>,
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<dialect_coach_shared::User, String>> {
-    Callback::from(move |result: Result<dialect_coach_shared::User, String>| {
-        match result {
+    Callback::from(
+        move |result: Result<dialect_coach_shared::User, String>| match result {
             Ok(user) => {
                 info!("Signed in successfully as: {}", user.username);
                 clear_signin_form_inputs(&ui_state);
@@ -252,8 +252,8 @@ pub fn on_user_signin_response(
                 error!("Sign in failed: {}", e);
                 app_state.dispatch(AppStateAction::SetError(format!("Sign in failed: {}", e)));
             }
-        }
-    })
+        },
+    )
 }
 
 pub fn on_signout_click(

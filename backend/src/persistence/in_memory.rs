@@ -231,7 +231,11 @@ mod tests {
         let persistence = InMemoryPersistence::new();
         persistence.initialize().await.unwrap();
 
-        let user = User::new(Uuid::new_v4(), "testuser".to_string(), "test@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
         let result = persistence.create_user(&user).await;
 
         assert!(result.is_ok());
@@ -242,8 +246,16 @@ mod tests {
         let persistence = InMemoryPersistence::new();
         persistence.initialize().await.unwrap();
 
-        let user1 = User::new(Uuid::new_v4(), "duplicate".to_string(), "user1@example.com".to_string());
-        let user2 = User::new(Uuid::new_v4(), "duplicate".to_string(), "user2@example.com".to_string());
+        let user1 = User::new(
+            Uuid::new_v4(),
+            "duplicate".to_string(),
+            "user1@example.com".to_string(),
+        );
+        let user2 = User::new(
+            Uuid::new_v4(),
+            "duplicate".to_string(),
+            "user2@example.com".to_string(),
+        );
 
         persistence.create_user(&user1).await.unwrap();
         let result = persistence.create_user(&user2).await;
@@ -258,7 +270,11 @@ mod tests {
         persistence.initialize().await.unwrap();
 
         let user_id = Uuid::new_v4();
-        let user = User::new(user_id, "alice".to_string(), "alice@example.com".to_string());
+        let user = User::new(
+            user_id,
+            "alice".to_string(),
+            "alice@example.com".to_string(),
+        );
         persistence.create_user(&user).await.unwrap();
 
         let loaded = persistence.load_user_by_username("alice").await.unwrap();
@@ -285,7 +301,11 @@ mod tests {
         let persistence = InMemoryPersistence::new();
         persistence.initialize().await.unwrap();
 
-        let user = User::new(Uuid::new_v4(), "".to_string(), "test@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "".to_string(),
+            "test@example.com".to_string(),
+        );
         let result = persistence.create_user(&user).await;
 
         assert!(result.is_err());

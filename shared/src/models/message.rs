@@ -1,6 +1,6 @@
 use super::{
-    AgentResponse, AuthCredentials, Dialect, Explained, Formality, Language, Mistake,
-    TeachingMode, UsageStats, User, UserState,
+    AgentResponse, AuthCredentials, Dialect, Explained, Formality, Language, Mistake, TeachingMode,
+    UsageStats, User, UserState,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -549,7 +549,11 @@ mod tests {
 
     #[test]
     fn test_user_message_create_user_response_ok() {
-        let user = User::new(Uuid::new_v4(), "alice".to_string(), "alice@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "alice".to_string(),
+            "alice@example.com".to_string(),
+        );
         let msg = UserMessage::CreateUserResponse(Ok(user.clone()));
 
         let json = serde_json::to_string(&msg).unwrap();
@@ -578,10 +582,8 @@ mod tests {
     #[test]
     fn test_user_message_sign_in_serialization() {
         let username = "bob".to_string();
-        let credentials = AuthCredentials::InviteCode("CODE456".to_string());
         let msg = UserMessage::SignIn {
             username: username.clone(),
-            credentials: credentials.clone(),
         };
 
         let json = serde_json::to_string(&msg).unwrap();
@@ -594,7 +596,11 @@ mod tests {
 
     #[test]
     fn test_user_message_sign_in_response_ok() {
-        let user = User::new(Uuid::new_v4(), "charlie".to_string(), "charlie@example.com".to_string());
+        let user = User::new(
+            Uuid::new_v4(),
+            "charlie".to_string(),
+            "charlie@example.com".to_string(),
+        );
         let msg = UserMessage::SignInResponse(Ok(user.clone()));
 
         let json = serde_json::to_string(&msg).unwrap();

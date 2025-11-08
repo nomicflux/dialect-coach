@@ -51,7 +51,8 @@ fn extract_code(args: &[String]) -> Result<String> {
 fn parse_expiration(args: &[String]) -> Result<Option<i64>> {
     match args.iter().position(|a| a == "--expires-days") {
         Some(idx) => {
-            let days: i64 = args.get(idx + 1)
+            let days: i64 = args
+                .get(idx + 1)
                 .ok_or_else(|| anyhow::anyhow!("--expires-days requires a number"))?
                 .parse()?;
             Ok(Some(current_timestamp() + days * 86400))
@@ -64,7 +65,9 @@ fn generate_code() -> String {
     use rand::Rng;
     const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let mut rng = rand::thread_rng();
-    (0..12).map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char).collect()
+    (0..12)
+        .map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char)
+        .collect()
 }
 
 fn print_invite(invite: &InviteCode) {
@@ -83,7 +86,8 @@ fn format_timestamp(ts: i64) -> String {
 }
 
 fn format_expiration(exp: Option<i64>) -> String {
-    exp.map(format_timestamp).unwrap_or_else(|| "Never".to_string())
+    exp.map(format_timestamp)
+        .unwrap_or_else(|| "Never".to_string())
 }
 
 fn format_status(invite: &InviteCode) -> String {
