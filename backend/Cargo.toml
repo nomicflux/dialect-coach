@@ -10,6 +10,7 @@ path = "src/main.rs"
 [[bin]]
 name = "admin"
 path = "src/bin/admin.rs"
+required-features = []
 
 [dependencies]
 dialect-coach-shared = { path = "../shared" }
@@ -38,8 +39,8 @@ qdrant-client = "1.13"
 # Async utilities
 futures-util = "0.3"
 
-# HTTP client for Google TTS API
-reqwest = { version = "0.12", features = ["json"] }
+# HTTP client for Google TTS API and admin API
+reqwest = { version = "0.12", features = ["blocking", "json"] }
 
 # Base64 encoding for audio data
 base64 = "0.22"
