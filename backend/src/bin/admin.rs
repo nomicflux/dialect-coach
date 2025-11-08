@@ -191,3 +191,77 @@ fn print_usage() -> Result<()> {
     println!("  BACKEND_URL (default: http://localhost:3000)");
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_code_valid() {
+        let args = vec![
+            "admin".to_string(),
+            "delete-invite".to_string(),
+            "ABC123".to_string(),
+        ];
+        let result = extract_code(&args).unwrap();
+        assert_eq!(result, "ABC123");
+    }
+
+    #[test]
+    fn test_extract_code_missing() {
+        let args = vec!["admin".to_string(), "delete-invite".to_string()];
+        let result = extract_code(&args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_expires_days_present() {
+        let args = vec![
+            "admin".to_string(),
+            "generate-invite".to_string(),
+            "--expires-days".to_string(),
+            "7".to_string(),
+        ];
+        let result = parse_expires_days(&args).unwrap();
+        assert_eq!(result, Some(7));
+    }
+
+    #[test]
+    fn test_parse_expires_days_absent() {
+        let args = vec!["admin".to_string(), "generate-invite".to_string()];
+        let result = parse_expires_days(&args).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_expires_days_invalid() {
+        let args = vec![
+            "admin".to_string(),
+            "generate-invite".to_string(),
+            "--expires-days".to_string(),
+            "invalid".to_string(),
+        ];
+        let result = parse_expires_days(&args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_format_timestamp() {
+        let timestamp = 1699564800i64;
+        let result = format_timestamp(timestamp);
+        assert!(result.contains("2023-11-09"));
+    }
+
+    #[test]
+    fn test_format_expiration_some() {
+        let expiration = Some(1699564800i64);
+        let result = format_expiration(expiration);
+        assert!(result.contains("2023-11-09"));
+    }
+
+    #[test]
+    fn test_format_expiration_none() {
+        let result = format_expiration(None);
+        assert_eq!(result, "Never");
+    }
+}
