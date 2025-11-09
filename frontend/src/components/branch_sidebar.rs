@@ -37,6 +37,24 @@ fn count_branch_messages(messages: &[Message], branch: &ConversationBranch) -> u
     count
 }
 
+fn truncate_preview(text: &str, max_chars: usize) -> String {
+    let mut chars = text.chars();
+    let mut preview = String::new();
+
+    for _ in 0..max_chars {
+        match chars.next() {
+            Some(ch) => preview.push(ch),
+            None => return preview,
+        }
+    }
+
+    if chars.next().is_some() {
+        preview.push_str("...");
+    }
+
+    preview
+}
+
 fn get_branch_display_name(messages: &[Message], branch: &ConversationBranch) -> String {
     // If this branch has no parent (root branch), show first message in path
     // If this branch has a parent (branched off), show first message after the parent
@@ -66,13 +84,8 @@ fn get_branch_display_name(messages: &[Message], branch: &ConversationBranch) ->
     }
 
     if let Some(msg) = target_msg {
-        let text = &msg.get_content();
-        let max_len = 30;
-        if text.len() > max_len {
-            format!("{}...", &text[..max_len])
-        } else {
-            text.to_string()
-        }
+        let content = msg.get_content();
+        truncate_preview(&content, 30)
     } else {
         "Empty".to_string()
     }
@@ -223,6 +236,36 @@ fn render_collapsed_view(props: &BranchSidebarProps) -> Html {
                 <span class="learning-goals-number">{goals_count}</span>
             </div>
         </>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_preview;
+
+    #[test]
+    fn truncate_preview_keeps_short_ascii() {
+        assert_eq!(truncate_preview("Hello", 10), "Hello");
+    }
+
+    #[test]
+    fn truncate_preview_truncates_ascii() {
+        assert_eq!(truncate_preview("abcdef", 3), "abc...");
+    }
+
+    #[test]
+    fn truncate_preview_handles_arabic() {
+        assert_eq!(truncate_preview("مرحبا", 3), "مرح...");
+    }
+
+    #[test]
+    fn truncate_preview_handles_japanese() {
+        assert_eq!(truncate_preview("こんにちは世界", 4), "こんにち...");
+    }
+
+    #[test]
+    fn truncate_preview_handles_emoji() {
+        assert_eq!(truncate_preview("🙂🙂🙂🙂", 2), "🙂🙂...");
     }
 }
 

@@ -29,13 +29,20 @@ pub fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
         TeachingMode::Corrective => {
             r#"Response format: {
   "response": "<your conversational response>",
-  "mistakes": [{"specific_mistake": "<word/phrase>", "correction": "<correct form>", "mistake_category": {"type": "<category>", "context": "<info>"}}]
+  "mistakes": [{
+    "specific_mistake": "<exact token or full phrase you are replacing>",
+    "correction": "<exact, context-appropriate replacement token or phrase>",
+    "mistake_category": {"type": "<category>", "context": "<≤8 word reason (optional)>"}
+  }]
 }
-Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred phrase), other (context=explanation).
-CRITICAL: Only include mistakes if user made clear errors for THIS dialect. If you cannot confidently identify a mistake without needing to justify or explain why it differs from standard varieties, do NOT include it. 
-Dialectal forms that are correct for THIS dialect are NOT mistakes. This filter applies BEFORE generating the JSON structure - if a mistake is not clearly wrong for THIS dialect, do not include it in the mistakes array at all.
-The "correction" field should contain the direct correction of the mistake in "specific_mistake". "correction" must be correct.
-The "mistake_category.context" field should also contain a single short sentence explaining the mistake."#
+Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred form), other (context=brief explanation).
+Rules:
+- Flag ONLY errors that are unquestionably wrong for THIS dialect. Dialect-appropriate forms (e.g., Levantine "منيح") must never be marked as mistakes.
+- Default to single-token fixes: "specific_mistake" MUST be the exact token as written, with "correction" supplying the direct, dialect-appropriate and context-appropriate replacement.
+- Multi-token entries are allowed only when the entire phrase is wrong. Capture the whole erroneous phrase exactly as the user wrote it and provide the full replacement phrase—never mix correct words into the mistake span.
+- Use "mistake_category.context" only when a ≤8 word clarification aids the learner; otherwise omit it or keep it empty.
+- If no clear mistakes exist, return an empty array.
+- Maximum of three mistake entries per response."#
         }
         TeachingMode::Explanatory => {
             r#"Response format: {
@@ -113,7 +120,7 @@ pub fn teaching_desc(teaching_mode: &TeachingMode) -> String {
             "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections."
         }
         TeachingMode::Corrective => {
-            "3. CORRECTIVE MODE: Respond naturally, but also populate the mistakes array with any errors in user's message. Include spelling errors, grammar mistakes, and dialectal usage problems. IGNORE missing punctuation and capitalization - this is casual chat. Be specific and brief in identifying the exact problematic word or phrase."
+            "3. CORRECTIVE MODE: Respond naturally, then list at most three clear errors. Default to single-token fixes, but if the entire phrase is wrong, capture that full span and replace it exactly. Keep context notes short and skip punctuation/capitalization nitpicks."
         }
         TeachingMode::Explanatory => {
             "3. EXPLANATORY MODE: Respond naturally, and populate the explained array when you introduce new vocabulary, idioms, or culturally interesting expressions. Keep explanations brief and practical."
