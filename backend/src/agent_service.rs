@@ -114,85 +114,8 @@ impl AgentService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_service::util::CONTENT_FILTERING_DIRECTIVES;
     use crate::embedding_service::EmbeddingService;
     use crate::qdrant_service::QdrantService;
-
-    #[test]
-    fn test_content_filtering_directives_structure() {
-        // Test that content filtering directives contain the required rules
-        assert!(CONTENT_FILTERING_DIRECTIVES.contains("### CONTENT FILTERING DIRECTIVES"));
-        assert!(
-            CONTENT_FILTERING_DIRECTIVES
-                .contains("1) Only flag user's direct messages, not system examples")
-        );
-        assert!(CONTENT_FILTERING_DIRECTIVES.contains("2) Always respond to user's message first"));
-    }
-
-    #[test]
-    fn test_system_prompt_order() {
-        // Mock RAG context
-        let rag_context = "\n\n# AUTHENTIC MEXICAN SPANISH SPEECH PATTERNS\n\n## CASUAL EXAMPLES:\n1. \"¡Órale, qué onda!\"\n";
-        let role_desc =
-            "You are a native Mexican Spanish speaker speaking naturally and conversationally";
-        let formality_label = "casual";
-        let teaching_rules = "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections";
-        let history_context = "";
-        let dialect_name = "Mexican Spanish";
-
-        // Build system content using the same format as the actual code
-        let system_content = format!(
-            "{}\n\n\
-            {}\n\n\
-            # YOUR ROLE\n\
-            {}. Your responses must sound EXACTLY like the authentic examples above.\n\n\
-            # CRITICAL RULES\n\
-            1. MIMIC THE PATTERNS: Study the examples above and copy their vocabulary, grammar, and style\n\
-            2. MAINTAIN FORMALITY: Match the {} level shown in the primary examples\n\
-            {}\n\
-            4. BE BRIEF: Keep responses conversational, not essay-length\n\
-            5. USE DIALECT MARKERS: Include the characteristic phrases and constructions from the examples\n\
-            {}\n\n\
-            Now respond to the user's message naturally, as a local {} speaker would.",
-            rag_context,
-            CONTENT_FILTERING_DIRECTIVES,
-            role_desc,
-            formality_label,
-            teaching_rules,
-            history_context,
-            dialect_name
-        );
-
-        // Assert content filtering directives are present
-        assert!(system_content.contains("### CONTENT FILTERING DIRECTIVES"));
-
-        // Assert correct order: RAG context → Content filtering → Role → Rules
-        let rag_pos = system_content.find("# AUTHENTIC").unwrap();
-        let directives_pos = system_content
-            .find("### CONTENT FILTERING DIRECTIVES")
-            .unwrap();
-        let role_pos = system_content.find("# YOUR ROLE").unwrap();
-        let rules_pos = system_content.find("# CRITICAL RULES").unwrap();
-
-        assert!(
-            rag_pos < directives_pos,
-            "RAG context should come before content filtering directives"
-        );
-        assert!(
-            directives_pos < role_pos,
-            "Content filtering directives should come before role"
-        );
-        assert!(
-            role_pos < rules_pos,
-            "Role should come before critical rules"
-        );
-
-        // Verify content filtering rules are present
-        assert!(
-            system_content.contains("1) Only flag user's direct messages, not system examples")
-        );
-        assert!(system_content.contains("2) Always respond to user's message first"));
-    }
 
     #[tokio::test]
     #[ignore] // Requires API key

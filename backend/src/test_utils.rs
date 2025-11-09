@@ -60,7 +60,7 @@ pub async fn run_self_chat_test(
             past_translated: &[],
             past_exploratory: &[],
         };
-        let (result, _usage) = agent.generate_response(&params).await;
+        let (result, _response_usage, _learning_usage) = agent.generate_response(&params).await;
         let response = result?;
 
         let (cosine_mse, l2_mse) =

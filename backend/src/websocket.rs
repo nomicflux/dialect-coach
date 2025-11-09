@@ -529,8 +529,7 @@ async fn run_agents_parallel(
             past_translated: &msg_with_context.past_translated,
             past_exploratory: &msg_with_context.past_exploratory,
         };
-        let (result, response_usage, learning_usage) =
-            state.agent.generate_response(&params).await;
+        let (result, response_usage, learning_usage) = state.agent.generate_response(&params).await;
         update_and_save_usage(
             state,
             user_state,
@@ -565,10 +564,7 @@ async fn run_agents_parallel(
         past_exploratory: &msg_with_context.past_exploratory,
     };
 
-    let (
-        (response_result, response_usage, learning_usage),
-        (analysis_result, analysis_usage),
-    ) = tokio::join!(
+    let ((response_result, response_usage, learning_usage), (analysis_result, analysis_usage)) = tokio::join!(
         state.agent.generate_response(&params),
         state.agent.generate_analysis(
             dialect,

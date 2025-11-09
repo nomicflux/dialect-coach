@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use dialect_coach_shared::{
     AgentUsage, Dialect, Explained, Exploratory, Formality, Mistake, TeachingMode, Translated,
 };
@@ -9,9 +9,8 @@ use super::retry::{
     RetryContext, build_retry_learning_preamble, estimate_input_tokens, retry_completion_call,
 };
 use super::util::{
-    create_prefilled_assistant_message, format_learning_items_context,
-    learning_output_format_spec, learning_teaching_desc, normalize_json_response,
-    tokens_per_mode, JSON_OUTPUT_INSTRUCTION,
+    JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, format_learning_items_context,
+    normalize_json_response,
 };
 
 #[derive(Debug, Clone)]
@@ -89,18 +88,22 @@ impl LearningAgent {
         }
 
         let system_content = build_learning_system_content(params);
+        tracing::debug!(
+            "Learning system content sent to Claude:\n{}",
+            system_content
+        );
         let prompt = build_learning_prompt(params);
+        tracing::debug!("Learning prompt sent to Claude:\n{}", prompt);
         let history_with_prefill = vec![create_prefilled_assistant_message()];
         let agent = self
             .client
             .agent(&self.model_name)
             .preamble(&system_content)
-            .max_tokens(tokens_per_mode(&params.teaching_mode))
+            .max_tokens(512)
             .temperature(0.2)
             .build();
 
-        let estimate_fn =
-            || estimate_input_tokens(&system_content, &history_with_prefill, &prompt);
+        let estimate_fn = || estimate_input_tokens(&system_content, &history_with_prefill, &prompt);
         let (result, usage) = retry_completion_call(
             || {
                 let prompt_clone = prompt.clone();
@@ -139,25 +142,77 @@ impl LearningAgent {
     fn skip_mode(mode: &TeachingMode) -> bool {
         matches!(mode, TeachingMode::Immersive | TeachingMode::Debug)
     }
-
 }
 
 fn build_learning_system_content(params: &LearningAgentParams<'_>) -> String {
     format!(
         "# LEARNING AGENT ROLE\n\
-        You evaluate the assistant's latest reply for new learning items.\n\n\
+        You evaluate the user's latest message and the assistant's latest reply for new learning items.\n\n\
         # CRITICAL RULES\n\
-        1. Focus ONLY on logging learning items, never the conversational response.\n\
-        2. Do not duplicate previously logged items unless the learner repeated the same issue.\n\
-        3. Prioritize items tied directly to the learning goals and the assistant's reply.\n\
-        {}\n\n\
+        1. You are evaluating the messages as a native speaker of the target dialect {} with a formality of {}. You must stay within the given dialect and formality.\n\
+        2. Focus ONLY on logging learning items, never the conversational response.\n\
+        3. Do not duplicate previously logged items unless the learner repeated the same issue.\n\
+        4. Prioritize items tied directly to the learning goals and the assistant's reply.\n\
         # REQUIRED OUTPUT\n\
         {}\n\
         {}\n",
-        learning_teaching_desc(&params.teaching_mode),
+        params.dialect.name(),
+        params.formality.name(),
         JSON_OUTPUT_INSTRUCTION,
         learning_output_format_spec(&params.teaching_mode)
     )
+}
+
+fn learning_output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
+    match teaching_mode {
+        TeachingMode::Corrective => {
+            r#"Response format: {
+  "mistakes": [{
+    "specific_mistake": "<exact token or full phrase you are replacing>",
+    "correction": "<exact, context-appropriate replacement token or phrase>",
+    "mistake_category": {"type": "<category>", "context": "<≤8 word reason (optional)>"}
+  }]
+}
+Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred form), other (context=brief explanation).
+Rules:
+- Flag ONLY errors that are unquestionably wrong for THIS dialect. Dialect-appropriate forms (e.g., Levantine "منيح") must never be marked as mistakes.
+- Default to single-token fixes: "specific_mistake" MUST be the exact token as written, with "correction" supplying the direct, dialect-appropriate and context-appropriate replacement.
+- Multi-token entries are allowed only when the entire phrase is wrong. Capture the whole erroneous phrase exactly as the user wrote it and provide the full replacement phrase.
+- Use "mistake_category.context" only when a ≤8 word clarification aids the learner; otherwise omit it or keep it empty. Clarifications must provide additional context about the mistake beyond it being a mistake. 
+  If you cannot provide more information that the mistake category and its correction, then omit the context field.
+- Keep context notes short and skip punctuation/capitalization nitpicks
+- If no clear mistakes exist, return {"mistakes": []}.
+- Maximum of three mistake entries per response."#
+        }
+        TeachingMode::Explanatory => {
+            r#"Response format: {
+  "explained": [{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}]
+}
+Only include explained if you introduce and explain noteworthy vocabulary, idioms, or cultural context. Keep it to 1-2 essential items that you introduced.
+Return {"explained": []} if the assistant and user introduced nothing new worth cataloging."#
+        }
+        TeachingMode::Interleaved => {
+            r#"Response format: {
+  "translated": [{"translated_word": "<word from user>", "translated_to": "<your translation>"}]
+}
+Include translated array when the user required translations of words/phrases from their source language into the target dialect.
+Focus on translated words, not on errors in the target language.
+The "translated_word" should be the original word, "translated_to" should be your dialectal translation.
+Return {"translated": []} when nothing required translating."#
+        }
+        TeachingMode::StoryTeller => {
+            r#"Response format: {
+  "exploratory": [{"point_to_try": "<language feature in target language>", "instructions_for_use": "<how to use it>"}]
+}
+Include exploratory array when the user or assistant introduced new language patterns, idioms, or features that the user should try.
+Keep it to 1-2 brief points that naturally fit the story context.
+Return {"exploratory": []} if the user or assistant did not introduce anything new."#
+        }
+        TeachingMode::Immersive | TeachingMode::Debug => {
+            r#"Response format: {} 
+            Do not include any learning items in the response."#
+        }
+    }
 }
 
 fn format_learning_goals(goals: &[String]) -> String {
@@ -253,7 +308,7 @@ impl LearningAgent {
         &self,
         response: String,
         initial_usage: Vec<AgentUsage>,
-        params: &LearningAgentParams<'_>,
+        _params: &LearningAgentParams<'_>,
         system_content: &str,
         prompt: &str,
         history_with_prefill: &[RigMessage],
@@ -279,7 +334,7 @@ impl LearningAgent {
                     preamble_builder: &preamble_builder,
                 };
                 let config = super::util::GenerationConfig {
-                    max_tokens: tokens_per_mode(&params.teaching_mode),
+                    max_tokens: 512,
                     temperature: 0.2,
                 };
                 match retry_ctx
@@ -324,8 +379,10 @@ mod tests {
         )];
         let explained = vec![Explained::new("órale".to_string(), "Slang".to_string())];
         let translated = vec![Translated::new("house".to_string(), "casa".to_string())];
-        let exploratory =
-            vec![Exploratory::new("Prueba pretérito".to_string(), "Cuenta algo breve".to_string())];
+        let exploratory = vec![Exploratory::new(
+            "Prueba pretérito".to_string(),
+            "Cuenta algo breve".to_string(),
+        )];
 
         let params = LearningAgentParams {
             user_message: "¿Cómo estás?",
@@ -357,8 +414,10 @@ mod tests {
         )];
         let explained = vec![Explained::new("órale".to_string(), "Slang".to_string())];
         let translated = vec![Translated::new("house".to_string(), "casa".to_string())];
-        let exploratory =
-            vec![Exploratory::new("Prueba pretérito".to_string(), "Cuenta algo breve".to_string())];
+        let exploratory = vec![Exploratory::new(
+            "Prueba pretérito".to_string(),
+            "Cuenta algo breve".to_string(),
+        )];
 
         let params = LearningAgentParams {
             user_message: "¿Cómo estás?",
@@ -406,4 +465,3 @@ mod tests {
         assert!(!LearningAgent::skip_mode(&TeachingMode::Corrective));
     }
 }
-

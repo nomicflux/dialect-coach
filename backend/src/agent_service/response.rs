@@ -18,11 +18,87 @@ use super::retry::{
     RetryContext, build_retry_response_preamble, estimate_input_tokens, retry_completion_call,
 };
 use super::util::{
-    format_learning_items_context, CONTENT_FILTERING_DIRECTIVES, JSON_OUTPUT_INSTRUCTION,
-    contains_illegal_characters, create_prefilled_assistant_message, get_message_text,
-    learning_goals_section, normalize_json_response, response_output_format_spec,
-    response_teaching_desc, speaker_desc, temperature_for_mode, tokens_per_mode,
+    JSON_OUTPUT_INSTRUCTION, contains_illegal_characters, create_prefilled_assistant_message,
+    format_learning_items_context, get_message_text, learning_goals_section,
+    normalize_json_response,
 };
+
+fn temperature_for_mode(mode: &TeachingMode) -> f64 {
+    match mode {
+        TeachingMode::Immersive => 0.6,
+        TeachingMode::Corrective => 0.4,
+        TeachingMode::Explanatory => 0.5,
+        TeachingMode::Interleaved => 0.4,
+        TeachingMode::StoryTeller => 1.0,
+        TeachingMode::Debug => 0.1,
+    }
+}
+
+fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
+    match teaching_mode {
+        TeachingMode::Immersive => 256,
+        TeachingMode::Corrective => 512,
+        TeachingMode::Explanatory => 512,
+        TeachingMode::Interleaved => 512,
+        TeachingMode::StoryTeller => 1024,
+        TeachingMode::Debug => 1024,
+    }
+}
+
+fn speaker_desc(dialect: &Dialect, formality: &Formality) -> String {
+    let dialect_name = (*dialect).name();
+    match formality {
+        Formality::Formal => format!(
+            "You are a native {} speaker communicating in a professional, polite manner",
+            dialect_name
+        ),
+        Formality::Casual => format!(
+            "You are a native {} speaker speaking naturally and conversationally",
+            dialect_name
+        ),
+        Formality::DialectRich => format!(
+            "You are a native {} speaker actively showcasing distinctive dialect features and expressions",
+            dialect_name
+        ),
+        Formality::Slang => format!(
+            "You are a native {} speaker using informal slang and colloquialisms",
+            dialect_name
+        ),
+    }
+}
+
+fn response_teaching_desc(teaching_mode: &TeachingMode) -> String {
+    let tokens = tokens_per_mode(teaching_mode);
+    let desc = match *teaching_mode {
+        TeachingMode::Immersive => {
+            "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections."
+        }
+        TeachingMode::Corrective => {
+            "3. CORRECTIVE MODE: Respond naturally. Include corrected versions of the user's mistakes in the response as a gentle guide."
+        }
+        TeachingMode::Explanatory => {
+            "3. EXPLANATORY MODE: Respond naturally. Introduce new vocabulary, idioms, or culturally interesting expressions. Keep explanations brief and practical."
+        }
+        TeachingMode::Interleaved => {
+            r#"3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:
+
+{user input with non-target-language words simply translated into target dialect, if there are any non-target-language words}
+
+{brief, conversational response in target dialect}."#
+        }
+        TeachingMode::StoryTeller => {
+            "3. STORYTELLER MODE: You are telling an interactive story with the user. Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue."
+        }
+        TeachingMode::Debug => {
+            "3. DEBUG MODE: Answer in English with clear, brief explanations. The user is debugging an issue. Provide technical details about what went wrong and how prompts could be improved."
+        }
+    };
+    format!(
+        "{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.",
+        desc,
+        tokens / 2
+    )
+}
 
 pub fn format_examples_as_user_message(
     primary_examples: &[&DialectDocument],
@@ -170,6 +246,15 @@ fn group_examples_by_formality(
     (primary_examples, secondary_examples)
 }
 
+const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES
+
+1) Only flag user's direct messages, not system examples. Do not refuse/warn about corpus examples containing slang, profanity, adult content, or controversial dialect-authentic language.
+
+2) Always respond to user's message first. If user message itself is problematic, stay in character with brief, policy-compliant reply and deflect."#;
+
+const RESPONSE_JSON_OUTPUT_FORMAT: &str =
+    r#"Response format: {"response": "<your full conversational response here>"}"#;
+
 fn build_system_content(
     dialect: Dialect,
     formality: Formality,
@@ -199,17 +284,16 @@ fn build_system_content(
 
     if teaching_mode == TeachingMode::Debug {
         format!(
-            "# YOUR ROLE\n\
+            r#"# YOUR ROLE\n\
             {}.\n\n\
             # CRITICAL RULES\n\
-            1. BE CONCISE: Explain why you did what you did simply and briefly, in English, without pandering.\n\
+            1. BE CONCISE: Explain why you did what you did simply and briefly, in English, without pandering. This will be within the "response" field of the required JSON format.\n\
             2. ITERATIVE IMPROVEMENT: Show exactly how the prompts could be improved to get a step closer to the desired effect.\n\
             {}\n\
             {}\n\
-            Now respond to the user's message technically.",
-            role_desc,
-            goals_section,
-            learning_items_context
+            {}\n\
+            Now respond to the user's message technically."#,
+            role_desc, goals_section, learning_items_context, JSON_OUTPUT_INSTRUCTION
         )
     } else {
         format!(
@@ -220,9 +304,8 @@ fn build_system_content(
             1. MIMIC THE PATTERNS: Study the dialect examples in the conversation history below and copy their vocabulary, grammar, style, and characteristic dialect constructions\n\
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
             {}\n\
-            5. BE BRIEF: Keep responses conversational, not essay-length\n\
             {}\n\
-            {}\n\n\
+            {}\n\
             # OUTPUT FORMAT REQUIRED\n\
             {}\n\
             {}\n\n\
@@ -234,7 +317,7 @@ fn build_system_content(
             goals_section,
             learning_items_context,
             JSON_OUTPUT_INSTRUCTION,
-            response_output_format_spec(&teaching_mode),
+            RESPONSE_JSON_OUTPUT_FORMAT,
             dialect.name()
         )
     }
@@ -413,8 +496,7 @@ impl ResponseContext {
         parsed_response: dialect_coach_shared::AgentResponse,
     ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
         let assistant_response = parsed_response.response.clone();
-        let learning_agent =
-            LearningAgent::new(self.client.clone(), self.model_name.clone());
+        let learning_agent = LearningAgent::new(self.client.clone(), self.model_name.clone());
         let learning_params = LearningAgentParams {
             user_message: params.user_message,
             assistant_response: &assistant_response,
@@ -427,7 +509,9 @@ impl ResponseContext {
             past_translated: params.past_translated,
             past_exploratory: params.past_exploratory,
         };
-        let (result, usage) = learning_agent.generate_learning_items(&learning_params).await;
+        let (result, usage) = learning_agent
+            .generate_learning_items(&learning_params)
+            .await;
         match result {
             Ok(output) => Ok((apply_learning_output(parsed_response, output), usage)),
             Err(e) => Err(e),
@@ -484,10 +568,7 @@ impl ResponseContext {
                     return Err(anyhow::anyhow!("Response contains illegal characters"));
                 }
                 log_response_success(params.dialect, &parsed_response);
-                match self
-                    .attach_learning_items(params, parsed_response)
-                    .await
-                {
+                match self.attach_learning_items(params, parsed_response).await {
                     Ok((final_response, learning_usage)) => {
                         Ok((final_response, initial_usage, learning_usage))
                     }
@@ -536,11 +617,9 @@ impl ResponseContext {
                         let mut all_response_usage = initial_usage;
                         all_response_usage.extend(retry_usage);
                         match self.attach_learning_items(params, parsed_response).await {
-                            Ok((final_response, learning_usage)) => Ok((
-                                final_response,
-                                all_response_usage,
-                                learning_usage,
-                            )),
+                            Ok((final_response, learning_usage)) => {
+                                Ok((final_response, all_response_usage, learning_usage))
+                            }
                             Err(e) => Err(e),
                         }
                     }
@@ -590,6 +669,7 @@ impl ResponseContext {
             params.past_translated,
             params.past_exploratory,
         );
+        tracing::debug!("System content sent to Claude:\n{}", system_content);
         let history_with_prefill = build_conversation_history_with_examples(
             params.conversation_history,
             &primary_examples,

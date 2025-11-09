@@ -258,10 +258,10 @@ pub async fn generate_analysis(
     log_analysis_start(mistakes, explained, translated, exploratory);
 
     let preamble = analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory);
-    tracing::info!("Analysis preamble sent to Claude:\n{}", preamble);
+    tracing::debug!("Analysis preamble sent to Claude:\n{}", preamble);
 
     let prompt = format_analysis_prompt(msg);
-    tracing::info!("Analysis prompt sent to Claude:\n{}", prompt);
+    tracing::debug!("Analysis prompt sent to Claude:\n{}", prompt);
 
     tracing::info!("Calling Claude API for analysis...");
     let (result, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await;
