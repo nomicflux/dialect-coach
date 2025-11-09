@@ -26,59 +26,30 @@ where
 pub fn build_retry_preamble(
     original_preamble: &str,
     failed_response: &str,
-    error_detector: impl Fn(&str) -> String,
     additional_instructions: &str,
 ) -> String {
-    let cleaned = util::clean_response(failed_response);
     let error_detail = if util::is_incomplete_json(failed_response) {
-        "Your previous response was TRUNCATED because it hit the token limit. The JSON was cut off mid-response, causing a parse error. You MUST keep your response shorter to fit within the token limit, or ensure the JSON is properly closed even if truncated.".to_string()
+        "YOUR PREVIOUS RESPONSE WAS TRUNCATED BECAUSE IT HIT THE TOKEN LIMIT.\n\
+        The JSON was cut off mid-response, causing a parse error.\n\
+        YOU MUST keep your response shorter to fit within the token limit, or ensure the JSON is properly closed even if truncated.\n\
+        THIS IS A CRITICAL ERROR THAT MUST BE FIXED NOW.".to_string()
     } else {
-        error_detector(&cleaned)
+        util::detect_json_parse_error()
     };
 
     format!(
         "{}\n\n\
             # CRITICAL ERROR - SYSTEM CRASHED\n\
             {}\n\
-            Previous response (INCORRECT): {}\n\
-            You MUST respond with valid JSON only. Start with {{ and end with }}. {}\n",
-        original_preamble,
-        error_detail,
-        failed_response.chars().take(200).collect::<String>(),
-        additional_instructions
+            {}\n",
+        original_preamble, error_detail, additional_instructions
     )
-}
-
-pub fn detect_response_error(cleaned: &str) -> String {
-    match serde_json::from_str::<dialect_coach_shared::AgentResponse>(cleaned) {
-        Ok(parsed) if parsed.response.is_empty() => {
-            "Your previous response had an EMPTY 'response' field. The response field must contain actual text content and cannot be empty.".to_string()
-        }
-        Ok(_) => {
-            "Your previous response was not formatted correctly and caused the system to crash.".to_string()
-        }
-        Err(_) => {
-            "Your previous response was not formatted correctly as JSON and caused the system to crash.".to_string()
-        }
-    }
-}
-
-pub fn detect_analysis_error(cleaned: &str) -> String {
-    match serde_json::from_str::<dialect_coach_shared::AgentAnalysis>(cleaned) {
-        Ok(_) => {
-            "Your previous response was not formatted correctly and caused the system to crash.".to_string()
-        }
-        Err(_) => {
-            "Your previous response was not formatted correctly as JSON and caused the system to crash.".to_string()
-        }
-    }
 }
 
 pub fn build_retry_response_preamble(original_preamble: &str, failed_response: &str) -> String {
     build_retry_preamble(
         original_preamble,
         failed_response,
-        detect_response_error,
         "The 'response' field MUST be non-empty. You MUST NOT end the conversation.",
     )
 }
@@ -87,7 +58,6 @@ pub fn build_retry_analysis_preamble(original_preamble: &str, failed_response: &
     build_retry_preamble(
         original_preamble,
         failed_response,
-        detect_analysis_error,
         "You MUST return valid JSON with numeric scores only.",
     )
 }

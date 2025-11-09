@@ -213,3 +213,18 @@ pub fn contains_illegal_characters(text: &str) -> bool {
             .chars()
             .any(|c| c.is_control() && !matches!(c, '\n' | '\t' | '\r' | ' '))
 }
+
+pub fn detect_json_parse_error() -> String {
+    "YOUR PREVIOUS RESPONSE CONTAINED A CRITICAL JSON FORMATTING ERROR THAT CAUSED THE SYSTEM TO CRASH.\n\
+    YOU MUST FIX THIS ERROR NOW.\n\
+    The JSON you provided was either:\n\
+    - Malformed (missing braces, commas, quotes)\n\
+    - Had an empty required field\n\
+    - Was not valid JSON at all\n\
+    \n\
+    YOU MUST NOW:\n\
+    1. Generate ONLY valid JSON\n\
+    2. Start with { and end with }\n\
+    3. Ensure all required fields are non-empty\n\
+    4. DO NOT repeat your previous broken response - CREATE A NEW, CORRECT ONE".to_string()
+}
