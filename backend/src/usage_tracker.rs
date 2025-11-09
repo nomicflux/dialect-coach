@@ -89,6 +89,28 @@ pub fn add_analysis_usage(
     stats.analysis_events = prune_old_agent_events(&stats.analysis_events, window_hours, now);
 }
 
+/// Adds learning agent usage events and prunes old events
+pub fn add_learning_usage(
+    stats: &mut UsageStats,
+    new_usages: Vec<AgentUsage>,
+    now: i64,
+    window_hours: u32,
+) {
+    let count = new_usages.len();
+    let total_input_tokens = AgentUsage::input_tokens_total(&new_usages);
+    let total_output_tokens = AgentUsage::output_tokens_total(&new_usages);
+    let retry_count = AgentUsage::retry_count(&new_usages);
+    let estimate_count = AgentUsage::estimate_count(&new_usages);
+
+    info!(
+        "Adding {} learning usage events: {} input tokens, {} output tokens, {} retries, {} estimates",
+        count, total_input_tokens, total_output_tokens, retry_count, estimate_count
+    );
+
+    stats.learning_events.extend(new_usages);
+    stats.learning_events = prune_old_agent_events(&stats.learning_events, window_hours, now);
+}
+
 /// Adds TTS usage event and prunes old events
 pub fn add_tts_usage(stats: &mut UsageStats, characters: u64, now: i64, window_hours: u32) {
     info!(
@@ -197,6 +219,7 @@ mod tests {
                 is_estimate: false,
             }],
             analysis_events: Vec::new(),
+            learning_events: Vec::new(),
             tts_events: Vec::new(),
         };
 
@@ -232,6 +255,24 @@ mod tests {
     }
 
     #[test]
+    fn test_add_learning_usage() {
+        let mut stats = UsageStats::default();
+        let now = 1000000;
+
+        let new_usages = vec![AgentUsage {
+            timestamp: now,
+            input_tokens: 150,
+            output_tokens: 75,
+            is_retry: false,
+            is_estimate: false,
+        }];
+
+        add_learning_usage(&mut stats, new_usages, now, 24);
+        assert_eq!(stats.learning_events.len(), 1);
+        assert_eq!(stats.learning_events[0].input_tokens, 150);
+    }
+
+    #[test]
     fn test_add_tts_usage() {
         let mut stats = UsageStats::default();
         let now = 1000000;
@@ -248,6 +289,7 @@ mod tests {
         let mut stats = UsageStats {
             response_events: Vec::new(),
             analysis_events: Vec::new(),
+            learning_events: Vec::new(),
             tts_events: vec![TtsUsage {
                 timestamp: now - 100000,
                 characters: 999,

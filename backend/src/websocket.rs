@@ -166,12 +166,23 @@ async fn update_and_save_usage(
     state: &AppState,
     mut user_state: dialect_coach_shared::UserState,
     response_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
+    learning_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     now: i64,
 ) {
     let user_id = user_state.user_id;
     log_response_usage(&user_id, &response_usage);
     crate::usage_tracker::add_response_usage(&mut user_state.usage_stats, response_usage, now, 24);
+
+    if !learning_usage.is_empty() {
+        log_learning_usage(&user_id, &learning_usage);
+        crate::usage_tracker::add_learning_usage(
+            &mut user_state.usage_stats,
+            learning_usage,
+            now,
+            24,
+        );
+    }
 
     if !analysis_usage.is_empty() {
         log_analysis_usage(&user_id, &analysis_usage);
@@ -237,9 +248,33 @@ fn log_analysis_usage(
 fn log_total_usage(user_id: &Uuid, stats: &dialect_coach_shared::UsageStats) {
     tracing::info!(
         user_id = %user_id,
-        "Usage stats updated: {} total response events, {} total analysis events",
+        "Usage stats updated: {} total response events, {} total analysis events, {} total learning events",
         stats.response_count(),
-        stats.analysis_count()
+        stats.analysis_count(),
+        stats.learning_count()
+    );
+}
+
+fn log_learning_usage(
+    user_id: &Uuid,
+    usage: &[dialect_coach_shared::models::usage_stats::AgentUsage],
+) {
+    let input_tokens =
+        dialect_coach_shared::models::usage_stats::AgentUsage::input_tokens_total(usage);
+    let output_tokens =
+        dialect_coach_shared::models::usage_stats::AgentUsage::output_tokens_total(usage);
+    let retry_count = dialect_coach_shared::models::usage_stats::AgentUsage::retry_count(usage);
+    let estimate_count =
+        dialect_coach_shared::models::usage_stats::AgentUsage::estimate_count(usage);
+
+    tracing::info!(
+        user_id = %user_id,
+        "Updating usage stats: {} learning events ({} input, {} output tokens, {} retries, {} estimates)",
+        usage.len(),
+        input_tokens,
+        output_tokens,
+        retry_count,
+        estimate_count
     );
 }
 
@@ -402,25 +437,48 @@ async fn handle_parallel_agents_success(
     user_state: dialect_coach_shared::UserState,
     response_result: Result<AgentResponse, anyhow::Error>,
     response_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
+    learning_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     analysis_result: Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
     analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     now: i64,
 ) -> Result<AgentResponse, anyhow::Error> {
-    match response_result {
-        Ok(mut agent_response) => match analysis_result {
-            Ok(analysis) => {
-                agent_response.analysis = Some(analysis);
-                update_and_save_usage(state, user_state, response_usage, analysis_usage, now).await;
-                Ok(agent_response)
-            }
-            Err(e) => {
-                tracing::error!("Analysis agent failed: {}", e);
-                update_and_save_usage(state, user_state, response_usage, analysis_usage, now).await;
-                Ok(agent_response)
-            }
-        },
-        Err(e) => {
-            update_and_save_usage(state, user_state, response_usage, analysis_usage, now).await;
+    match (response_result, analysis_result) {
+        (Ok(mut agent_response), Ok(analysis)) => {
+            agent_response.analysis = Some(analysis);
+            update_and_save_usage(
+                state,
+                user_state,
+                response_usage,
+                learning_usage,
+                analysis_usage,
+                now,
+            )
+            .await;
+            Ok(agent_response)
+        }
+        (Ok(agent_response), Err(e)) => {
+            tracing::error!("Analysis agent failed: {}", e);
+            update_and_save_usage(
+                state,
+                user_state,
+                response_usage,
+                learning_usage,
+                analysis_usage,
+                now,
+            )
+            .await;
+            Ok(agent_response)
+        }
+        (Err(e), _) => {
+            update_and_save_usage(
+                state,
+                user_state,
+                response_usage,
+                learning_usage,
+                analysis_usage,
+                now,
+            )
+            .await;
             Err(e)
         }
     }
@@ -466,9 +524,22 @@ async fn run_agents_parallel(
             conversation_history: history_vec,
             learning_goals: &msg_with_context.learning_goals,
             rag_config: &rag_config,
+            past_mistakes: &msg_with_context.past_mistakes,
+            past_explained: &msg_with_context.past_explained,
+            past_translated: &msg_with_context.past_translated,
+            past_exploratory: &msg_with_context.past_exploratory,
         };
-        let (result, response_usage) = state.agent.generate_response(&params).await;
-        update_and_save_usage(state, user_state, response_usage, vec![], now).await;
+        let (result, response_usage, learning_usage) =
+            state.agent.generate_response(&params).await;
+        update_and_save_usage(
+            state,
+            user_state,
+            response_usage,
+            learning_usage,
+            Vec::new(),
+            now,
+        )
+        .await;
         return result;
     }
 
@@ -488,9 +559,16 @@ async fn run_agents_parallel(
         conversation_history: history_vec,
         learning_goals: &msg_with_context.learning_goals,
         rag_config: &rag_config,
+        past_mistakes: &msg_with_context.past_mistakes,
+        past_explained: &msg_with_context.past_explained,
+        past_translated: &msg_with_context.past_translated,
+        past_exploratory: &msg_with_context.past_exploratory,
     };
 
-    let ((response_result, response_usage), (analysis_result, analysis_usage)) = tokio::join!(
+    let (
+        (response_result, response_usage, learning_usage),
+        (analysis_result, analysis_usage),
+    ) = tokio::join!(
         state.agent.generate_response(&params),
         state.agent.generate_analysis(
             dialect,
@@ -507,6 +585,7 @@ async fn run_agents_parallel(
         user_state,
         response_result,
         response_usage,
+        learning_usage,
         analysis_result,
         analysis_usage,
         now,

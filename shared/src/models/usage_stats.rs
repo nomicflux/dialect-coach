@@ -2,8 +2,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct UsageStats {
+    #[serde(default)]
     pub response_events: Vec<AgentUsage>,
+    #[serde(default)]
     pub analysis_events: Vec<AgentUsage>,
+    #[serde(default)]
+    pub learning_events: Vec<AgentUsage>,
+    #[serde(default)]
     pub tts_events: Vec<TtsUsage>,
 }
 
@@ -14,6 +19,10 @@ impl UsageStats {
 
     pub fn analysis_count(&self) -> usize {
         self.analysis_events.len()
+    }
+
+    pub fn learning_count(&self) -> usize {
+        self.learning_events.len()
     }
 
     pub fn tts_count(&self) -> usize {
@@ -34,6 +43,14 @@ impl UsageStats {
 
     pub fn analysis_output_tokens(&self) -> u64 {
         self.analysis_events.iter().map(|u| u.output_tokens).sum()
+    }
+
+    pub fn learning_input_tokens(&self) -> u64 {
+        self.learning_events.iter().map(|u| u.input_tokens).sum()
+    }
+
+    pub fn learning_output_tokens(&self) -> u64 {
+        self.learning_events.iter().map(|u| u.output_tokens).sum()
     }
 
     pub fn tts_characters(&self) -> u64 {
@@ -57,6 +74,17 @@ impl UsageStats {
 
     pub fn analysis_estimate_count(&self) -> usize {
         self.analysis_events
+            .iter()
+            .filter(|u| u.is_estimate)
+            .count()
+    }
+
+    pub fn learning_retry_count(&self) -> usize {
+        self.learning_events.iter().filter(|u| u.is_retry).count()
+    }
+
+    pub fn learning_estimate_count(&self) -> usize {
+        self.learning_events
             .iter()
             .filter(|u| u.is_estimate)
             .count()
@@ -105,6 +133,7 @@ mod tests {
         let stats = UsageStats::default();
         assert_eq!(stats.response_events.len(), 0);
         assert_eq!(stats.analysis_events.len(), 0);
+        assert_eq!(stats.learning_events.len(), 0);
         assert_eq!(stats.tts_events.len(), 0);
     }
 
@@ -132,6 +161,13 @@ mod tests {
                 input_tokens: 200,
                 output_tokens: 100,
                 is_retry: false,
+                is_estimate: false,
+            }],
+            learning_events: vec![AgentUsage {
+                timestamp: 1699564860,
+                input_tokens: 120,
+                output_tokens: 60,
+                is_retry: true,
                 is_estimate: false,
             }],
             tts_events: vec![TtsUsage {

@@ -7,6 +7,7 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
 pub mod analysis;
+pub mod learning;
 pub mod response;
 pub mod retry;
 pub mod util;
@@ -48,6 +49,7 @@ impl AgentService {
         params: &response::GenerateResponseParams<'_>,
     ) -> (
         Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
+        Vec<AgentUsage>,
         Vec<AgentUsage>,
     ) {
         let ctx = ResponseContext {

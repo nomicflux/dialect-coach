@@ -1,4 +1,6 @@
-use dialect_coach_shared::{Dialect, Formality, TeachingMode};
+use dialect_coach_shared::{
+    Dialect, Explained, Exploratory, Formality, Mistake, TeachingMode, Translated,
+};
 use rig::completion::{
     Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
 };
@@ -24,11 +26,17 @@ pub fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
     }
 }
 
-pub fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
+pub const RESPONSE_JSON_OUTPUT_FORMAT: &str =
+    r#"Response format: {"response": "<your full conversational response here>"}"#;
+
+pub fn response_output_format_spec(_teaching_mode: &TeachingMode) -> &'static str {
+    RESPONSE_JSON_OUTPUT_FORMAT
+}
+
+pub fn learning_output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
     match teaching_mode {
         TeachingMode::Corrective => {
             r#"Response format: {
-  "response": "<your conversational response>",
   "mistakes": [{
     "specific_mistake": "<exact token or full phrase you are replacing>",
     "correction": "<exact, context-appropriate replacement token or phrase>",
@@ -41,38 +49,42 @@ Rules:
 - Default to single-token fixes: "specific_mistake" MUST be the exact token as written, with "correction" supplying the direct, dialect-appropriate and context-appropriate replacement.
 - Multi-token entries are allowed only when the entire phrase is wrong. Capture the whole erroneous phrase exactly as the user wrote it and provide the full replacement phrase—never mix correct words into the mistake span.
 - Use "mistake_category.context" only when a ≤8 word clarification aids the learner; otherwise omit it or keep it empty.
-- If no clear mistakes exist, return an empty array.
+- If no clear mistakes exist, return {"mistakes": []}.
 - Maximum of three mistake entries per response."#
         }
         TeachingMode::Explanatory => {
             r#"Response format: {
-  "response": "<your conversational response>",
   "explained": [{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}]
 }
-Only include explained if you introduce and explain noteworthy vocabulary, idioms, or cultural context. Keep it to 1-2 essential items that you introduced."#
+Only include explained if you introduce and explain noteworthy vocabulary, idioms, or cultural context. Keep it to 1-2 essential items that you introduced.
+Return {"explained": []} if you introduced nothing new worth cataloging."#
         }
         TeachingMode::Interleaved => {
             r#"Response format: {
-  "response": "<your conversational response>",
   "translated": [{"translated_word": "<word from user>", "translated_to": "<your translation>"}]
 }
 Include translated array when you translate words/phrases from user's source language into the target dialect.
 Focus on translated words, not on errors in the target language.
-The "translated_word" should be the original word, "translated_to" should be your dialectal translation."#
+The "translated_word" should be the original word, "translated_to" should be your dialectal translation.
+Return {"translated": []} when nothing required translating."#
         }
         TeachingMode::StoryTeller => {
             r#"Response format: {
-  "response": "<your conversational response>",
   "exploratory": [{"point_to_try": "<language feature in target language>", "instructions_for_use": "<how to use it>"}]
 }
 Include exploratory array when you introduce new language patterns, idioms, or features you want the user to try.
-Keep it to 1-2 brief points that naturally fit the story context."#
+Keep it to 1-2 brief points that naturally fit the story context.
+Return {"exploratory": []} if you did not introduce anything new."#
         }
         TeachingMode::Immersive | TeachingMode::Debug => {
             r#"Response format: {"response": "<your full conversational response here>"}
 Where <your full conversational response here> is your natural dialect response following all the rules above."#
         }
     }
+}
+
+pub fn output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
+    learning_output_format_spec(teaching_mode)
 }
 
 pub fn speaker_desc(dialect: &Dialect, formality: &Formality) -> String {
@@ -113,7 +125,70 @@ pub fn learning_goals_section(goals: &[String]) -> String {
     )
 }
 
-pub fn teaching_desc(teaching_mode: &TeachingMode) -> String {
+fn render_learning_section(title: &str, lines: Vec<String>) -> Option<String> {
+    if lines.is_empty() {
+        None
+    } else {
+        Some(format!("## {}\n{}", title, lines.join("\n")))
+    }
+}
+
+fn mistakes_section(mistakes: &[Mistake]) -> Option<String> {
+    let lines = mistakes
+        .iter()
+        .map(|m| format!("- {} -> {} ({})", m.specific_mistake, m.correction, m.mistake_category))
+        .collect::<Vec<_>>();
+    render_learning_section("Mistakes to watch", lines)
+}
+
+fn explained_section(explained: &[Explained]) -> Option<String> {
+    let lines = explained
+        .iter()
+        .map(|e| format!("- {} — {}", e.new_phrase, e.explanation))
+        .collect::<Vec<_>>();
+    render_learning_section("Explained items in progress", lines)
+}
+
+fn translated_section(translated: &[Translated]) -> Option<String> {
+    let lines = translated
+        .iter()
+        .map(|t| format!("- {} -> {}", t.translated_word, t.translated_to))
+        .collect::<Vec<_>>();
+    render_learning_section("Translations already covered", lines)
+}
+
+fn exploratory_section(exploratory: &[Exploratory]) -> Option<String> {
+    let lines = exploratory
+        .iter()
+        .map(|e| format!("- {} — {}", e.point_to_try, e.instructions_for_use))
+        .collect::<Vec<_>>();
+    render_learning_section("Exploratory prompts assigned", lines)
+}
+
+pub fn format_learning_items_context(
+    mistakes: &[Mistake],
+    explained: &[Explained],
+    translated: &[Translated],
+    exploratory: &[Exploratory],
+) -> String {
+    let sections = [
+        mistakes_section(mistakes),
+        explained_section(explained),
+        translated_section(translated),
+        exploratory_section(exploratory),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
+
+    if sections.is_empty() {
+        String::new()
+    } else {
+        format!("\n\n# ACTIVE LEARNING ITEMS\n{}\n", sections.join("\n\n"))
+    }
+}
+
+pub fn response_teaching_desc(teaching_mode: &TeachingMode) -> String {
     let tokens = tokens_per_mode(teaching_mode);
     let desc = match *teaching_mode {
         TeachingMode::Immersive => {
@@ -144,6 +219,49 @@ pub fn teaching_desc(teaching_mode: &TeachingMode) -> String {
         desc,
         tokens / 2
     )
+}
+
+pub fn teaching_desc(teaching_mode: &TeachingMode) -> String {
+    response_teaching_desc(teaching_mode)
+}
+
+pub fn learning_teaching_desc(teaching_mode: &TeachingMode) -> &'static str {
+    match teaching_mode {
+        TeachingMode::Immersive => {
+            r#"LEARNING MODE: IMMERSIVE
+- Immersive turns do not introduce standalone learning items.
+- Return empty arrays unless a learning goal explicitly requires otherwise."#
+        }
+        TeachingMode::Corrective => {
+            r#"LEARNING MODE: CORRECTIVE
+- Review the latest user message and the assistant's reply.
+- Capture up to three undeniable learner errors that the assistant corrected or should correct.
+- Focus on learning goals first; avoid repeating previously logged mistakes unless the learner repeated them here."#
+        }
+        TeachingMode::Explanatory => {
+            r#"LEARNING MODE: EXPLANATORY
+- Identify at most two new phrases or cultural notes the assistant introduced this turn.
+- Prioritize items tied to the learning goals.
+- Skip entries that merely restate already mastered material."#
+        }
+        TeachingMode::Interleaved => {
+            r#"LEARNING MODE: INTERLEAVED
+- Record concise translation pairs for any non-target-language words the assistant converted.
+- Use the exact source token and the assistant's dialect translation.
+- Ignore words already tracked unless the learner encountered them in a new context aligned with goals."#
+        }
+        TeachingMode::StoryTeller => {
+            r#"LEARNING MODE: STORYTELLER
+- Extract one or two exploratory prompts the assistant invited the learner to try next.
+- Tie each point to the narrative beat in the assistant's reply and the learning goals.
+- Do not repeat exploratory prompts already assigned unless the story revisits them deliberately."#
+        }
+        TeachingMode::Debug => {
+            r#"LEARNING MODE: DEBUG
+- No learning items are logged in debug mode.
+- Always return empty arrays."#
+        }
+    }
 }
 
 pub fn temperature_for_mode(mode: &TeachingMode) -> f64 {
@@ -234,4 +352,49 @@ pub fn detect_json_parse_error() -> String {
     2. Start with { and end with }\n\
     3. Ensure all required fields are non-empty\n\
     4. DO NOT repeat your previous broken response - CREATE A NEW, CORRECT ONE".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dialect_coach_shared::{
+        Explained, Exploratory, Mistake, MistakeCategory, Translated,
+    };
+
+    #[test]
+    fn test_format_learning_items_context_empty() {
+        let summary = format_learning_items_context(&[], &[], &[], &[]);
+        assert!(summary.is_empty());
+    }
+
+    #[test]
+    fn test_format_learning_items_context_with_items() {
+        let mistake = Mistake::new(
+            "hablar".to_string(),
+            "habla".to_string(),
+            MistakeCategory::SpellingError {
+                context: "habla".to_string(),
+            },
+        );
+        let explained = Explained::new("órale".to_string(), "Slang for wow".to_string());
+        let translated = Translated::new("house".to_string(), "casa".to_string());
+        let exploratory =
+            Exploratory::new("Usa el pretérito".to_string(), "Haz una frase corta".to_string());
+
+        let summary = format_learning_items_context(
+            &[mistake],
+            &[explained],
+            &[translated],
+            &[exploratory],
+        );
+
+        assert!(summary.contains("Mistakes to watch"));
+        assert!(summary.contains("hablar -> habla"));
+        assert!(summary.contains("Explained items in progress"));
+        assert!(summary.contains("órale"));
+        assert!(summary.contains("Translations already covered"));
+        assert!(summary.contains("house -> casa"));
+        assert!(summary.contains("Exploratory prompts assigned"));
+        assert!(summary.contains("Usa el pretérito"));
+    }
 }

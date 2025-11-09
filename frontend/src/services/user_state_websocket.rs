@@ -173,7 +173,7 @@ fn handle_load_response(user_state: Option<UserState>, on_load: &Callback<Option
 fn log_load_response(state: &UserState) {
     let user_id = state.user_id;
     info!(
-        "Received LoadResponse for user {} with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
+        "Received LoadResponse for user {} with usage stats: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} learning events ({} input, {} output tokens), {} TTS events ({} characters)",
         user_id,
         state.usage_stats.response_count(),
         state.usage_stats.response_input_tokens(),
@@ -181,6 +181,9 @@ fn log_load_response(state: &UserState) {
         state.usage_stats.analysis_count(),
         state.usage_stats.analysis_input_tokens(),
         state.usage_stats.analysis_output_tokens(),
+        state.usage_stats.learning_count(),
+        state.usage_stats.learning_input_tokens(),
+        state.usage_stats.learning_output_tokens(),
         state.usage_stats.tts_count(),
         state.usage_stats.tts_characters()
     );
@@ -196,13 +199,16 @@ fn handle_usage_stats_update(
 
 fn log_usage_stats_update(usage_stats: &dialect_coach_shared::UsageStats) {
     info!(
-        "Received UsageStatsUpdate: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} TTS events ({} characters)",
+        "Received UsageStatsUpdate: {} response events ({} input, {} output tokens), {} analysis events ({} input, {} output tokens), {} learning events ({} input, {} output tokens), {} TTS events ({} characters)",
         usage_stats.response_count(),
         usage_stats.response_input_tokens(),
         usage_stats.response_output_tokens(),
         usage_stats.analysis_count(),
         usage_stats.analysis_input_tokens(),
         usage_stats.analysis_output_tokens(),
+        usage_stats.learning_count(),
+        usage_stats.learning_input_tokens(),
+        usage_stats.learning_output_tokens(),
         usage_stats.tts_count(),
         usage_stats.tts_characters()
     );

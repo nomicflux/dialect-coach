@@ -62,6 +62,14 @@ pub fn build_retry_analysis_preamble(original_preamble: &str, failed_response: &
     )
 }
 
+pub fn build_retry_learning_preamble(original_preamble: &str, failed_response: &str) -> String {
+    build_retry_preamble(
+        original_preamble,
+        failed_response,
+        "You MUST return valid JSON arrays for the learning items. Do not repeat prior items unless they clearly recur.",
+    )
+}
+
 pub fn estimate_input_tokens(preamble: &str, history: &[RigMessage], prompt: &str) -> u64 {
     let preamble_chars = preamble.len();
     let history_chars: usize = history.iter().map(|msg| get_message_text(msg).len()).sum();

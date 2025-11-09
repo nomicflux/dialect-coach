@@ -55,6 +55,10 @@ pub async fn run_self_chat_test(
             conversation_history: &conversation_history,
             learning_goals: &[],
             rag_config: &config,
+            past_mistakes: &[],
+            past_explained: &[],
+            past_translated: &[],
+            past_exploratory: &[],
         };
         let (result, _usage) = agent.generate_response(&params).await;
         let response = result?;

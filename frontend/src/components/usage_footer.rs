@@ -43,6 +43,8 @@ fn render_content(stats: &UsageStats) -> Html {
     let response_tokens = stats.response_input_tokens() + stats.response_output_tokens();
     let analysis_calls = stats.analysis_count();
     let analysis_tokens = stats.analysis_input_tokens() + stats.analysis_output_tokens();
+    let learning_calls = stats.learning_count();
+    let learning_tokens = stats.learning_input_tokens() + stats.learning_output_tokens();
     let tts_calls = stats.tts_count();
     let tts_chars = stats.tts_characters();
 
@@ -50,6 +52,7 @@ fn render_content(stats: &UsageStats) -> Html {
         <div class="usage-footer__content">
             {render_section("Response Agent", response_calls, "Tokens:", response_tokens)}
             {render_section("Analysis Agent", analysis_calls, "Tokens:", analysis_tokens)}
+            {render_section("Learning Agent", learning_calls, "Tokens:", learning_tokens)}
             {render_section("Text-to-Speech", tts_calls, "Characters:", tts_chars)}
         </div>
     }

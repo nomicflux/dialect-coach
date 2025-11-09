@@ -145,6 +145,7 @@ mod tests {
                 is_estimate: false,
             }],
             analysis_events: vec![],
+            learning_events: vec![],
             tts_events: vec![],
         };
 
@@ -176,6 +177,7 @@ mod tests {
                 },
             ],
             analysis_events: vec![],
+            learning_events: vec![],
             tts_events: vec![],
         };
 
@@ -198,6 +200,7 @@ mod tests {
                 is_estimate: false,
             }],
             analysis_events: vec![],
+            learning_events: vec![],
             tts_events: vec![],
         };
 
@@ -213,6 +216,7 @@ mod tests {
         let stats = UsageStats {
             response_events: vec![],
             analysis_events: vec![],
+            learning_events: vec![],
             tts_events: vec![TtsUsage {
                 timestamp: now - 100,
                 characters: 1000,

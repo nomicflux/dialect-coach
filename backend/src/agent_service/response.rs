@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::{AgentUsage, Dialect, DialectDocument, Formality, TeachingMode};
+use dialect_coach_shared::{
+    AgentUsage, Dialect, DialectDocument, Explained, Exploratory, Formality, Mistake, TeachingMode,
+    Translated,
+};
 use rig::completion::{
     Completion, Message as RigMessage, Prompt, message::Text, message::UserContent,
 };
@@ -10,14 +13,15 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
 
+use super::learning::{LearningAgent, LearningAgentOutput, LearningAgentParams};
 use super::retry::{
     RetryContext, build_retry_response_preamble, estimate_input_tokens, retry_completion_call,
 };
 use super::util::{
-    CONTENT_FILTERING_DIRECTIVES, JSON_OUTPUT_INSTRUCTION, contains_illegal_characters,
-    create_prefilled_assistant_message, get_message_text, learning_goals_section,
-    normalize_json_response, output_format_spec, speaker_desc, teaching_desc, temperature_for_mode,
-    tokens_per_mode,
+    format_learning_items_context, CONTENT_FILTERING_DIRECTIVES, JSON_OUTPUT_INSTRUCTION,
+    contains_illegal_characters, create_prefilled_assistant_message, get_message_text,
+    learning_goals_section, normalize_json_response, response_output_format_spec,
+    response_teaching_desc, speaker_desc, temperature_for_mode, tokens_per_mode,
 };
 
 pub fn format_examples_as_user_message(
@@ -67,6 +71,17 @@ pub fn build_examples_message(
 
     let examples_text = format_examples_as_user_message(primary_examples, secondary_examples);
     Some(create_examples_user_message(&examples_text))
+}
+
+fn apply_learning_output(
+    mut base: dialect_coach_shared::AgentResponse,
+    output: LearningAgentOutput,
+) -> dialect_coach_shared::AgentResponse {
+    base.mistakes = Some(output.mistakes);
+    base.explained = Some(output.explained);
+    base.translated = Some(output.translated);
+    base.exploratory = Some(output.exploratory);
+    base
 }
 
 pub fn try_parse_response(
@@ -160,6 +175,10 @@ fn build_system_content(
     formality: Formality,
     teaching_mode: TeachingMode,
     learning_goals: &[String],
+    past_mistakes: &[Mistake],
+    past_explained: &[Explained],
+    past_translated: &[Translated],
+    past_exploratory: &[Exploratory],
 ) -> String {
     let formality_label = match formality {
         Formality::Formal => "FORMAL",
@@ -169,8 +188,14 @@ fn build_system_content(
     };
 
     let role_desc = speaker_desc(&dialect, &formality);
-    let teaching_rules = teaching_desc(&teaching_mode);
+    let teaching_rules = response_teaching_desc(&teaching_mode);
     let goals_section = learning_goals_section(learning_goals);
+    let learning_items_context = format_learning_items_context(
+        past_mistakes,
+        past_explained,
+        past_translated,
+        past_exploratory,
+    );
 
     if teaching_mode == TeachingMode::Debug {
         format!(
@@ -179,8 +204,12 @@ fn build_system_content(
             # CRITICAL RULES\n\
             1. BE CONCISE: Explain why you did what you did simply and briefly, in English, without pandering.\n\
             2. ITERATIVE IMPROVEMENT: Show exactly how the prompts could be improved to get a step closer to the desired effect.\n\
+            {}\n\
+            {}\n\
             Now respond to the user's message technically.",
-            role_desc
+            role_desc,
+            goals_section,
+            learning_items_context
         )
     } else {
         format!(
@@ -192,6 +221,7 @@ fn build_system_content(
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
             {}\n\
             5. BE BRIEF: Keep responses conversational, not essay-length\n\
+            {}\n\
             {}\n\n\
             # OUTPUT FORMAT REQUIRED\n\
             {}\n\
@@ -202,8 +232,9 @@ fn build_system_content(
             formality_label.to_lowercase(),
             teaching_rules,
             goals_section,
+            learning_items_context,
             JSON_OUTPUT_INSTRUCTION,
-            output_format_spec(&teaching_mode),
+            response_output_format_spec(&teaching_mode),
             dialect.name()
         )
     }
@@ -236,6 +267,10 @@ pub struct GenerateResponseParams<'a> {
     pub conversation_history: &'a [RigMessage],
     pub learning_goals: &'a [String],
     pub rag_config: &'a RAGConfig,
+    pub past_mistakes: &'a [Mistake],
+    pub past_explained: &'a [Explained],
+    pub past_translated: &'a [Translated],
+    pub past_exploratory: &'a [Exploratory],
 }
 
 pub struct ResponseContext {
@@ -372,6 +407,33 @@ impl ResponseContext {
         Ok((primary, secondary))
     }
 
+    async fn attach_learning_items(
+        &self,
+        params: &GenerateResponseParams<'_>,
+        parsed_response: dialect_coach_shared::AgentResponse,
+    ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
+        let assistant_response = parsed_response.response.clone();
+        let learning_agent =
+            LearningAgent::new(self.client.clone(), self.model_name.clone());
+        let learning_params = LearningAgentParams {
+            user_message: params.user_message,
+            assistant_response: &assistant_response,
+            dialect: params.dialect,
+            formality: params.formality,
+            teaching_mode: params.teaching_mode,
+            learning_goals: params.learning_goals,
+            past_mistakes: params.past_mistakes,
+            past_explained: params.past_explained,
+            past_translated: params.past_translated,
+            past_exploratory: params.past_exploratory,
+        };
+        let (result, usage) = learning_agent.generate_learning_items(&learning_params).await;
+        match result {
+            Ok(output) => Ok((apply_learning_output(parsed_response, output), usage)),
+            Err(e) => Err(e),
+        }
+    }
+
     async fn handle_successful_completion(
         &self,
         response: String,
@@ -381,6 +443,7 @@ impl ResponseContext {
         history_with_prefill: Vec<RigMessage>,
     ) -> (
         Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
+        Vec<AgentUsage>,
         Vec<AgentUsage>,
     ) {
         match self
@@ -393,8 +456,10 @@ impl ResponseContext {
             )
             .await
         {
-            Ok((agent_response, final_usage)) => (Ok(agent_response), final_usage),
-            Err(e) => (Err(e), usage),
+            Ok((agent_response, response_usage, learning_usage)) => {
+                (Ok(agent_response), response_usage, learning_usage)
+            }
+            Err(e) => (Err(e), usage, Vec::new()),
         }
     }
 
@@ -405,7 +470,11 @@ impl ResponseContext {
         params: &GenerateResponseParams<'_>,
         system_content: &str,
         history_with_prefill: Vec<RigMessage>,
-    ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
+    ) -> Result<(
+        dialect_coach_shared::AgentResponse,
+        Vec<AgentUsage>,
+        Vec<AgentUsage>,
+    )> {
         match try_parse_response(&response, params.dialect) {
             Ok(parsed_response) => {
                 if contains_illegal_characters(&parsed_response.response) {
@@ -415,7 +484,15 @@ impl ResponseContext {
                     return Err(anyhow::anyhow!("Response contains illegal characters"));
                 }
                 log_response_success(params.dialect, &parsed_response);
-                Ok((parsed_response, initial_usage))
+                match self
+                    .attach_learning_items(params, parsed_response)
+                    .await
+                {
+                    Ok((final_response, learning_usage)) => {
+                        Ok((final_response, initial_usage, learning_usage))
+                    }
+                    Err(e) => Err(e),
+                }
             }
             Err(_) => {
                 let dialect = params.dialect;
@@ -456,9 +533,16 @@ impl ResponseContext {
                     .await
                 {
                     Ok((parsed_response, retry_usage)) => {
-                        let mut all_usage = initial_usage;
-                        all_usage.extend(retry_usage);
-                        Ok((parsed_response, all_usage))
+                        let mut all_response_usage = initial_usage;
+                        all_response_usage.extend(retry_usage);
+                        match self.attach_learning_items(params, parsed_response).await {
+                            Ok((final_response, learning_usage)) => Ok((
+                                final_response,
+                                all_response_usage,
+                                learning_usage,
+                            )),
+                            Err(e) => Err(e),
+                        }
                     }
                     Err(e) => Err(e),
                 }
@@ -472,10 +556,12 @@ impl ResponseContext {
     ) -> (
         Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
         Vec<AgentUsage>,
+        Vec<AgentUsage>,
     ) {
         if contains_illegal_characters(params.user_message) {
             return (
                 Err(anyhow::anyhow!("User message contains illegal characters")),
+                Vec::new(),
                 Vec::new(),
             );
         }
@@ -491,7 +577,7 @@ impl ResponseContext {
             .await
         {
             Ok(examples) => examples,
-            Err(e) => return (Err(e), Vec::new()),
+            Err(e) => return (Err(e), Vec::new(), Vec::new()),
         };
 
         let system_content = build_system_content(
@@ -499,6 +585,10 @@ impl ResponseContext {
             params.formality,
             params.teaching_mode,
             params.learning_goals,
+            params.past_mistakes,
+            params.past_explained,
+            params.past_translated,
+            params.past_exploratory,
         );
         let history_with_prefill = build_conversation_history_with_examples(
             params.conversation_history,
@@ -541,6 +631,7 @@ impl ResponseContext {
             Err(e) => (
                 Err(e.context("Failed to get completion from Claude")),
                 usage,
+                Vec::new(),
             ),
         }
     }
@@ -665,7 +756,16 @@ mod tests {
         let teaching_mode = TeachingMode::Debug;
         let learning_goals = vec![];
 
-        let content = build_system_content(dialect, formality, teaching_mode, &learning_goals);
+        let content = build_system_content(
+            dialect,
+            formality,
+            teaching_mode,
+            &learning_goals,
+            &[],
+            &[],
+            &[],
+            &[],
+        );
 
         assert!(content.contains("# YOUR ROLE"));
         assert!(content.contains("BE CONCISE"));
@@ -680,7 +780,16 @@ mod tests {
         let teaching_mode = TeachingMode::Immersive;
         let learning_goals = vec!["Goal 1".to_string()];
 
-        let content = build_system_content(dialect, formality, teaching_mode, &learning_goals);
+        let content = build_system_content(
+            dialect,
+            formality,
+            teaching_mode,
+            &learning_goals,
+            &[],
+            &[],
+            &[],
+            &[],
+        );
 
         assert!(content.contains("# YOUR ROLE"));
         assert!(content.contains("MIMIC THE PATTERNS"));
