@@ -73,7 +73,7 @@ fn submit_button(
 ) -> Html {
     let onclick = on_create_user_click(app_state.clone(), ui_state.clone(), user_state.clone());
     html! {
-        <button {onclick}>{"Create Account"}</button>
+        <button class="btn btn--primary" {onclick}>{"Create Account"}</button>
     }
 }
 
