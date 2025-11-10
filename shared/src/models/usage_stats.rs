@@ -98,6 +98,8 @@ pub struct AgentUsage {
     pub output_tokens: u64,
     pub is_retry: bool,
     pub is_estimate: bool,
+    pub provider: String,
+    pub model: String,
 }
 
 impl AgentUsage {
@@ -147,6 +149,8 @@ mod tests {
                     output_tokens: 50,
                     is_retry: false,
                     is_estimate: false,
+                    provider: "anthropic".to_string(),
+                    model: "claude-test".to_string(),
                 },
                 AgentUsage {
                     timestamp: 1699564900,
@@ -154,6 +158,8 @@ mod tests {
                     output_tokens: 0,
                     is_retry: true,
                     is_estimate: true,
+                    provider: "anthropic".to_string(),
+                    model: "claude-test".to_string(),
                 },
             ],
             analysis_events: vec![AgentUsage {
@@ -162,6 +168,8 @@ mod tests {
                 output_tokens: 100,
                 is_retry: false,
                 is_estimate: false,
+                provider: "anthropic".to_string(),
+                model: "claude-test".to_string(),
             }],
             learning_events: vec![AgentUsage {
                 timestamp: 1699564860,
@@ -169,6 +177,8 @@ mod tests {
                 output_tokens: 60,
                 is_retry: true,
                 is_estimate: false,
+                provider: "anthropic".to_string(),
+                model: "claude-test".to_string(),
             }],
             tts_events: vec![TtsUsage {
                 timestamp: 1699564920,

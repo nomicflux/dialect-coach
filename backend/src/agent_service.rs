@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
+use anyhow::{Result, anyhow};
 use dialect_coach_shared::{AgentUsage, Dialect, Explained, Formality, Mistake};
-use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
+use std::env;
 use std::sync::Arc;
 
 use crate::embedding_service::EmbeddingService;
@@ -8,16 +8,49 @@ use crate::qdrant_service::QdrantService;
 
 pub mod analysis;
 pub mod learning;
+pub mod provider;
 pub mod response;
 pub mod retry;
 pub mod util;
 
+use provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionAgentFactory, ProviderAgentConfig};
 use response::ResponseContext;
 use util::contains_illegal_characters;
 
+fn channel_env(prefix: &str, suffix: &str) -> Option<String> {
+    env::var(format!("{}_{}", prefix, suffix)).ok()
+}
+
+fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
+    let provider =
+        channel_env(prefix, "PROVIDER").unwrap_or_else(|| ANTHROPIC_PROVIDER.to_string());
+    match provider.as_str() {
+        ANTHROPIC_PROVIDER => {
+            let api_key = channel_env(prefix, "API_KEY")
+                .or_else(|| env::var("ANTHROPIC_API_KEY").ok())
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Missing API key: set {}_API_KEY or ANTHROPIC_API_KEY",
+                        prefix
+                    )
+                })?;
+            let model = channel_env(prefix, "MODEL").or_else(|| env::var("ANTHROPIC_MODEL").ok());
+            let config = ProviderAgentConfig::anthropic(api_key, model, None, None);
+            let agent = CompletionAgentFactory::build(config)?;
+            Ok(Arc::from(agent))
+        }
+        other => Err(anyhow!(
+            "Unsupported provider '{}' configured for {} channel",
+            other,
+            prefix
+        )),
+    }
+}
+
 pub struct AgentService {
-    pub(crate) client: rig::providers::anthropic::Client,
-    pub(crate) model_name: String,
+    pub(crate) response_agent: Arc<dyn CompletionAgent>,
+    pub(crate) learning_agent: Arc<dyn CompletionAgent>,
+    pub(crate) analysis_agent: Arc<dyn CompletionAgent>,
     qdrant: Arc<QdrantService>,
     embeddings: Arc<EmbeddingService>,
 }
@@ -25,20 +58,30 @@ pub struct AgentService {
 impl AgentService {
     /// Create new agent service from environment variables
     pub fn from_env(qdrant: Arc<QdrantService>, embeddings: Arc<EmbeddingService>) -> Result<Self> {
-        let api_key = std::env::var("ANTHROPIC_API_KEY")
-            .context("ANTHROPIC_API_KEY environment variable not set")?;
-        let model_name =
-            std::env::var("ANTHROPIC_MODEL").unwrap_or_else(|_| CLAUDE_3_5_SONNET.to_string());
+        let response_agent = load_channel_agent("RESPONSE")?;
+        let learning_agent = load_channel_agent("LEARNING")?;
+        let analysis_agent = load_channel_agent("ANALYSIS")?;
 
-        let client = ClientBuilder::new(&api_key)
-            .anthropic_version("2023-06-01")
-            .build();
-
-        tracing::info!("Initialized Anthropic client with model: {}", model_name);
+        tracing::info!(
+            "Response agent configured: provider={}, model={}",
+            response_agent.provider(),
+            response_agent.model()
+        );
+        tracing::info!(
+            "Learning agent configured: provider={}, model={}",
+            learning_agent.provider(),
+            learning_agent.model()
+        );
+        tracing::info!(
+            "Analysis agent configured: provider={}, model={}",
+            analysis_agent.provider(),
+            analysis_agent.model()
+        );
 
         Ok(Self {
-            client,
-            model_name,
+            response_agent,
+            learning_agent,
+            analysis_agent,
             qdrant,
             embeddings,
         })
@@ -53,8 +96,8 @@ impl AgentService {
         Vec<AgentUsage>,
     ) {
         let ctx = ResponseContext {
-            client: self.client.clone(),
-            model_name: self.model_name.clone(),
+            response_agent: self.response_agent.clone(),
+            learning_agent: self.learning_agent.clone(),
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
         };
@@ -74,8 +117,7 @@ impl AgentService {
         Vec<AgentUsage>,
     ) {
         let retry_ctx = retry::RetryContext {
-            client: &self.client,
-            model_name: &self.model_name,
+            agent: self.analysis_agent.clone(),
         };
         crate::agent_service::analysis::generate_analysis(
             &retry_ctx,
@@ -97,8 +139,8 @@ impl AgentService {
         formality: Formality,
     ) -> Result<dialect_coach_shared::AgentResponse> {
         let ctx = ResponseContext {
-            client: self.client.clone(),
-            model_name: self.model_name.clone(),
+            response_agent: self.response_agent.clone(),
+            learning_agent: self.learning_agent.clone(),
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
         };
@@ -128,6 +170,7 @@ mod tests {
         let embeddings = EmbeddingService::new().unwrap();
 
         let agent = AgentService::from_env(Arc::new(qdrant), Arc::new(embeddings)).unwrap();
-        assert!(!agent.model_name.is_empty());
+        assert_eq!(agent.response_agent.provider(), ANTHROPIC_PROVIDER);
+        assert!(!agent.response_agent.model().is_empty());
     }
 }

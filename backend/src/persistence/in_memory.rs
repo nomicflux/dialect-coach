@@ -327,6 +327,8 @@ mod tests {
                 output_tokens: 50,
                 is_retry: false,
                 is_estimate: false,
+                provider: "anthropic".to_string(),
+                model: "claude-test".to_string(),
             });
 
         persistence.save_usage_stats(user_id, &stats).await.unwrap();

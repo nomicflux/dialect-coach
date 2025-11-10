@@ -130,6 +130,24 @@ mod tests {
     use super::*;
     use dialect_coach_shared::models::usage_stats::{AgentUsage, TtsUsage};
 
+    fn sample_usage(
+        timestamp: i64,
+        input_tokens: u64,
+        output_tokens: u64,
+        is_retry: bool,
+        is_estimate: bool,
+    ) -> AgentUsage {
+        AgentUsage {
+            timestamp,
+            input_tokens,
+            output_tokens,
+            is_retry,
+            is_estimate,
+            provider: "anthropic".to_string(),
+            model: "claude-test".to_string(),
+        }
+    }
+
     #[test]
     fn test_can_make_response_call_within_limits() {
         let limiter = RateLimiter::default();
@@ -137,13 +155,7 @@ mod tests {
         let now = chrono::Utc::now().timestamp();
 
         let stats = UsageStats {
-            response_events: vec![AgentUsage {
-                timestamp: now - 100,
-                input_tokens: 1000,
-                output_tokens: 500,
-                is_retry: false,
-                is_estimate: false,
-            }],
+            response_events: vec![sample_usage(now - 100, 1000, 500, false, false)],
             analysis_events: vec![],
             learning_events: vec![],
             tts_events: vec![],
@@ -161,20 +173,8 @@ mod tests {
 
         let stats = UsageStats {
             response_events: vec![
-                AgentUsage {
-                    timestamp: now - 100,
-                    input_tokens: 100,
-                    output_tokens: 50,
-                    is_retry: false,
-                    is_estimate: false,
-                },
-                AgentUsage {
-                    timestamp: now - 200,
-                    input_tokens: 100,
-                    output_tokens: 50,
-                    is_retry: false,
-                    is_estimate: false,
-                },
+                sample_usage(now - 100, 100, 50, false, false),
+                sample_usage(now - 200, 100, 50, false, false),
             ],
             analysis_events: vec![],
             learning_events: vec![],
@@ -192,13 +192,7 @@ mod tests {
         let now = chrono::Utc::now().timestamp();
 
         let stats = UsageStats {
-            response_events: vec![AgentUsage {
-                timestamp: now - 100,
-                input_tokens: 1500,
-                output_tokens: 600,
-                is_retry: false,
-                is_estimate: false,
-            }],
+            response_events: vec![sample_usage(now - 100, 1500, 600, false, false)],
             analysis_events: vec![],
             learning_events: vec![],
             tts_events: vec![],

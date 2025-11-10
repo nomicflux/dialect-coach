@@ -130,24 +130,30 @@ pub fn add_tts_usage(stats: &mut UsageStats, characters: u64, now: i64, window_h
 mod tests {
     use super::*;
 
+    fn sample_usage(
+        timestamp: i64,
+        input_tokens: u64,
+        output_tokens: u64,
+        is_retry: bool,
+        is_estimate: bool,
+    ) -> AgentUsage {
+        AgentUsage {
+            timestamp,
+            input_tokens,
+            output_tokens,
+            is_retry,
+            is_estimate,
+            provider: "anthropic".to_string(),
+            model: "claude-test".to_string(),
+        }
+    }
+
     #[test]
     fn test_prune_old_agent_events_keeps_recent() {
         let now = 1000000;
         let events = vec![
-            AgentUsage {
-                timestamp: now - 3600,
-                input_tokens: 100,
-                output_tokens: 50,
-                is_retry: false,
-                is_estimate: false,
-            },
-            AgentUsage {
-                timestamp: now - 7200,
-                input_tokens: 200,
-                output_tokens: 100,
-                is_retry: false,
-                is_estimate: false,
-            },
+            sample_usage(now - 3600, 100, 50, false, false),
+            sample_usage(now - 7200, 200, 100, false, false),
         ];
 
         let pruned = prune_old_agent_events(&events, 2, now);
@@ -158,13 +164,7 @@ mod tests {
     #[test]
     fn test_prune_old_agent_events_removes_old() {
         let now = 1000000;
-        let events = vec![AgentUsage {
-            timestamp: now - 10000,
-            input_tokens: 100,
-            output_tokens: 50,
-            is_retry: false,
-            is_estimate: false,
-        }];
+        let events = vec![sample_usage(now - 10000, 100, 50, false, false)];
 
         let pruned = prune_old_agent_events(&events, 1, now);
         assert_eq!(pruned.len(), 0);
@@ -194,13 +194,7 @@ mod tests {
         let mut stats = UsageStats::default();
         let now = 1000000;
 
-        let new_usages = vec![AgentUsage {
-            timestamp: now,
-            input_tokens: 100,
-            output_tokens: 50,
-            is_retry: false,
-            is_estimate: false,
-        }];
+        let new_usages = vec![sample_usage(now, 100, 50, false, false)];
 
         add_response_usage(&mut stats, new_usages, now, 24);
         assert_eq!(stats.response_events.len(), 1);
@@ -211,25 +205,13 @@ mod tests {
     fn test_add_response_usage_prunes_old() {
         let now = 1000000;
         let mut stats = UsageStats {
-            response_events: vec![AgentUsage {
-                timestamp: now - 100000,
-                input_tokens: 999,
-                output_tokens: 999,
-                is_retry: false,
-                is_estimate: false,
-            }],
+            response_events: vec![sample_usage(now - 100000, 999, 999, false, false)],
             analysis_events: Vec::new(),
             learning_events: Vec::new(),
             tts_events: Vec::new(),
         };
 
-        let new_usages = vec![AgentUsage {
-            timestamp: now,
-            input_tokens: 100,
-            output_tokens: 50,
-            is_retry: false,
-            is_estimate: false,
-        }];
+        let new_usages = vec![sample_usage(now, 100, 50, false, false)];
 
         add_response_usage(&mut stats, new_usages, now, 24);
         assert_eq!(stats.response_events.len(), 1);
@@ -241,13 +223,7 @@ mod tests {
         let mut stats = UsageStats::default();
         let now = 1000000;
 
-        let new_usages = vec![AgentUsage {
-            timestamp: now,
-            input_tokens: 200,
-            output_tokens: 100,
-            is_retry: false,
-            is_estimate: false,
-        }];
+        let new_usages = vec![sample_usage(now, 200, 100, false, false)];
 
         add_analysis_usage(&mut stats, new_usages, now, 24);
         assert_eq!(stats.analysis_events.len(), 1);
@@ -259,13 +235,7 @@ mod tests {
         let mut stats = UsageStats::default();
         let now = 1000000;
 
-        let new_usages = vec![AgentUsage {
-            timestamp: now,
-            input_tokens: 150,
-            output_tokens: 75,
-            is_retry: false,
-            is_estimate: false,
-        }];
+        let new_usages = vec![sample_usage(now, 150, 75, false, false)];
 
         add_learning_usage(&mut stats, new_usages, now, 24);
         assert_eq!(stats.learning_events.len(), 1);
@@ -307,20 +277,8 @@ mod tests {
         let now = 1000000;
 
         let new_usages = vec![
-            AgentUsage {
-                timestamp: now,
-                input_tokens: 100,
-                output_tokens: 50,
-                is_retry: false,
-                is_estimate: false,
-            },
-            AgentUsage {
-                timestamp: now + 1,
-                input_tokens: 150,
-                output_tokens: 0,
-                is_retry: true,
-                is_estimate: true,
-            },
+            sample_usage(now, 100, 50, false, false),
+            sample_usage(now + 1, 150, 0, true, true),
         ];
 
         add_response_usage(&mut stats, new_usages, now, 24);

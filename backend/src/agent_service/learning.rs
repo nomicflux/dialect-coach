@@ -2,12 +2,12 @@ use anyhow::Result;
 use dialect_coach_shared::{
     AgentUsage, Dialect, Explained, Exploratory, Formality, Mistake, TeachingMode, Translated,
 };
-use rig::completion::{Completion, Message as RigMessage};
+use rig::completion::Message as RigMessage;
 use serde::Deserialize;
+use std::sync::Arc;
 
-use super::retry::{
-    RetryContext, build_retry_learning_preamble, estimate_input_tokens, retry_completion_call,
-};
+use super::provider::{CompletionAgent, CompletionRequest};
+use super::retry::{RetryContext, build_retry_learning_preamble, retry_completion_call};
 use super::util::{
     JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, format_learning_items_context,
     normalize_json_response,
@@ -70,13 +70,12 @@ impl From<RawLearningAgentOutput> for LearningAgentOutput {
 }
 
 pub struct LearningAgent {
-    client: rig::providers::anthropic::Client,
-    model_name: String,
+    agent: Arc<dyn CompletionAgent>,
 }
 
 impl LearningAgent {
-    pub fn new(client: rig::providers::anthropic::Client, model_name: String) -> Self {
-        Self { client, model_name }
+    pub fn new(agent: Arc<dyn CompletionAgent>) -> Self {
+        Self { agent }
     }
 
     pub async fn generate_learning_items(
@@ -95,31 +94,15 @@ impl LearningAgent {
         let prompt = build_learning_prompt(params);
         tracing::debug!("Learning prompt sent to Claude:\n{}", prompt);
         let history_with_prefill = vec![create_prefilled_assistant_message()];
-        let agent = self
-            .client
-            .agent(&self.model_name)
-            .preamble(&system_content)
-            .max_tokens(512)
-            .temperature(0.2)
-            .build();
+        let request = CompletionRequest {
+            preamble: &system_content,
+            prompt: &prompt,
+            history: &history_with_prefill,
+            max_tokens: 512,
+            temperature: 0.2,
+        };
 
-        let estimate_fn = || estimate_input_tokens(&system_content, &history_with_prefill, &prompt);
-        let (result, usage) = retry_completion_call(
-            || {
-                let prompt_clone = prompt.clone();
-                let history_clone = history_with_prefill.clone();
-                async {
-                    agent
-                        .completion(prompt_clone, history_clone)
-                        .await?
-                        .send()
-                        .await
-                }
-            },
-            estimate_fn,
-            3,
-        )
-        .await;
+        let (result, usage) = retry_completion_call(self.agent.as_ref(), &request, 3).await;
         match result {
             Ok(response) => {
                 self.handle_successful_completion(
@@ -133,7 +116,11 @@ impl LearningAgent {
                 .await
             }
             Err(e) => (
-                Err(e.context("Failed to get learning items from Claude")),
+                Err(e.context(format!(
+                    "Failed to get learning items from provider {} model {}",
+                    self.agent.provider(),
+                    self.agent.model()
+                ))),
                 usage,
             ),
         }
@@ -320,8 +307,7 @@ impl LearningAgent {
             }
             Err(_) => {
                 let retry_ctx = RetryContext {
-                    client: &self.client,
-                    model_name: &self.model_name,
+                    agent: self.agent.clone(),
                 };
                 let parse_fn = |resp: &str| try_parse_learning_output(resp);
                 let log_success = |parsed: &LearningAgentOutput| log_learning_success(parsed);

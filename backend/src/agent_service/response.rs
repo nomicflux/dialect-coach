@@ -3,9 +3,7 @@ use dialect_coach_shared::{
     AgentUsage, Dialect, DialectDocument, Explained, Exploratory, Formality, Mistake, TeachingMode,
     Translated,
 };
-use rig::completion::{
-    Completion, Message as RigMessage, Prompt, message::Text, message::UserContent,
-};
+use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
 use std::sync::Arc;
 
@@ -14,9 +12,8 @@ use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
 
 use super::learning::{LearningAgent, LearningAgentOutput, LearningAgentParams};
-use super::retry::{
-    RetryContext, build_retry_response_preamble, estimate_input_tokens, retry_completion_call,
-};
+use super::provider::{CompletionAgent, CompletionRequest};
+use super::retry::{RetryContext, build_retry_response_preamble, retry_completion_call};
 use super::util::{
     JSON_OUTPUT_INSTRUCTION, contains_illegal_characters, create_prefilled_assistant_message,
     format_learning_items_context, get_message_text, learning_goals_section,
@@ -357,8 +354,8 @@ pub struct GenerateResponseParams<'a> {
 }
 
 pub struct ResponseContext {
-    pub client: rig::providers::anthropic::Client,
-    pub model_name: String,
+    pub response_agent: Arc<dyn CompletionAgent>,
+    pub learning_agent: Arc<dyn CompletionAgent>,
     pub qdrant: Arc<QdrantService>,
     pub embeddings: Arc<EmbeddingService>,
 }
@@ -496,7 +493,7 @@ impl ResponseContext {
         parsed_response: dialect_coach_shared::AgentResponse,
     ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
         let assistant_response = parsed_response.response.clone();
-        let learning_agent = LearningAgent::new(self.client.clone(), self.model_name.clone());
+        let learning_agent = LearningAgent::new(self.learning_agent.clone());
         let learning_params = LearningAgentParams {
             user_message: params.user_message,
             assistant_response: &assistant_response,
@@ -579,8 +576,7 @@ impl ResponseContext {
                 let dialect = params.dialect;
                 let teaching_mode = params.teaching_mode;
                 let retry_ctx = RetryContext {
-                    client: &self.client,
-                    model_name: &self.model_name,
+                    agent: self.response_agent.clone(),
                 };
                 let parse_fn =
                     move |response: &str| -> Result<dialect_coach_shared::AgentResponse> {
@@ -675,28 +671,16 @@ impl ResponseContext {
             &primary_examples,
             &secondary_examples,
         );
-        let estimate_fn =
-            || estimate_input_tokens(&system_content, &history_with_prefill, params.user_message);
-        let agent = self
-            .client
-            .agent(&self.model_name)
-            .preamble(&system_content)
-            .max_tokens(tokens_per_mode(&params.teaching_mode))
-            .temperature(temperature_for_mode(&params.teaching_mode))
-            .build();
+        let request = CompletionRequest {
+            preamble: &system_content,
+            prompt: params.user_message,
+            history: &history_with_prefill,
+            max_tokens: tokens_per_mode(&params.teaching_mode),
+            temperature: temperature_for_mode(&params.teaching_mode),
+        };
 
-        let (result, usage) = retry_completion_call(
-            || async {
-                agent
-                    .completion(params.user_message, history_with_prefill.clone())
-                    .await?
-                    .send()
-                    .await
-            },
-            estimate_fn,
-            3,
-        )
-        .await;
+        let (result, usage) =
+            retry_completion_call(self.response_agent.as_ref(), &request, 3).await;
         match result {
             Ok(response) => {
                 self.handle_successful_completion(
@@ -709,7 +693,11 @@ impl ResponseContext {
                 .await
             }
             Err(e) => (
-                Err(e.context("Failed to get completion from Claude")),
+                Err(e.context(format!(
+                    "Failed to get completion from provider {} model {}",
+                    self.response_agent.provider(),
+                    self.response_agent.model()
+                ))),
                 usage,
                 Vec::new(),
             ),
@@ -723,21 +711,21 @@ impl ResponseContext {
         _dialect: Dialect,
         _formality: Formality,
     ) -> Result<dialect_coach_shared::AgentResponse> {
-        // Create a lightweight agent for translation only
-        let agent = self
-            .client
-            .agent(&self.model_name)
-            .max_tokens(64) // Keep translations short
-            .temperature(0.7)
-            .build();
-
-        // Generate translation
-        let response = agent
-            .prompt(prompt)
-            .await
-            .context("Failed to get translation from Claude")?;
-
-        Ok(dialect_coach_shared::AgentResponse::from(response))
+        let history: Vec<RigMessage> = Vec::new();
+        let request = CompletionRequest {
+            preamble: "",
+            prompt,
+            history: &history,
+            max_tokens: 64,
+            temperature: 0.7,
+        };
+        let (result, _) = retry_completion_call(self.response_agent.as_ref(), &request, 1).await;
+        let text = result.context(format!(
+            "Failed to get translation from provider {} model {}",
+            self.response_agent.provider(),
+            self.response_agent.model()
+        ))?;
+        Ok(dialect_coach_shared::AgentResponse::from(text))
     }
 }
 

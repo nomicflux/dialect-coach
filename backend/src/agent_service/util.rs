@@ -1,4 +1,4 @@
-use dialect_coach_shared::{Explained, Exploratory, Mistake, TeachingMode, Translated};
+use dialect_coach_shared::{Explained, Exploratory, Mistake, Translated};
 use rig::completion::{
     Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
 };

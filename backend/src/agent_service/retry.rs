@@ -1,11 +1,12 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use dialect_coach_shared::AgentUsage;
 use rig::OneOrMany;
-use rig::completion::{
-    AssistantContent, Completion, CompletionError, CompletionResponse, Message as RigMessage,
-};
-use rig::providers::anthropic::completion::CompletionResponse as AnthropicResponse;
+use rig::completion::Message as RigMessage;
+use rig::completion::message::AssistantContent;
+use std::sync::Arc;
+use tokio::time::Duration;
 
+use super::provider::{CompletionAgent, CompletionAgentError, CompletionRequest};
 use super::util::{self, GenerationConfig, get_message_text};
 
 pub struct RetryAttemptParams {
@@ -78,26 +79,34 @@ pub fn estimate_input_tokens(preamble: &str, history: &[RigMessage], prompt: &st
     (total_chars as f64 * 0.25).ceil() as u64
 }
 
-fn create_usage_entry(is_retry: bool, is_estimate: bool, input: u64, output: u64) -> AgentUsage {
+fn create_usage_entry(
+    agent: &dyn CompletionAgent,
+    is_retry: bool,
+    is_estimate: bool,
+    input: u64,
+    output: u64,
+) -> AgentUsage {
     AgentUsage {
         timestamp: chrono::Utc::now().timestamp(),
         input_tokens: input,
         output_tokens: output,
         is_retry,
         is_estimate,
+        provider: agent.provider().to_string(),
+        model: agent.model().to_string(),
     }
 }
 
 fn extract_text_from_choice(choice: &OneOrMany<AssistantContent>) -> Result<String> {
     let text: String = choice
         .iter()
-        .filter_map(|c| match c {
+        .filter_map(|content| match content {
             AssistantContent::Text(t) => Some(t.text.as_str()),
             _ => None,
         })
         .collect();
     if text.is_empty() {
-        Err(anyhow::anyhow!("No text in response"))
+        Err(anyhow!("No text in response"))
     } else {
         Ok(text)
     }
@@ -105,96 +114,123 @@ fn extract_text_from_choice(choice: &OneOrMany<AssistantContent>) -> Result<Stri
 
 enum AttemptResult {
     Success(String, AgentUsage),
-    Retry(AgentUsage, CompletionError),
-    Failed(AgentUsage, CompletionError),
+    Retry(AgentUsage, anyhow::Error),
+    Failed(AgentUsage, anyhow::Error),
 }
 
-async fn attempt_completion<F, Fut>(
-    completion_call: F,
-    estimate_input: impl Fn() -> u64,
-    is_retry: bool,
-) -> AttemptResult
-where
-    F: FnOnce() -> Fut,
-    Fut: std::future::Future<Output = Result<CompletionResponse<AnthropicResponse>, CompletionError>>,
-{
-    match completion_call().await {
-        Ok(response) => {
-            let text = match extract_text_from_choice(&response.choice) {
-                Ok(t) => t,
-                Err(e) => {
-                    let usage = create_usage_entry(is_retry, true, estimate_input(), 0);
-                    return AttemptResult::Failed(
-                        usage,
-                        CompletionError::ResponseError(e.to_string()),
-                    );
-                }
-            };
-            let usage = create_usage_entry(
-                is_retry,
-                false,
-                response.raw_response.usage.input_tokens,
-                response.raw_response.usage.output_tokens,
-            );
-            AttemptResult::Success(text, usage)
+enum AttemptFlow {
+    Continue { retry_error: anyhow::Error },
+    Complete(Result<String, anyhow::Error>),
+}
+
+fn process_attempt_result(
+    usages: &mut Vec<AgentUsage>,
+    attempt: usize,
+    max_attempts: usize,
+    provider: &str,
+    model: &str,
+    result: AttemptResult,
+) -> AttemptFlow {
+    match result {
+        AttemptResult::Success(text, usage) => {
+            usages.push(usage);
+            AttemptFlow::Complete(Ok(text))
         }
-        Err(e) if is_retryable_completion_error(&e) => {
-            let usage = create_usage_entry(is_retry, true, estimate_input(), 0);
-            AttemptResult::Retry(usage, e)
+        AttemptResult::Retry(usage, err) => {
+            usages.push(usage);
+            if attempt == max_attempts {
+                AttemptFlow::Complete(Err(anyhow!(
+                    "Failed after {} attempts for provider {} model {}",
+                    max_attempts,
+                    provider,
+                    model
+                )))
+            } else {
+                AttemptFlow::Continue { retry_error: err }
+            }
         }
-        Err(e) => {
-            let usage = create_usage_entry(is_retry, true, estimate_input(), 0);
-            AttemptResult::Failed(usage, e)
+        AttemptResult::Failed(usage, err) => {
+            usages.push(usage);
+            AttemptFlow::Complete(Err(anyhow!(
+                "Completion failed for provider {} model {}: {}",
+                provider,
+                model,
+                err
+            )))
         }
     }
 }
 
-fn is_retryable_completion_error(error: &CompletionError) -> bool {
-    matches!(
-        error,
-        CompletionError::ProviderError(_) | CompletionError::ResponseError(_)
-    )
+async fn attempt_completion(
+    agent: &dyn CompletionAgent,
+    request: &CompletionRequest<'_>,
+    estimate_tokens: u64,
+    is_retry: bool,
+) -> AttemptResult {
+    match agent.completion(request).await {
+        Ok(outcome) => {
+            let usage = create_usage_entry(
+                agent,
+                is_retry,
+                false,
+                outcome.input_tokens,
+                outcome.output_tokens,
+            );
+            AttemptResult::Success(outcome.text, usage)
+        }
+        Err(CompletionAgentError::Retryable(err)) => {
+            let usage = create_usage_entry(agent, is_retry, true, estimate_tokens, 0);
+            AttemptResult::Retry(usage, err)
+        }
+        Err(CompletionAgentError::Fatal(err)) => {
+            let usage = create_usage_entry(agent, is_retry, true, estimate_tokens, 0);
+            AttemptResult::Failed(usage, err)
+        }
+    }
 }
 
-async fn handle_completion_retry_delay(attempt: usize, max: usize, error: &CompletionError) {
+async fn handle_completion_retry_delay(attempt: usize, max: usize, error: &str) {
     tracing::warn!("Retry {}/{}: {}", attempt, max, error);
-    tokio::time::sleep(tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))).await;
+    handle_completion_retry_delay_sleep(attempt).await;
 }
 
-pub async fn retry_completion_call<F, Fut>(
-    completion_call: F,
-    estimate_input: impl Fn() -> u64,
+#[cfg(not(test))]
+async fn handle_completion_retry_delay_sleep(attempt: usize) {
+    tokio::time::sleep(Duration::from_secs(2_u64.pow(attempt as u32))).await;
+}
+
+#[cfg(test)]
+async fn handle_completion_retry_delay_sleep(_attempt: usize) {}
+
+pub async fn retry_completion_call(
+    agent: &dyn CompletionAgent,
+    request: &CompletionRequest<'_>,
     max_attempts: usize,
-) -> (Result<String, anyhow::Error>, Vec<AgentUsage>)
-where
-    F: Fn() -> Fut,
-    Fut: std::future::Future<Output = Result<CompletionResponse<AnthropicResponse>, CompletionError>>,
-{
+) -> (Result<String, anyhow::Error>, Vec<AgentUsage>) {
     let mut usages = Vec::new();
+    let estimate_tokens = estimate_input_tokens(request.preamble, request.history, request.prompt);
 
     for attempt in 1..=max_attempts {
         let is_retry = attempt > 1;
-        match attempt_completion(&completion_call, &estimate_input, is_retry).await {
-            AttemptResult::Success(text, usage) => {
-                usages.push(usage);
-                return (Ok(text), usages);
+        let flow = process_attempt_result(
+            &mut usages,
+            attempt,
+            max_attempts,
+            agent.provider(),
+            agent.model(),
+            attempt_completion(agent, request, estimate_tokens, is_retry).await,
+        );
+
+        match flow {
+            AttemptFlow::Continue { retry_error } => {
+                let message = retry_error.to_string();
+                handle_completion_retry_delay(attempt, max_attempts, &message).await;
             }
-            AttemptResult::Retry(usage, error) => {
-                usages.push(usage);
-                if attempt < max_attempts {
-                    handle_completion_retry_delay(attempt, max_attempts, &error).await;
-                }
-            }
-            AttemptResult::Failed(usage, error) => {
-                usages.push(usage);
-                return (Err(anyhow::anyhow!("API call failed: {}", error)), usages);
-            }
+            AttemptFlow::Complete(result) => return (result, usages),
         }
     }
-    (
-        Err(anyhow::anyhow!("Failed after {} attempts", max_attempts)),
-        usages,
-    )
+
+    unreachable!("retry loop must exit on success or failure");
 }
 
 pub fn build_retry_failure_error(
@@ -259,12 +295,11 @@ where
     }
 }
 
-pub struct RetryContext<'a> {
-    pub client: &'a rig::providers::anthropic::Client,
-    pub model_name: &'a str,
+pub struct RetryContext {
+    pub agent: Arc<dyn CompletionAgent>,
 }
 
-impl<'a> RetryContext<'a> {
+impl RetryContext {
     pub async fn attempt_retry_with_feedback<F>(
         &self,
         prompt_params: &RetryPromptParams<'_, F>,
@@ -280,27 +315,14 @@ impl<'a> RetryContext<'a> {
         );
         let mut history_with_prefill = conversation_history.to_vec();
         history_with_prefill.push(util::create_prefilled_assistant_message());
-        let estimate_fn =
-            || estimate_input_tokens(&retry_preamble, &history_with_prefill, prompt_params.prompt);
-        let agent = self
-            .client
-            .agent(self.model_name)
-            .preamble(&retry_preamble)
-            .max_tokens(config.max_tokens)
-            .temperature(config.temperature)
-            .build();
-        let (result, usage) = retry_completion_call(
-            || async {
-                agent
-                    .completion(prompt_params.prompt, history_with_prefill.clone())
-                    .await?
-                    .send()
-                    .await
-            },
-            estimate_fn,
-            3,
-        )
-        .await;
+        let request = CompletionRequest {
+            preamble: &retry_preamble,
+            prompt: prompt_params.prompt,
+            history: &history_with_prefill,
+            max_tokens: config.max_tokens,
+            temperature: config.temperature,
+        };
+        let (result, usage) = retry_completion_call(self.agent.as_ref(), &request, 3).await;
         let response = result.context("Failed to get retry completion from Claude")?;
         Ok((response, usage))
     }
@@ -393,28 +415,145 @@ impl<'a> RetryContext<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rig::completion::message::{AssistantContent, Text, UserContent};
+    use anyhow::anyhow;
+    use async_trait::async_trait;
+    use std::sync::Mutex;
+
+    use super::super::provider::{CompletionOutcome, CompletionRequest};
+    use rig::completion::message::{Text, UserContent};
+
+    struct StubAgent {
+        provider: String,
+        model: String,
+        responses: Mutex<Vec<Result<CompletionOutcome, CompletionAgentError>>>,
+    }
+
+    impl StubAgent {
+        fn new(responses: Vec<Result<CompletionOutcome, CompletionAgentError>>) -> Self {
+            Self {
+                provider: "stub".to_string(),
+                model: "test".to_string(),
+                responses: Mutex::new(responses),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl CompletionAgent for StubAgent {
+        fn provider(&self) -> &str {
+            &self.provider
+        }
+
+        fn model(&self) -> &str {
+            &self.model
+        }
+
+        async fn completion(
+            &self,
+            _: &CompletionRequest<'_>,
+        ) -> Result<CompletionOutcome, CompletionAgentError> {
+            let mut guard = self.responses.lock().unwrap();
+            if guard.is_empty() {
+                return Err(CompletionAgentError::fatal(anyhow!("Stub call exhausted")));
+            }
+            guard.remove(0)
+        }
+    }
+
+    fn sample_usage(is_retry: bool) -> AgentUsage {
+        AgentUsage {
+            timestamp: 0,
+            input_tokens: 1,
+            output_tokens: 0,
+            is_retry,
+            is_estimate: true,
+            provider: "stub".to_string(),
+            model: "test".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_process_attempt_result_sequence() {
+        let mut usages = Vec::new();
+        let provider = "stub";
+        let model = "test";
+
+        let flow1 = process_attempt_result(
+            &mut usages,
+            1,
+            3,
+            provider,
+            model,
+            AttemptResult::Retry(sample_usage(false), anyhow!("fail 1")),
+        );
+        assert!(matches!(flow1, AttemptFlow::Continue { .. }));
+        assert_eq!(usages.len(), 1);
+
+        let flow2 = process_attempt_result(
+            &mut usages,
+            2,
+            3,
+            provider,
+            model,
+            AttemptResult::Retry(sample_usage(true), anyhow!("fail 2")),
+        );
+        assert!(matches!(flow2, AttemptFlow::Continue { .. }));
+        assert_eq!(usages.len(), 2);
+
+        match process_attempt_result(
+            &mut usages,
+            3,
+            3,
+            provider,
+            model,
+            AttemptResult::Failed(sample_usage(true), anyhow!("fatal")),
+        ) {
+            AttemptFlow::Complete(Err(err)) => {
+                assert!(err.to_string().contains("Completion failed"))
+            }
+            _ => panic!("expected final failure"),
+        }
+
+        assert_eq!(usages.len(), 3);
+    }
 
     #[test]
     fn test_create_usage_entry() {
-        let usage = create_usage_entry(false, false, 100, 50);
+        let agent = StubAgent::new(vec![Ok(CompletionOutcome {
+            text: "ok".to_string(),
+            input_tokens: 0,
+            output_tokens: 0,
+        })]);
+        let usage = create_usage_entry(&agent, false, false, 100, 50);
         assert_eq!(usage.input_tokens, 100);
         assert_eq!(usage.output_tokens, 50);
         assert_eq!(usage.is_retry, false);
         assert_eq!(usage.is_estimate, false);
+        assert_eq!(usage.provider, "stub");
+        assert_eq!(usage.model, "test");
         assert!(usage.timestamp > 0);
     }
 
     #[test]
     fn test_create_usage_entry_retry() {
-        let usage = create_usage_entry(true, false, 100, 50);
+        let agent = StubAgent::new(vec![Ok(CompletionOutcome {
+            text: "ok".to_string(),
+            input_tokens: 0,
+            output_tokens: 0,
+        })]);
+        let usage = create_usage_entry(&agent, true, false, 100, 50);
         assert_eq!(usage.is_retry, true);
         assert_eq!(usage.is_estimate, false);
     }
 
     #[test]
     fn test_create_usage_entry_estimate() {
-        let usage = create_usage_entry(false, true, 100, 0);
+        let agent = StubAgent::new(vec![Ok(CompletionOutcome {
+            text: "ok".to_string(),
+            input_tokens: 0,
+            output_tokens: 0,
+        })]);
+        let usage = create_usage_entry(&agent, false, true, 100, 0);
         assert_eq!(usage.is_retry, false);
         assert_eq!(usage.is_estimate, true);
         assert_eq!(usage.output_tokens, 0);
@@ -459,7 +598,7 @@ mod tests {
     fn test_estimate_input_tokens_with_history() {
         let preamble = "System";
         let history = vec![RigMessage::User {
-            content: OneOrMany::one(UserContent::Text(Text {
+            content: rig::one_or_many::OneOrMany::one(UserContent::Text(Text {
                 text: "First message".to_string(),
             })),
         }];
@@ -468,35 +607,21 @@ mod tests {
         assert!(tokens > 0);
     }
 
-    #[test]
-    fn test_is_retryable_completion_error_provider() {
-        let error = CompletionError::ProviderError("Overloaded".to_string());
-        assert!(is_retryable_completion_error(&error));
-    }
-
-    #[test]
-    fn test_is_retryable_completion_error_response() {
-        let error = CompletionError::ResponseError("Empty response".to_string());
-        assert!(is_retryable_completion_error(&error));
-    }
-
-    #[test]
-    fn test_is_retryable_completion_error_json() {
-        let error = CompletionError::JsonError(
-            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err(),
-        );
-        assert!(!is_retryable_completion_error(&error));
-    }
-
     #[tokio::test]
     async fn test_retry_completion_call_returns_usage_on_error() {
-        let completion_call = || async {
-            Err::<CompletionResponse<AnthropicResponse>, CompletionError>(
-                CompletionError::ProviderError("API error".to_string()),
-            )
+        let agent = StubAgent::new(vec![
+            Err(CompletionAgentError::retryable(anyhow!("fail 1"))),
+            Err(CompletionAgentError::retryable(anyhow!("fail 2"))),
+            Err(CompletionAgentError::fatal(anyhow!("fatal"))),
+        ]);
+        let request = CompletionRequest {
+            preamble: "test",
+            prompt: "prompt",
+            history: &[],
+            max_tokens: 10,
+            temperature: 0.0,
         };
-        let estimate_fn = || 100u64;
-        let (result, usage) = retry_completion_call(completion_call, estimate_fn, 3).await;
+        let (result, usage) = retry_completion_call(&agent, &request, 3).await;
 
         assert!(result.is_err());
         assert!(!usage.is_empty());

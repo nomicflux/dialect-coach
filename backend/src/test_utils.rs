@@ -1,15 +1,15 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, Formality, TeachingMode};
 use rig::completion::{
-    Completion, Message as RigMessage, message::AssistantContent, message::Text,
-    message::UserContent,
+    Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
 };
 use rig::one_or_many::OneOrMany;
 use serde::{Deserialize, Serialize};
 
 use crate::agent_service::AgentService;
+use crate::agent_service::provider::{CompletionAgent, CompletionRequest};
 use crate::agent_service::response::GenerateResponseParams;
-use crate::agent_service::retry::{estimate_input_tokens, retry_completion_call};
+use crate::agent_service::retry::retry_completion_call;
 use crate::agent_service::util::contains_illegal_characters;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
@@ -73,8 +73,7 @@ pub async fn run_self_chat_test(
 
         // Generate next user message using agent
         current_message = generate_user_message(
-            &agent.client,
-            &agent.model_name,
+            agent.response_agent.as_ref(),
             dialect,
             &conversation_history,
         )
@@ -169,40 +168,31 @@ pub fn build_user_message_retry_preamble(original_preamble: &str, failed_respons
 }
 
 pub async fn attempt_user_message_retry(
-    client: &rig::providers::anthropic::Client,
-    model_name: &str,
+    agent: &dyn CompletionAgent,
     original_preamble: &str,
     failed_response: &str,
     conversation_history: &[RigMessage],
 ) -> Result<String> {
     let retry_preamble = build_user_message_retry_preamble(original_preamble, failed_response);
-    let agent = client
-        .agent(model_name)
-        .preamble(&retry_preamble)
-        .max_tokens(64)
-        .temperature(0.3)
-        .build();
     let prompt = "Continue the conversation naturally.";
-    let estimate_fn = || estimate_input_tokens(&retry_preamble, conversation_history, prompt);
-    let (result, _) = retry_completion_call(
-        || async {
-            agent
-                .completion(prompt, conversation_history.to_vec())
-                .await?
-                .send()
-                .await
-        },
-        estimate_fn,
-        3,
-    )
-    .await;
-    let response = result.context("Failed to get retry completion from Claude")?;
+    let request = CompletionRequest {
+        preamble: &retry_preamble,
+        prompt,
+        history: conversation_history,
+        max_tokens: 64,
+        temperature: 0.3,
+    };
+    let (result, _) = retry_completion_call(agent, &request, 3).await;
+    let response = result.context(format!(
+        "Failed to get retry completion from provider {} model {}",
+        agent.provider(),
+        agent.model()
+    ))?;
     Ok(response)
 }
 
 pub async fn retry_user_message_with_feedback(
-    client: &rig::providers::anthropic::Client,
-    model_name: &str,
+    agent: &dyn CompletionAgent,
     original_preamble: &str,
     failed_response: &str,
     conversation_history: &[RigMessage],
@@ -220,8 +210,7 @@ pub async fn retry_user_message_with_feedback(
         );
 
         let response = attempt_user_message_retry(
-            client,
-            model_name,
+            agent,
             original_preamble,
             &last_failed_response,
             conversation_history,
@@ -259,8 +248,7 @@ pub async fn retry_user_message_with_feedback(
 /// Generate a user message for self-chat testing
 /// Returns a simple response as a native dialect speaker would say
 pub async fn generate_user_message(
-    client: &rig::providers::anthropic::Client,
-    model_name: &str,
+    agent: &dyn CompletionAgent,
     dialect: Dialect,
     conversation_history: &[RigMessage],
 ) -> Result<String> {
@@ -272,33 +260,24 @@ pub async fn generate_user_message(
         dialect_name
     );
 
-    let agent = client
-        .agent(model_name)
-        .preamble(&preamble)
-        .max_tokens(64)
-        .temperature(0.3)
-        .build();
-
     let prompt = "Continue the conversation naturally.";
-    let estimate_fn = || estimate_input_tokens(&preamble, conversation_history, prompt);
-    let (result, _) = retry_completion_call(
-        || async {
-            agent
-                .completion(prompt, conversation_history.to_vec())
-                .await?
-                .send()
-                .await
-        },
-        estimate_fn,
-        3,
-    )
-    .await;
-    let response = result.context("Failed to generate user message")?;
+    let request = CompletionRequest {
+        preamble: &preamble,
+        prompt,
+        history: conversation_history,
+        max_tokens: 64,
+        temperature: 0.3,
+    };
+    let (result, _) = retry_completion_call(agent, &request, 3).await;
+    let response = result.context(format!(
+        "Failed to generate user message from provider {} model {}",
+        agent.provider(),
+        agent.model()
+    ))?;
 
     if response.trim().is_empty() || contains_illegal_characters(&response) {
         return retry_user_message_with_feedback(
-            client,
-            model_name,
+            agent,
             &preamble,
             &response,
             conversation_history,

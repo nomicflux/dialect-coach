@@ -1,10 +1,9 @@
 use anyhow::Result;
 use dialect_coach_shared::{AgentUsage, Dialect, Explained, Mistake};
-use rig::completion::{Completion, Message as RigMessage};
+use rig::completion::Message as RigMessage;
 
-use super::retry::{
-    RetryContext, build_retry_analysis_preamble, estimate_input_tokens, retry_completion_call,
-};
+use super::provider::CompletionRequest;
+use super::retry::{RetryContext, build_retry_analysis_preamble, retry_completion_call};
 use super::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response};
 
 pub fn format_mistakes_for_analysis(mistakes: &[Mistake]) -> String {
@@ -160,39 +159,34 @@ fn format_analysis_prompt(msg: &str) -> String {
 }
 
 async fn call_analysis_api(
-    retry_ctx: &RetryContext<'_>,
+    retry_ctx: &RetryContext,
     preamble: &str,
     prompt: &str,
 ) -> (Result<String, anyhow::Error>, Vec<AgentUsage>) {
     let history_with_prefill = vec![super::util::create_prefilled_assistant_message()];
-    let estimate_fn = || estimate_input_tokens(preamble, &history_with_prefill, prompt);
-    let agent = retry_ctx
-        .client
-        .agent(retry_ctx.model_name)
-        .max_tokens(1024)
-        .temperature(0.2)
-        .preamble(preamble)
-        .build();
-    let (result, usage) = retry_completion_call(
-        || async {
-            agent
-                .completion(prompt, history_with_prefill.clone())
-                .await?
-                .send()
-                .await
-        },
-        estimate_fn,
-        3,
-    )
-    .await;
+    let request = CompletionRequest {
+        preamble,
+        prompt,
+        history: &history_with_prefill,
+        max_tokens: 1024,
+        temperature: 0.2,
+    };
+    let (result, usage) = retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
     match result {
         Ok(response) => (Ok(response), usage),
-        Err(e) => (Err(e.context("Failed to get analysis from Claude")), usage),
+        Err(e) => (
+            Err(e.context(format!(
+                "Failed to get analysis from provider {} model {}",
+                retry_ctx.agent.provider(),
+                retry_ctx.agent.model()
+            ))),
+            usage,
+        ),
     }
 }
 
 async fn handle_successful_analysis(
-    retry_ctx: &RetryContext<'_>,
+    retry_ctx: &RetryContext,
     response: String,
     usage: Vec<AgentUsage>,
     preamble: &str,
@@ -209,7 +203,7 @@ async fn handle_successful_analysis(
 }
 
 async fn handle_analysis_response(
-    retry_ctx: &RetryContext<'_>,
+    retry_ctx: &RetryContext,
     response: &str,
     initial_usage: Vec<AgentUsage>,
     preamble: &str,
@@ -239,7 +233,7 @@ async fn handle_analysis_response(
 }
 
 pub async fn generate_analysis(
-    retry_ctx: &RetryContext<'_>,
+    retry_ctx: &RetryContext,
     dialect: Dialect,
     msg: &String,
     mistakes: &[Mistake],
@@ -275,7 +269,7 @@ pub async fn generate_analysis(
 }
 
 async fn retry_analysis_with_error_feedback_tracked(
-    retry_ctx: &RetryContext<'_>,
+    retry_ctx: &RetryContext,
     original_preamble: &str,
     failed_response: &str,
     msg: &String,
