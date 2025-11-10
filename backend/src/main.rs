@@ -153,6 +153,8 @@ async fn main() -> Result<()> {
     let rate_limiter = Arc::new(rate_limiter::service::RateLimiter::new(
         org_quota_checker.clone(),
     ));
+    let user_state_connections: Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
     let tts_state = match ElevenLabsTtsProvider::from_env() {
         Ok(tts_provider) => {
@@ -163,6 +165,7 @@ async fn main() -> Result<()> {
                 user_persistence: user_persistence.clone(),
                 rate_limiter: rate_limiter.clone(),
                 rate_limit_config: rate_limit_config.clone(),
+                user_state_connections: user_state_connections.clone(),
             })
         }
         Err(e) => {
@@ -191,7 +194,7 @@ async fn main() -> Result<()> {
         rate_limiter,
         rate_limit_config,
         org_quota_checker,
-        user_state_connections: Arc::new(Mutex::new(HashMap::new())),
+        user_state_connections: user_state_connections.clone(),
         admin_token,
     };
 
