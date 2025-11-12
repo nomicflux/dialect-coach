@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(state.user_id, user_id);
         assert_eq!(state.learning_items.len(), 0);
         assert_eq!(state.conversation_history.len(), 0);
-        assert_eq!(state.tts_enabled, false);
+        assert!(!state.tts_enabled);
     }
 
     #[test]

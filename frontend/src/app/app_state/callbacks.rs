@@ -32,11 +32,19 @@ pub fn on_user_state_load_response(
     let app_state = app_state.clone();
     Callback::from(move |loaded_state: Option<UserState>| {
         if let Some(state) = loaded_state {
-            info!("Received user state from backend");
+            info!(
+                "Received user state from backend with {} learning goals, {} messages, {} learning items",
+                state.learning_goals.len(),
+                state.conversation_history.len(),
+                state.learning_items.len()
+            );
             user_state.dispatch(UserStateAction::ReplaceUserState(state.clone()));
             app_state.dispatch(AppStateAction::NotifyTTSEnabled(state.tts_enabled));
         } else {
-            info!("No existing user state on backend, using current state");
+            error!("Backend returned no user state for existing user - this should not happen");
+            app_state.dispatch(AppStateAction::SetError(
+                "Failed to load user state from backend".to_string(),
+            ));
         }
     })
 }

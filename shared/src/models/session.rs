@@ -100,7 +100,7 @@ impl ChatSession {
 mod tests {
     use super::*;
     use crate::models::{
-        AgentType, DialectConfig, Formality, MessageContent, MessageMetadata, TeachingMode,
+        AgentType, DialectConfig, Formality, MessageMetadata, TeachingMode,
     };
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {

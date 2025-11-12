@@ -222,7 +222,7 @@ pub enum UIStateAction {
     HideUserCreationPage,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct UIState {
     pub panel_open: bool,
     pub input_prompt_value: Option<String>,
@@ -239,6 +239,28 @@ pub struct UIState {
     pub deleted_learning_items: VecDeque<LearningItem>,
     pub deleted_messages: VecDeque<Message>,
     pub show_user_creation_page: bool,
+}
+
+impl Default for UIState {
+    fn default() -> Self {
+        Self {
+            panel_open: false,
+            input_prompt_value: None,
+            translating_button: None,
+            learning_panel_open: false,
+            sidebar_collapsed: false,
+            learning_panel_collapsed: false,
+            usage_footer_collapsed: true,
+            create_username_input: String::new(),
+            signin_username_input: String::new(),
+            create_email_input: String::new(),
+            create_invite_code_input: String::new(),
+            signin_invite_code_input: String::new(),
+            deleted_learning_items: VecDeque::new(),
+            deleted_messages: VecDeque::new(),
+            show_user_creation_page: false,
+        }
+    }
 }
 
 impl UIState {

@@ -4,12 +4,12 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use dialect_coach_shared::{tts::TtsRequest, UsageStats, UserStateMessage};
+use dialect_coach_shared::{UsageStats, UserStateMessage, tts::TtsRequest};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::{Mutex, mpsc};
 use tracing::{error, info};
-use tokio::sync::{mpsc, Mutex};
 
 use crate::persistence::UserPersistence;
 use crate::rate_limiter::service::RateLimiterService;
@@ -317,8 +317,8 @@ mod tests {
         rate_limiter::{config::RateLimitConfig, org_quota::OrgQuotaChecker, service::RateLimiter},
     };
     use anyhow::Result;
-    use dialect_coach_shared::{InviteCode, User, UserState};
     use dialect_coach_shared::tts::{TextToSpeechProvider, TtsError, TtsRequest, TtsResponse};
+    use dialect_coach_shared::{InviteCode, User, UserState};
     use std::collections::HashMap;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -393,7 +393,10 @@ mod tests {
 
     #[async_trait::async_trait]
     impl TextToSpeechProvider for NoopProvider {
-        async fn synthesize(&self, _request: TtsRequest) -> std::result::Result<TtsResponse, TtsError> {
+        async fn synthesize(
+            &self,
+            _request: TtsRequest,
+        ) -> std::result::Result<TtsResponse, TtsError> {
             Err(TtsError::Unknown("noop".to_string()))
         }
 

@@ -2,7 +2,7 @@ use crate::app::app_helpers::extract_learning_items;
 use crate::app::app_state::{
     AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
 };
-use dialect_coach_shared::{AuthCredentials, PastLearningItems, UserMessageWithContext, UserState};
+use dialect_coach_shared::{AuthCredentials, PastLearningItems, UserMessageWithContext};
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -197,7 +197,7 @@ fn clear_create_form_inputs(ui_state: &UseReducerHandle<UIState>) {
 pub fn on_user_create_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    _user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<dialect_coach_shared::User, String>> {
     Callback::from(
         move |result: Result<dialect_coach_shared::User, String>| match result {
@@ -206,14 +206,7 @@ pub fn on_user_create_response(
                 clear_create_form_inputs(&ui_state);
                 ui_state.dispatch(UIStateAction::HideUserCreationPage);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
-
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
-
-                let new_state = UserState::new(user.id);
-                user_state.dispatch(UserStateAction::ReplaceUserState(new_state.clone()));
-                app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));
-
-                info!("Session and UserState created for new user");
             }
             Err(e) => {
                 error!("Failed to create user: {}", e);
@@ -231,7 +224,7 @@ fn clear_signin_form_inputs(ui_state: &UseReducerHandle<UIState>) {
 pub fn on_user_signin_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    _user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<dialect_coach_shared::User, String>> {
     Callback::from(
         move |result: Result<dialect_coach_shared::User, String>| match result {
@@ -239,14 +232,7 @@ pub fn on_user_signin_response(
                 info!("Signed in successfully as: {}", user.username);
                 clear_signin_form_inputs(&ui_state);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
-
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
-
-                let new_state = UserState::new(user.id);
-                user_state.dispatch(UserStateAction::ReplaceUserState(new_state.clone()));
-                app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));
-
-                info!("Session and UserState created for signed-in user (will load from backend)");
             }
             Err(e) => {
                 error!("Sign in failed: {}", e);

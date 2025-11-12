@@ -153,8 +153,9 @@ async fn main() -> Result<()> {
     let rate_limiter = Arc::new(rate_limiter::service::RateLimiter::new(
         org_quota_checker.clone(),
     ));
-    let user_state_connections: Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>> =
-        Arc::new(Mutex::new(HashMap::new()));
+    let user_state_connections: Arc<
+        Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>,
+    > = Arc::new(Mutex::new(HashMap::new()));
 
     let tts_state = match ElevenLabsTtsProvider::from_env() {
         Ok(tts_provider) => {

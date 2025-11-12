@@ -25,14 +25,15 @@ pub fn use_chat_websocket(
     app_state: UseReducerHandle<AppState>,
     user_state: UseReducerHandle<OptionalUserState>,
 ) {
-    let is_authenticated = user_state.0.is_some();
+    let current_user = app_state.current_user.clone();
 
-    use_effect_with(is_authenticated, move |&authenticated| {
+    use_effect_with(current_user, move |user_opt| {
+        let had_user = user_opt.is_some();
         let app_state = app_state.clone();
         let user_state = user_state.clone();
         let ws_service_clone = app_state.ws_service.clone();
 
-        if authenticated {
+        if had_user {
             info!("Authenticated - initializing chat WebSocket connection");
 
             {
@@ -134,7 +135,7 @@ pub fn use_chat_websocket(
 
         // Cleanup - disconnect when effect re-runs or component unmounts
         move || {
-            if authenticated {
+            if had_user {
                 info!("Disconnecting chat WebSocket");
                 ws_service_clone.borrow_mut().disconnect();
             }
@@ -147,36 +148,37 @@ pub fn use_user_state_websocket(
     app_state: UseReducerHandle<AppState>,
     user_state: UseReducerHandle<OptionalUserState>,
 ) {
-    let is_authenticated = user_state.0.is_some();
+    let current_user = app_state.current_user.clone();
 
-    use_effect_with(is_authenticated, move |&authenticated| {
+    use_effect_with(current_user, move |user_opt| {
         let app_state = app_state.clone();
         let user_state = user_state.clone();
         let ws_service_clone = app_state.user_state_ws_service.clone();
 
-        if authenticated {
-            info!("Authenticated - initializing user state WebSocket connection");
+        if let Some(user) = user_opt {
+            info!(
+                "User authenticated - initializing user state WebSocket connection for user: {}",
+                user.id
+            );
+            let user_id = user.id;
+            let mut ws = ws_service_clone.borrow_mut();
 
-            if let Some(state) = user_state.0.as_ref() {
-                let user_id = state.user_id;
-                let mut ws = ws_service_clone.borrow_mut();
-
-                ws.set_on_open(on_user_state_ws_open(app_state.clone(), user_id));
-                ws.set_on_load_response(on_user_state_load_response(
-                    app_state.clone(),
-                    user_state.clone(),
-                ));
-                ws.set_on_save_response(on_user_state_save_response());
-                ws.set_on_usage_stats_update(on_user_state_usage_stats_update(user_state.clone()));
-                ws.connect();
-            }
+            ws.set_on_open(on_user_state_ws_open(app_state.clone(), user_id));
+            ws.set_on_load_response(on_user_state_load_response(
+                app_state.clone(),
+                user_state.clone(),
+            ));
+            ws.set_on_save_response(on_user_state_save_response());
+            ws.set_on_usage_stats_update(on_user_state_usage_stats_update(user_state.clone()));
+            ws.connect();
         } else {
-            info!("Not authenticated, skipping user state WebSocket connection");
+            info!("No user authenticated, skipping user state WebSocket connection");
         }
 
         // Cleanup when effect re-runs or component unmounts
+        let had_user = user_opt.is_some();
         move || {
-            if authenticated {
+            if had_user {
                 info!("User state WebSocket cleanup");
                 // Note: UserStateWebSocketService doesn't have a disconnect method
                 // Connection will be cleaned up when component unmounts
