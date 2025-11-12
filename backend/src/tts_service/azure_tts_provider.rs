@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use dialect_coach_shared::models::TTSProviderType;
 use dialect_coach_shared::tts::{
     AudioFormat, TextToSpeechProvider, TtsError, TtsRequest, TtsResponse,
 };
@@ -141,6 +142,10 @@ impl TextToSpeechProvider for AzureTtsProvider {
     fn provider_name(&self) -> &'static str {
         "Azure Neural"
     }
+
+    fn provider_type(&self) -> TTSProviderType {
+        TTSProviderType::Azure
+    }
 }
 
 #[cfg(test)]
@@ -230,5 +235,12 @@ mod tests {
             "✅ All {} voice mappings verified against Azure API",
             test_cases.len()
         );
+    }
+
+    #[test]
+    fn test_azure_provider_type() {
+        use dialect_coach_shared::tts::TextToSpeechProvider;
+        let provider = AzureTtsProvider::new("test_key".to_string(), "eastus".to_string());
+        assert_eq!(provider.provider_type(), TTSProviderType::Azure);
     }
 }

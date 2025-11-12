@@ -85,7 +85,7 @@ impl UserState {
     }
 
     pub fn current_dialects(&self) -> Vec<Dialect> {
-        Dialect::for_language(self.selected_language)
+        Dialect::for_language(self.selected_language, true, true)
     }
 
     pub fn formality_display(&self) -> &'static str {

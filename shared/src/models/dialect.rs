@@ -1,5 +1,7 @@
 use super::Language;
+use super::TTSProviderType;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
@@ -174,32 +176,56 @@ impl Dialect {
         }
     }
 
-    /// Get all dialects for a specific language
-    pub fn for_language(language: Language) -> Vec<Dialect> {
+    fn all_spanish_dialects() -> Vec<Dialect> {
+        vec![
+            Self::SpanishMexican,
+            Self::SpanishCastilian,
+            Self::SpanishArgentinian,
+            Self::SpanishCuban,
+            Self::SpanishChilean,
+            Self::SpanishColombian,
+        ]
+    }
+
+    fn all_arabic_dialects() -> Vec<Dialect> {
+        vec![
+            Self::ArabicEgyptian,
+            Self::ArabicLevantine,
+            Self::ArabicGulf,
+            Self::ArabicMaghrebi,
+            Self::ArabicIraqi,
+        ]
+    }
+
+    fn all_french_dialects() -> Vec<Dialect> {
+        vec![
+            Self::FrenchQuebecois,
+            Self::FrenchParisian,
+            Self::FrenchSwiss,
+            Self::FrenchBelgian,
+            Self::FrenchAfrican,
+        ]
+    }
+
+    fn all_dialects_for_language(language: Language) -> Vec<Dialect> {
         match language {
-            Language::Spanish => vec![
-                //Self::SpanishMexican,
-                //Self::SpanishCastilian,
-                Self::SpanishArgentinian,
-                Self::SpanishCuban,
-                //Self::SpanishChilean,
-                Self::SpanishColombian,
-            ],
-            Language::Arabic => vec![
-                Self::ArabicEgyptian,
-                Self::ArabicLevantine,
-                Self::ArabicGulf,
-                //Self::ArabicMaghrebi,
-                //Self::ArabicIraqi,
-            ],
-            Language::French => vec![
-                Self::FrenchQuebecois,
-                //Self::FrenchParisian,
-                //Self::FrenchSwiss,
-                //Self::FrenchBelgian,
-                Self::FrenchAfrican,
-            ],
+            Language::Spanish => Self::all_spanish_dialects(),
+            Language::Arabic => Self::all_arabic_dialects(),
+            Language::French => Self::all_french_dialects(),
         }
+    }
+
+    /// Get all dialects for a specific language, optionally filtered by feature availability
+    pub fn for_language(language: Language, with_tts: bool, with_corpus: bool) -> Vec<Dialect> {
+        Self::all_dialects_for_language(language)
+            .into_iter()
+            .filter(|dialect| {
+                let features = dialect_features(*dialect);
+                let matches_tts = !with_tts || features.tts_voices.values().any(|voice| voice.is_some());
+                let matches_corpus = !with_corpus || features.has_corpus;
+                matches_tts && matches_corpus
+            })
+            .collect()
     }
 
     /// Get all supported dialects
@@ -267,6 +293,72 @@ impl FromStr for Dialect {
                 s
             )
         })
+    }
+}
+
+/// User feedback score for a dialect
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Feedback {
+    pub score: Option<f64>,
+}
+
+/// Dialect with feature availability information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DialectWithFeatures {
+    pub dialect: Dialect,
+    pub tts_voices: HashMap<TTSProviderType, Option<String>>,
+    pub has_corpus: bool,
+    pub feedback: Feedback,
+}
+
+impl From<Dialect> for DialectWithFeatures {
+    fn from(dialect: Dialect) -> Self {
+        dialect_features(dialect)
+    }
+}
+
+fn build_voice_map(elevenlabs: Option<&str>, azure: Option<&str>) -> HashMap<TTSProviderType, Option<String>> {
+    let mut voices = HashMap::new();
+    voices.insert(TTSProviderType::ElevenLabs, elevenlabs.map(|s| s.to_string()));
+    voices.insert(TTSProviderType::Azure, azure.map(|s| s.to_string()));
+    voices
+}
+
+fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<String>> {
+    match dialect {
+        Dialect::SpanishArgentinian => build_voice_map(Some("XmoCtjPCefjeLDu0eMSl"), Some("es-AR-ElenaNeural")),
+        Dialect::SpanishCuban => build_voice_map(Some("1hB7zCGWj11SeMuBseeI"), Some("es-CU-BelkysNeural")),
+        Dialect::SpanishColombian => build_voice_map(Some("86V9x9hrQds83qf7zaGn"), Some("es-CO-SalomeNeural")),
+        Dialect::ArabicEgyptian => build_voice_map(Some("LXrTqFIgiubkrMkwvOUr"), Some("ar-EG-SalmaNeural")),
+        Dialect::ArabicLevantine => build_voice_map(Some("4wf10lgibMnboGJGCLrP"), Some("ar-LB-LaylaNeural")),
+        Dialect::ArabicGulf => build_voice_map(Some("DANw8bnAVbjDEHwZIoYa"), Some("ar-SA-ZariyahNeural")),
+        Dialect::FrenchQuebecois => build_voice_map(Some("j9RedbMRSNQ74PyikQwD"), Some("fr-CA-SylvieNeural")),
+        Dialect::FrenchAfrican => build_voice_map(Some("FgHDn7bpgpKqz7QttoyC"), None),
+        _ => build_voice_map(None, None),
+    }
+}
+
+fn has_corpus(dialect: Dialect) -> bool {
+    matches!(
+        dialect,
+        Dialect::SpanishArgentinian
+            | Dialect::SpanishCuban
+            | Dialect::SpanishColombian
+            | Dialect::ArabicEgyptian
+            | Dialect::ArabicLevantine
+            | Dialect::ArabicGulf
+            | Dialect::FrenchQuebecois
+            | Dialect::FrenchAfrican
+    )
+}
+
+/// Get feature availability for a dialect
+pub fn dialect_features(dialect: Dialect) -> DialectWithFeatures {
+    DialectWithFeatures {
+        dialect,
+        tts_voices: get_tts_voices(dialect),
+        has_corpus: has_corpus(dialect),
+        feedback: Feedback::default(),
     }
 }
 
@@ -407,10 +499,81 @@ mod tests {
 
     #[test]
     fn test_dialects_for_language() {
-        let spanish_dialects = Dialect::for_language(Language::Spanish);
+        let spanish_dialects = Dialect::for_language(Language::Spanish, true, true);
+        assert_eq!(spanish_dialects.len(), 3);
+        assert!(spanish_dialects.contains(&Dialect::SpanishCuban));
+        assert!(spanish_dialects.contains(&Dialect::SpanishArgentinian));
+        assert!(spanish_dialects.contains(&Dialect::SpanishColombian));
+    }
+
+    #[test]
+    fn test_dialects_for_language_no_filters() {
+        let spanish_dialects = Dialect::for_language(Language::Spanish, false, false);
+        assert_eq!(spanish_dialects.len(), 6);
+    }
+
+    #[test]
+    fn test_dialects_for_language_with_tts_only() {
+        let spanish_dialects = Dialect::for_language(Language::Spanish, true, false);
         assert!(spanish_dialects.len() >= 3);
         assert!(spanish_dialects.contains(&Dialect::SpanishCuban));
         assert!(spanish_dialects.contains(&Dialect::SpanishArgentinian));
         assert!(spanish_dialects.contains(&Dialect::SpanishColombian));
+    }
+
+    #[test]
+    fn test_dialects_for_language_with_corpus_only() {
+        let spanish_dialects = Dialect::for_language(Language::Spanish, false, true);
+        assert!(spanish_dialects.len() >= 3);
+        assert!(spanish_dialects.contains(&Dialect::SpanishCuban));
+        assert!(spanish_dialects.contains(&Dialect::SpanishArgentinian));
+        assert!(spanish_dialects.contains(&Dialect::SpanishColombian));
+    }
+
+    #[test]
+    fn test_feedback_default() {
+        let feedback = Feedback::default();
+        assert_eq!(feedback.score, None);
+    }
+
+    #[test]
+    fn test_dialect_with_features_from_dialect() {
+        let features: DialectWithFeatures = Dialect::SpanishArgentinian.into();
+        assert_eq!(features.dialect, Dialect::SpanishArgentinian);
+        assert!(features.has_corpus);
+        assert_eq!(features.feedback.score, None);
+    }
+
+    #[test]
+    fn test_dialect_features_active_dialect() {
+        let features = dialect_features(Dialect::SpanishCuban);
+        assert_eq!(features.dialect, Dialect::SpanishCuban);
+        assert!(features.has_corpus);
+        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).is_some());
+        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).unwrap().is_some());
+        assert!(features.tts_voices.get(&TTSProviderType::Azure).is_some());
+        assert!(features.tts_voices.get(&TTSProviderType::Azure).unwrap().is_some());
+    }
+
+    #[test]
+    fn test_dialect_features_inactive_dialect() {
+        let features = dialect_features(Dialect::SpanishMexican);
+        assert_eq!(features.dialect, Dialect::SpanishMexican);
+        assert!(!features.has_corpus);
+        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).is_some());
+        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).unwrap().is_none());
+        assert!(features.tts_voices.get(&TTSProviderType::Azure).is_some());
+        assert!(features.tts_voices.get(&TTSProviderType::Azure).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_dialect_features_french_african_no_azure() {
+        let features = dialect_features(Dialect::FrenchAfrican);
+        assert_eq!(features.dialect, Dialect::FrenchAfrican);
+        assert!(features.has_corpus);
+        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).is_some());
+        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).unwrap().is_some());
+        assert!(features.tts_voices.get(&TTSProviderType::Azure).is_some());
+        assert!(features.tts_voices.get(&TTSProviderType::Azure).unwrap().is_none());
     }
 }

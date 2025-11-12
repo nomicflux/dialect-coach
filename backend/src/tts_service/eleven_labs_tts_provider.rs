@@ -1,3 +1,4 @@
+use dialect_coach_shared::models::TTSProviderType;
 use dialect_coach_shared::tts::{
     AudioFormat, TextToSpeechProvider, TtsError, TtsRequest, TtsResponse,
 };
@@ -148,5 +149,25 @@ impl TextToSpeechProvider for ElevenLabsTtsProvider {
 
     fn provider_name(&self) -> &'static str {
         "Elevel Labs"
+    }
+
+    fn provider_type(&self) -> TTSProviderType {
+        TTSProviderType::ElevenLabs
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_elevenlabs_provider_type() {
+        use dialect_coach_shared::tts::TextToSpeechProvider;
+        let provider = ElevenLabsTtsProvider::new(
+            "test_key".to_string(),
+            "https://api.elevenlabs.io/v1/".to_string(),
+            "test_model".to_string(),
+        );
+        assert_eq!(provider.provider_type(), TTSProviderType::ElevenLabs);
     }
 }

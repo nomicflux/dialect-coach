@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::models::TTSProviderType;
+
 /// Trait for text-to-speech providers (Google, Azure, Browser, etc.)
 #[async_trait::async_trait]
 pub trait TextToSpeechProvider: Send + Sync {
@@ -9,6 +11,9 @@ pub trait TextToSpeechProvider: Send + Sync {
 
     /// Get the provider name (e.g., "Google Neural2", "Browser", "Azure")
     fn provider_name(&self) -> &'static str;
+
+    /// Get the provider type (e.g., Azure, ElevenLabs)
+    fn provider_type(&self) -> TTSProviderType;
 }
 
 /// Request for text-to-speech synthesis

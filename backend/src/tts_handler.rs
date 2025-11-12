@@ -317,6 +317,7 @@ mod tests {
         rate_limiter::{config::RateLimitConfig, org_quota::OrgQuotaChecker, service::RateLimiter},
     };
     use anyhow::Result;
+    use dialect_coach_shared::models::TTSProviderType;
     use dialect_coach_shared::tts::{TextToSpeechProvider, TtsError, TtsRequest, TtsResponse};
     use dialect_coach_shared::{InviteCode, User, UserState};
     use std::collections::HashMap;
@@ -402,6 +403,10 @@ mod tests {
 
         fn provider_name(&self) -> &'static str {
             "noop"
+        }
+
+        fn provider_type(&self) -> TTSProviderType {
+            TTSProviderType::Azure
         }
     }
 

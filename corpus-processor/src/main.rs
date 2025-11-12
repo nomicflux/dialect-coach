@@ -187,7 +187,7 @@ async fn main() -> Result<()> {
 
             for lang in Language::all() {
                 println!("{}:", lang.name());
-                let dialects = Dialect::for_language(lang);
+                let dialects = Dialect::for_language(lang, true, true);
                 for dialect in dialects {
                     println!("  - {} ({})", dialect.name(), dialect.bcp47_tag());
                 }
