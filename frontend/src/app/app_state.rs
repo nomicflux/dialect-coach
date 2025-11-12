@@ -1,5 +1,6 @@
 pub mod callbacks;
 
+use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{
     ConversationBranch, Dialect, Formality, Language, Message, TeachingMode,
 };
@@ -111,9 +112,13 @@ impl AppState {
             AppStateAction::ClearError => next.error_message = None,
             AppStateAction::SetConnectionState(conn_state) => next.connection_state = conn_state,
             AppStateAction::Speak(msg) => {
+                let dialect = msg.metadata.dialect;
+                if !dialect_features(dialect).has_tts() {
+                    return next;
+                }
                 let tts_service = next.tts_service.clone();
                 let user_id = next.current_user.as_ref().map(|u| u.id);
-                let language_code = msg.metadata.dialect.bcp47_tag();
+                let language_code = dialect.bcp47_tag();
                 let text = msg.get_content();
                 wasm_bindgen_futures::spawn_local(async move {
                     if let Some(tts) = tts_service
@@ -155,10 +160,13 @@ impl AppState {
             AppStateAction::ProcessAgentMessage(msg) => {
                 // Read autoplay_enabled from AppState's own state (not from UserState handle)
                 if next.autoplay_enabled {
-                    // Dispatch Speak - same as current implementation
+                    let dialect = msg.metadata.dialect;
+                    if !dialect_features(dialect).has_tts() {
+                        return next;
+                    }
                     let tts_service = next.tts_service.clone();
                     let user_id = next.current_user.as_ref().map(|u| u.id);
-                    let language_code = msg.metadata.dialect.bcp47_tag();
+                    let language_code = dialect.bcp47_tag();
                     let text = msg.get_content();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(tts) = tts_service

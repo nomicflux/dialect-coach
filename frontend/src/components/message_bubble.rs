@@ -1,4 +1,5 @@
 use dialect_coach_shared::models::Message;
+use dialect_coach_shared::models::dialect::dialect_features;
 use uuid::Uuid;
 use yew::prelude::*;
 
@@ -30,6 +31,10 @@ fn render_delete_button(on_delete: &Option<Callback<Uuid>>, msg_id: Uuid) -> Htm
 
 fn render_replay_button(on_replay: &Option<Callback<Message>>, msg: &Message) -> Html {
     if let Some(callback) = on_replay {
+        let dialect = msg.metadata.dialect;
+        if !dialect_features(dialect).has_tts() {
+            return html! {};
+        }
         let cb = callback.clone();
         let m = msg.clone();
         let onclick = Callback::from(move |_| cb.emit(m.clone()));
