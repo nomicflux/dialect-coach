@@ -41,10 +41,20 @@ pub fn on_user_state_load_response(
             user_state.dispatch(UserStateAction::ReplaceUserState(state.clone()));
             app_state.dispatch(AppStateAction::NotifyTTSEnabled(state.tts_enabled));
         } else {
-            error!("Backend returned no user state for existing user - this should not happen");
-            app_state.dispatch(AppStateAction::SetError(
-                "Failed to load user state from backend".to_string(),
-            ));
+            // New user - create initial UserState
+            if let Some(user) = app_state.current_user.as_ref() {
+                info!("No user state found for new user, creating initial state");
+                let new_state = UserState::new(user.id);
+                user_state.dispatch(UserStateAction::ReplaceUserState(new_state.clone()));
+                app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));
+            } else {
+                error!(
+                    "Backend returned no user state and no current user - this should not happen"
+                );
+                app_state.dispatch(AppStateAction::SetError(
+                    "Failed to load user state from backend".to_string(),
+                ));
+            }
         }
     })
 }

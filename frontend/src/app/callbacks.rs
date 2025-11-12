@@ -207,6 +207,19 @@ pub fn on_user_create_response(
                 ui_state.dispatch(UIStateAction::HideUserCreationPage);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
+
+                // Trigger sign-in to load/create UserState (reuses normal sign-in flow)
+                if let Err(e) = app_state
+                    .user_ws_service
+                    .borrow()
+                    .sign_in(user.username.clone())
+                {
+                    error!("Failed to sign in after user creation: {}", e);
+                    app_state.dispatch(AppStateAction::SetError(format!(
+                        "User created but sign in failed: {}",
+                        e
+                    )));
+                }
             }
             Err(e) => {
                 error!("Failed to create user: {}", e);
