@@ -13,8 +13,8 @@ pub fn should_agent_respond(message: &Message) -> bool {
 mod tests {
     use super::*;
     use crate::models::{
-        AgentResponse, AgentType, Dialect, DialectConfig, Formality, Language,
-        MessageMetadata, Participant, SessionConfig, TeachingMode,
+        AgentResponse, AgentType, Dialect, DialectConfig, Formality, Language, MessageMetadata,
+        Participant, SessionConfig, TeachingMode,
     };
     use uuid::Uuid;
 

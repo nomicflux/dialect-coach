@@ -60,8 +60,14 @@ fn render_content(stats: &UsageStats) -> Html {
 
 #[function_component(UsageFooter)]
 pub fn usage_footer(props: &UsageFooterProps) -> Html {
+    let footer_class = if props.is_collapsed {
+        "usage-footer usage-footer--collapsed"
+    } else {
+        "usage-footer"
+    };
+
     html! {
-        <div class="usage-footer">
+        <div class={footer_class}>
             {render_toggle_button(props.is_collapsed, props.on_toggle.clone())}
             {if !props.is_collapsed { render_content(&props.usage_stats) } else { html! {} }}
         </div>

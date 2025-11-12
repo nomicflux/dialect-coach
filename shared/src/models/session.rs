@@ -99,9 +99,7 @@ impl ChatSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{
-        AgentType, DialectConfig, Formality, MessageMetadata, TeachingMode,
-    };
+    use crate::models::{AgentType, DialectConfig, Formality, MessageMetadata, TeachingMode};
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
         MessageMetadata::at_now(
