@@ -2,9 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
 
+use super::dialect::dialect_features;
 use super::{
-    ConversationBranch, Dialect, Explained, Exploratory, Formality, Language, Message,
-    MessageMetadata, Mistake, TeachingMode, Translated, UsageStats,
+    ConversationBranch, Dialect, DialectWithFeatures, Explained, Exploratory, Formality, Language,
+    Message, MessageMetadata, Mistake, TeachingMode, Translated, UsageStats,
 };
 
 /// User-specific state that persists across sessions
@@ -84,8 +85,11 @@ impl UserState {
         self.selected_dialect
     }
 
-    pub fn current_dialects(&self) -> Vec<Dialect> {
-        Dialect::for_language(self.selected_language, true, true)
+    pub fn current_dialects(&self) -> Vec<DialectWithFeatures> {
+        Dialect::for_language(self.selected_language, false, false)
+            .into_iter()
+            .map(dialect_features)
+            .collect()
     }
 
     pub fn formality_display(&self) -> &'static str {

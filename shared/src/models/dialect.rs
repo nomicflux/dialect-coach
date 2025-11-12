@@ -318,6 +318,13 @@ impl From<Dialect> for DialectWithFeatures {
     }
 }
 
+impl DialectWithFeatures {
+    /// Check if this dialect has TTS support (at least one TTS voice available)
+    pub fn has_tts(&self) -> bool {
+        self.tts_voices.values().any(|v| v.is_some())
+    }
+}
+
 fn build_voice_map(
     elevenlabs: Option<&str>,
     azure: Option<&str>,

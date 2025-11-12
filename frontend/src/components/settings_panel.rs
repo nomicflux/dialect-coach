@@ -2,6 +2,7 @@ use crate::app::app_state::{OptionalUserState, UIState, UIStateAction};
 use crate::app::user_state_callbacks::{
     on_dialect_change, on_formality_change, on_language_change, on_teaching_mode_change,
 };
+use dialect_coach_shared::models::Language;
 use yew::prelude::*;
 
 #[derive(Properties)]
@@ -53,9 +54,9 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
                             <div class="panel-field">
                                 <label for="language-select">{"Language"}</label>
                                 <select id="language-select" onchange={on_language_change(user_state.clone())}>
-                                    <option value="spanish" selected=true>{"Spanish"}</option>
-                                    <option value="arabic">{"Arabic"}</option>
-                                    <option value="french">{"French"}</option>
+                                    <option value="spanish" selected={us.selected_language == Language::Spanish}>{"Spanish"}</option>
+                                    <option value="arabic" selected={us.selected_language == Language::Arabic}>{"Arabic"}</option>
+                                    <option value="french" selected={us.selected_language == Language::French}>{"French"}</option>
                                 </select>
                             </div>
 
@@ -65,11 +66,13 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
                                     {{
                                         let dialects = us.current_dialects();
                                         let current = us.current_dialect();
-                                        dialects.iter().map(|dialect| {
-                                            let is_selected = *dialect == current;
+                                        dialects.iter().map(|dialect_features| {
+                                            let is_selected = dialect_features.dialect == current;
+                                            let tts_indicator = if dialect_features.has_tts() { "🔊" } else { "" };
+                                            let corpus_indicator = if dialect_features.has_corpus { "📚" } else { "" };
                                             html! {
-                                                <option value={dialect.id()} selected={is_selected}>
-                                                    {dialect.name()}
+                                                <option value={dialect_features.dialect.id()} selected={is_selected}>
+                                                    {format!("{} {} {}", dialect_features.dialect.name(), tts_indicator, corpus_indicator)}
                                                 </option>
                                             }
                                         }).collect::<Html>()

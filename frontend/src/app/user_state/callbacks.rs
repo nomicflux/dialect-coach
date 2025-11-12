@@ -35,8 +35,8 @@ pub fn on_dialect_change(user_state: UseReducerHandle<OptionalUserState>) -> Cal
 
             // Get all dialects for current language and find matching one
             let dialects = state.current_dialects();
-            if let Some(dialect) = dialects.iter().find(|d| d.id() == value) {
-                user_state.dispatch(UserStateAction::ChangeDialect(*dialect));
+            if let Some(dialect_features) = dialects.iter().find(|df| df.dialect.id() == value) {
+                user_state.dispatch(UserStateAction::ChangeDialect(dialect_features.dialect));
             }
         }
     })
@@ -95,9 +95,9 @@ pub fn on_dialect_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Call
         };
         let dialects = state.current_dialects();
         let current = state.current_dialect();
-        if let Some(idx) = dialects.iter().position(|d| d == &current) {
+        if let Some(idx) = dialects.iter().position(|df| df.dialect == current) {
             let next_idx = (idx + 1) % dialects.len();
-            user_state.dispatch(UserStateAction::ChangeDialect(dialects[next_idx]));
+            user_state.dispatch(UserStateAction::ChangeDialect(dialects[next_idx].dialect));
         }
     })
 }
