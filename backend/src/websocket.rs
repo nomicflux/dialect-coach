@@ -6,7 +6,7 @@ use axum::{
     response::Response,
 };
 use dialect_coach_shared::{
-    AgentResponse, Dialect, Message, MessageContent, MessageMetadata, UserMessage,
+    AgentResponse, AgentUsageStats, Dialect, Message, MessageContent, MessageMetadata, UserMessage,
     UserMessageWithContext, UserState, UserStateMessage,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -37,7 +37,6 @@ fn auth_error_to_message(error: crate::auth_service::AuthError) -> String {
         AuthError::Unauthorized(UnauthorizedReason::InviteCodeUsed) => {
             "Invite code already used".to_string()
         }
-        AuthError::Unauthorized(UnauthorizedReason::Other(msg)) => msg,
         AuthError::Persistence(msg) => format!("Authentication error: {}", msg),
     }
 }
@@ -165,30 +164,33 @@ async fn validate_and_parse_dialect(
 async fn update_and_save_usage(
     state: &AppState,
     mut user_state: dialect_coach_shared::UserState,
-    response_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
-    learning_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
-    analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
+    usage_stats: &AgentUsageStats,
     now: i64,
 ) {
     let user_id = user_state.user_id;
-    log_response_usage(&user_id, &response_usage);
-    crate::usage_tracker::add_response_usage(&mut user_state.usage_stats, response_usage, now, 24);
+    log_response_usage(&user_id, &usage_stats.response_usage);
+    crate::usage_tracker::add_response_usage(
+        &mut user_state.usage_stats,
+        usage_stats.response_usage.clone(),
+        now,
+        24,
+    );
 
-    if !learning_usage.is_empty() {
-        log_learning_usage(&user_id, &learning_usage);
+    if !usage_stats.learning_usage.is_empty() {
+        log_learning_usage(&user_id, &usage_stats.learning_usage);
         crate::usage_tracker::add_learning_usage(
             &mut user_state.usage_stats,
-            learning_usage,
+            usage_stats.learning_usage.clone(),
             now,
             24,
         );
     }
 
-    if !analysis_usage.is_empty() {
-        log_analysis_usage(&user_id, &analysis_usage);
+    if !usage_stats.analysis_usage.is_empty() {
+        log_analysis_usage(&user_id, &usage_stats.analysis_usage);
         crate::usage_tracker::add_analysis_usage(
             &mut user_state.usage_stats,
-            analysis_usage,
+            usage_stats.analysis_usage.clone(),
             now,
             24,
         );
@@ -436,52 +438,128 @@ async fn handle_parallel_agents_success(
     state: &AppState,
     user_state: dialect_coach_shared::UserState,
     response_result: Result<AgentResponse, anyhow::Error>,
-    response_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
-    learning_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
     analysis_result: Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
-    analysis_usage: Vec<dialect_coach_shared::models::usage_stats::AgentUsage>,
+    usage_stats: &AgentUsageStats,
     now: i64,
 ) -> Result<AgentResponse, anyhow::Error> {
     match (response_result, analysis_result) {
         (Ok(mut agent_response), Ok(analysis)) => {
             agent_response.analysis = Some(analysis);
-            update_and_save_usage(
-                state,
-                user_state,
-                response_usage,
-                learning_usage,
-                analysis_usage,
-                now,
-            )
-            .await;
+            update_and_save_usage(state, user_state, usage_stats, now).await;
             Ok(agent_response)
         }
         (Ok(agent_response), Err(e)) => {
             tracing::error!("Analysis agent failed: {}", e);
-            update_and_save_usage(
-                state,
-                user_state,
-                response_usage,
-                learning_usage,
-                analysis_usage,
-                now,
-            )
-            .await;
+            update_and_save_usage(state, user_state, usage_stats, now).await;
             Ok(agent_response)
         }
         (Err(e), _) => {
-            update_and_save_usage(
-                state,
-                user_state,
-                response_usage,
-                learning_usage,
-                analysis_usage,
-                now,
-            )
-            .await;
+            update_and_save_usage(state, user_state, usage_stats, now).await;
             Err(e)
         }
     }
+}
+
+fn has_learning_items(msg_with_context: &UserMessageWithContext) -> bool {
+    !msg_with_context.past_mistakes.is_empty()
+        || !msg_with_context.past_explained.is_empty()
+        || !msg_with_context.past_translated.is_empty()
+        || !msg_with_context.past_exploratory.is_empty()
+}
+
+fn build_response_params<'a>(
+    user_text: &'a str,
+    msg_with_context: &'a UserMessageWithContext,
+    dialect: Dialect,
+    history_vec: &'a [RigMessage],
+    rag_config: &'a RAGConfig,
+) -> GenerateResponseParams<'a> {
+    let formality = msg_with_context.message.metadata.formality;
+    let teaching_mode = msg_with_context.message.metadata.teaching_mode;
+
+    GenerateResponseParams {
+        user_message: user_text,
+        dialect,
+        formality,
+        teaching_mode,
+        conversation_history: history_vec,
+        learning_goals: &msg_with_context.learning_goals,
+        rag_config,
+        past_mistakes: &msg_with_context.past_mistakes,
+        past_explained: &msg_with_context.past_explained,
+        past_translated: &msg_with_context.past_translated,
+        past_exploratory: &msg_with_context.past_exploratory,
+    }
+}
+
+fn validate_user_message(user_text: &str) -> Result<(), anyhow::Error> {
+    if AgentService::contains_illegal_characters(user_text) {
+        tracing::error!("User message contains illegal characters (null bytes or control chars)");
+        return Err(anyhow::anyhow!("User message contains illegal characters"));
+    }
+    Ok(())
+}
+
+async fn run_response_only(
+    state: &AppState,
+    params: &GenerateResponseParams<'_>,
+    user_state: dialect_coach_shared::UserState,
+    now: i64,
+) -> Result<AgentResponse, anyhow::Error> {
+    let (result, response_usage, learning_usage) = state.agent.generate_response(params).await;
+    let usage_stats = AgentUsageStats {
+        response_usage,
+        learning_usage,
+        analysis_usage: Vec::new(),
+    };
+    update_and_save_usage(state, user_state, &usage_stats, now).await;
+    result
+}
+
+async fn run_agents_with_analysis(
+    state: &AppState,
+    params: &GenerateResponseParams<'_>,
+    msg_with_context: &UserMessageWithContext,
+    dialect: Dialect,
+    user_state: dialect_coach_shared::UserState,
+    now: i64,
+) -> Result<AgentResponse, anyhow::Error> {
+    tracing::info!(
+        "Running agents in parallel: {} mistakes, {} explained, {} translated, {} exploratory items",
+        msg_with_context.past_mistakes.len(),
+        msg_with_context.past_explained.len(),
+        msg_with_context.past_translated.len(),
+        msg_with_context.past_exploratory.len()
+    );
+
+    let user_text = msg_with_context.message.get_content();
+    let ((response_result, response_usage, learning_usage), (analysis_result, analysis_usage)) = tokio::join!(
+        state.agent.generate_response(params),
+        state.agent.generate_analysis(
+            dialect,
+            &user_text,
+            &msg_with_context.past_mistakes,
+            &msg_with_context.past_explained,
+            &msg_with_context.past_translated,
+            &msg_with_context.past_exploratory,
+        )
+    );
+
+    let usage_stats = AgentUsageStats {
+        response_usage,
+        learning_usage,
+        analysis_usage,
+    };
+
+    handle_parallel_agents_success(
+        state,
+        user_state,
+        response_result,
+        analysis_result,
+        &usage_stats,
+        now,
+    )
+    .await
 }
 
 async fn run_agents_parallel(
@@ -490,20 +568,11 @@ async fn run_agents_parallel(
     dialect: Dialect,
     history_vec: &[RigMessage],
 ) -> Result<AgentResponse, anyhow::Error> {
-    let formality = msg_with_context.message.metadata.formality;
+    let user_text = msg_with_context.message.get_content();
+    validate_user_message(&user_text)?;
+
+    let has_learning_items = has_learning_items(msg_with_context);
     let teaching_mode = msg_with_context.message.metadata.teaching_mode;
-    let user_text = &msg_with_context.message.get_content();
-
-    if AgentService::contains_illegal_characters(user_text) {
-        tracing::error!("User message contains illegal characters (null bytes or control chars)");
-        return Err(anyhow::anyhow!("User message contains illegal characters"));
-    }
-
-    let has_learning_items = !msg_with_context.past_mistakes.is_empty()
-        || !msg_with_context.past_explained.is_empty()
-        || !msg_with_context.past_translated.is_empty()
-        || !msg_with_context.past_exploratory.is_empty();
-
     let user_state = check_rate_limits(
         state,
         msg_with_context.user_id,
@@ -514,79 +583,19 @@ async fn run_agents_parallel(
 
     let rag_config = RAGConfig::new(20, 5);
     let now = chrono::Utc::now().timestamp();
+    let params = build_response_params(
+        &user_text,
+        msg_with_context,
+        dialect,
+        history_vec,
+        &rag_config,
+    );
 
     if !has_learning_items {
-        let params = GenerateResponseParams {
-            user_message: user_text,
-            dialect,
-            formality,
-            teaching_mode,
-            conversation_history: history_vec,
-            learning_goals: &msg_with_context.learning_goals,
-            rag_config: &rag_config,
-            past_mistakes: &msg_with_context.past_mistakes,
-            past_explained: &msg_with_context.past_explained,
-            past_translated: &msg_with_context.past_translated,
-            past_exploratory: &msg_with_context.past_exploratory,
-        };
-        let (result, response_usage, learning_usage) = state.agent.generate_response(&params).await;
-        update_and_save_usage(
-            state,
-            user_state,
-            response_usage,
-            learning_usage,
-            Vec::new(),
-            now,
-        )
-        .await;
-        return result;
+        run_response_only(state, &params, user_state, now).await
+    } else {
+        run_agents_with_analysis(state, &params, msg_with_context, dialect, user_state, now).await
     }
-
-    tracing::info!(
-        "Running agents in parallel: {} mistakes, {} explained, {} translated, {} exploratory items",
-        msg_with_context.past_mistakes.len(),
-        msg_with_context.past_explained.len(),
-        msg_with_context.past_translated.len(),
-        msg_with_context.past_exploratory.len()
-    );
-
-    let params = GenerateResponseParams {
-        user_message: user_text,
-        dialect,
-        formality,
-        teaching_mode,
-        conversation_history: history_vec,
-        learning_goals: &msg_with_context.learning_goals,
-        rag_config: &rag_config,
-        past_mistakes: &msg_with_context.past_mistakes,
-        past_explained: &msg_with_context.past_explained,
-        past_translated: &msg_with_context.past_translated,
-        past_exploratory: &msg_with_context.past_exploratory,
-    };
-
-    let ((response_result, response_usage, learning_usage), (analysis_result, analysis_usage)) = tokio::join!(
-        state.agent.generate_response(&params),
-        state.agent.generate_analysis(
-            dialect,
-            user_text,
-            &msg_with_context.past_mistakes,
-            &msg_with_context.past_explained,
-            &msg_with_context.past_translated,
-            &msg_with_context.past_exploratory,
-        )
-    );
-
-    handle_parallel_agents_success(
-        state,
-        user_state,
-        response_result,
-        response_usage,
-        learning_usage,
-        analysis_result,
-        analysis_usage,
-        now,
-    )
-    .await
 }
 
 async fn call_agent_and_respond(

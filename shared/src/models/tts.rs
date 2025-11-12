@@ -32,4 +32,3 @@ mod tests {
         assert_eq!(elevenlabs_deserialized, TTSProviderType::ElevenLabs);
     }
 }
-

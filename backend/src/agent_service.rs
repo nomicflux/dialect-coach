@@ -35,7 +35,7 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
                     )
                 })?;
             let model = channel_env(prefix, "MODEL").or_else(|| env::var("ANTHROPIC_MODEL").ok());
-            let config = ProviderAgentConfig::anthropic(api_key, model, None, None);
+            let config = ProviderAgentConfig::anthropic(api_key, model);
             let agent = CompletionAgentFactory::build(config)?;
             Ok(Arc::from(agent))
         }

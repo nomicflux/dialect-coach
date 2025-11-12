@@ -167,8 +167,10 @@ mod tests {
     #[test]
     fn test_can_make_response_call_exceeds_call_limit() {
         let limiter = RateLimiter::default();
-        let mut config = RateLimitConfig::default();
-        config.response_calls_limit = 2;
+        let config = RateLimitConfig {
+            response_calls_limit: 2,
+            ..Default::default()
+        };
         let now = chrono::Utc::now().timestamp();
 
         let stats = UsageStats {
@@ -187,8 +189,10 @@ mod tests {
     #[test]
     fn test_can_make_response_call_exceeds_token_limit() {
         let limiter = RateLimiter::default();
-        let mut config = RateLimitConfig::default();
-        config.response_tokens_limit = 2000;
+        let config = RateLimitConfig {
+            response_tokens_limit: 2000,
+            ..Default::default()
+        };
         let now = chrono::Utc::now().timestamp();
 
         let stats = UsageStats {

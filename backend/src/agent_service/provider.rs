@@ -59,23 +59,14 @@ pub struct ProviderAgentConfig {
     pub provider: String,
     pub model: String,
     pub api_key: String,
-    pub default_max_tokens: Option<u64>,
-    pub default_temperature: Option<f64>,
 }
 
 impl ProviderAgentConfig {
-    pub fn anthropic(
-        api_key: String,
-        model: Option<String>,
-        default_max_tokens: Option<u64>,
-        default_temperature: Option<f64>,
-    ) -> Self {
+    pub fn anthropic(api_key: String, model: Option<String>) -> Self {
         ProviderAgentConfig {
             provider: ANTHROPIC_PROVIDER.to_string(),
             model: model.unwrap_or_else(|| CLAUDE_3_5_SONNET.to_string()),
             api_key,
-            default_max_tokens,
-            default_temperature,
         }
     }
 }

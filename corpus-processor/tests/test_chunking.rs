@@ -32,7 +32,7 @@ fn test_chunk_boundaries() {
     // Text just over boundary
     let text = "A".repeat(51);
     let chunks = chunk_text(&text, &config).unwrap();
-    assert!(chunks.len() >= 1);
+    assert!(!chunks.is_empty());
 }
 
 #[test]

@@ -284,6 +284,6 @@ mod tests {
         add_response_usage(&mut stats, new_usages, now, 24);
         assert_eq!(stats.response_events.len(), 2);
         assert_eq!(stats.response_events[0].input_tokens, 100);
-        assert_eq!(stats.response_events[1].is_retry, true);
+        assert!(stats.response_events[1].is_retry);
     }
 }

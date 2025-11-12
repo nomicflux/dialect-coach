@@ -112,8 +112,8 @@ mod tests {
     #[test]
     fn test_get_date_range() {
         let (start, end) = get_date_range();
-        assert!(start.len() > 0);
-        assert!(end.len() > 0);
+        assert!(!start.is_empty());
+        assert!(!end.is_empty());
         assert!(start < end);
     }
 

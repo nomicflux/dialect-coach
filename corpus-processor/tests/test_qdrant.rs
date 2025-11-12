@@ -17,7 +17,7 @@ mod tests {
     #[test]
     fn test_document_validation_empty_embeddings() {
         // Test the validation logic that checks for empty embeddings
-        let documents = vec![DialectDocument::new(
+        let documents = [DialectDocument::new(
             "Test content".to_string(),
             Dialect::ArabicEgyptian,
             None,
@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn test_document_validation_with_embeddings() {
-        let mut documents = vec![
+        let mut documents = [
             DialectDocument::new("Test content 1".to_string(), Dialect::ArabicEgyptian, None),
             DialectDocument::new(
                 "Test content 2".to_string(),
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn test_document_validation_logic() {
         // Test the validation logic that would be used in upload_documents
-        let mut valid_documents = vec![
+        let mut valid_documents = [
             DialectDocument::new("Test content 1".to_string(), Dialect::ArabicEgyptian, None),
             DialectDocument::new(
                 "Test content 2".to_string(),
@@ -254,7 +254,7 @@ mod tests {
         assert_eq!(vector_size, 3);
 
         // Test with invalid documents (empty embeddings)
-        let invalid_documents = vec![DialectDocument::new(
+        let invalid_documents = [DialectDocument::new(
             "Test content".to_string(),
             Dialect::ArabicEgyptian,
             None,

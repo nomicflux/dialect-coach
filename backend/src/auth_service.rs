@@ -26,11 +26,11 @@ pub enum AuthError {
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum UnauthorizedReason {
     InviteCodeExpired,
     InviteCodeInvalid,
     InviteCodeUsed,
-    Other(String),
 }
 
 impl std::fmt::Display for UnauthorizedReason {
@@ -39,7 +39,6 @@ impl std::fmt::Display for UnauthorizedReason {
             Self::InviteCodeExpired => write!(f, "invite code expired"),
             Self::InviteCodeInvalid => write!(f, "invite code invalid"),
             Self::InviteCodeUsed => write!(f, "invite code already used"),
-            Self::Other(msg) => write!(f, "{}", msg),
         }
     }
 }
@@ -438,10 +437,6 @@ mod tests {
         assert_eq!(
             UnauthorizedReason::InviteCodeUsed.to_string(),
             "invite code already used"
-        );
-        assert_eq!(
-            UnauthorizedReason::Other("custom".to_string()).to_string(),
-            "custom"
         );
     }
 }

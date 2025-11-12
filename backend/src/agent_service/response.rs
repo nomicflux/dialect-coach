@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{
-    AgentUsage, Dialect, DialectDocument, Explained, Exploratory, Formality, Mistake, TeachingMode,
-    Translated,
+    AgentUsage, Dialect, DialectDocument, Explained, Exploratory, Formality, Mistake,
+    PastLearningItems, TeachingMode, Translated,
 };
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
@@ -257,10 +257,7 @@ fn build_system_content(
     formality: Formality,
     teaching_mode: TeachingMode,
     learning_goals: &[String],
-    past_mistakes: &[Mistake],
-    past_explained: &[Explained],
-    past_translated: &[Translated],
-    past_exploratory: &[Exploratory],
+    past_learning_items: &PastLearningItems,
 ) -> String {
     let formality_label = match formality {
         Formality::Formal => "FORMAL",
@@ -273,10 +270,10 @@ fn build_system_content(
     let teaching_rules = response_teaching_desc(&teaching_mode);
     let goals_section = learning_goals_section(learning_goals);
     let learning_items_context = format_learning_items_context(
-        past_mistakes,
-        past_explained,
-        past_translated,
-        past_exploratory,
+        &past_learning_items.mistakes,
+        &past_learning_items.explained,
+        &past_learning_items.translated,
+        &past_learning_items.exploratory,
     );
 
     if teaching_mode == TeachingMode::Debug {
@@ -655,15 +652,18 @@ impl ResponseContext {
             Err(e) => return (Err(e), Vec::new(), Vec::new()),
         };
 
+        let past_learning_items = PastLearningItems {
+            mistakes: params.past_mistakes.to_vec(),
+            explained: params.past_explained.to_vec(),
+            translated: params.past_translated.to_vec(),
+            exploratory: params.past_exploratory.to_vec(),
+        };
         let system_content = build_system_content(
             params.dialect,
             params.formality,
             params.teaching_mode,
             params.learning_goals,
-            params.past_mistakes,
-            params.past_explained,
-            params.past_translated,
-            params.past_exploratory,
+            &past_learning_items,
         );
         tracing::debug!("System content sent to Claude:\n{}", system_content);
         let history_with_prefill = build_conversation_history_with_examples(
@@ -823,16 +823,14 @@ mod tests {
         let formality = Formality::Casual;
         let teaching_mode = TeachingMode::Debug;
         let learning_goals = vec![];
+        let past_learning_items = PastLearningItems::default();
 
         let content = build_system_content(
             dialect,
             formality,
             teaching_mode,
             &learning_goals,
-            &[],
-            &[],
-            &[],
-            &[],
+            &past_learning_items,
         );
 
         assert!(content.contains("# YOUR ROLE"));
@@ -847,16 +845,14 @@ mod tests {
         let formality = Formality::Casual;
         let teaching_mode = TeachingMode::Immersive;
         let learning_goals = vec!["Goal 1".to_string()];
+        let past_learning_items = PastLearningItems::default();
 
         let content = build_system_content(
             dialect,
             formality,
             teaching_mode,
             &learning_goals,
-            &[],
-            &[],
-            &[],
-            &[],
+            &past_learning_items,
         );
 
         assert!(content.contains("# YOUR ROLE"));

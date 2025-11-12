@@ -73,10 +73,10 @@ impl UserPersistence for SledPersistence {
             .map(|bytes| deserialize_from_json(&bytes))
             .transpose()?;
 
-        if let Some(ref mut state) = result {
-            if let Some(stats) = self.load_usage_stats(user_id).await? {
-                state.usage_stats = stats;
-            }
+        if let Some(ref mut state) = result
+            && let Some(stats) = self.load_usage_stats(user_id).await?
+        {
+            state.usage_stats = stats;
         }
 
         tracing::debug!(
@@ -159,16 +159,14 @@ impl UserPersistence for SledPersistence {
 
         // Debug: List all codes in tree
         tracing::info!("All codes in database:");
-        for item in tree.iter() {
-            if let Ok((key, _)) = item {
-                let key_str = String::from_utf8_lossy(&key);
-                tracing::info!(
-                    "  - '{}' (len: {}, bytes: {:?})",
-                    key_str,
-                    key.len(),
-                    &key[..]
-                );
-            }
+        for (key, _) in tree.iter().flatten() {
+            let key_str = String::from_utf8_lossy(&key);
+            tracing::info!(
+                "  - '{}' (len: {}, bytes: {:?})",
+                key_str,
+                key.len(),
+                &key[..]
+            );
         }
 
         let result = tree

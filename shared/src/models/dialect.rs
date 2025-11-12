@@ -221,7 +221,8 @@ impl Dialect {
             .into_iter()
             .filter(|dialect| {
                 let features = dialect_features(*dialect);
-                let matches_tts = !with_tts || features.tts_voices.values().any(|voice| voice.is_some());
+                let matches_tts =
+                    !with_tts || features.tts_voices.values().any(|voice| voice.is_some());
                 let matches_corpus = !with_corpus || features.has_corpus;
                 matches_tts && matches_corpus
             })
@@ -317,22 +318,42 @@ impl From<Dialect> for DialectWithFeatures {
     }
 }
 
-fn build_voice_map(elevenlabs: Option<&str>, azure: Option<&str>) -> HashMap<TTSProviderType, Option<String>> {
+fn build_voice_map(
+    elevenlabs: Option<&str>,
+    azure: Option<&str>,
+) -> HashMap<TTSProviderType, Option<String>> {
     let mut voices = HashMap::new();
-    voices.insert(TTSProviderType::ElevenLabs, elevenlabs.map(|s| s.to_string()));
+    voices.insert(
+        TTSProviderType::ElevenLabs,
+        elevenlabs.map(|s| s.to_string()),
+    );
     voices.insert(TTSProviderType::Azure, azure.map(|s| s.to_string()));
     voices
 }
 
 fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<String>> {
     match dialect {
-        Dialect::SpanishArgentinian => build_voice_map(Some("XmoCtjPCefjeLDu0eMSl"), Some("es-AR-ElenaNeural")),
-        Dialect::SpanishCuban => build_voice_map(Some("1hB7zCGWj11SeMuBseeI"), Some("es-CU-BelkysNeural")),
-        Dialect::SpanishColombian => build_voice_map(Some("86V9x9hrQds83qf7zaGn"), Some("es-CO-SalomeNeural")),
-        Dialect::ArabicEgyptian => build_voice_map(Some("LXrTqFIgiubkrMkwvOUr"), Some("ar-EG-SalmaNeural")),
-        Dialect::ArabicLevantine => build_voice_map(Some("4wf10lgibMnboGJGCLrP"), Some("ar-LB-LaylaNeural")),
-        Dialect::ArabicGulf => build_voice_map(Some("DANw8bnAVbjDEHwZIoYa"), Some("ar-SA-ZariyahNeural")),
-        Dialect::FrenchQuebecois => build_voice_map(Some("j9RedbMRSNQ74PyikQwD"), Some("fr-CA-SylvieNeural")),
+        Dialect::SpanishArgentinian => {
+            build_voice_map(Some("XmoCtjPCefjeLDu0eMSl"), Some("es-AR-ElenaNeural"))
+        }
+        Dialect::SpanishCuban => {
+            build_voice_map(Some("1hB7zCGWj11SeMuBseeI"), Some("es-CU-BelkysNeural"))
+        }
+        Dialect::SpanishColombian => {
+            build_voice_map(Some("86V9x9hrQds83qf7zaGn"), Some("es-CO-SalomeNeural"))
+        }
+        Dialect::ArabicEgyptian => {
+            build_voice_map(Some("LXrTqFIgiubkrMkwvOUr"), Some("ar-EG-SalmaNeural"))
+        }
+        Dialect::ArabicLevantine => {
+            build_voice_map(Some("4wf10lgibMnboGJGCLrP"), Some("ar-LB-LaylaNeural"))
+        }
+        Dialect::ArabicGulf => {
+            build_voice_map(Some("DANw8bnAVbjDEHwZIoYa"), Some("ar-SA-ZariyahNeural"))
+        }
+        Dialect::FrenchQuebecois => {
+            build_voice_map(Some("j9RedbMRSNQ74PyikQwD"), Some("fr-CA-SylvieNeural"))
+        }
         Dialect::FrenchAfrican => build_voice_map(Some("FgHDn7bpgpKqz7QttoyC"), None),
         _ => build_voice_map(None, None),
     }
@@ -549,10 +570,26 @@ mod tests {
         let features = dialect_features(Dialect::SpanishCuban);
         assert_eq!(features.dialect, Dialect::SpanishCuban);
         assert!(features.has_corpus);
-        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).is_some());
-        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).unwrap().is_some());
-        assert!(features.tts_voices.get(&TTSProviderType::Azure).is_some());
-        assert!(features.tts_voices.get(&TTSProviderType::Azure).unwrap().is_some());
+        assert!(
+            features
+                .tts_voices
+                .contains_key(&TTSProviderType::ElevenLabs)
+        );
+        assert!(
+            features
+                .tts_voices
+                .get(&TTSProviderType::ElevenLabs)
+                .unwrap()
+                .is_some()
+        );
+        assert!(features.tts_voices.contains_key(&TTSProviderType::Azure));
+        assert!(
+            features
+                .tts_voices
+                .get(&TTSProviderType::Azure)
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[test]
@@ -560,10 +597,26 @@ mod tests {
         let features = dialect_features(Dialect::SpanishMexican);
         assert_eq!(features.dialect, Dialect::SpanishMexican);
         assert!(!features.has_corpus);
-        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).is_some());
-        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).unwrap().is_none());
-        assert!(features.tts_voices.get(&TTSProviderType::Azure).is_some());
-        assert!(features.tts_voices.get(&TTSProviderType::Azure).unwrap().is_none());
+        assert!(
+            features
+                .tts_voices
+                .contains_key(&TTSProviderType::ElevenLabs)
+        );
+        assert!(
+            features
+                .tts_voices
+                .get(&TTSProviderType::ElevenLabs)
+                .unwrap()
+                .is_none()
+        );
+        assert!(features.tts_voices.contains_key(&TTSProviderType::Azure));
+        assert!(
+            features
+                .tts_voices
+                .get(&TTSProviderType::Azure)
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]
@@ -571,9 +624,25 @@ mod tests {
         let features = dialect_features(Dialect::FrenchAfrican);
         assert_eq!(features.dialect, Dialect::FrenchAfrican);
         assert!(features.has_corpus);
-        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).is_some());
-        assert!(features.tts_voices.get(&TTSProviderType::ElevenLabs).unwrap().is_some());
-        assert!(features.tts_voices.get(&TTSProviderType::Azure).is_some());
-        assert!(features.tts_voices.get(&TTSProviderType::Azure).unwrap().is_none());
+        assert!(
+            features
+                .tts_voices
+                .contains_key(&TTSProviderType::ElevenLabs)
+        );
+        assert!(
+            features
+                .tts_voices
+                .get(&TTSProviderType::ElevenLabs)
+                .unwrap()
+                .is_some()
+        );
+        assert!(features.tts_voices.contains_key(&TTSProviderType::Azure));
+        assert!(
+            features
+                .tts_voices
+                .get(&TTSProviderType::Azure)
+                .unwrap()
+                .is_none()
+        );
     }
 }

@@ -43,7 +43,7 @@ fn test_cli_process_missing_required_args() {
 #[test]
 fn test_cli_process_missing_language() {
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.args(&["process", "--dialect", "egyptian", "--input", "./test"]);
+    cmd.args(["process", "--dialect", "egyptian", "--input", "./test"]);
 
     cmd.assert()
         .failure()
@@ -53,7 +53,7 @@ fn test_cli_process_missing_language() {
 #[test]
 fn test_cli_process_missing_dialect() {
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.args(&["process", "--language", "arabic", "--input", "./test"]);
+    cmd.args(["process", "--language", "arabic", "--input", "./test"]);
 
     cmd.assert()
         .failure()
@@ -63,7 +63,7 @@ fn test_cli_process_missing_dialect() {
 #[test]
 fn test_cli_process_missing_input() {
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.args(&["process", "--language", "arabic", "--dialect", "egyptian"]);
+    cmd.args(["process", "--language", "arabic", "--dialect", "egyptian"]);
 
     cmd.assert()
         .failure()
@@ -77,7 +77,7 @@ fn test_cli_process_invalid_dialect() {
     fs::write(&input_file, "test content").unwrap();
 
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.args(&[
+    cmd.args([
         "process",
         "--language",
         "arabic",
@@ -95,7 +95,7 @@ fn test_cli_process_invalid_dialect() {
 #[test]
 fn test_cli_process_nonexistent_input() {
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.args(&[
+    cmd.args([
         "process",
         "--language",
         "arabic",
@@ -115,7 +115,7 @@ fn test_cli_process_empty_input_directory() {
     let temp_dir = tempdir().unwrap();
 
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.args(&[
+    cmd.args([
         "process",
         "--language",
         "arabic",
@@ -155,7 +155,7 @@ fn test_cli_upload_missing_qdrant_url() {
     cmd.current_dir(&temp_dir);
     cmd.env_remove("QDRANT_URL");
     cmd.env_remove("QDRANT_API_KEY");
-    cmd.args(&["upload", "--input", input_file.to_str().unwrap()]);
+    cmd.args(["upload", "--input", input_file.to_str().unwrap()]);
 
     cmd.assert()
         .failure()
@@ -175,7 +175,7 @@ fn test_cli_upload_empty_qdrant_url() {
     // Test with empty QDRANT_URL
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
     cmd.env("QDRANT_URL", "");
-    cmd.args(&["upload", "--input", input_file.to_str().unwrap()]);
+    cmd.args(["upload", "--input", input_file.to_str().unwrap()]);
 
     cmd.assert()
         .failure()

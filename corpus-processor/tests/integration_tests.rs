@@ -1,6 +1,5 @@
 use dialect_coach_shared::{Dialect, DialectDocument};
 use std::fs;
-use std::path::Path;
 use tempfile::tempdir;
 
 #[cfg(test)]
@@ -8,7 +7,6 @@ mod tests {
     use super::*;
     use corpus_processor::chunking::{ChunkConfig, chunk_text};
     use corpus_processor::loaders::load_corpus;
-    use corpus_processor::processor::process_corpus;
 
     #[test]
     fn test_dialect_document_serialization() {

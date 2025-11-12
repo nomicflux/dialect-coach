@@ -199,7 +199,7 @@ mod tests {
         // Load and verify
         let loaded = persistence.load(user_id).await.unwrap();
         assert!(loaded.is_some());
-        assert_eq!(loaded.unwrap().tts_enabled, true);
+        assert!(loaded.unwrap().tts_enabled);
     }
 
     #[tokio::test]

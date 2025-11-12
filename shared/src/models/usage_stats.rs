@@ -91,6 +91,14 @@ impl UsageStats {
     }
 }
 
+/// Usage statistics from parallel agent calls
+#[derive(Debug, Clone, Default)]
+pub struct AgentUsageStats {
+    pub response_usage: Vec<AgentUsage>,
+    pub learning_usage: Vec<AgentUsage>,
+    pub analysis_usage: Vec<AgentUsage>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentUsage {
     pub timestamp: i64,

@@ -1,10 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use dialect_coach_shared::AgentUsage;
-use rig::OneOrMany;
 use rig::completion::Message as RigMessage;
-use rig::completion::message::AssistantContent;
 use std::sync::Arc;
-use tokio::time::Duration;
 
 use super::provider::{CompletionAgent, CompletionAgentError, CompletionRequest};
 use super::util::{self, GenerationConfig, get_message_text};
@@ -97,21 +94,6 @@ fn create_usage_entry(
     }
 }
 
-fn extract_text_from_choice(choice: &OneOrMany<AssistantContent>) -> Result<String> {
-    let text: String = choice
-        .iter()
-        .filter_map(|content| match content {
-            AssistantContent::Text(t) => Some(t.text.as_str()),
-            _ => None,
-        })
-        .collect();
-    if text.is_empty() {
-        Err(anyhow!("No text in response"))
-    } else {
-        Ok(text)
-    }
-}
-
 enum AttemptResult {
     Success(String, AgentUsage),
     Retry(AgentUsage, anyhow::Error),
@@ -196,7 +178,7 @@ async fn handle_completion_retry_delay(attempt: usize, max: usize, error: &str) 
 
 #[cfg(not(test))]
 async fn handle_completion_retry_delay_sleep(attempt: usize) {
-    tokio::time::sleep(Duration::from_secs(2_u64.pow(attempt as u32))).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))).await;
 }
 
 #[cfg(test)]
@@ -527,8 +509,8 @@ mod tests {
         let usage = create_usage_entry(&agent, false, false, 100, 50);
         assert_eq!(usage.input_tokens, 100);
         assert_eq!(usage.output_tokens, 50);
-        assert_eq!(usage.is_retry, false);
-        assert_eq!(usage.is_estimate, false);
+        assert!(!usage.is_retry);
+        assert!(!usage.is_estimate);
         assert_eq!(usage.provider, "stub");
         assert_eq!(usage.model, "test");
         assert!(usage.timestamp > 0);
@@ -542,8 +524,8 @@ mod tests {
             output_tokens: 0,
         })]);
         let usage = create_usage_entry(&agent, true, false, 100, 50);
-        assert_eq!(usage.is_retry, true);
-        assert_eq!(usage.is_estimate, false);
+        assert!(usage.is_retry);
+        assert!(!usage.is_estimate);
     }
 
     #[test]
@@ -554,34 +536,9 @@ mod tests {
             output_tokens: 0,
         })]);
         let usage = create_usage_entry(&agent, false, true, 100, 0);
-        assert_eq!(usage.is_retry, false);
-        assert_eq!(usage.is_estimate, true);
+        assert!(!usage.is_retry);
+        assert!(usage.is_estimate);
         assert_eq!(usage.output_tokens, 0);
-    }
-
-    #[test]
-    fn test_extract_text_from_choice_single() {
-        let text = Text {
-            text: "Hello world".to_string(),
-        };
-        let choice = OneOrMany::one(AssistantContent::Text(text));
-        let result = extract_text_from_choice(&choice).unwrap();
-        assert_eq!(result, "Hello world");
-    }
-
-    #[test]
-    fn test_extract_text_from_choice_no_text() {
-        use rig::completion::message::{ToolCall, ToolFunction};
-        let tool_call = ToolCall {
-            id: "test".to_string(),
-            function: ToolFunction {
-                name: "test_fn".to_string(),
-                arguments: serde_json::json!({}),
-            },
-        };
-        let choice = OneOrMany::one(AssistantContent::ToolCall(tool_call));
-        let result = extract_text_from_choice(&choice);
-        assert!(result.is_err());
     }
 
     #[test]
