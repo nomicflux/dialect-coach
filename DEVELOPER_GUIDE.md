@@ -70,7 +70,7 @@ pub struct Message {
     pub session_id: Uuid,      // Groups related conversation
     pub participant_id: String, // "user1" or "agent"  
     pub content: String,        // The actual message text
-    pub language: String,       // BCP-47 code like "es-MX"
+    pub dialect: Dialect,      // Dialect enum (serialized as "spanish_mexican", etc.)
     pub timestamp: DateTime<Utc>,
     pub metadata: MessageMetadata, // Teaching mode, formality level
 }
@@ -100,7 +100,8 @@ pub enum Dialect {
 }
 
 impl Dialect {
-    pub fn from_bcp47(code: &str) -> Option<Self>  // "es-MX" → SpanishMexican
+    pub fn from_id(id: &str) -> Option<Self>      // "spanish_mexican" → SpanishMexican
+    pub fn id(&self) -> &'static str              // Serde ID format
     pub fn name(&self) -> &'static str            // Human-readable name
     pub fn language(&self) -> Language            // Groups dialects by language
 }
@@ -170,8 +171,8 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         // 1. Parse JSON message
         let parsed_msg: Message = serde_json::from_str(&msg)?;
         
-        // 2. Extract dialect from language code
-        let dialect = Dialect::from_bcp47(&parsed_msg.language)?;
+        // 2. Extract dialect from message metadata (already deserialized)
+        let dialect = parsed_msg.metadata.dialect;
         
         // 3. Update conversation history
         let mut histories = state.session_histories.lock().await;
@@ -596,9 +597,8 @@ let examples = search_multiple([content_emb, style_emb, topic_emb], 50);
 
 ### Adding New Dialects
 1. **Update Enum**: Add variant to `shared/src/models/dialect.rs`
-2. **BCP-47 Mapping**: Add language code mapping in `from_bcp47()`
-3. **Voice Mapping**: Add TTS voice in `backend/src/tts_service.rs`  
-4. **Corpus Data**: Process dialect texts with `corpus-processor`
+2. **Voice Mapping**: Add TTS voice in `get_tts_voices()` function in `shared/src/models/dialect.rs`
+3. **Corpus Data**: Process dialect texts with `corpus-processor`
 
 ### Adding New Features
 1. **New Endpoints**: Add routes in `backend/src/main.rs`

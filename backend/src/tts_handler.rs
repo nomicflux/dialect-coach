@@ -129,9 +129,9 @@ pub async fn synthesize_handler(
     Json(request): Json<TtsRequest>,
 ) -> Result<Json<TtsSynthesizeApiResponse>, TtsErrorResponse> {
     info!(
-        "TTS synthesize request: {} chars in {}",
+        "TTS synthesize request: {} chars for dialect {}",
         request.text.len(),
-        request.language_code
+        request.dialect.name()
     );
 
     let characters = request.text.len() as u64;

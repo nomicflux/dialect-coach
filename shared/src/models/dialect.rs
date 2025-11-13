@@ -121,61 +121,6 @@ impl Dialect {
         }
     }
 
-    /// Get the BCP 47 language tag for speech APIs
-    /// Returns (language-region) format like "es-MX" or "ar-EG"
-    pub fn bcp47_tag(&self) -> &'static str {
-        match self {
-            Self::SpanishMexican => "es-MX",
-            Self::SpanishCastilian => "es-ES",
-            Self::SpanishArgentinian => "es-AR",
-            Self::SpanishCuban => "es-CU",
-            Self::SpanishChilean => "es-CL",
-            Self::SpanishColombian => "es-CO",
-
-            Self::ArabicEgyptian => "ar-EG",
-            Self::ArabicLevantine => "ar-LB", // Lebanese as representative
-            Self::ArabicGulf => "ar-SA",      // Saudi as representative
-            Self::ArabicMaghrebi => "ar-MA",  // Moroccan as representative
-            Self::ArabicIraqi => "ar-IQ",
-
-            Self::FrenchQuebecois => "fr-CA",
-            Self::FrenchParisian => "fr-FR",
-            Self::FrenchSwiss => "fr-CH",
-            Self::FrenchBelgian => "fr-BE",
-            Self::FrenchAfrican => "fr-CI", // Ivorian as representative
-        }
-    }
-
-    /// Parse BCP-47 language tag to Dialect
-    /// Examples: "es-AR" → SpanishArgentinian, "es-CO" → SpanishColombian
-    pub fn from_bcp47(tag: &str) -> Option<Self> {
-        match tag {
-            // Spanish dialects
-            "es-AR" => Some(Self::SpanishArgentinian),
-            "es-CO" => Some(Self::SpanishColombian),
-            "es-CU" => Some(Self::SpanishCuban),
-            "es-MX" => Some(Self::SpanishMexican),
-            "es-ES" => Some(Self::SpanishCastilian),
-            "es-CL" => Some(Self::SpanishChilean),
-
-            // Arabic dialects
-            "ar-EG" => Some(Self::ArabicEgyptian),
-            "ar-LB" | "ar-SY" | "ar-JO" | "ar-PS" => Some(Self::ArabicLevantine),
-            "ar-SA" | "ar-AE" | "ar-KW" | "ar-QA" | "ar-BH" | "ar-OM" => Some(Self::ArabicGulf),
-            "ar-MA" | "ar-DZ" | "ar-TN" | "ar-LY" => Some(Self::ArabicMaghrebi),
-            "ar-IQ" => Some(Self::ArabicIraqi),
-
-            // French dialects
-            "fr-CA" => Some(Self::FrenchQuebecois),
-            "fr-FR" => Some(Self::FrenchParisian),
-            "fr-CH" => Some(Self::FrenchSwiss),
-            "fr-BE" => Some(Self::FrenchBelgian),
-            "fr-CI" | "fr-SN" | "fr-CM" => Some(Self::FrenchAfrican),
-
-            _ => None,
-        }
-    }
-
     fn all_spanish_dialects() -> Vec<Dialect> {
         vec![
             Self::SpanishMexican,
@@ -340,6 +285,7 @@ fn build_voice_map(
 
 fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<String>> {
     match dialect {
+        Dialect::SpanishMexican => build_voice_map(Some("hHjbwzYZW17oh0p05AKv"), None),
         Dialect::SpanishArgentinian => {
             build_voice_map(Some("XmoCtjPCefjeLDu0eMSl"), Some("es-AR-ElenaNeural"))
         }
@@ -519,13 +465,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bcp47_tags() {
-        assert_eq!(Dialect::SpanishMexican.bcp47_tag(), "es-MX");
-        assert_eq!(Dialect::ArabicEgyptian.bcp47_tag(), "ar-EG");
-        assert_eq!(Dialect::FrenchQuebecois.bcp47_tag(), "fr-CA");
-    }
-
-    #[test]
     fn test_dialects_for_language() {
         let spanish_dialects = Dialect::for_language(Language::Spanish, true, true);
         assert_eq!(spanish_dialects.len(), 3);
@@ -601,8 +540,16 @@ mod tests {
 
     #[test]
     fn test_dialect_features_inactive_dialect() {
-        let features = dialect_features(Dialect::SpanishMexican);
-        assert_eq!(features.dialect, Dialect::SpanishMexican);
+        let mut tts_voices = HashMap::new();
+        tts_voices.insert(TTSProviderType::ElevenLabs, None);
+        tts_voices.insert(TTSProviderType::Azure, None);
+        let features = DialectWithFeatures {
+            dialect: Dialect::SpanishCastilian,
+            tts_voices,
+            has_corpus: false,
+            feedback: Feedback::default(),
+        };
+        assert_eq!(features.dialect, Dialect::SpanishCastilian);
         assert!(!features.has_corpus);
         assert!(
             features

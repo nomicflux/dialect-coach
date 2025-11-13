@@ -96,7 +96,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     />
                     <SpeechControls
                         on_speech={on_send_message(app_state.clone(), user_state.clone())}
-                        language_code={us.bcp47_tag()}
+                        dialect={us.selected_dialect}
                         teaching_mode={us.teaching_mode_display().to_string()}
                         formality={us.formality_display().to_string()}
                         tts_enabled={us.tts_enabled}

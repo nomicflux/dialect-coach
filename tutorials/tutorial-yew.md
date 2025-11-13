@@ -651,7 +651,7 @@ let on_send_message = {
             *session_id,
             "user".to_string(),
             content,
-            (*selected_dialect).bcp47_tag().to_string(),
+            (*selected_dialect).name().to_string(),
         );
 
         msg.metadata.formality = Some(*formality);

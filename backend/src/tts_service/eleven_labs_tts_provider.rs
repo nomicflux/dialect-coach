@@ -1,4 +1,5 @@
 use dialect_coach_shared::models::TTSProviderType;
+use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::tts::{
     AudioFormat, TextToSpeechProvider, TtsError, TtsRequest, TtsResponse,
 };
@@ -37,32 +38,20 @@ impl ElevenLabsTtsProvider {
 
         Ok(Self::new(subscription_key, endpoint, model))
     }
-}
 
-fn map_language_to_voice(language_code: &str) -> &'static str {
-    tracing::info!("Mapping language code {} to voice", language_code);
-    match language_code {
-        "es-MX" => "hHjbwzYZW17oh0p05AKv",
-        //"es-ES" => "zRUArUmK0DWSP7K6mmLW",
-        "es-AR" => "XmoCtjPCefjeLDu0eMSl",
-        "es-CU" => "1hB7zCGWj11SeMuBseeI",
-        //"es-CL" => "nNS8uylvF9GBWVSiIt5h",
-        "es-CO" => "86V9x9hrQds83qf7zaGn",
-
-        "ar-EG" => "LXrTqFIgiubkrMkwvOUr",
-        "ar-LB" => "4wf10lgibMnboGJGCLrP",
-        "ar-SA" => "DANw8bnAVbjDEHwZIoYa",
-        //"ar-SA" => "ar-SA-ZariyahNeural",
-        //"ar-MA" => "ar-MA-MounaNeural",
-        //"ar-IQ" => "ar-IQ-RanaNeural",
-        "fr-CA" => "j9RedbMRSNQ74PyikQwD",
-        "fr-CI" => "FgHDn7bpgpKqz7QttoyC",
-        //"fr-FR" => "fr-FR-DeniseNeural",
-        //"fr-CH" => "fr-CH-ArianeNeural",
-        //"fr-BE" => "fr-BE-CharlineNeural",
-
-        // Fallback to known working voice
-        _ => "en-US-AriaNeural",
+    fn get_voice_id(
+        dialect_features: &dialect_coach_shared::models::DialectWithFeatures,
+    ) -> Result<String, TtsError> {
+        dialect_features
+            .tts_voices
+            .get(&TTSProviderType::ElevenLabs)
+            .and_then(|voice| voice.clone())
+            .ok_or_else(|| {
+                TtsError::VoiceNotFound(format!(
+                    "No ElevenLabs voice available for dialect {}",
+                    dialect_features.dialect.name()
+                ))
+            })
     }
 }
 
@@ -84,6 +73,9 @@ struct ElevenLabsTtsRequest {
 impl TextToSpeechProvider for ElevenLabsTtsProvider {
     async fn synthesize(&self, request: TtsRequest) -> Result<TtsResponse, TtsError> {
         tracing::info!("Synthesizing voice for request: {:?}", request);
+        let features = dialect_features(request.dialect);
+        let voice_id = Self::get_voice_id(&features)?;
+
         let voice_params = VoiceParams {
             stability: 0.3,
             style: 3.0,
@@ -97,11 +89,7 @@ impl TextToSpeechProvider for ElevenLabsTtsProvider {
         let mut params = HashMap::new();
         params.insert("output_format", "mp3_22050_32");
 
-        let uri = format!(
-            "{}text-to-speech/{}",
-            self.endpoint,
-            map_language_to_voice(&request.language_code)
-        );
+        let uri = format!("{}text-to-speech/{}", self.endpoint, voice_id.as_str());
         let response = self
             .client
             .post(&uri)

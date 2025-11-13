@@ -174,7 +174,7 @@ pub enum UserStateAction {
 
 **UserState Methods Added to Shared**:
 - Moved helper methods to `shared/src/models/user_state.rs` to avoid orphan rules:
-  - `create_msg()`, `bcp47_tag()`, `current_dialect()`, `current_dialects()`, `formality_display()`, `teaching_mode_display()`
+  - `create_msg()`, `current_dialect()`, `current_dialects()`, `formality_display()`, `teaching_mode_display()`
 
 **Files Modified**:
 - `frontend/src/app/app_state.rs` - Removed LanguageChoices, LanguageManner, MessagesState structs; removed duplicate LearningItem/LearningItemType; added UserStateWrapper with Reducible impl

@@ -97,7 +97,7 @@ This is a Rust workspace with 4 crates implementing an AI-powered language learn
 
 **Dual Retrieval**: Combines semantic search (30 examples) with random sampling (15 casual/slang examples) for authentic dialect responses.
 
-**WebSocket Protocol**: Real-time bidirectional communication using custom Message JSON format with BCP-47 language tags (es-MX, ar-EG, fr-CA, etc).
+**WebSocket Protocol**: Real-time bidirectional communication using custom Message JSON format with Dialect enum (serialized as "spanish_mexican", "arabic_egyptian", "french_quebecois", etc.).
 
 **Session-Based Context**: Each WebSocket connection maintains conversation history per session_id, limited to last 20 messages.
 
@@ -159,7 +159,7 @@ Currently supports 16 dialect variants across 3 languages:
 
 ### Adding New Dialects
 1. Update `shared/src/models/dialect.rs` with new enum variant
-2. Add BCP-47 mapping in `from_language_code()` method
+2. Add TTS voice mapping in `get_tts_voices()` function
 3. Process corpus data: `cargo run -p corpus-processor -- process --input new_dialect/`
 4. Upload to Qdrant: `cargo run -p corpus-processor -- upload --input processed/new_dialect.jsonl`
 

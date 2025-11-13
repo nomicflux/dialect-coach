@@ -255,7 +255,7 @@ Currently, the application creates an anonymous user with full UserState (sessio
 2. ✅ Updated all component props to use `us` reference:
    - **BranchSidebar** (lines 809-815): Uses `us.branches`, `us.active_branch_id`, `us.conversation_history`
    - **ChatWindow** (lines 840-848): Uses `us.clone()` for user_state prop
-   - **SpeechControls** (lines 849-859): Uses `us.bcp47_tag()`, `us.teaching_mode_display()`, `us.formality_display()`, `us.tts_enabled`
+   - **SpeechControls** (lines 849-859): Uses `us.selected_dialect`, `us.teaching_mode_display()`, `us.formality_display()`, `us.tts_enabled`
    - **LearningPanel** (lines 910-948): Uses `us.learning_items`
    - **Settings dialect select** (lines 982-1001): Uses `us.current_dialects()`, `us.current_dialect()`
 

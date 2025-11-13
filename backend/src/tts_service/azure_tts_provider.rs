@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use dialect_coach_shared::models::TTSProviderType;
+use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::tts::{
     AudioFormat, TextToSpeechProvider, TtsError, TtsRequest, TtsResponse,
 };
@@ -38,41 +39,27 @@ impl AzureTtsProvider {
         Ok(Self::new(subscription_key, region))
     }
 
-    fn map_language_to_voice(language_code: &str) -> &'static str {
-        match language_code {
-            // Spanish dialects - VERIFIED 2025-10-19
-            "es-MX" => "es-MX-DaliaNeural",    // ✅ VERIFIED
-            "es-ES" => "es-ES-ElviraNeural",   // ✅ VERIFIED
-            "es-AR" => "es-AR-ElenaNeural",    // ✅ VERIFIED
-            "es-CU" => "es-CU-BelkysNeural",   // ✅ VERIFIED
-            "es-CL" => "es-CL-CatalinaNeural", // ✅ VERIFIED
-            "es-CO" => "es-CO-SalomeNeural",   // ✅ VERIFIED
-
-            // Arabic dialects - VERIFIED 2025-10-19
-            "ar-EG" => "ar-EG-SalmaNeural",   // ✅ VERIFIED
-            "ar-LB" => "ar-LB-LaylaNeural",   // ✅ VERIFIED
-            "ar-SA" => "ar-SA-ZariyahNeural", // ✅ VERIFIED
-            "ar-MA" => "ar-MA-MounaNeural",   // ✅ VERIFIED
-            "ar-IQ" => "ar-IQ-RanaNeural",    // ✅ VERIFIED
-
-            // French dialects - VERIFIED 2025-10-19
-            "fr-CA" => "fr-CA-SylvieNeural",   // ✅ VERIFIED
-            "fr-FR" => "fr-FR-DeniseNeural",   // ✅ VERIFIED
-            "fr-CH" => "fr-CH-ArianeNeural",   // ✅ VERIFIED
-            "fr-BE" => "fr-BE-CharlineNeural", // ✅ VERIFIED
-            // "fr-CI" => "fr-CI-AkanNeural",    // ❌ REMOVED - Voice does not exist in Azure API
-
-            // Fallback to known working voice
-            _ => "en-US-AriaNeural", // This is confirmed to exist
-        }
+    fn get_voice_id(
+        dialect_features: &dialect_coach_shared::models::DialectWithFeatures,
+    ) -> Result<String, TtsError> {
+        dialect_features
+            .tts_voices
+            .get(&TTSProviderType::Azure)
+            .and_then(|voice| voice.clone())
+            .ok_or_else(|| {
+                TtsError::VoiceNotFound(format!(
+                    "No Azure voice available for dialect {}",
+                    dialect_features.dialect.name()
+                ))
+            })
     }
 
-    fn build_ssml(&self, request: &TtsRequest) -> String {
+    fn build_ssml(&self, request: &TtsRequest, voice_name: &str) -> String {
         let rate_str = request
             .rate
             .map(|r| format!(" rate='{}'", r))
             .unwrap_or_default();
-        let voice_name = Self::map_language_to_voice(&request.language_code);
+        let lang_code = request.dialect.language().code();
 
         format!(
             "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{}'>\n\
@@ -80,7 +67,7 @@ impl AzureTtsProvider {
                     <prosody{}{}>{}</prosody>\n\
                 </voice>\n\
             </speak>",
-            request.language_code, voice_name, rate_str, "0.0Hz", request.text
+            lang_code, voice_name, rate_str, "0.0Hz", request.text
         )
     }
 }
@@ -88,7 +75,9 @@ impl AzureTtsProvider {
 #[async_trait::async_trait]
 impl TextToSpeechProvider for AzureTtsProvider {
     async fn synthesize(&self, request: TtsRequest) -> Result<TtsResponse, TtsError> {
-        let ssml = self.build_ssml(&request);
+        let features = dialect_features(request.dialect);
+        let voice_name = Self::get_voice_id(&features)?;
+        let ssml = self.build_ssml(&request, &voice_name);
 
         let response = self
             .client
@@ -151,6 +140,7 @@ impl TextToSpeechProvider for AzureTtsProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dialect_coach_shared::models::Dialect;
     use std::env;
 
     #[tokio::test]
@@ -196,37 +186,39 @@ mod tests {
 
         // Test all voices in our mapping
         let test_cases = [
-            ("es-MX", "es-MX-DaliaNeural"),
-            ("es-ES", "es-ES-ElviraNeural"),
-            ("es-AR", "es-AR-ElenaNeural"),
-            ("es-CU", "es-CU-BelkysNeural"),
-            ("es-CL", "es-CL-CatalinaNeural"),
-            ("es-CO", "es-CO-SalomeNeural"),
-            ("ar-EG", "ar-EG-SalmaNeural"),
-            ("ar-LB", "ar-LB-LaylaNeural"),
-            ("ar-SA", "ar-SA-ZariyahNeural"),
-            ("ar-MA", "ar-MA-MounaNeural"),
-            ("ar-IQ", "ar-IQ-RanaNeural"),
-            ("fr-CA", "fr-CA-SylvieNeural"),
-            ("fr-FR", "fr-FR-DeniseNeural"),
-            ("fr-CH", "fr-CH-ArianeNeural"),
-            ("fr-BE", "fr-BE-CharlineNeural"),
-            // Note: fr-CI is deliberately excluded as it doesn't exist in Azure
+            (Dialect::SpanishMexican, "es-MX-DaliaNeural"),
+            (Dialect::SpanishCastilian, "es-ES-ElviraNeural"),
+            (Dialect::SpanishArgentinian, "es-AR-ElenaNeural"),
+            (Dialect::SpanishCuban, "es-CU-BelkysNeural"),
+            (Dialect::SpanishChilean, "es-CL-CatalinaNeural"),
+            (Dialect::SpanishColombian, "es-CO-SalomeNeural"),
+            (Dialect::ArabicEgyptian, "ar-EG-SalmaNeural"),
+            (Dialect::ArabicLevantine, "ar-LB-LaylaNeural"),
+            (Dialect::ArabicGulf, "ar-SA-ZariyahNeural"),
+            (Dialect::ArabicMaghrebi, "ar-MA-MounaNeural"),
+            (Dialect::ArabicIraqi, "ar-IQ-RanaNeural"),
+            (Dialect::FrenchQuebecois, "fr-CA-SylvieNeural"),
+            (Dialect::FrenchParisian, "fr-FR-DeniseNeural"),
+            (Dialect::FrenchSwiss, "fr-CH-ArianeNeural"),
+            (Dialect::FrenchBelgian, "fr-BE-CharlineNeural"),
+            // Note: FrenchAfrican is deliberately excluded as it doesn't exist in Azure
         ];
 
-        for (locale, expected_voice) in test_cases {
-            let mapped_voice = AzureTtsProvider::map_language_to_voice(locale);
+        for (dialect, expected_voice) in test_cases {
+            let features = dialect_features(dialect);
+            let mapped_voice = AzureTtsProvider::get_voice_id(&features)
+                .unwrap_or_else(|_| panic!("Voice should exist for {:?}", dialect));
             assert_eq!(
                 mapped_voice, expected_voice,
-                "Voice mapping mismatch for locale {}",
-                locale
+                "Voice mapping mismatch for dialect {:?}",
+                dialect
             );
 
             assert!(
                 voice_names.contains(expected_voice),
-                "Voice '{}' for locale '{}' not found in Azure API. Available voices: {:?}",
+                "Voice '{}' for dialect '{:?}' not found in Azure API. Available voices: {:?}",
                 expected_voice,
-                locale,
+                dialect,
                 voice_names.iter().take(5).collect::<Vec<_>>()
             );
         }

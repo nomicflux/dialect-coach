@@ -129,39 +129,6 @@ async fn handle_agent_error(
     Ok(())
 }
 
-async fn validate_and_parse_dialect(
-    parsed_msg: &Message,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<Dialect, ()> {
-    match Dialect::from_bcp47(parsed_msg.metadata.dialect.bcp47_tag()) {
-        Some(d) => {
-            tracing::info!(
-                "Parsed dialect: {} from language tag: {}",
-                d.name(),
-                parsed_msg.metadata.dialect.bcp47_tag()
-            );
-            Ok(d)
-        }
-        None => {
-            tracing::error!(
-                "Unsupported language tag: {}",
-                parsed_msg.metadata.dialect.bcp47_tag()
-            );
-            let error_msg = create_error_message(
-                format!(
-                    "Unsupported language/dialect: {}",
-                    parsed_msg.metadata.dialect.bcp47_tag()
-                ),
-                parsed_msg.metadata.clone(),
-            );
-            if let Err(e) = serialize_and_send(&error_msg, tx) {
-                tracing::error!("{}", e);
-            }
-            Err(())
-        }
-    }
-}
-
 async fn update_and_save_usage(
     state: &AppState,
     mut user_state: dialect_coach_shared::UserState,
@@ -642,7 +609,8 @@ async fn process_user_message(
     msg_with_context: UserMessageWithContext,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
-    let dialect = validate_and_parse_dialect(&msg_with_context.message, tx).await?;
+    let dialect = msg_with_context.message.metadata.dialect;
+    tracing::info!("Processing message for dialect: {}", dialect.name());
 
     let context_vec = build_context_from_messages(&msg_with_context.context_messages);
 
@@ -1150,18 +1118,16 @@ mod tests {
         assert_eq!(message.content, parsed.content);
     }
 
-    #[tokio::test]
-    async fn test_validate_and_parse_dialect_success() {
-        let (tx, _rx) = mpsc::unbounded_channel();
+    #[test]
+    fn test_dialect_from_message_metadata() {
         let msg = Message::agent_message(
             AgentResponse::from("Hola"),
             test_metadata(Uuid::new_v4()),
             None,
         );
 
-        let result = validate_and_parse_dialect(&msg, &tx).await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Dialect::SpanishArgentinian);
+        let dialect = msg.metadata.dialect;
+        assert_eq!(dialect, Dialect::SpanishArgentinian);
     }
 
     #[test]

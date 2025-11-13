@@ -195,44 +195,44 @@ Limited to last 20 messages to prevent unbounded growth.
   "session_id": "uuid-v4",
   "participant_id": "user1 | agent",
   "content": "message text",
-  "language": "es-MX",  // BCP-47 language tag
+  "dialect": "spanish_mexican",  // Dialect enum (serde ID format)
   "timestamp": "2025-10-12T..."
 }
 ```
 
-### Dialect Mapping
-BCP-47 tags map to Dialect enum:
-- `es-MX` → SpanishMexican
-- `es-AR` → SpanishArgentinian
-- `es-CO` → SpanishColombian
-- `es-CU`, `es-PR`, `es-DO` → SpanishCaribbean
-- `ar-EG` → ArabicEgyptian
-- `fr-CA` → FrenchQuebecois
+### Dialect Serialization
+Dialect enum is serialized using serde ID format:
+- `spanish_mexican` → SpanishMexican
+- `spanish_argentinian` → SpanishArgentinian
+- `spanish_colombian` → SpanishColombian
+- `spanish_cuban` → SpanishCuban
+- `arabic_egyptian` → ArabicEgyptian
+- `french_quebecois` → FrenchQuebecois
 - etc.
 
 ## Supported Dialects
 
 ### Spanish (6 variants)
-- Mexican (es-MX)
-- Castilian/Spain (es-ES)
-- Argentinian (es-AR)
-- Caribbean (es-CU/PR/DO)
-- Chilean (es-CL)
-- Colombian (es-CO)
+- Mexican (spanish_mexican)
+- Castilian/Spain (spanish_castilian)
+- Argentinian (spanish_argentinian)
+- Cuban (spanish_cuban)
+- Chilean (spanish_chilean)
+- Colombian (spanish_colombian)
 
 ### Arabic (5 variants)
-- Egyptian (ar-EG)
-- Levantine (ar-LB/SY/JO/PS)
-- Gulf (ar-SA/AE/KW/QA/BH/OM)
-- Maghrebi (ar-MA/DZ/TN/LY)
-- Iraqi (ar-IQ)
+- Egyptian (arabic_egyptian)
+- Levantine (arabic_levantine)
+- Gulf (arabic_gulf)
+- Maghrebi (arabic_maghrebi)
+- Iraqi (arabic_iraqi)
 
 ### French (5 variants)
-- Quebecois (fr-CA)
-- Parisian (fr-FR)
-- Swiss (fr-CH)
-- Belgian (fr-BE)
-- African (fr-CI/SN/CM)
+- Quebecois (french_quebecois)
+- Parisian (french_parisian)
+- Swiss (french_swiss)
+- Belgian (french_belgian)
+- African (french_african)
 
 ## Environment Variables
 

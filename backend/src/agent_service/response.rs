@@ -862,7 +862,7 @@ mod tests {
 
     #[test]
     fn test_build_system_content_normal() {
-        let dialect = Dialect::SpanishMexican;
+        let dialect = Dialect::SpanishArgentinian;
         let formality = Formality::Casual;
         let teaching_mode = TeachingMode::Immersive;
         let learning_goals = vec!["Goal 1".to_string()];

@@ -1,4 +1,5 @@
 use crate::services::speech::SpeechRecognitionService;
+use dialect_coach_shared::models::Dialect;
 use log::{error, info};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -7,7 +8,7 @@ use yew::prelude::*;
 #[derive(Properties, PartialEq)]
 pub struct SpeechControlsProps {
     pub on_speech: Callback<String>,
-    pub language_code: String,
+    pub dialect: Dialect,
     pub teaching_mode: String,
     pub formality: String,
     pub tts_enabled: bool,
@@ -24,15 +25,16 @@ pub struct SpeechControlsProps {
 #[function_component(SpeechControls)]
 pub fn speech_controls(props: &SpeechControlsProps) -> Html {
     let is_listening = use_state(|| false);
-    let stt_service = use_state(
-        || match SpeechRecognitionService::new(&props.language_code) {
+    let dialect = props.dialect;
+    let stt_service = use_state({
+        move || match SpeechRecognitionService::new(dialect) {
             Ok(service) => Some(Rc::new(RefCell::new(service))),
             Err(e) => {
                 error!("Failed to initialize STT service: {}", e);
                 None
             }
-        },
-    );
+        }
+    });
 
     let toggle_listening = {
         let is_listening = is_listening.clone();
@@ -105,7 +107,7 @@ pub fn speech_controls(props: &SpeechControlsProps) -> Html {
                             })
                         }}
                         title="Click to cycle through dialects">
-                    {&props.language_code}
+                    {dialect.name()}
                 </button>
                 <button class="mode-indicator clickable"
                         onclick={{

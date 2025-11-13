@@ -1,3 +1,4 @@
+use dialect_coach_shared::models::Dialect;
 use dialect_coach_shared::tts::TtsRequest;
 use gloo_net::http::Request;
 use log::{error, info, warn};
@@ -17,7 +18,8 @@ pub struct SpeechRecognitionService {
 
 impl SpeechRecognitionService {
     /// Create a new speech recognition service
-    pub fn new(language_code: &str) -> Result<Self, String> {
+    pub fn new(dialect: Dialect) -> Result<Self, String> {
+        let language_code = dialect.language().code();
         let window = web_sys::window().ok_or("No window object available")?;
 
         // Try to get SpeechRecognition (webkit prefix for Safari)
@@ -176,8 +178,13 @@ impl SpeechRecognitionService {
     }
 
     /// Change the recognition language
-    pub fn set_language(&mut self, language_code: &str) {
-        info!("Changing speech recognition language to: {}", language_code);
+    pub fn set_language(&mut self, dialect: Dialect) {
+        let language_code = dialect.language().code();
+        info!(
+            "Changing speech recognition language to: {} ({})",
+            dialect.name(),
+            language_code
+        );
         self.recognition.set_lang(language_code);
     }
 }
@@ -212,7 +219,7 @@ impl CloudTtsService {
         &self,
         user_id: uuid::Uuid,
         text: &str,
-        language_code: &str,
+        dialect: Dialect,
     ) -> Result<(), String> {
         if text.is_empty() {
             return Err("Cannot speak empty text".to_string());
@@ -224,7 +231,7 @@ impl CloudTtsService {
         let request = TtsRequest {
             user_id,
             text: text.to_string(),
-            language_code: language_code.to_string(),
+            dialect,
             rate: Some(1.0),
         };
 

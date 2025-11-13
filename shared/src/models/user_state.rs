@@ -77,10 +77,6 @@ impl UserState {
         Message::user_message(content.to_string(), self.create_metadata(session_id), None)
     }
 
-    pub fn bcp47_tag(&self) -> String {
-        self.selected_dialect.bcp47_tag().to_string()
-    }
-
     pub fn current_dialect(&self) -> Dialect {
         self.selected_dialect
     }

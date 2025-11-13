@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::models::TTSProviderType;
+use crate::models::{Dialect, TTSProviderType};
 
 /// Trait for text-to-speech providers (Google, Azure, Browser, etc.)
 #[async_trait::async_trait]
@@ -25,20 +25,20 @@ pub struct TtsRequest {
     /// Text to synthesize
     pub text: String,
 
-    /// BCP-47 language code (e.g., "es-MX", "ar-EG", "fr-CA")
-    pub language_code: String,
+    /// Dialect for speech synthesis
+    pub dialect: Dialect,
 
     /// Speech rate (0.25-4.0, default 1.0)
     pub rate: Option<f32>,
 }
 
 impl TtsRequest {
-    /// Create a simple TTS request with just text and language
-    pub fn new(user_id: uuid::Uuid, text: String, language_code: String) -> Self {
+    /// Create a simple TTS request with just text and dialect
+    pub fn new(user_id: uuid::Uuid, text: String, dialect: Dialect) -> Self {
         Self {
             user_id,
             text,
-            language_code,
+            dialect,
             rate: None,
         }
     }
@@ -159,7 +159,7 @@ pub fn generate_cache_key(request: &TtsRequest) -> String {
 
     let mut hasher = DefaultHasher::new();
     request.text.hash(&mut hasher);
-    request.language_code.hash(&mut hasher);
+    request.dialect.id().hash(&mut hasher);
 
     // Convert rate/pitch to deterministic strings
     let rate_str = request
@@ -177,18 +177,20 @@ mod tests {
 
     #[test]
     fn test_cache_key_generation() {
+        use crate::models::Dialect;
         let user_id = uuid::Uuid::new_v4();
-        let request1 = TtsRequest::new(user_id, "Hello".to_string(), "en-US".to_string());
-        let request2 = TtsRequest::new(user_id, "Hello".to_string(), "en-US".to_string());
+        let request1 = TtsRequest::new(user_id, "Hello".to_string(), Dialect::SpanishMexican);
+        let request2 = TtsRequest::new(user_id, "Hello".to_string(), Dialect::SpanishMexican);
 
         assert_eq!(generate_cache_key(&request1), generate_cache_key(&request2));
     }
 
     #[test]
     fn test_different_text_different_key() {
+        use crate::models::Dialect;
         let user_id = uuid::Uuid::new_v4();
-        let request1 = TtsRequest::new(user_id, "Hello".to_string(), "en-US".to_string());
-        let request2 = TtsRequest::new(user_id, "Goodbye".to_string(), "en-US".to_string());
+        let request1 = TtsRequest::new(user_id, "Hello".to_string(), Dialect::SpanishMexican);
+        let request2 = TtsRequest::new(user_id, "Goodbye".to_string(), Dialect::SpanishMexican);
 
         assert_ne!(generate_cache_key(&request1), generate_cache_key(&request2));
     }

@@ -311,12 +311,11 @@ Display all dialects with feature indicators (TTS voices and corpus availability
          }
          let tts_service = next.tts_service.clone();
          let user_id = next.current_user.as_ref().map(|u| u.id);
-         let language_code = dialect.bcp47_tag();
          let text = msg.get_content();
          wasm_bindgen_futures::spawn_local(async move {
              if let Some(tts) = tts_service
                  && let Some(uid) = user_id
-                 && let Err(e) = tts.speak(uid, &text, language_code).await
+                 && let Err(e) = tts.speak(uid, &text, dialect).await
              {
                  error!("Failed to replay message with TTS: {}", e);
              }

@@ -7,7 +7,6 @@
   "configured_dialects": {
     "spanish_mexican": {
       "name": "Mexican Spanish",
-      "bcp47": "es-MX", 
       "status": "UNKNOWN - NEED TO VERIFY",
       "corpus_file": null,
       "size_mb": null,
@@ -17,7 +16,6 @@
     },
     "spanish_castilian": {
       "name": "Castilian Spanish", 
-      "bcp47": "es-ES",
       "status": "NO_DATA",
       "corpus_file": null,
       "size_mb": null,
@@ -27,7 +25,6 @@
     },
     "spanish_argentinian": {
       "name": "Argentinian Spanish",
-      "bcp47": "es-AR", 
       "status": "UNKNOWN - NEED TO VERIFY",
       "corpus_file": null,
       "size_mb": null,
@@ -37,7 +34,6 @@
     },
     "spanish_cuban": {
       "name": "Cuban Spanish",
-      "bcp47": "es-CU",
       "status": "PROCESSED", 
       "corpus_file": "spanish_cuban.txt",
       "size_mb": null,
@@ -47,7 +43,6 @@
     },
     "spanish_chilean": {
       "name": "Chilean Spanish",
-      "bcp47": "es-CL",
       "status": "GATED",
       "corpus_file": null,
       "size_mb": null,
@@ -57,7 +52,6 @@
     },
     "spanish_colombian": {
       "name": "Colombian Spanish", 
-      "bcp47": "es-CO",
       "status": "PROCESSED",
       "corpus_file": "spanish_colombian.txt",
       "size_mb": null,
@@ -67,7 +61,6 @@
     },
     "arabic_egyptian": {
       "name": "Egyptian Arabic",
-      "bcp47": "ar-EG",
       "status": "PROCESSED",
       "corpus_file": "egyptian_arabic.txt",
       "size_mb": 698.0,
@@ -77,7 +70,6 @@
     },
     "arabic_levantine": {
       "name": "Levantine Arabic",
-      "bcp47": "ar-LB", 
       "status": "PROCESSED",
       "corpus_file": "levantine_arabic.txt",
       "size_mb": 19.0,
@@ -87,7 +79,6 @@
     },
     "arabic_gulf": {
       "name": "Gulf Arabic",
-      "bcp47": "ar-SA",
       "status": "PROCESSED", 
       "corpus_file": "gulf_arabic.txt",
       "size_mb": 26.0,
@@ -97,7 +88,6 @@
     },
     "arabic_maghrebi": {
       "name": "Maghrebi Arabic",
-      "bcp47": "ar-MA",
       "status": "PROCESSED",
       "corpus_file": "moroccan_darija.txt", 
       "size_mb": 460.0,
@@ -107,7 +97,6 @@
     },
     "arabic_iraqi": {
       "name": "Iraqi Arabic",
-      "bcp47": "ar-IQ",
       "status": "NO_DATA",
       "corpus_file": null,
       "size_mb": null, 
@@ -117,7 +106,6 @@
     },
     "french_quebecois": {
       "name": "Quebec French",
-      "bcp47": "fr-CA",
       "status": "AVAILABLE",
       "corpus_file": "quebec_french.txt",
       "size_mb": 0.5,
@@ -127,7 +115,6 @@
     },
     "french_parisian": {
       "name": "Parisian French",
-      "bcp47": "fr-FR",
       "status": "NO_DATA",
       "corpus_file": null,
       "size_mb": null,
@@ -137,7 +124,6 @@
     },
     "french_swiss": {
       "name": "Swiss French", 
-      "bcp47": "fr-CH",
       "status": "NO_DATA",
       "corpus_file": null,
       "size_mb": null,
@@ -147,7 +133,6 @@
     },
     "french_belgian": {
       "name": "Belgian French",
-      "bcp47": "fr-BE",
       "status": "NO_DATA", 
       "corpus_file": null,
       "size_mb": null,
@@ -157,7 +142,6 @@
     },
     "french_african": {
       "name": "African French",
-      "bcp47": "fr-CI",
       "status": "PROCESSED",
       "corpus_file": "african_french.txt",
       "size_mb": 1.3,
