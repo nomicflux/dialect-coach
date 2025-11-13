@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::{Dialect, Formality, TeachingMode};
 use rig::completion::{
     Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
@@ -49,7 +50,7 @@ pub async fn run_self_chat_test(
 
         let params = GenerateResponseParams {
             user_message: &current_message,
-            dialect,
+            dialect: dialect_features(dialect),
             formality,
             teaching_mode: TeachingMode::Immersive,
             conversation_history: &conversation_history,

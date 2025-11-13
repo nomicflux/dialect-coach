@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{
-    AgentUsage, Dialect, DialectDocument, Explained, Exploratory, Formality, Mistake,
-    PastLearningItems, TeachingMode, Translated,
+    AgentUsage, Dialect, DialectDocument, DialectWithFeatures, Explained, Exploratory, Formality,
+    Mistake, PastLearningItems, TeachingMode, Translated,
 };
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
@@ -252,8 +252,16 @@ const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES
 const RESPONSE_JSON_OUTPUT_FORMAT: &str =
     r#"Response format: {"response": "<your full conversational response here>"}"#;
 
+fn mimic_instruction(has_corpus: bool) -> &'static str {
+    if has_corpus {
+        "1. MIMIC THE PATTERNS: Study the dialect examples in the conversation history below and copy their vocabulary, grammar, style, and characteristic dialect constructions"
+    } else {
+        "1. MIMIC THE DIALECT: Use the vocabulary, grammar, style, and characteristic constructions for your dialect."
+    }
+}
+
 fn build_system_content(
-    dialect: Dialect,
+    dialect: DialectWithFeatures,
     formality: Formality,
     teaching_mode: TeachingMode,
     learning_goals: &[String],
@@ -266,7 +274,7 @@ fn build_system_content(
         Formality::Slang => "SLANG",
     };
 
-    let role_desc = speaker_desc(&dialect, &formality);
+    let role_desc = speaker_desc(&dialect.dialect, &formality);
     let teaching_rules = response_teaching_desc(&teaching_mode);
     let goals_section = learning_goals_section(learning_goals);
     let learning_items_context = format_learning_items_context(
@@ -295,7 +303,7 @@ fn build_system_content(
             # YOUR ROLE\n\
             {}.\n\n\
             # CRITICAL RULES\n\
-            1. MIMIC THE PATTERNS: Study the dialect examples in the conversation history below and copy their vocabulary, grammar, style, and characteristic dialect constructions\n\
+            {}\n\
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
             {}\n\
             {}\n\
@@ -306,13 +314,14 @@ fn build_system_content(
             Now respond to the user's message naturally, as a local {} speaker would, in the response field of the required JSON format. You MUST ALWAYS respond - NEVER indicate the conversation has ended. If it seems to have ended, provide a follow-up question or new topic. The response field must be non-empty. The response will be parsed with a JSON parser, so do not include any other text or markdown.",
             CONTENT_FILTERING_DIRECTIVES,
             role_desc,
+            mimic_instruction(dialect.has_corpus),
             formality_label.to_lowercase(),
             teaching_rules,
             goals_section,
             learning_items_context,
             JSON_OUTPUT_INSTRUCTION,
             RESPONSE_JSON_OUTPUT_FORMAT,
-            dialect.name()
+            dialect.dialect.name()
         )
     }
 }
@@ -338,7 +347,7 @@ fn build_conversation_history_with_examples(
 /// Parameters for generating a response
 pub struct GenerateResponseParams<'a> {
     pub user_message: &'a str,
-    pub dialect: Dialect,
+    pub dialect: DialectWithFeatures,
     pub formality: Formality,
     pub teaching_mode: TeachingMode,
     pub conversation_history: &'a [RigMessage],
@@ -458,21 +467,32 @@ impl ResponseContext {
         &self,
         user_message: &str,
         conversation_history: &[RigMessage],
-        dialect: Dialect,
+        dialect: DialectWithFeatures,
         formality: Formality,
         rag_config: &RAGConfig,
     ) -> Result<(Vec<DialectDocument>, Vec<DialectDocument>)> {
+        if !dialect.has_corpus {
+            return Ok((Vec::new(), Vec::new()));
+        }
         let history_text = conversation_history
             .iter()
             .map(get_message_text)
             .collect::<Vec<String>>();
         let embeddings = self.retrieve_embeddings(user_message, &history_text)?;
         let examples = self
-            .retrieve_examples(&dialect, embeddings, rag_config.num_conversation_documents)
+            .retrieve_examples(
+                &dialect.dialect,
+                embeddings,
+                rag_config.num_conversation_documents,
+            )
             .await?;
         let sample_formalities = get_sample_formalities(formality);
         let random_samples = self
-            .retrieve_random_samples(dialect, sample_formalities, rag_config.num_random_documents)
+            .retrieve_random_samples(
+                dialect.dialect,
+                sample_formalities,
+                rag_config.num_random_documents,
+            )
             .await?;
         let unique_examples = deduplicate_examples(examples, random_samples);
         let (primary, secondary) = group_examples_by_formality(
@@ -494,7 +514,7 @@ impl ResponseContext {
         let learning_params = LearningAgentParams {
             user_message: params.user_message,
             assistant_response: &assistant_response,
-            dialect: params.dialect,
+            dialect: params.dialect.dialect,
             formality: params.formality,
             teaching_mode: params.teaching_mode,
             learning_goals: params.learning_goals,
@@ -553,7 +573,7 @@ impl ResponseContext {
         Vec<AgentUsage>,
         Vec<AgentUsage>,
     )> {
-        match try_parse_response(&response, params.dialect) {
+        match try_parse_response(&response, params.dialect.dialect) {
             Ok(parsed_response) => {
                 if contains_illegal_characters(&parsed_response.response) {
                     tracing::error!(
@@ -561,7 +581,7 @@ impl ResponseContext {
                     );
                     return Err(anyhow::anyhow!("Response contains illegal characters"));
                 }
-                log_response_success(params.dialect, &parsed_response);
+                log_response_success(params.dialect.dialect, &parsed_response);
                 match self.attach_learning_items(params, parsed_response).await {
                     Ok((final_response, learning_usage)) => {
                         Ok((final_response, initial_usage, learning_usage))
@@ -570,7 +590,7 @@ impl ResponseContext {
                 }
             }
             Err(_) => {
-                let dialect = params.dialect;
+                let dialect = params.dialect.dialect;
                 let teaching_mode = params.teaching_mode;
                 let retry_ctx = RetryContext {
                     agent: self.response_agent.clone(),
@@ -642,7 +662,7 @@ impl ResponseContext {
             .collect_examples(
                 params.user_message,
                 params.conversation_history,
-                params.dialect,
+                params.dialect.clone(),
                 params.formality,
                 params.rag_config,
             )
@@ -659,7 +679,7 @@ impl ResponseContext {
             exploratory: params.past_exploratory.to_vec(),
         };
         let system_content = build_system_content(
-            params.dialect,
+            params.dialect.clone(),
             params.formality,
             params.teaching_mode,
             params.learning_goals,
@@ -732,6 +752,7 @@ impl ResponseContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dialect_coach_shared::models::dialect::dialect_features;
     use dialect_coach_shared::{Dialect, Formality, TeachingMode};
     use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
     use rig::one_or_many::OneOrMany;
@@ -826,7 +847,7 @@ mod tests {
         let past_learning_items = PastLearningItems::default();
 
         let content = build_system_content(
-            dialect,
+            dialect_features(dialect),
             formality,
             teaching_mode,
             &learning_goals,
@@ -848,7 +869,7 @@ mod tests {
         let past_learning_items = PastLearningItems::default();
 
         let content = build_system_content(
-            dialect,
+            dialect_features(dialect),
             formality,
             teaching_mode,
             &learning_goals,

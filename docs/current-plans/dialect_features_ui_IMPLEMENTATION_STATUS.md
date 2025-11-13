@@ -371,24 +371,39 @@ Display all dialects with feature indicators (TTS voices and corpus availability
 
 ## Phase 5: Update Backend to Use DialectWithFeatures and Conditionally Retrieve Corpus
 
-### Code Style Checklist
-- [ ] **Planning Documentation**: Have you consulted/created/updated docs/current-plans/dialect_features_ui_IMPLEMENTATION_STATUS.md?
-- [ ] **Code Simplicity**: Are you following simplicity rules? (functions <20 lines, pure functions, no defensive coding)
-- [ ] **Code Modularity**: Are you following modularity rules? (helper functions, low cyclomatic complexity)
-- [ ] **Scope Control**: Are you accomplishing the user's instructions and NOTHING MORE?
-- [ ] **No Dead Code**: Did you leave dead code? (no future-proofing, no leaving just for tests)
-- [ ] **No Fake Constructions**: Are there any object instances that are purely for the sake of passing a type checker?
-- [ ] **Code Purpose**: Do you changes accomplish the plan purpose and not just mechanical checklists?
-- [ ] **Required Tests**: Have you added tests for any new functions?
+**Status: COMPLETE** ✅
 
-### Files to Update
-- `backend/src/agent_service/response.rs` - Update `GenerateResponseParams` struct (line ~342-354), `collect_examples` method (lines ~460-488), and `generate_response` method (lines ~628-705)
-- `backend/src/websocket.rs` - Update call sites where `GenerateResponseParams` is created (lines ~519-531 and ~553-565)
-- `backend/src/test_utils.rs` - Update test code if it uses `GenerateResponseParams` (line ~50)
+### Code Style Checklist
+- [x] **Planning Documentation**: Have you consulted/created/updated docs/current-plans/dialect_features_ui_IMPLEMENTATION_STATUS.md?
+- [x] **Code Simplicity**: Are you following simplicity rules? (functions <20 lines, pure functions, no defensive coding)
+- [x] **Code Modularity**: Are you following modularity rules? (helper functions, low cyclomatic complexity)
+- [x] **Scope Control**: Are you accomplishing the user's instructions and NOTHING MORE?
+- [x] **No Dead Code**: Did you leave dead code? (no future-proofing, no leaving just for tests)
+- [x] **No Fake Constructions**: Are there any object instances that are purely for the sake of passing a type checker?
+- [x] **Code Purpose**: Do you changes accomplish the plan purpose and not just mechanical checklists?
+- [x] **Required Tests**: Have you added tests for any new functions?
+
+### Files Updated
+- `backend/src/agent_service/response.rs` - Updated imports (line 3), `GenerateResponseParams` struct (line 342), `build_system_content` function (lines 257, 270, 316), `collect_examples` method (lines 462, 466-468, 475, 479), `attach_learning_items` method (line 501), `generate_response` method (lines 648, 665), `handle_response_parsing` method (lines 560, 568, 577), and test functions (lines 739, 833, 855)
+- `backend/src/websocket.rs` - Added import (line 12), updated `build_response_params` function (line 483)
+- `backend/src/test_utils.rs` - Added import (line 3), updated `run_self_chat_test` function (line 53)
 
 ### Implementation Details
 
-1. **Update `GenerateResponseParams` struct in `backend/src/agent_service/response.rs` (line ~342-354)**:
+1. **Add imports to `backend/src/agent_service/response.rs` (lines 2-3)**:
+   - Add `DialectWithFeatures` to the existing import from `dialect_coach_shared`:
+     ```rust
+     use dialect_coach_shared::{
+         AgentUsage, Dialect, DialectDocument, DialectWithFeatures, Explained, Exploratory, Formality, Mistake,
+         PastLearningItems, TeachingMode, Translated,
+     };
+     ```
+   - Add import for `dialect_features` function:
+     ```rust
+     use dialect_coach_shared::models::dialect::dialect_features;
+     ```
+
+2. **Update `GenerateResponseParams` struct in `backend/src/agent_service/response.rs` (line 341)**:
    - Change `dialect: Dialect` field to `dialect: DialectWithFeatures`:
      ```rust
      pub struct GenerateResponseParams<'a> {
@@ -406,83 +421,179 @@ Display all dialects with feature indicators (TTS voices and corpus availability
      }
      ```
 
-2. **Update `collect_examples` method in `backend/src/agent_service/response.rs` (lines ~460-488)**:
+3. **Update `build_system_content` function in `backend/src/agent_service/response.rs` (line 256)**:
    - Change parameter from `dialect: Dialect` to `dialect: DialectWithFeatures`
-   - Check `dialect.has_corpus` before retrieving examples:
+   - Update line 269 to use `dialect.dialect` when calling `speaker_desc`:
      ```rust
-     async fn collect_examples(
-         &self,
-         user_message: &str,
-         conversation_history: &[RigMessage],
-         dialect: DialectWithFeatures,
-         formality: Formality,
-         rag_config: &RAGConfig,
-     ) -> Result<(Vec<DialectDocument>, Vec<DialectDocument>)> {
-         if !dialect.has_corpus {
-             return Ok((Vec::new(), Vec::new()));
-         }
-         // ... existing implementation using dialect.dialect instead of dialect
-         let embeddings = self.retrieve_embeddings(user_message, &history_text)?;
-         let examples = self
-             .retrieve_examples(&dialect.dialect, embeddings, rag_config.num_conversation_documents)
-             .await?;
-         let sample_formalities = get_sample_formalities(formality);
-         let random_samples = self
-             .retrieve_random_samples(dialect.dialect, sample_formalities, rag_config.num_random_documents)
-             .await?;
-         // ... rest of existing implementation
-     }
+     let role_desc = speaker_desc(&dialect.dialect, &formality);
+     ```
+   - Update line 315 to use `dialect.dialect` when calling `dialect.name()`:
+     ```rust
+     dialect.dialect.name()
      ```
 
-3. **Update `generate_response` method in `backend/src/agent_service/response.rs` (lines ~628-705)**:
-   - Update call to `collect_examples` to pass `DialectWithFeatures`
-   - Update any other methods that use the dialect parameter to use `params.dialect.dialect` when they need the `Dialect` enum
-
-4. **Update `build_system_content` function in `backend/src/agent_service/response.rs` (lines ~255-321)**:
+4. **Update `collect_examples` method in `backend/src/agent_service/response.rs` (line 461)**:
    - Change parameter from `dialect: Dialect` to `dialect: DialectWithFeatures`
-   - Use `dialect.dialect` when calling `dialect.name()` or other `Dialect` methods
-
-5. **Update `websocket.rs` call sites (`backend/src/websocket.rs`, lines ~519-531 and ~553-565)**:
-   - Convert `Dialect` to `DialectWithFeatures` when creating `GenerateResponseParams`:
+   - Add early return check at the start of the function (after line 464):
      ```rust
-     let params = GenerateResponseParams {
+     if !dialect.has_corpus {
+         return Ok((Vec::new(), Vec::new()));
+     }
+     ```
+   - Update line 471 to use `dialect.dialect` when calling `retrieve_examples`:
+     ```rust
+     let examples = self
+         .retrieve_examples(&dialect.dialect, embeddings, rag_config.num_conversation_documents)
+         .await?;
+     ```
+   - Update line 475 to use `dialect.dialect` when calling `retrieve_random_samples`:
+     ```rust
+     let random_samples = self
+         .retrieve_random_samples(dialect.dialect, sample_formalities, rag_config.num_random_documents)
+         .await?;
+     ```
+
+5. **Update `attach_learning_items` method in `backend/src/agent_service/response.rs` (line 497)**:
+   - Update line 497 to use `params.dialect.dialect` when creating `LearningAgentParams`:
+     ```rust
+     let learning_params = LearningAgentParams {
+         user_message: params.user_message,
+         assistant_response: &assistant_response,
+         dialect: params.dialect.dialect,
+         formality: params.formality,
+         teaching_mode: params.teaching_mode,
+         learning_goals: params.learning_goals,
+         past_mistakes: params.past_mistakes,
+         past_explained: params.past_explained,
+         past_translated: params.past_translated,
+         past_exploratory: params.past_exploratory,
+     };
+     ```
+
+6. **Update `generate_response` method in `backend/src/agent_service/response.rs` (lines 641-648, 661-662, 556, 564, 573)**:
+   - Update line 642 to pass `params.dialect` (already `DialectWithFeatures`) to `collect_examples`:
+     ```rust
+     let (primary_examples, secondary_examples) = match self
+         .collect_examples(
+             params.user_message,
+             params.conversation_history,
+             params.dialect,
+             params.formality,
+             params.rag_config,
+         )
+         .await
+     ```
+   - Update line 661 to pass `params.dialect` to `build_system_content`:
+     ```rust
+     let system_content = build_system_content(
+         params.dialect,
+         params.formality,
+         params.teaching_mode,
+         params.learning_goals,
+         &past_learning_items,
+     );
+     ```
+   - Update line 556 to use `params.dialect.dialect` when calling `try_parse_response`:
+     ```rust
+     match try_parse_response(&response, params.dialect.dialect) {
+     ```
+   - Update line 564 to use `params.dialect.dialect` when calling `log_response_success`:
+     ```rust
+     log_response_success(params.dialect.dialect, &parsed_response);
+     ```
+   - Update line 573 to use `params.dialect.dialect` in the closure:
+     ```rust
+     let dialect = params.dialect.dialect;
+     ```
+   - Update line 580 to use `dialect` (already extracted) when calling `try_parse_response`:
+     ```rust
+     let parse_fn =
+         move |response: &str| -> Result<dialect_coach_shared::AgentResponse> {
+             try_parse_response(response, dialect)
+         };
+     ```
+   - Update line 583 to use `dialect` when calling `log_response_success`:
+     ```rust
+     let log_success = move |parsed: &dialect_coach_shared::AgentResponse| {
+         log_response_success(dialect, parsed);
+     };
+     ```
+
+7. **Add import to `backend/src/websocket.rs` (line 8-11)**:
+   - Add `dialect_features` to the existing import or add a new import:
+     ```rust
+     use dialect_coach_shared::models::dialect::dialect_features;
+     ```
+
+8. **Update `build_response_params` function in `backend/src/websocket.rs` (line 482)**:
+   - Update line 482 to convert `Dialect` to `DialectWithFeatures`:
+     ```rust
+     GenerateResponseParams {
          user_message: user_text,
-         dialect: dialect_coach_shared::models::dialect::dialect_features(dialect),
+         dialect: dialect_features(dialect),
          formality,
          teaching_mode,
          conversation_history: history_vec,
          learning_goals: &msg_with_context.learning_goals,
-         rag_config: &rag_config,
+         rag_config,
          past_mistakes: &msg_with_context.past_mistakes,
          past_explained: &msg_with_context.past_explained,
          past_translated: &msg_with_context.past_translated,
          past_exploratory: &msg_with_context.past_exploratory,
-     };
+     }
      ```
 
-6. **Update `backend/src/test_utils.rs` if it uses `GenerateResponseParams` (line ~50)**:
-   - Convert `Dialect` to `DialectWithFeatures` when creating test params
-
-7. **Add imports to `backend/src/agent_service/response.rs`**:
-   - Add `use dialect_coach_shared::models::DialectWithFeatures;`
-   - Add `use dialect_coach_shared::models::dialect::dialect_features;`
-
-8. **Add import to `backend/src/websocket.rs`**:
-   - Add `use dialect_coach_shared::models::dialect::dialect_features;`
+9. **Update `run_self_chat_test` function in `backend/src/test_utils.rs` (line 50)**:
+   - Update line 52 to convert `Dialect` to `DialectWithFeatures`:
+     ```rust
+     let params = GenerateResponseParams {
+         user_message: &current_message,
+         dialect: dialect_coach_shared::models::dialect::dialect_features(dialect),
+         formality,
+         teaching_mode: TeachingMode::Immersive,
+         conversation_history: &conversation_history,
+         learning_goals: &[],
+         rag_config: &config,
+         past_mistakes: &[],
+         past_explained: &[],
+         past_translated: &[],
+         past_exploratory: &[],
+     };
+     ```
+   - Add import at the top of the file if not already present:
+     ```rust
+     use dialect_coach_shared::models::dialect::dialect_features;
+     ```
 
 ### Deliverables
-- Backend uses `DialectWithFeatures` throughout response generation
-- Corpus samples are only retrieved when `dialect.has_corpus` is true
+- Backend uses `DialectWithFeatures` throughout response generation pipeline
+- Corpus samples are only retrieved when `dialect.has_corpus` is true (early return in `collect_examples`)
+- All methods that need `Dialect` enum extract it from `DialectWithFeatures` using `.dialect` field
 - All backend tests updated and passing
 - No corpus retrieval attempts for dialects without corpus
 - All checks passing: `cargo fmt --check`, `cargo clippy --workspace`, `cargo test --workspace`
 
 ### Phase Completion
-- Run formatting check: `cargo fmt --check`
-- Run lint check: `cargo clippy --workspace`
-- Run FULL test suite: `cargo test --workspace`
-- Upon 100% success (fmt, clippy, and tests), update this status document with progress
+- ✅ Run formatting check: `cargo fmt --check` - PASSED (after running `cargo fmt`)
+- ✅ Run lint check: `cargo clippy --workspace` - PASSED
+- ✅ Run FULL test suite: `cargo test --workspace` - PASSED (all 131 shared tests, 22 frontend tests, 65 backend tests, etc.)
+- ✅ Status document updated with progress
 - **ALL agents must STOP and wait for EXPLICIT approval - Implementation Complete**
+
+### Implementation Notes
+- Updated `GenerateResponseParams` struct to use `DialectWithFeatures` instead of `Dialect`
+- Updated `build_system_content` function to accept `DialectWithFeatures` and use `dialect.dialect` when calling `speaker_desc` and `dialect.name()`
+- Updated `collect_examples` method to:
+  - Accept `DialectWithFeatures` parameter
+  - Add early return check `if !dialect.has_corpus { return Ok((Vec::new(), Vec::new())); }` to skip corpus retrieval when corpus is not available
+  - Use `dialect.dialect` when calling `retrieve_examples` and `retrieve_random_samples`
+- Updated `attach_learning_items` to use `params.dialect.dialect` when creating `LearningAgentParams`
+- Updated `generate_response` method to clone `params.dialect` when passing to `collect_examples` and `build_system_content` (since `DialectWithFeatures` doesn't implement `Copy`)
+- Updated `handle_response_parsing` to use `params.dialect.dialect` when calling `try_parse_response` and `log_response_success`
+- Updated `build_response_params` in `websocket.rs` to convert `Dialect` to `DialectWithFeatures` using `dialect_features(dialect)`
+- Updated `run_self_chat_test` in `test_utils.rs` to convert `Dialect` to `DialectWithFeatures` using `dialect_features(dialect)`
+- Updated test functions in `response.rs` to use `dialect_features(dialect)` when calling `build_system_content`
+- All tests pass without modification - existing tests work correctly with the new types
 
 ---
 

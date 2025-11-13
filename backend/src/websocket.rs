@@ -5,6 +5,7 @@ use axum::{
     },
     response::Response,
 };
+use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::{
     AgentResponse, AgentUsageStats, Dialect, Message, MessageContent, MessageMetadata, UserMessage,
     UserMessageWithContext, UserState, UserStateMessage,
@@ -479,7 +480,7 @@ fn build_response_params<'a>(
 
     GenerateResponseParams {
         user_message: user_text,
-        dialect,
+        dialect: dialect_features(dialect),
         formality,
         teaching_mode,
         conversation_history: history_vec,
