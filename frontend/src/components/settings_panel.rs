@@ -57,6 +57,8 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
                                     <option value="spanish" selected={us.selected_language == Language::Spanish}>{"Spanish"}</option>
                                     <option value="arabic" selected={us.selected_language == Language::Arabic}>{"Arabic"}</option>
                                     <option value="french" selected={us.selected_language == Language::French}>{"French"}</option>
+                                    <option value="english" selected={us.selected_language == Language::English}>{"English"}</option>
+                                    <option value="japanese" selected={us.selected_language == Language::Japanese}>{"Japanese"}</option>
                                 </select>
                             </div>
 

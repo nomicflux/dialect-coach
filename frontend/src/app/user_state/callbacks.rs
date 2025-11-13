@@ -16,6 +16,8 @@ pub fn on_language_change(user_state: UseReducerHandle<OptionalUserState>) -> Ca
                 "spanish" => Language::Spanish,
                 "arabic" => Language::Arabic,
                 "french" => Language::French,
+                "english" => Language::English,
+                "japanese" => Language::Japanese,
                 _ => Language::Spanish,
             };
             user_state.dispatch(UserStateAction::ChangeLanguage(lang));
