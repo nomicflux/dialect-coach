@@ -21,6 +21,8 @@ pub enum Dialect {
     SpanishChilean,
     #[serde(rename = "spanish_colombian")]
     SpanishColombian,
+    #[serde(rename = "spanish_andalusian")]
+    SpanishAndalusian,
 
     // Arabic dialects
     #[serde(rename = "arabic_egyptian")]
@@ -45,6 +47,34 @@ pub enum Dialect {
     FrenchBelgian,
     #[serde(rename = "french_african")]
     FrenchAfrican,
+    #[serde(rename = "french_chti")]
+    FrenchChti,
+
+    // English dialects
+    #[serde(rename = "english_general_american")]
+    EnglishGeneralAmerican,
+    #[serde(rename = "english_rp")]
+    EnglishRP,
+    #[serde(rename = "english_australian")]
+    EnglishAustralian,
+    #[serde(rename = "english_irish")]
+    EnglishIrish,
+    #[serde(rename = "english_scottish")]
+    EnglishScottish,
+    #[serde(rename = "english_south_african")]
+    EnglishSouthAfrican,
+
+    // Japanese dialects
+    #[serde(rename = "japanese_tokyo")]
+    JapaneseTokyo,
+    #[serde(rename = "japanese_kansai")]
+    JapaneseKansai,
+    #[serde(rename = "japanese_tohoku")]
+    JapaneseTohoku,
+    #[serde(rename = "japanese_kyushu")]
+    JapaneseKyushu,
+    #[serde(rename = "japanese_hokkaido")]
+    JapaneseHokkaido,
 }
 
 impl Dialect {
@@ -56,7 +86,8 @@ impl Dialect {
             | Self::SpanishArgentinian
             | Self::SpanishCuban
             | Self::SpanishChilean
-            | Self::SpanishColombian => Language::Spanish,
+            | Self::SpanishColombian
+            | Self::SpanishAndalusian => Language::Spanish,
 
             Self::ArabicEgyptian
             | Self::ArabicLevantine
@@ -68,7 +99,21 @@ impl Dialect {
             | Self::FrenchParisian
             | Self::FrenchSwiss
             | Self::FrenchBelgian
-            | Self::FrenchAfrican => Language::French,
+            | Self::FrenchAfrican
+            | Self::FrenchChti => Language::French,
+
+            Self::EnglishGeneralAmerican
+            | Self::EnglishRP
+            | Self::EnglishAustralian
+            | Self::EnglishIrish
+            | Self::EnglishScottish
+            | Self::EnglishSouthAfrican => Language::English,
+
+            Self::JapaneseTokyo
+            | Self::JapaneseKansai
+            | Self::JapaneseTohoku
+            | Self::JapaneseKyushu
+            | Self::JapaneseHokkaido => Language::Japanese,
         }
     }
 
@@ -82,6 +127,7 @@ impl Dialect {
             Self::SpanishCuban => "spanish_cuban",
             Self::SpanishChilean => "spanish_chilean",
             Self::SpanishColombian => "spanish_colombian",
+            Self::SpanishAndalusian => "spanish_andalusian",
 
             Self::ArabicEgyptian => "arabic_egyptian",
             Self::ArabicLevantine => "arabic_levantine",
@@ -94,6 +140,20 @@ impl Dialect {
             Self::FrenchSwiss => "french_swiss",
             Self::FrenchBelgian => "french_belgian",
             Self::FrenchAfrican => "french_african",
+            Self::FrenchChti => "french_chti",
+
+            Self::EnglishGeneralAmerican => "english_general_american",
+            Self::EnglishRP => "english_rp",
+            Self::EnglishAustralian => "english_australian",
+            Self::EnglishIrish => "english_irish",
+            Self::EnglishScottish => "english_scottish",
+            Self::EnglishSouthAfrican => "english_south_african",
+
+            Self::JapaneseTokyo => "japanese_tokyo",
+            Self::JapaneseKansai => "japanese_kansai",
+            Self::JapaneseTohoku => "japanese_tohoku",
+            Self::JapaneseKyushu => "japanese_kyushu",
+            Self::JapaneseHokkaido => "japanese_hokkaido",
         }
     }
 
@@ -106,6 +166,7 @@ impl Dialect {
             Self::SpanishCuban => "Cuban Spanish",
             Self::SpanishChilean => "Chilean Spanish",
             Self::SpanishColombian => "Colombian Spanish",
+            Self::SpanishAndalusian => "Andalusian Spanish",
 
             Self::ArabicEgyptian => "Egyptian Arabic",
             Self::ArabicLevantine => "Levantine Arabic",
@@ -118,6 +179,20 @@ impl Dialect {
             Self::FrenchSwiss => "Swiss French",
             Self::FrenchBelgian => "Belgian French",
             Self::FrenchAfrican => "African French",
+            Self::FrenchChti => "Ch'ti French",
+
+            Self::EnglishGeneralAmerican => "General American",
+            Self::EnglishRP => "British English (RP)",
+            Self::EnglishAustralian => "Australian English",
+            Self::EnglishIrish => "Irish English",
+            Self::EnglishScottish => "Scottish English",
+            Self::EnglishSouthAfrican => "South African English",
+
+            Self::JapaneseTokyo => "Tokyo Japanese",
+            Self::JapaneseKansai => "Kansai Japanese",
+            Self::JapaneseTohoku => "Tohoku Japanese",
+            Self::JapaneseKyushu => "Kyushu Japanese",
+            Self::JapaneseHokkaido => "Hokkaido Japanese",
         }
     }
 
@@ -129,6 +204,7 @@ impl Dialect {
             Self::SpanishCuban,
             Self::SpanishChilean,
             Self::SpanishColombian,
+            Self::SpanishAndalusian,
         ]
     }
 
@@ -149,6 +225,28 @@ impl Dialect {
             Self::FrenchSwiss,
             Self::FrenchBelgian,
             Self::FrenchAfrican,
+            Self::FrenchChti,
+        ]
+    }
+
+    fn all_english_dialects() -> Vec<Dialect> {
+        vec![
+            Self::EnglishGeneralAmerican,
+            Self::EnglishRP,
+            Self::EnglishAustralian,
+            Self::EnglishIrish,
+            Self::EnglishScottish,
+            Self::EnglishSouthAfrican,
+        ]
+    }
+
+    fn all_japanese_dialects() -> Vec<Dialect> {
+        vec![
+            Self::JapaneseTokyo,
+            Self::JapaneseKansai,
+            Self::JapaneseTohoku,
+            Self::JapaneseKyushu,
+            Self::JapaneseHokkaido,
         ]
     }
 
@@ -157,6 +255,8 @@ impl Dialect {
             Language::Spanish => Self::all_spanish_dialects(),
             Language::Arabic => Self::all_arabic_dialects(),
             Language::French => Self::all_french_dialects(),
+            Language::English => Self::all_english_dialects(),
+            Language::Japanese => Self::all_japanese_dialects(),
         }
     }
 
@@ -183,6 +283,7 @@ impl Dialect {
             Self::SpanishCuban,
             Self::SpanishChilean,
             Self::SpanishColombian,
+            Self::SpanishAndalusian,
             Self::ArabicEgyptian,
             Self::ArabicLevantine,
             Self::ArabicGulf,
@@ -193,6 +294,18 @@ impl Dialect {
             Self::FrenchSwiss,
             Self::FrenchBelgian,
             Self::FrenchAfrican,
+            Self::FrenchChti,
+            Self::EnglishGeneralAmerican,
+            Self::EnglishRP,
+            Self::EnglishAustralian,
+            Self::EnglishIrish,
+            Self::EnglishScottish,
+            Self::EnglishSouthAfrican,
+            Self::JapaneseTokyo,
+            Self::JapaneseKansai,
+            Self::JapaneseTohoku,
+            Self::JapaneseKyushu,
+            Self::JapaneseHokkaido,
         ]
     }
 
@@ -206,6 +319,7 @@ impl Dialect {
             "spanish_cuban" => Some(Self::SpanishCuban),
             "spanish_chilean" => Some(Self::SpanishChilean),
             "spanish_colombian" => Some(Self::SpanishColombian),
+            "spanish_andalusian" => Some(Self::SpanishAndalusian),
             "arabic_egyptian" => Some(Self::ArabicEgyptian),
             "arabic_levantine" => Some(Self::ArabicLevantine),
             "arabic_gulf" => Some(Self::ArabicGulf),
@@ -216,6 +330,18 @@ impl Dialect {
             "french_swiss" => Some(Self::FrenchSwiss),
             "french_belgian" => Some(Self::FrenchBelgian),
             "french_african" => Some(Self::FrenchAfrican),
+            "french_chti" => Some(Self::FrenchChti),
+            "english_general_american" => Some(Self::EnglishGeneralAmerican),
+            "english_rp" => Some(Self::EnglishRP),
+            "english_australian" => Some(Self::EnglishAustralian),
+            "english_irish" => Some(Self::EnglishIrish),
+            "english_scottish" => Some(Self::EnglishScottish),
+            "english_south_african" => Some(Self::EnglishSouthAfrican),
+            "japanese_tokyo" => Some(Self::JapaneseTokyo),
+            "japanese_kansai" => Some(Self::JapaneseKansai),
+            "japanese_tohoku" => Some(Self::JapaneseTohoku),
+            "japanese_kyushu" => Some(Self::JapaneseKyushu),
+            "japanese_hokkaido" => Some(Self::JapaneseHokkaido),
             _ => None,
         }
     }
@@ -308,6 +434,19 @@ fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<String>> 
             build_voice_map(Some("j9RedbMRSNQ74PyikQwD"), Some("fr-CA-SylvieNeural"))
         }
         Dialect::FrenchAfrican => build_voice_map(Some("FgHDn7bpgpKqz7QttoyC"), None),
+        Dialect::SpanishAndalusian => build_voice_map(None, None),
+        Dialect::FrenchChti => build_voice_map(None, None),
+        Dialect::EnglishGeneralAmerican => build_voice_map(None, None),
+        Dialect::EnglishRP => build_voice_map(None, None),
+        Dialect::EnglishAustralian => build_voice_map(None, None),
+        Dialect::EnglishIrish => build_voice_map(None, None),
+        Dialect::EnglishScottish => build_voice_map(None, None),
+        Dialect::EnglishSouthAfrican => build_voice_map(None, None),
+        Dialect::JapaneseTokyo => build_voice_map(None, None),
+        Dialect::JapaneseKansai => build_voice_map(None, None),
+        Dialect::JapaneseTohoku => build_voice_map(None, None),
+        Dialect::JapaneseKyushu => build_voice_map(None, None),
+        Dialect::JapaneseHokkaido => build_voice_map(None, None),
         _ => build_voice_map(None, None),
     }
 }
@@ -476,7 +615,7 @@ mod tests {
     #[test]
     fn test_dialects_for_language_no_filters() {
         let spanish_dialects = Dialect::for_language(Language::Spanish, false, false);
-        assert_eq!(spanish_dialects.len(), 6);
+        assert_eq!(spanish_dialects.len(), 7);
     }
 
     #[test]

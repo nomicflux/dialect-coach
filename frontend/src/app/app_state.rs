@@ -470,6 +470,8 @@ fn default_dialect_for_language(lang: Language) -> Dialect {
         Language::Spanish => Dialect::SpanishCuban,
         Language::Arabic => Dialect::ArabicEgyptian,
         Language::French => Dialect::FrenchParisian,
+        Language::English => Dialect::EnglishGeneralAmerican,
+        Language::Japanese => Dialect::JapaneseTokyo,
     }
 }
 

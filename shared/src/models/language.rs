@@ -8,12 +8,20 @@ pub enum Language {
     Spanish,
     Arabic,
     French,
+    English,
+    Japanese,
 }
 
 impl Language {
     /// Get all supported languages
     pub fn all() -> Vec<Language> {
-        vec![Language::Spanish, Language::Arabic, Language::French]
+        vec![
+            Language::Spanish,
+            Language::Arabic,
+            Language::French,
+            Language::English,
+            Language::Japanese,
+        ]
     }
 
     /// Get the ISO 639-1 language code
@@ -22,6 +30,8 @@ impl Language {
             Language::Spanish => "es",
             Language::Arabic => "ar",
             Language::French => "fr",
+            Language::English => "en",
+            Language::Japanese => "ja",
         }
     }
 
@@ -31,6 +41,8 @@ impl Language {
             Language::Spanish => "Spanish",
             Language::Arabic => "Arabic",
             Language::French => "French",
+            Language::English => "English",
+            Language::Japanese => "Japanese",
         }
     }
 }
@@ -50,14 +62,18 @@ mod tests {
         assert_eq!(Language::Spanish.code(), "es");
         assert_eq!(Language::Arabic.code(), "ar");
         assert_eq!(Language::French.code(), "fr");
+        assert_eq!(Language::English.code(), "en");
+        assert_eq!(Language::Japanese.code(), "ja");
     }
 
     #[test]
     fn test_all_languages() {
         let languages = Language::all();
-        assert_eq!(languages.len(), 3);
+        assert_eq!(languages.len(), 5);
         assert!(languages.contains(&Language::Spanish));
         assert!(languages.contains(&Language::Arabic));
         assert!(languages.contains(&Language::French));
+        assert!(languages.contains(&Language::English));
+        assert!(languages.contains(&Language::Japanese));
     }
 }
