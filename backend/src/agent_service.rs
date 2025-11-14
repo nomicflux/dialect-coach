@@ -13,7 +13,10 @@ pub mod response;
 pub mod retry;
 pub mod util;
 
-use provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionAgentFactory, ProviderAgentConfig};
+use provider::{
+    ANTHROPIC_PROVIDER, OPENAI_PROVIDER, CompletionAgent, CompletionAgentFactory,
+    ProviderAgentConfig,
+};
 use response::ResponseContext;
 use util::contains_illegal_characters;
 
@@ -36,6 +39,17 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
                 })?;
             let model = channel_env(prefix, "MODEL").or_else(|| env::var("ANTHROPIC_MODEL").ok());
             let config = ProviderAgentConfig::anthropic(api_key, model);
+            let agent = CompletionAgentFactory::build(config)?;
+            Ok(Arc::from(agent))
+        }
+        OPENAI_PROVIDER => {
+            let api_key = channel_env(prefix, "API_KEY")
+                .or_else(|| env::var("OPENAI_API_KEY").ok())
+                .ok_or_else(|| {
+                    anyhow!("Missing API key: set {}_API_KEY or OPENAI_API_KEY", prefix)
+                })?;
+            let model = channel_env(prefix, "MODEL").or_else(|| env::var("OPENAI_MODEL").ok());
+            let config = ProviderAgentConfig::openai(api_key, model);
             let agent = CompletionAgentFactory::build(config)?;
             Ok(Arc::from(agent))
         }
@@ -172,5 +186,94 @@ mod tests {
         let agent = AgentService::from_env(Arc::new(qdrant), Arc::new(embeddings)).unwrap();
         assert_eq!(agent.response_agent.provider(), ANTHROPIC_PROVIDER);
         assert!(!agent.response_agent.model().is_empty());
+    }
+
+    #[test]
+    fn test_load_channel_agent_anthropic_uses_default_fallback() {
+        unsafe {
+            std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+            std::env::remove_var("RESPONSE_PROVIDER");
+            std::env::remove_var("RESPONSE_API_KEY");
+        }
+
+        let result = load_channel_agent("RESPONSE");
+        assert!(result.is_ok());
+        let agent = result.unwrap();
+        assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
+    }
+
+    #[test]
+    fn test_load_channel_agent_openai_with_channel_vars() {
+        unsafe {
+            std::env::set_var("OPENAI_API_KEY", "sk-test-key");
+            std::env::set_var("RESPONSE_PROVIDER", "openai");
+            std::env::remove_var("RESPONSE_API_KEY");
+        }
+
+        let result = load_channel_agent("RESPONSE");
+        assert!(result.is_ok());
+        let agent = result.unwrap();
+        assert_eq!(agent.provider(), OPENAI_PROVIDER);
+    }
+
+    #[test]
+    fn test_load_channel_agent_openai_custom_model() {
+        unsafe {
+            std::env::set_var("OPENAI_API_KEY", "sk-test-key");
+            std::env::set_var("RESPONSE_PROVIDER", "openai");
+            std::env::set_var("RESPONSE_MODEL", "gpt-4-turbo");
+        }
+
+        let result = load_channel_agent("RESPONSE");
+        assert!(result.is_ok());
+        let agent = result.unwrap();
+        assert_eq!(agent.provider(), OPENAI_PROVIDER);
+        assert_eq!(agent.model(), "gpt-4-turbo");
+    }
+
+    #[test]
+    fn test_load_channel_agent_config_precedence() {
+        unsafe {
+            std::env::set_var("RESPONSE_PROVIDER", "anthropic");
+            std::env::set_var("RESPONSE_API_KEY", "channel-key");
+            std::env::set_var("RESPONSE_MODEL", "claude-3-opus");
+        }
+
+        let result = load_channel_agent("RESPONSE");
+        assert!(result.is_ok());
+        let agent = result.unwrap();
+        assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
+        assert_eq!(agent.model(), "claude-3-opus");
+    }
+
+    #[test]
+    fn test_load_channel_agent_error_missing_api_key() {
+        unsafe {
+            std::env::set_var("RESPONSE_PROVIDER", "anthropic");
+            std::env::remove_var("RESPONSE_API_KEY");
+            std::env::remove_var("ANTHROPIC_API_KEY");
+        }
+
+        let result = load_channel_agent("RESPONSE");
+        assert!(result.is_err());
+        match result {
+            Err(err) => assert!(err.to_string().contains("Missing API key")),
+            Ok(_) => panic!("Expected error"),
+        }
+    }
+
+    #[test]
+    fn test_load_channel_agent_error_unsupported_provider() {
+        unsafe {
+            std::env::set_var("RESPONSE_PROVIDER", "unsupported");
+            std::env::set_var("RESPONSE_API_KEY", "test-key");
+        }
+
+        let result = load_channel_agent("RESPONSE");
+        assert!(result.is_err());
+        match result {
+            Err(err) => assert!(err.to_string().contains("Unsupported provider")),
+            Ok(_) => panic!("Expected error"),
+        }
     }
 }
