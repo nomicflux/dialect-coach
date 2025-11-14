@@ -468,13 +468,12 @@ cargo install websocat
 ```
 
 ### Environment Variables
-Create `.env` file in project root:
-```bash
-# Required - AI service
-ANTHROPIC_API_KEY=your_key_here
-ANTHROPIC_MODEL=claude-3-5-sonnet  # optional
 
-# Required - Vector database  
+#### Core Services
+Create `.env` file in project root with these required services:
+
+```bash
+# Required - Vector database
 QDRANT_URL=https://your-instance.cloud.qdrant.io:6334
 QDRANT_API_KEY=your_qdrant_key
 
@@ -485,6 +484,69 @@ AZURE_SPEECH_REGION=eastus  # or your region
 # Optional - Logging
 RUST_LOG=debug
 ```
+
+#### AI Provider Configuration
+
+The system supports **two AI providers**: Anthropic (default) or OpenAI. Each of the three agent channels (Response, Learning, Analysis) can independently use either provider.
+
+**Option 1: All Anthropic (Default - Recommended)**
+```bash
+ANTHROPIC_API_KEY=your_key_here
+ANTHROPIC_MODEL=claude-3-5-sonnet  # optional, defaults to latest
+```
+
+**Option 2: All OpenAI**
+```bash
+OPENAI_API_KEY=sk-your_key_here
+OPENAI_MODEL=gpt-4o  # optional, defaults to gpt-4o
+
+# Configure channels to use OpenAI
+RESPONSE_PROVIDER=openai
+LEARNING_PROVIDER=openai
+ANALYSIS_PROVIDER=openai
+```
+
+**Option 3: Mixed Providers (e.g., OpenAI for responses, Anthropic for learning/analysis)**
+```bash
+# Anthropic for learning and analysis
+ANTHROPIC_API_KEY=your_anthropic_key
+ANTHROPIC_MODEL=claude-3-5-sonnet
+
+# OpenAI for responses
+OPENAI_API_KEY=sk-your_openai_key
+OPENAI_MODEL=gpt-4o
+
+# Configure channels
+RESPONSE_PROVIDER=openai
+LEARNING_PROVIDER=anthropic
+ANALYSIS_PROVIDER=anthropic
+```
+
+**Option 4: Channel-Specific API Keys and Models**
+```bash
+# Global defaults
+ANTHROPIC_API_KEY=default_anthropic_key
+OPENAI_API_KEY=sk-default_openai_key
+
+# Override specific channels
+RESPONSE_PROVIDER=openai
+RESPONSE_API_KEY=sk-custom_openai_key  # Use different API key than global
+RESPONSE_MODEL=gpt-4-turbo             # Use different model than global
+
+LEARNING_PROVIDER=anthropic
+LEARNING_API_KEY=custom_anthropic_key  # Use different API key than global
+```
+
+#### Provider Selection Rules
+
+1. **Default**: If `{CHANNEL}_PROVIDER` is not set, defaults to `anthropic`
+2. **API Key Fallback**:
+   - If `{CHANNEL}_API_KEY` is set, uses that
+   - Otherwise, falls back to `{PROVIDER}_API_KEY` (e.g., `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
+3. **Model Fallback**:
+   - If `{CHANNEL}_MODEL` is set, uses that
+   - Otherwise, falls back to `{PROVIDER}_MODEL` (e.g., `ANTHROPIC_MODEL` or `OPENAI_MODEL`)
+4. **Provider Constraints**: Must have API key configured for selected provider
 
 ### Running the Application
 
