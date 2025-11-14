@@ -1,0 +1,15 @@
+- Add learning items manually (like vocab words)
+- Plan out learning course
+- central usage stats (no overlap)
+- ai starts convo
+- ai responds after branching before ai message
+- branch at beginning of convo
+- no dialect rich, but use professional ("standard")
+- options for standard language practice, not dialect
+- ruby & romaji for japanese
+- transliteration for Arabic
+- language-specific options in general
+- add MSA
+- AAVE? Indian English?
+- feedback panel
+- add in GPT options

@@ -2,12 +2,20 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use rig::completion::message::AssistantContent;
 use rig::completion::{
-    Completion, CompletionError, CompletionResponse as RigCompletionResponse, Message as RigMessage,
+    CompletionModel, CompletionRequest as RigCompletionRequest, CompletionError,
+    CompletionResponse as RigCompletionResponse, Message as RigMessage,
 };
-use rig::providers::anthropic::completion::CompletionResponse as AnthropicCompletionResponse;
-use rig::providers::anthropic::{CLAUDE_3_5_SONNET, Client, ClientBuilder};
+use rig::providers::anthropic::completion::{
+    CompletionModel as AnthropicCompletionModel, CompletionResponse as AnthropicCompletionResponse,
+};
+use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
+use rig::providers::openai::{
+    Client as OpenAIClient, CompletionModel as OpenAICompletionModel,
+    CompletionResponse as OpenAICompletionResponse, GPT_4O,
+};
 
 pub const ANTHROPIC_PROVIDER: &str = "anthropic";
+pub const OPENAI_PROVIDER: &str = "openai";
 
 #[derive(Debug, Clone)]
 pub struct CompletionRequest<'a> {
@@ -43,6 +51,47 @@ impl CompletionAgentError {
     }
 }
 
+enum ProviderResponse {
+    OpenAI(OpenAICompletionResponse),
+    Anthropic(AnthropicCompletionResponse),
+}
+
+impl ProviderResponse {
+    fn input_tokens(&self) -> u64 {
+        match self {
+            Self::Anthropic(r) => r.usage.input_tokens,
+            Self::OpenAI(r) => r.usage
+                .as_ref()
+                .map(|u| u.prompt_tokens as u64)
+                .unwrap_or(0),
+        }
+    }
+
+    fn output_tokens(&self) -> u64 {
+        match self {
+            Self::Anthropic(r) => r.usage.output_tokens,
+            Self::OpenAI(r) => r.usage
+                .as_ref()
+                .map(|u| (u.total_tokens - u.prompt_tokens) as u64)
+                .unwrap_or(0),
+        }
+    }
+}
+
+trait ClientProvider: Send + Sync {
+    fn provider_name(&self) -> &str;
+
+    fn completion_with_history(
+        &self,
+        model: &str,
+        preamble: &str,
+        max_tokens: u64,
+        temperature: f64,
+        prompt: &str,
+        history: Vec<RigMessage>,
+    ) -> impl std::future::Future<Output = Result<ProviderResponse, CompletionAgentError>> + Send;
+}
+
 #[async_trait]
 pub trait CompletionAgent: Send + Sync {
     fn provider(&self) -> &str;
@@ -66,6 +115,14 @@ impl ProviderAgentConfig {
         ProviderAgentConfig {
             provider: ANTHROPIC_PROVIDER.to_string(),
             model: model.unwrap_or_else(|| CLAUDE_3_5_SONNET.to_string()),
+            api_key,
+        }
+    }
+
+    pub fn openai(api_key: String, model: Option<String>) -> Self {
+        ProviderAgentConfig {
+            provider: OPENAI_PROVIDER.to_string(),
+            model: model.unwrap_or_else(|| GPT_4O.to_string()),
             api_key,
         }
     }

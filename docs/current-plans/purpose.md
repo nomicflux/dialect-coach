@@ -1,0 +1,5 @@
+- learn in context
+- learn organically
+- descriptivist: language is as people actually use and speak it, not textbook grammar and rules. So localizing is necessary.
+- make mistakes and explore to progress
+- options for tutors / classrooms to include their own specialized learning plans

@@ -1,0 +1,4 @@
+- sin querer
+- agotado
+- error recurrente
+- poner el ojo
