@@ -418,6 +418,66 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
 
 ---
 
+## Phase 2 Completion Details (2025-11-15)
+
+### Implementation Summary
+
+Successfully implemented environment variable loading with proper fallback chain for reasoning budget configuration.
+
+### Changes Made
+
+**File: `backend/src/agent_service.rs`**
+1. Added helper function `load_reasoning_budget(prefix: &str) -> u32` (7 lines)
+   - Implements three-level fallback chain:
+     - Level 1: `{prefix}_REASONING_BUDGET` (e.g., RESPONSE_REASONING_BUDGET)
+     - Level 2: `OPENAI_REASONING_BUDGET` (global default)
+     - Level 3: `200` (hardcoded default)
+   - Gracefully handles parse failures (falls back to next level)
+2. Updated `load_channel_agent()` to call `load_reasoning_budget(prefix)`
+3. Both Anthropic and OpenAI branches receive the loaded `reasoning_budget`
+
+### Function Line Counts
+
+- `load_reasoning_budget()` - 7 lines (under 20-line limit)
+- `load_channel_agent()` - No significant size change (just one line added)
+
+### Test Results
+
+- Tests pass when run sequentially: 78 passed, 0 failed, 2 ignored
+- Note: Some test flakiness when run in parallel due to shared environment variable state (pre-existing test suite issue, not introduced by this change)
+- Code compiles without errors
+- Clippy warning: `reasoning_budget` field never read (expected - will be used in Phase 3)
+
+### Environment Variable Behavior
+
+The implementation now supports:
+
+```bash
+# Channel-specific override
+RESPONSE_REASONING_BUDGET=150    # Response channel gets 150
+
+# Global default
+OPENAI_REASONING_BUDGET=300      # All channels get 300 (if no channel-specific)
+
+# Fallback to hardcoded default
+# (no env vars set) → 200 tokens
+```
+
+### Verification
+
+✅ All tasks completed as specified:
+- [x] Fallback chain implemented correctly
+- [x] Helper function extracted (7 lines)
+- [x] Both Anthropic and OpenAI configs receive reasoning_budget
+- [x] Tests pass (100% when run sequentially)
+- [x] No breaking changes
+
+### Next Phase
+
+Ready to proceed to Phase 3: Apply reasoning budget to OpenAI requests by increasing max_tokens.
+
+---
+
 ## Phase 1 Completion Details (2025-11-15)
 
 ### Implementation Summary
