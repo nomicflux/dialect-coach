@@ -411,7 +411,7 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
 ## Phase Status
 
 - [x] Phase 1: Add reasoning_budget Field to Configuration - **COMPLETE** (2025-11-15)
-- [ ] Phase 2: Load Reasoning Budget from Environment Variables
+- [x] Phase 2: Load Reasoning Budget from Environment Variables - **COMPLETE** (2025-11-15)
 - [ ] Phase 3: Apply Reasoning Budget to OpenAI Requests
 - [ ] Phase 4: Testing and Verification
 - [ ] Phase 5: Documentation
@@ -474,6 +474,82 @@ All functions remain well under 20 lines:
 ### Next Phase
 
 Ready to proceed to Phase 2: Load reasoning budget from environment variables with fallback chain.
+
+---
+
+## Phase 2 Completion Details (2025-11-15)
+
+### Implementation Summary
+
+Successfully implemented environment variable loading with proper fallback chain for reasoning budget configuration.
+
+### Changes Made
+
+**File: `backend/src/agent_service.rs`**
+1. Added helper function `load_reasoning_budget(prefix: &str) -> u32` (7 lines)
+2. Function implements fallback chain:
+   - Try `{prefix}_REASONING_BUDGET` (e.g., RESPONSE_REASONING_BUDGET)
+   - Fallback to `OPENAI_REASONING_BUDGET`
+   - Fallback to hardcoded `200`
+3. Updated `load_channel_agent()` to call `load_reasoning_budget(prefix)` once per channel
+4. Both Anthropic and OpenAI branches now receive `reasoning_budget` from environment
+
+### Function Implementation Details
+
+```rust
+fn load_reasoning_budget(prefix: &str) -> u32 {
+    channel_env(prefix, "REASONING_BUDGET")
+        .and_then(|s| s.parse::<u32>().ok())
+        .or_else(|| env::var("OPENAI_REASONING_BUDGET")
+            .ok()
+            .and_then(|s| s.parse::<u32>().ok()))
+        .unwrap_or(200)
+}
+```
+
+**Logic Flow:**
+1. Try to read `{prefix}_REASONING_BUDGET` from environment
+2. Parse as u32 if present
+3. If not present or parse fails, try global `OPENAI_REASONING_BUDGET`
+4. Parse global as u32 if present
+5. Default to 200 if all lookups fail
+
+### Test Results
+
+- All 78 backend library tests pass (100% success rate)
+- All existing agent_service tests continue to pass
+- No new test failures introduced
+- Expected clippy warning: `reasoning_budget` field never read (will be used in Phase 3)
+
+### Function Line Counts
+
+- `load_reasoning_budget()` - 7 lines (well under 20-line limit)
+- `load_channel_agent()` - 36 lines (unchanged complexity, just added 1 call line and 2 usage lines)
+
+### Verification
+
+✅ All Phase 2 tasks completed:
+- [x] Helper function `load_reasoning_budget()` created with proper fallback chain
+- [x] `load_channel_agent()` calls helper function once per channel
+- [x] Anthropic provider receives reasoning_budget from environment
+- [x] OpenAI provider receives reasoning_budget from environment
+- [x] Fallback chain logic correctly implemented (channel → global → default)
+- [x] Parse failures handled gracefully (fallback to next level)
+- [x] All existing tests pass with no breakage
+- [x] Code follows KISS principles (pure function, no defensive coding, under 20 lines)
+
+### Expected Behavior
+
+After Phase 2:
+- `RESPONSE_REASONING_BUDGET=150` sets response channel budget to 150
+- `OPENAI_REASONING_BUDGET=300` sets all channels to 300 (if no channel-specific override)
+- No env vars set → all channels get 200 (default)
+- Invalid value (e.g., "abc") → falls back to next level in chain
+- Each channel independently configurable per environment
+
+### Next Phase
+
+Ready to proceed to Phase 3: Apply reasoning budget to OpenAI requests (add to max_tokens).
 
 ---
 
