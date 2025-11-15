@@ -217,11 +217,15 @@ pub async fn retry_completion_call(
 
 pub fn build_retry_failure_error(
     max_retries: usize,
+    provider: &str,
+    model: &str,
     last_error: &str,
     last_failed_response: &str,
 ) -> anyhow::Error {
     anyhow::anyhow!(
-        "Claude returned invalid JSON after {} retry attempts: {}. Last failed response: {}",
+        "Provider {} model {} returned invalid JSON after {} retry attempts: {}. Last failed response: {}",
+        provider,
+        model,
         max_retries,
         last_error,
         &last_failed_response.chars().take(200).collect::<String>()
@@ -246,6 +250,8 @@ pub fn process_retry_response<T, F>(
     attempt_params: &RetryAttemptParams,
     response: String,
     prompt_params: &RetryPromptParams<'_, F>,
+    provider: &str,
+    model: &str,
     parse_fn: &impl Fn(&str) -> Result<T>,
     log_success: &impl Fn(&T),
 ) -> Result<(Option<T>, String), anyhow::Error>
@@ -268,6 +274,8 @@ where
             if attempt_params.attempt == attempt_params.max_retries {
                 return Err(build_retry_failure_error(
                     attempt_params.max_retries,
+                    provider,
+                    model,
                     &format!("{}", e),
                     prompt_params.failed_response,
                 ));
@@ -295,17 +303,19 @@ impl RetryContext {
             prompt_params.original_preamble,
             prompt_params.failed_response,
         );
-        let mut history_with_prefill = conversation_history.to_vec();
-        history_with_prefill.push(util::create_prefilled_assistant_message());
         let request = CompletionRequest {
             preamble: &retry_preamble,
             prompt: prompt_params.prompt,
-            history: &history_with_prefill,
+            history: conversation_history,
             max_tokens: config.max_tokens,
             temperature: config.temperature,
         };
         let (result, usage) = retry_completion_call(self.agent.as_ref(), &request, 3).await;
-        let response = result.context("Failed to get retry completion from Claude")?;
+        let response = result.context(format!(
+            "Failed to get retry completion from provider {} model {}",
+            self.agent.provider(),
+            self.agent.model()
+        ))?;
         Ok((response, usage))
     }
 
@@ -336,6 +346,8 @@ impl RetryContext {
             attempt_params,
             response,
             prompt_params,
+            self.agent.provider(),
+            self.agent.model(),
             parse_fn,
             log_success,
         )?;

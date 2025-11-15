@@ -38,7 +38,7 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
                     )
                 })?;
             let model = channel_env(prefix, "MODEL").or_else(|| env::var("ANTHROPIC_MODEL").ok());
-            let config = ProviderAgentConfig::anthropic(api_key, model);
+            let config = ProviderAgentConfig::anthropic(api_key, model, 200);
             let agent = CompletionAgentFactory::build(config)?;
             Ok(Arc::from(agent))
         }
@@ -49,7 +49,7 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
                     anyhow!("Missing API key: set {}_API_KEY or OPENAI_API_KEY", prefix)
                 })?;
             let model = channel_env(prefix, "MODEL").or_else(|| env::var("OPENAI_MODEL").ok());
-            let config = ProviderAgentConfig::openai(api_key, model);
+            let config = ProviderAgentConfig::openai(api_key, model, 200);
             let agent = CompletionAgentFactory::build(config)?;
             Ok(Arc::from(agent))
         }

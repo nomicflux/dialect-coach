@@ -54,6 +54,7 @@ fn convert_to_rig_message(message: &Message) -> RigMessage {
             })),
         },
         MessageContent::AgentMessage { content } => RigMessage::Assistant {
+            id: None,
             content: OneOrMany::one(AssistantContent::Text(Text {
                 text: content.response.clone(),
             })),

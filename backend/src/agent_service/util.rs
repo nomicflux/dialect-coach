@@ -123,12 +123,13 @@ pub fn get_assistant_content(content: &AssistantContent) -> String {
 pub fn get_message_text(message: &RigMessage) -> String {
     match message {
         RigMessage::User { content } => get_user_content(&content.first()),
-        RigMessage::Assistant { content } => get_assistant_content(&content.first()),
+        RigMessage::Assistant { content, .. } => get_assistant_content(&content.first()),
     }
 }
 
 pub fn create_prefilled_assistant_message() -> RigMessage {
     RigMessage::Assistant {
+        id: None,
         content: OneOrMany::one(AssistantContent::Text(Text {
             text: "{".to_string(),
         })),

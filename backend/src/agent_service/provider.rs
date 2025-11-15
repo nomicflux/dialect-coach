@@ -3,15 +3,15 @@ use async_trait::async_trait;
 use rig::completion::message::AssistantContent;
 use rig::completion::{
     CompletionModel, CompletionRequest as RigCompletionRequest, CompletionError,
-    CompletionResponse as RigCompletionResponse, Message as RigMessage,
+    Message as RigMessage,
 };
-use rig::providers::anthropic::completion::{
-    CompletionModel as AnthropicCompletionModel, CompletionResponse as AnthropicCompletionResponse,
-};
-use rig::providers::anthropic::{CLAUDE_3_5_SONNET, ClientBuilder};
-use rig::providers::openai::{
-    Client as OpenAIClient, CompletionModel as OpenAICompletionModel,
-    CompletionResponse as OpenAICompletionResponse, GPT_4O,
+use rig::client::completion::CompletionClient;
+use rig::one_or_many::OneOrMany;
+use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
+use rig::providers::anthropic::{CLAUDE_3_5_SONNET, Client as AnthropicClient};
+use rig::providers::openai::{Client as OpenAIClient, GPT_4O};
+use rig::providers::openai::responses_api::{
+    ResponsesCompletionModel as OpenAICompletionModel,
 };
 
 pub const ANTHROPIC_PROVIDER: &str = "anthropic";
@@ -51,63 +51,10 @@ impl CompletionAgentError {
     }
 }
 
-pub(crate) enum ProviderResponse {
-    OpenAI(OpenAICompletionResponse),
-    Anthropic(AnthropicCompletionResponse),
-}
-
-impl ProviderResponse {
-    fn input_tokens(&self) -> u64 {
-        match self {
-            Self::Anthropic(r) => r.usage.input_tokens,
-            Self::OpenAI(r) => r.usage
-                .as_ref()
-                .map(|u| u.prompt_tokens as u64)
-                .unwrap_or(0),
-        }
-    }
-
-    fn output_tokens(&self) -> u64 {
-        match self {
-            Self::Anthropic(r) => r.usage.output_tokens,
-            Self::OpenAI(r) => r.usage
-                .as_ref()
-                .map(|u| (u.total_tokens - u.prompt_tokens) as u64)
-                .unwrap_or(0),
-        }
-    }
-}
-
 #[derive(Clone)]
 pub(crate) enum ProviderCompletionModel {
     Anthropic(AnthropicCompletionModel),
     OpenAI(OpenAICompletionModel),
-}
-
-impl CompletionModel for ProviderCompletionModel {
-    type Response = ProviderResponse;
-
-    async fn completion(
-        &self,
-        request: RigCompletionRequest,
-    ) -> Result<RigCompletionResponse<ProviderResponse>, CompletionError> {
-        match self {
-            Self::Anthropic(model) => {
-                let response = model.completion(request).await?;
-                Ok(RigCompletionResponse {
-                    choice: response.choice,
-                    raw_response: ProviderResponse::Anthropic(response.raw_response),
-                })
-            }
-            Self::OpenAI(model) => {
-                let response = model.completion(request).await?;
-                Ok(RigCompletionResponse {
-                    choice: response.choice,
-                    raw_response: ProviderResponse::OpenAI(response.raw_response),
-                })
-            }
-        }
-    }
 }
 
 #[async_trait]
@@ -126,22 +73,25 @@ pub struct ProviderAgentConfig {
     pub provider: String,
     pub model: String,
     pub api_key: String,
+    pub reasoning_budget: u32,
 }
 
 impl ProviderAgentConfig {
-    pub fn anthropic(api_key: String, model: Option<String>) -> Self {
+    pub fn anthropic(api_key: String, model: Option<String>, reasoning_budget: u32) -> Self {
         ProviderAgentConfig {
             provider: ANTHROPIC_PROVIDER.to_string(),
             model: model.unwrap_or_else(|| CLAUDE_3_5_SONNET.to_string()),
             api_key,
+            reasoning_budget,
         }
     }
 
-    pub fn openai(api_key: String, model: Option<String>) -> Self {
+    pub fn openai(api_key: String, model: Option<String>, reasoning_budget: u32) -> Self {
         ProviderAgentConfig {
             provider: OPENAI_PROVIDER.to_string(),
             model: model.unwrap_or_else(|| GPT_4O.to_string()),
             api_key,
+            reasoning_budget,
         }
     }
 }
@@ -151,6 +101,7 @@ pub struct UnifiedCompletionAgent {
     completion_model: ProviderCompletionModel,
     model_name: String,
     provider_name: String,
+    reasoning_budget: u32,
 }
 
 impl UnifiedCompletionAgent {
@@ -158,20 +109,22 @@ impl UnifiedCompletionAgent {
         completion_model: ProviderCompletionModel,
         model_name: String,
         provider_name: String,
+        reasoning_budget: u32,
     ) -> Self {
         Self {
             completion_model,
             model_name,
             provider_name,
+            reasoning_budget,
         }
     }
 
     fn extract_text(
         &self,
-        response: &RigCompletionResponse<ProviderResponse>,
+        choice: &OneOrMany<AssistantContent>,
     ) -> Result<String, CompletionAgentError> {
         let mut text = String::new();
-        for piece in response.choice.iter() {
+        for piece in choice.iter() {
             if let AssistantContent::Text(t) = piece {
                 text.push_str(&t.text);
             }
@@ -185,10 +138,62 @@ impl UnifiedCompletionAgent {
     fn categorize_error(&self, error: CompletionError) -> CompletionAgentError {
         match error {
             CompletionError::ProviderError(msg) | CompletionError::ResponseError(msg) => {
-                CompletionAgentError::retryable(anyhow!(msg))
+                let message = msg;
+                tracing::warn!(
+                    provider = %self.provider_name,
+                    model = %self.model_name,
+                    "Retryable provider error: {}",
+                    message
+                );
+                CompletionAgentError::retryable(anyhow!(message))
             }
-            other => CompletionAgentError::fatal(anyhow!(other.to_string())),
+            other => {
+                let message = other.to_string();
+                tracing::error!(
+                    provider = %self.provider_name,
+                    model = %self.model_name,
+                    "Fatal provider error: {}",
+                    message
+                );
+                CompletionAgentError::fatal(anyhow!(message))
+            }
         }
+    }
+
+    fn provider_supports_temperature(&self) -> bool {
+        self.provider_name != OPENAI_PROVIDER
+    }
+
+    fn build_completion_request(
+        &self,
+        request: &CompletionRequest<'_>,
+        include_temperature: bool,
+    ) -> RigCompletionRequest {
+        let mut chat_history = request.history.to_vec();
+        chat_history.push(RigMessage::User {
+            content: OneOrMany::one(rig::completion::message::UserContent::Text(
+                rig::completion::message::Text {
+                    text: request.prompt.to_string(),
+                },
+            )),
+        });
+
+        let mut rig_request = RigCompletionRequest {
+            preamble: Some(request.preamble.to_string()),
+            chat_history: OneOrMany::many(chat_history).expect("chat_history should not be empty"),
+            documents: vec![],
+            tools: vec![],
+            temperature: None,
+            max_tokens: Some(request.max_tokens),
+            tool_choice: None,
+            additional_params: None,
+        };
+
+        if include_temperature {
+            rig_request.temperature = Some(request.temperature);
+        }
+
+        rig_request
     }
 }
 
@@ -206,32 +211,51 @@ impl CompletionAgent for UnifiedCompletionAgent {
         &self,
         request: &CompletionRequest<'_>,
     ) -> Result<CompletionOutcome, CompletionAgentError> {
-        // Build Rig CompletionRequest
-        let rig_request = RigCompletionRequest {
-            prompt: request.prompt.into(),
-            preamble: Some(request.preamble.to_string()),
-            chat_history: request.history.to_vec(),
-            documents: vec![],
-            tools: vec![],
-            temperature: Some(request.temperature),
-            max_tokens: Some(request.max_tokens),
-            additional_params: None,
-        };
-
-        // Call completion() once - no provider-specific code!
-        let completion = self
-            .completion_model
-            .completion(rig_request)
-            .await
-            .map_err(|err| self.categorize_error(err))?;
-
-        let text = self.extract_text(&completion)?;
-
-        Ok(CompletionOutcome {
-            text,
-            input_tokens: completion.raw_response.input_tokens(),
-            output_tokens: completion.raw_response.output_tokens(),
-        })
+        match &self.completion_model {
+            ProviderCompletionModel::Anthropic(model) => {
+                let rig_request = self.build_completion_request(
+                    request,
+                    self.provider_supports_temperature(),
+                );
+                let response = model.completion(rig_request).await
+                    .map_err(|err| self.categorize_error(err))?;
+                let text = self.extract_text(&response.choice)?;
+                Ok(CompletionOutcome {
+                    text,
+                    input_tokens: response.usage.input_tokens,
+                    output_tokens: response.usage.output_tokens,
+                })
+            }
+            ProviderCompletionModel::OpenAI(model) => {
+                let mut rig_request = self.build_completion_request(request, false);
+                rig_request.additional_params = Some(serde_json::json!({
+                    "reasoning": {
+                        "effort": "minimal"
+                    }
+                }));
+                let response = model
+                    .completion(rig_request)
+                    .await
+                    .map_err(|err| self.categorize_error(err))?;
+                let text = match self.extract_text(&response.choice) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        tracing::error!(
+                            provider = %self.provider_name,
+                            model = %self.model_name,
+                            raw_response = ?response,
+                            "OpenAI response missing text content"
+                        );
+                        return Err(e);
+                    }
+                };
+                Ok(CompletionOutcome {
+                    text,
+                    input_tokens: response.usage.input_tokens,
+                    output_tokens: response.usage.output_tokens,
+                })
+            }
+        }
     }
 }
 
@@ -241,9 +265,7 @@ impl CompletionAgentFactory {
     pub fn build(config: ProviderAgentConfig) -> Result<Box<dyn CompletionAgent>> {
         let (completion_model, provider_name) = match config.provider.as_str() {
             ANTHROPIC_PROVIDER => {
-                let client = ClientBuilder::new(&config.api_key)
-                    .anthropic_version("2023-06-01")
-                    .build();
+                let client = AnthropicClient::new(&config.api_key);
                 let model = client.completion_model(&config.model);
                 (
                     ProviderCompletionModel::Anthropic(model),
@@ -261,7 +283,7 @@ impl CompletionAgentFactory {
             other => return Err(anyhow!("Unsupported provider: {}", other)),
         };
 
-        let agent = UnifiedCompletionAgent::new(completion_model, config.model, provider_name);
+        let agent = UnifiedCompletionAgent::new(completion_model, config.model, provider_name, config.reasoning_budget);
         Ok(Box::new(agent))
     }
 }
@@ -269,104 +291,46 @@ impl CompletionAgentFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rig::providers::anthropic::completion::Usage as AnthropicUsage;
-    use rig::providers::openai::Usage as OpenAIUsage;
-
-    #[test]
-    fn test_provider_response_anthropic_token_extraction() {
-        let usage = AnthropicUsage {
-            input_tokens: 150,
-            cache_read_input_tokens: None,
-            cache_creation_input_tokens: None,
-            output_tokens: 75,
-        };
-        let response = AnthropicCompletionResponse {
-            id: "test".to_string(),
-            role: "assistant".to_string(),
-            content: vec![],
-            model: "claude-3-5-sonnet-20241022".to_string(),
-            stop_reason: None,
-            stop_sequence: None,
-            usage,
-        };
-
-        let provider_response = ProviderResponse::Anthropic(response);
-        assert_eq!(provider_response.input_tokens(), 150);
-        assert_eq!(provider_response.output_tokens(), 75);
-    }
-
-    #[test]
-    fn test_provider_response_openai_token_extraction() {
-        let response = OpenAICompletionResponse {
-            id: "test".to_string(),
-            object: "text_completion".to_string(),
-            created: 0,
-            model: "gpt-4o".to_string(),
-            choices: vec![],
-            usage: Some(OpenAIUsage {
-                prompt_tokens: 100,
-                total_tokens: 150,
-            }),
-            system_fingerprint: None,
-        };
-
-        let provider_response = ProviderResponse::OpenAI(response);
-        assert_eq!(provider_response.input_tokens(), 100);
-        assert_eq!(provider_response.output_tokens(), 50);
-    }
-
-    #[test]
-    fn test_provider_response_openai_missing_usage_returns_zero() {
-        let response = OpenAICompletionResponse {
-            id: "test".to_string(),
-            object: "text_completion".to_string(),
-            created: 0,
-            model: "gpt-4o".to_string(),
-            choices: vec![],
-            usage: None,
-            system_fingerprint: None,
-        };
-
-        let provider_response = ProviderResponse::OpenAI(response);
-        assert_eq!(provider_response.input_tokens(), 0);
-        assert_eq!(provider_response.output_tokens(), 0);
-    }
 
     #[test]
     fn test_provider_agent_config_openai_default_model() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None);
+        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None, 200);
         assert_eq!(config.provider, OPENAI_PROVIDER);
         assert_eq!(config.model, GPT_4O);
         assert_eq!(config.api_key, "sk-test-key");
+        assert_eq!(config.reasoning_budget, 200);
     }
 
     #[test]
     fn test_provider_agent_config_openai_custom_model() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), Some("gpt-4-turbo".to_string()));
+        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), Some("gpt-4-turbo".to_string()), 200);
         assert_eq!(config.provider, OPENAI_PROVIDER);
         assert_eq!(config.model, "gpt-4-turbo");
         assert_eq!(config.api_key, "sk-test-key");
+        assert_eq!(config.reasoning_budget, 200);
     }
 
     #[test]
     fn test_provider_agent_config_anthropic_default_model() {
-        let config = ProviderAgentConfig::anthropic("test-key".to_string(), None);
+        let config = ProviderAgentConfig::anthropic("test-key".to_string(), None, 200);
         assert_eq!(config.provider, ANTHROPIC_PROVIDER);
         assert_eq!(config.model, CLAUDE_3_5_SONNET);
         assert_eq!(config.api_key, "test-key");
+        assert_eq!(config.reasoning_budget, 200);
     }
 
     #[test]
     fn test_provider_agent_config_anthropic_custom_model() {
-        let config = ProviderAgentConfig::anthropic("test-key".to_string(), Some("claude-3-opus".to_string()));
+        let config = ProviderAgentConfig::anthropic("test-key".to_string(), Some("claude-3-opus".to_string()), 200);
         assert_eq!(config.provider, ANTHROPIC_PROVIDER);
         assert_eq!(config.model, "claude-3-opus");
         assert_eq!(config.api_key, "test-key");
+        assert_eq!(config.reasoning_budget, 200);
     }
 
     #[test]
     fn test_completion_agent_factory_anthropic() {
-        let config = ProviderAgentConfig::anthropic("test-key".to_string(), None);
+        let config = ProviderAgentConfig::anthropic("test-key".to_string(), None, 200);
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_ok());
         let agent = result.unwrap();
@@ -375,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_completion_agent_factory_openai() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None);
+        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None, 200);
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_ok());
         let agent = result.unwrap();
@@ -388,6 +352,7 @@ mod tests {
             provider: "unsupported".to_string(),
             model: "test-model".to_string(),
             api_key: "test-key".to_string(),
+            reasoning_budget: 200,
         };
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_err());

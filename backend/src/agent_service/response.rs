@@ -330,6 +330,7 @@ fn build_conversation_history_with_examples(
     conversation_history: &[RigMessage],
     primary_examples: &[DialectDocument],
     secondary_examples: &[DialectDocument],
+    provider: &str,
 ) -> Vec<RigMessage> {
     let primary_refs: Vec<_> = primary_examples.iter().collect();
     let secondary_refs: Vec<_> = secondary_examples.iter().collect();
@@ -340,7 +341,12 @@ fn build_conversation_history_with_examples(
         history_with_prefill.insert(0, examples);
     }
 
-    history_with_prefill.push(create_prefilled_assistant_message());
+    // Only add prefilled assistant message for Anthropic
+    // OpenAI uses response_format parameter instead
+    if provider == super::provider::ANTHROPIC_PROVIDER {
+        history_with_prefill.push(create_prefilled_assistant_message());
+    }
+
     history_with_prefill
 }
 
@@ -557,7 +563,13 @@ impl ResponseContext {
             Ok((agent_response, response_usage, learning_usage)) => {
                 (Ok(agent_response), response_usage, learning_usage)
             }
-            Err(e) => (Err(e), usage, Vec::new()),
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    "Response processing failed after provider completion"
+                );
+                (Err(e), usage, Vec::new())
+            }
         }
     }
 
@@ -573,6 +585,11 @@ impl ResponseContext {
         Vec<AgentUsage>,
         Vec<AgentUsage>,
     )> {
+        tracing::debug!(
+            dialect = %params.dialect.dialect.name(),
+            "Raw provider response: {}",
+            response
+        );
         match try_parse_response(&response, params.dialect.dialect) {
             Ok(parsed_response) => {
                 if contains_illegal_characters(&parsed_response.response) {
@@ -586,7 +603,14 @@ impl ResponseContext {
                     Ok((final_response, learning_usage)) => {
                         Ok((final_response, initial_usage, learning_usage))
                     }
-                    Err(e) => Err(e),
+                    Err(e) => {
+                        tracing::error!(
+                            dialect = %params.dialect.dialect.name(),
+                            error = %e,
+                            "Failed to attach learning items to parsed response"
+                        );
+                        Err(e)
+                    }
                 }
             }
             Err(_) => {
@@ -651,6 +675,10 @@ impl ResponseContext {
         Vec<AgentUsage>,
     ) {
         if contains_illegal_characters(params.user_message) {
+            tracing::error!(
+                dialect = %params.dialect.dialect.name(),
+                "User message contains illegal control characters; aborting response generation"
+            );
             return (
                 Err(anyhow::anyhow!("User message contains illegal characters")),
                 Vec::new(),
@@ -669,7 +697,14 @@ impl ResponseContext {
             .await
         {
             Ok(examples) => examples,
-            Err(e) => return (Err(e), Vec::new(), Vec::new()),
+            Err(e) => {
+                tracing::error!(
+                    dialect = %params.dialect.dialect.name(),
+                    error = %e,
+                    "Failed to collect RAG examples for response generation"
+                );
+                return (Err(e), Vec::new(), Vec::new());
+            }
         };
 
         let past_learning_items = PastLearningItems {
@@ -690,6 +725,7 @@ impl ResponseContext {
             params.conversation_history,
             &primary_examples,
             &secondary_examples,
+            self.response_agent.provider(),
         );
         let request = CompletionRequest {
             preamble: &system_content,
@@ -712,15 +748,25 @@ impl ResponseContext {
                 )
                 .await
             }
-            Err(e) => (
-                Err(e.context(format!(
-                    "Failed to get completion from provider {} model {}",
-                    self.response_agent.provider(),
-                    self.response_agent.model()
-                ))),
-                usage,
-                Vec::new(),
-            ),
+            Err(e) => {
+                let provider = self.response_agent.provider();
+                let model = self.response_agent.model();
+                let error_text = format!("{}", e);
+                tracing::error!(
+                    provider = %provider,
+                    model = %model,
+                    error = %error_text,
+                    "Provider completion failed before response parsing"
+                );
+                (
+                    Err(e.context(format!(
+                        "Failed to get completion from provider {} model {}: {}",
+                        provider, model, error_text
+                    ))),
+                    usage,
+                    Vec::new(),
+                )
+            }
         }
     }
 
@@ -752,6 +798,7 @@ impl ResponseContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_service::provider::ANTHROPIC_PROVIDER;
     use dialect_coach_shared::models::dialect::dialect_features;
     use dialect_coach_shared::{Dialect, Formality, TeachingMode};
     use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
@@ -903,6 +950,7 @@ mod tests {
             &conversation_history,
             &primary_examples,
             &secondary_examples,
+            ANTHROPIC_PROVIDER,
         );
 
         assert_eq!(history.len(), 3);
@@ -928,7 +976,7 @@ mod tests {
             })),
         }];
 
-        let history = build_conversation_history_with_examples(&conversation_history, &[], &[]);
+        let history = build_conversation_history_with_examples(&conversation_history, &[], &[], ANTHROPIC_PROVIDER);
 
         assert_eq!(history.len(), 2);
         match &history[0] {

@@ -12,4 +12,9 @@
 - add MSA
 - AAVE? Indian English?
 - feedback panel
-- add in GPT options
+- add in model choice to user
+- gender of agents
+- gender of user
+- stay logged in (session cookies)
+- sidebar position, collapsed status
+- learning items by language

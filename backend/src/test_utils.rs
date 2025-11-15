@@ -106,6 +106,7 @@ fn create_user_rig_message(text: &str) -> RigMessage {
 
 fn create_assistant_rig_message(text: &str) -> RigMessage {
     RigMessage::Assistant {
+        id: None,
         content: OneOrMany::one(AssistantContent::Text(Text {
             text: text.to_string(),
         })),
