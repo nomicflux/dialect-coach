@@ -132,7 +132,7 @@ pub fn matches_binding(event: &web_sys::KeyboardEvent, binding: &KeyBinding) -> 
 ---
 
 ## Phase 2: Shift+Enter for Send Message in InputBox
-**Status**: PENDING
+**Status**: COMPLETED
 **Subagent**: kiss-code-generator
 
 ### Code Style Checklist

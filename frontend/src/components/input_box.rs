@@ -1,3 +1,4 @@
+use web_sys::KeyboardEvent;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -47,16 +48,32 @@ pub fn input_box(props: &InputBoxProps) -> Html {
         })
     };
 
+    let on_keydown = {
+        let input_value = input_value.clone();
+        let on_send = props.on_send.clone();
+        Callback::from(move |e: KeyboardEvent| {
+            if e.shift_key() && e.key() == "Enter" {
+                e.prevent_default();
+                let value = (*input_value).clone();
+                if !value.trim().is_empty() {
+                    on_send.emit(value);
+                    input_value.set(String::new());
+                }
+            }
+        })
+    };
+
     html! {
         <form class="composer" onsubmit={on_submit}>
             <textarea
                 class="composer-input"
-                placeholder={if props.disabled { "Connecting..." } else { "Practice a phrase… try '¿Cómo te llamas?'" }}
+                placeholder={if props.disabled { "Connecting..." } else { "Type message… (Shift+Enter to send)" }}
                 value={(*input_value).clone()}
                 oninput={on_input}
+                onkeydown={on_keydown}
                 disabled={props.disabled}
                 rows="3"
-                aria-label="Type your message here. Press Enter to send, Shift+Enter for new line."
+                aria-label="Type your message here. Press Shift+Enter to send."
             />
             <div class="composer-actions">
                 <button type="submit" class="btn btn--primary" disabled={props.disabled}>{"Send"}</button>
