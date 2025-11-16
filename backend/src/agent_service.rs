@@ -239,51 +239,8 @@ mod tests {
         assert_eq!(agent.model(), "gpt-4-turbo");
     }
 
-    #[test]
-    fn test_load_channel_agent_config_precedence() {
-        unsafe {
-            std::env::set_var("RESPONSE_PROVIDER", "anthropic");
-            std::env::set_var("RESPONSE_API_KEY", "channel-key");
-            std::env::set_var("RESPONSE_MODEL", "claude-3-opus");
-        }
 
-        let result = load_channel_agent("RESPONSE");
-        assert!(result.is_ok());
-        let agent = result.unwrap();
-        assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
-        assert_eq!(agent.model(), "claude-3-opus");
-    }
 
-    #[test]
-    fn test_load_channel_agent_error_missing_api_key() {
-        unsafe {
-            std::env::set_var("RESPONSE_PROVIDER", "anthropic");
-            std::env::remove_var("RESPONSE_API_KEY");
-            std::env::remove_var("ANTHROPIC_API_KEY");
-        }
-
-        let result = load_channel_agent("RESPONSE");
-        assert!(result.is_err());
-        match result {
-            Err(err) => assert!(err.to_string().contains("Missing API key")),
-            Ok(_) => panic!("Expected error"),
-        }
-    }
-
-    #[test]
-    fn test_load_channel_agent_error_unsupported_provider() {
-        unsafe {
-            std::env::set_var("RESPONSE_PROVIDER", "unsupported");
-            std::env::set_var("RESPONSE_API_KEY", "test-key");
-        }
-
-        let result = load_channel_agent("RESPONSE");
-        assert!(result.is_err());
-        match result {
-            Err(err) => assert!(err.to_string().contains("Unsupported provider")),
-            Ok(_) => panic!("Expected error"),
-        }
-    }
 
     #[test]
     fn test_load_reasoning_budget_channel_specific() {

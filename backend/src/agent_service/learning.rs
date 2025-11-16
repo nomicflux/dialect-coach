@@ -93,7 +93,12 @@ impl LearningAgent {
         );
         let prompt = build_learning_prompt(params);
         tracing::debug!("Learning prompt sent to Claude:\n{}", prompt);
-        let history_with_prefill = vec![create_prefilled_assistant_message()];
+
+        let mut history_with_prefill = Vec::new();
+        if self.agent.provider() == super::provider::ANTHROPIC_PROVIDER {
+            history_with_prefill.push(create_prefilled_assistant_message());
+        }
+
         let request = CompletionRequest {
             preamble: &system_content,
             prompt: &prompt,
