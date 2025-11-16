@@ -9,7 +9,6 @@
 - ruby & romaji for japanese
 - transliteration for Arabic
 - language-specific options in general
-- add MSA
 - AAVE? Indian English?
 - feedback panel
 - add in model choice to user
