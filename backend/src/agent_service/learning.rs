@@ -139,70 +139,96 @@ impl LearningAgent {
 fn build_learning_system_content(params: &LearningAgentParams<'_>) -> String {
     format!(
         "# LEARNING AGENT ROLE\n\
-        You evaluate the user's latest message and the assistant's latest reply for new learning items.\n\n\
-        # CRITICAL RULES\n\
-        1. You are evaluating the messages as a native speaker of the target dialect {} with a formality of {}. You must stay within the given dialect and formality.\n\
-        2. Focus ONLY on logging learning items, never the conversational response.\n\
-        3. Do not duplicate previously logged items unless the learner repeated the same issue.\n\
-        4. Prioritize items tied directly to the learning goals and the assistant's reply.\n\
-        # REQUIRED OUTPUT\n\
+        You evaluate the user's latest message and the assistant's reply for new learning items.\n\n\
+        # EVALUATION CONTEXT\n\
+        You are a native speaker of {} with {} formality.\n\n\
+        {}\
+        # RULES\n\
+        - Log learning items only, not conversational responses\n\
+        - Do not duplicate previously logged items\n\
+        - No meta-commentary or extra text\n\n\
+        # OUTPUT FORMAT\n\
         {}\n\
         {}\n",
         params.dialect.name(),
         params.formality.name(),
+        learning_mode_context(&params.teaching_mode),
         JSON_OUTPUT_INSTRUCTION,
         learning_output_format_spec(&params.teaching_mode)
     )
 }
 
+fn learning_mode_context(teaching_mode: &TeachingMode) -> &'static str {
+    match teaching_mode {
+        TeachingMode::Corrective => {
+            "# WHAT IS A COMMUNICATION ERROR\n\
+            - Wrong word that changes meaning\n\
+            - Grammar natives wouldn't use in chat\n\
+            - Misspelled words (typos, not missing optional marks)\n\n\
+            # NOT A COMMUNICATION ERROR\n\
+            - Missing tashkeel (Arabic diacritics) - natives skip them in chat\n\
+            - Missing/different punctuation\n\
+            - Capitalization differences\n\
+            - Valid dialectal forms\n\n"
+        }
+        TeachingMode::Explanatory => {
+            "# WHAT TO LOG\n\
+            - New vocabulary, idioms, or cultural context introduced in the conversation\n\
+            - Only noteworthy items worth remembering\n\n"
+        }
+        TeachingMode::Interleaved => {
+            "# WHAT TO LOG\n\
+            - Words/phrases user needed translated from source language to target dialect\n\
+            - Focus on translations, not errors\n\n"
+        }
+        TeachingMode::StoryTeller => {
+            "# WHAT TO LOG\n\
+            - New language patterns or features user should practice\n\
+            - Points that naturally fit the story context\n\n"
+        }
+        TeachingMode::Immersive | TeachingMode::Debug => "",
+    }
+}
+
 fn learning_output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
     match teaching_mode {
         TeachingMode::Corrective => {
-            r#"Response format: {
+            r#"{
   "mistakes": [{
-    "specific_mistake": "<exact token or full phrase you are replacing>",
-    "correction": "<exact, context-appropriate replacement token or phrase>",
-    "mistake_category": {"type": "<category>", "context": "<≤8 word reason (optional)>"}
+    "specific_mistake": "<exact erroneous token/phrase>",
+    "correction": "<replacement>",
+    "mistake_category": {"type": "<category>", "context": "<≤8 words or empty>"}
   }]
 }
-Categories: spelling_error (context=correct spelling), vocabulary_error (context=correct word), grammar_error (context=error type), dialect_usage_error (context=preferred form), other (context=brief explanation).
-Rules:
-- Flag ONLY errors that are unquestionably wrong for THIS dialect. Dialect-appropriate forms (e.g., Levantine "منيح") must never be marked as mistakes.
-- Default to single-token fixes: "specific_mistake" MUST be the exact token as written, with "correction" supplying the direct, dialect-appropriate and context-appropriate replacement.
-- Multi-token entries are allowed only when the entire phrase is wrong. Capture the whole erroneous phrase exactly as the user wrote it and provide the full replacement phrase.
-- Use "mistake_category.context" only when a ≤8 word clarification aids the learner; otherwise omit it or keep it empty. Clarifications must provide additional context about the mistake beyond it being a mistake. 
-  If you cannot provide more information that the mistake category and its correction, then omit the context field.
-- Keep context notes short and skip punctuation/capitalization nitpicks
-- If no clear mistakes exist, return {"mistakes": []}.
-- Maximum of three mistake entries per response."#
+Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error, other
+- Prefer single-token fixes; multi-token only for phrase-level errors
+- Context: brief clarification or empty string
+- Maximum 3 entries
+- Return {"mistakes": []} if no communication errors"#
         }
         TeachingMode::Explanatory => {
-            r#"Response format: {
+            r#"{
   "explained": [{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}]
 }
-Only include explained if you introduce and explain noteworthy vocabulary, idioms, or cultural context. Keep it to 1-2 essential items that you introduced.
-Return {"explained": []} if the assistant and user introduced nothing new worth cataloging."#
+- Keep to 1-2 essential items
+- Return {"explained": []} if nothing new worth cataloging"#
         }
         TeachingMode::Interleaved => {
-            r#"Response format: {
-  "translated": [{"translated_word": "<word from user>", "translated_to": "<your translation>"}]
+            r#"{
+  "translated": [{"translated_word": "<source word>", "translated_to": "<dialect translation>"}]
 }
-Include translated array when the user required translations of words/phrases from their source language into the target dialect.
-Focus on translated words, not on errors in the target language.
-The "translated_word" should be the original word, "translated_to" should be your dialectal translation.
-Return {"translated": []} when nothing required translating."#
+- Return {"translated": []} when nothing required translating"#
         }
         TeachingMode::StoryTeller => {
-            r#"Response format: {
-  "exploratory": [{"point_to_try": "<language feature in target language>", "instructions_for_use": "<how to use it>"}]
+            r#"{
+  "exploratory": [{"point_to_try": "<language feature>", "instructions_for_use": "<how to use>"}]
 }
-Include exploratory array when the user or assistant introduced new language patterns, idioms, or features that the user should try.
-Keep it to 1-2 brief points that naturally fit the story context.
-Return {"exploratory": []} if the user or assistant did not introduce anything new."#
+- Keep to 1-2 brief points
+- Return {"exploratory": []} if nothing new introduced"#
         }
         TeachingMode::Immersive | TeachingMode::Debug => {
-            r#"Response format: {} 
-            Do not include any learning items in the response."#
+            r#"{}
+No learning items for this mode."#
         }
     }
 }
@@ -390,7 +416,7 @@ mod tests {
         let content = build_learning_system_content(&params);
         assert!(content.contains("LEARNING AGENT ROLE"));
         assert!(content.contains(JSON_OUTPUT_INSTRUCTION));
-        assert!(content.contains("Focus ONLY on logging learning items"));
+        assert!(content.contains("Log learning items only"));
     }
 
     #[test]
