@@ -65,10 +65,11 @@ impl<'de> Deserialize<'de> for Mistake {
     {
         let helper = MistakeHelper::deserialize(deserializer)?;
         let id = helper.id.unwrap_or_else(|| {
-            uuid::Uuid::new_v5(
-                &uuid::Uuid::NAMESPACE_OID,
-                helper.specific_mistake.as_bytes(),
-            )
+            let hash_input = format!(
+                "{}|{}|{:?}",
+                helper.specific_mistake, helper.correction, helper.mistake_category
+            );
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes())
         });
         Ok(Mistake {
             id,
@@ -85,7 +86,8 @@ impl Mistake {
         correction: String,
         mistake_category: MistakeCategory,
     ) -> Self {
-        let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, specific_mistake.as_bytes());
+        let hash_input = format!("{}|{}|{:?}", specific_mistake, correction, mistake_category);
+        let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes());
         Self {
             id,
             specific_mistake,
@@ -121,7 +123,8 @@ impl<'de> Deserialize<'de> for Explained {
     {
         let helper = ExplainedHelper::deserialize(deserializer)?;
         let id = helper.id.unwrap_or_else(|| {
-            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, helper.new_phrase.as_bytes())
+            let hash_input = format!("{}|{}", helper.new_phrase, helper.explanation);
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes())
         });
         Ok(Explained {
             id,
@@ -133,7 +136,8 @@ impl<'de> Deserialize<'de> for Explained {
 
 impl Explained {
     pub fn new(new_phrase: String, explanation: String) -> Self {
-        let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, new_phrase.as_bytes());
+        let hash_input = format!("{}|{}", new_phrase, explanation);
+        let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes());
         Self {
             id,
             new_phrase,
@@ -168,10 +172,8 @@ impl<'de> Deserialize<'de> for Translated {
     {
         let helper = TranslatedHelper::deserialize(deserializer)?;
         let id = helper.id.unwrap_or_else(|| {
-            uuid::Uuid::new_v5(
-                &uuid::Uuid::NAMESPACE_OID,
-                helper.translated_word.as_bytes(),
-            )
+            let hash_input = format!("{}|{}", helper.translated_word, helper.translated_to);
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes())
         });
         Ok(Translated {
             id,
@@ -183,7 +185,8 @@ impl<'de> Deserialize<'de> for Translated {
 
 impl Translated {
     pub fn new(translated_word: String, translated_to: String) -> Self {
-        let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, translated_word.as_bytes());
+        let hash_input = format!("{}|{}", translated_word, translated_to);
+        let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes());
         Self {
             id,
             translated_word,
@@ -218,7 +221,8 @@ impl<'de> Deserialize<'de> for Exploratory {
     {
         let helper = ExploratoryHelper::deserialize(deserializer)?;
         let id = helper.id.unwrap_or_else(|| {
-            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, helper.point_to_try.as_bytes())
+            let hash_input = format!("{}|{}", helper.point_to_try, helper.instructions_for_use);
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes())
         });
         Ok(Exploratory {
             id,
@@ -230,7 +234,8 @@ impl<'de> Deserialize<'de> for Exploratory {
 
 impl Exploratory {
     pub fn new(point_to_try: String, instructions_for_use: String) -> Self {
-        let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, point_to_try.as_bytes());
+        let hash_input = format!("{}|{}", point_to_try, instructions_for_use);
+        let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes());
         Self {
             id,
             point_to_try,
@@ -421,11 +426,19 @@ mod tests {
         let mistake2 = Mistake::new(
             "hablar".to_string(),
             "habla".to_string(),
+            MistakeCategory::SpellingError {
+                context: "habla".to_string(),
+            },
+        );
+        let mistake3 = Mistake::new(
+            "hablar".to_string(),
+            "habla".to_string(),
             MistakeCategory::GrammarError {
                 context: "different".to_string(),
             },
         );
         assert_eq!(mistake1.id, mistake2.id);
+        assert_ne!(mistake1.id, mistake3.id);
     }
 
     #[test]
@@ -446,8 +459,10 @@ mod tests {
     #[test]
     fn test_explained_stable_id() {
         let explained1 = Explained::new("órale".to_string(), "Mexican slang for wow".to_string());
-        let explained2 = Explained::new("órale".to_string(), "Different explanation".to_string());
+        let explained2 = Explained::new("órale".to_string(), "Mexican slang for wow".to_string());
+        let explained3 = Explained::new("órale".to_string(), "Different explanation".to_string());
         assert_eq!(explained1.id, explained2.id);
+        assert_ne!(explained1.id, explained3.id);
     }
 
     #[test]
@@ -684,8 +699,10 @@ mod tests {
     #[test]
     fn test_translated_stable_id() {
         let translated1 = Translated::new("hello".to_string(), "hola".to_string());
-        let translated2 = Translated::new("hello".to_string(), "¡hola!".to_string());
+        let translated2 = Translated::new("hello".to_string(), "hola".to_string());
+        let translated3 = Translated::new("hello".to_string(), "¡hola!".to_string());
         assert_eq!(translated1.id, translated2.id);
+        assert_ne!(translated1.id, translated3.id);
     }
 
     #[test]
@@ -695,7 +712,8 @@ mod tests {
         assert_eq!(translated.translated_word, "hello");
         assert_eq!(translated.translated_to, "hola");
 
-        let expected_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "hello".as_bytes());
+        let hash_input = "hello|hola";
+        let expected_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes());
         assert_eq!(translated.id, expected_id);
     }
 
@@ -730,9 +748,14 @@ mod tests {
         );
         let exploratory2 = Exploratory::new(
             "Use subjunctive mood".to_string(),
+            "Instructions A".to_string(),
+        );
+        let exploratory3 = Exploratory::new(
+            "Use subjunctive mood".to_string(),
             "Instructions B".to_string(),
         );
         assert_eq!(exploratory1.id, exploratory2.id);
+        assert_ne!(exploratory1.id, exploratory3.id);
     }
 
     #[test]
@@ -742,8 +765,8 @@ mod tests {
         assert_eq!(exploratory.point_to_try, "Use subjunctive");
         assert_eq!(exploratory.instructions_for_use, "Try it");
 
-        let expected_id =
-            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, "Use subjunctive".as_bytes());
+        let hash_input = "Use subjunctive|Try it";
+        let expected_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes());
         assert_eq!(exploratory.id, expected_id);
     }
 
