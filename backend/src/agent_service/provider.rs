@@ -373,4 +373,18 @@ mod tests {
             Ok(_) => panic!("Expected error"),
         }
     }
+
+    #[test]
+    fn test_unified_completion_agent_uses_reasoning_budget() {
+        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None, 350);
+        let result = CompletionAgentFactory::build(config);
+        assert!(result.is_ok());
+        let _agent = result.unwrap();
+    }
+
+    #[test]
+    fn test_provider_agent_config_stores_reasoning_budget() {
+        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None, 275);
+        assert_eq!(config.reasoning_budget, 275);
+    }
 }

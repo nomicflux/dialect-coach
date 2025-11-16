@@ -284,4 +284,53 @@ mod tests {
             Ok(_) => panic!("Expected error"),
         }
     }
+
+    #[test]
+    fn test_load_reasoning_budget_channel_specific() {
+        unsafe {
+            std::env::set_var("RESPONSE_REASONING_BUDGET", "300");
+        }
+        let budget = load_reasoning_budget("RESPONSE");
+        assert_eq!(budget, 300);
+        unsafe {
+            std::env::remove_var("RESPONSE_REASONING_BUDGET");
+        }
+    }
+
+    #[test]
+    fn test_load_reasoning_budget_global_fallback() {
+        unsafe {
+            std::env::set_var("OPENAI_REASONING_BUDGET", "250");
+            std::env::remove_var("LEARNING_REASONING_BUDGET");
+        }
+        let budget = load_reasoning_budget("LEARNING");
+        assert_eq!(budget, 250);
+        unsafe {
+            std::env::remove_var("OPENAI_REASONING_BUDGET");
+        }
+    }
+
+    #[test]
+    fn test_load_reasoning_budget_default_fallback() {
+        unsafe {
+            std::env::remove_var("ANALYSIS_REASONING_BUDGET");
+            std::env::remove_var("OPENAI_REASONING_BUDGET");
+        }
+        let budget = load_reasoning_budget("ANALYSIS");
+        assert_eq!(budget, 200);
+    }
+
+    #[test]
+    fn test_load_reasoning_budget_precedence() {
+        unsafe {
+            std::env::set_var("OPENAI_REASONING_BUDGET", "100");
+            std::env::set_var("RESPONSE_REASONING_BUDGET", "400");
+        }
+        let budget = load_reasoning_budget("RESPONSE");
+        assert_eq!(budget, 400);
+        unsafe {
+            std::env::remove_var("OPENAI_REASONING_BUDGET");
+            std::env::remove_var("RESPONSE_REASONING_BUDGET");
+        }
+    }
 }
