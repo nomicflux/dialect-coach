@@ -403,26 +403,30 @@ fn update_item_score(mut item: LearningItem, analysis: &AgentAnalysis) -> Learni
     match &item.item {
         LearningItemType::Mistake(m) => {
             if let Some(score_obj) = analysis.mistake_scores.get(&m.id) {
-                item.score = score_obj.score.max(0) as u8;
+                item.score = add_score(item.score, score_obj.score);
             }
         }
         LearningItemType::Explanation(e) => {
             if let Some(score_obj) = analysis.explained_scores.get(&e.id) {
-                item.score = score_obj.score.max(0) as u8;
+                item.score = add_score(item.score, score_obj.score);
             }
         }
         LearningItemType::Translation(t) => {
             if let Some(score_obj) = analysis.translated_scores.get(&t.id) {
-                item.score = score_obj.score.max(0) as u8;
+                item.score = add_score(item.score, score_obj.score);
             }
         }
         LearningItemType::Exploration(e) => {
             if let Some(score_obj) = analysis.exploratory_scores.get(&e.id) {
-                item.score = score_obj.score.max(0) as u8;
+                item.score = add_score(item.score, score_obj.score);
             }
         }
     }
     item
+}
+
+fn add_score(current: u8, delta: i8) -> u8 {
+    (current as i32 + delta as i32).clamp(0, 100) as u8
 }
 
 fn apply_score_updates(items: Vec<LearningItem>, analysis: &AgentAnalysis) -> Vec<LearningItem> {
@@ -1131,5 +1135,29 @@ mod tests {
                 .iter()
                 .any(|branch| branch.leaf_message_id == Some(msg.id))
         );
+    }
+
+    #[test]
+    fn test_add_score_accumulates() {
+        assert_eq!(add_score(10, 8), 18);
+        assert_eq!(add_score(50, 10), 60);
+    }
+
+    #[test]
+    fn test_add_score_caps_at_100() {
+        assert_eq!(add_score(95, 10), 100);
+        assert_eq!(add_score(100, 10), 100);
+    }
+
+    #[test]
+    fn test_add_score_handles_negative() {
+        assert_eq!(add_score(20, -10), 10);
+        assert_eq!(add_score(15, -10), 5);
+    }
+
+    #[test]
+    fn test_add_score_floors_at_zero() {
+        assert_eq!(add_score(0, -5), 0);
+        assert_eq!(add_score(3, -10), 0);
     }
 }
