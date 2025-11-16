@@ -83,6 +83,7 @@ pub fn speech_controls(props: &SpeechControlsProps) -> Html {
                     {if *is_listening { "🎤 Listening..." } else { "🎤 Speak" }}
                 </button>
                 <button
+                    accesskey="a"
                     onclick={{
                         let on_tts_toggle = props.on_tts_toggle.clone();
                         Callback::from(move |_| {

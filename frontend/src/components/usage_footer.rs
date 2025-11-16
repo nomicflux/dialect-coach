@@ -31,7 +31,7 @@ fn render_section(title: &str, calls: usize, metric_label: &str, metric_value: u
 
 fn render_toggle_button(is_collapsed: bool, on_toggle: Callback<()>) -> Html {
     html! {
-        <button class="usage-footer__toggle" onclick={Callback::from(move |_| on_toggle.emit(()))}>
+        <button class="usage-footer__toggle" accesskey="u" onclick={Callback::from(move |_| on_toggle.emit(()))}>
             <span class="usage-footer__icon">{if is_collapsed { "▲" } else { "▼" }}</span>
             <span class="usage-footer__title">{"Usage Statistics"}</span>
         </button>

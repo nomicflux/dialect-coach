@@ -10,12 +10,7 @@ use crate::app::user_state_callbacks::{
 use crate::components::{
     BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls, UsageFooter,
 };
-use crate::keyboard_shortcuts::{default_shortcuts, matches_binding, ShortcutAction};
 use crate::services::websocket::ConnectionState;
-use gloo::events::EventListener;
-use gloo::utils::window;
-use wasm_bindgen::JsCast;
-use web_sys::{HtmlInputElement, HtmlTextAreaElement, KeyboardEvent};
 use yew::prelude::*;
 
 #[derive(Properties)]
@@ -28,100 +23,6 @@ pub struct MainContentProps {
 impl PartialEq for MainContentProps {
     fn eq(&self, _other: &Self) -> bool {
         false
-    }
-}
-
-fn handle_shortcut_action(
-    action: &ShortcutAction,
-    ui_state: &UseReducerHandle<UIState>,
-    app_state: &UseReducerHandle<AppState>,
-    user_state: &UseReducerHandle<OptionalUserState>,
-    chat_input_ref: &NodeRef,
-    goal_input_ref: &NodeRef,
-) {
-    match action {
-        ShortcutAction::ToggleSidebar => {
-            ui_state.dispatch(UIStateAction::ToggleSidebar);
-        }
-        ShortcutAction::ToggleLearningPanel => {
-            ui_state.dispatch(UIStateAction::ToggleLearningPanel);
-        }
-        ShortcutAction::ToggleUsageFooter => {
-            ui_state.dispatch(UIStateAction::ToggleUsageFooter);
-        }
-        ShortcutAction::TogglePracticeSettings => {
-            toggle_practice_settings(ui_state);
-        }
-        ShortcutAction::ToggleAutoSpeak => {
-            on_tts_toggle(app_state.clone(), user_state.clone()).emit(());
-        }
-        ShortcutAction::ReplayLastMessage => {
-            replay_last_message(app_state, user_state);
-        }
-        ShortcutAction::CycleDialect => {
-            on_dialect_cycle(user_state.clone()).emit(());
-        }
-        ShortcutAction::CycleTeachingMode => {
-            on_teaching_mode_cycle(user_state.clone()).emit(());
-        }
-        ShortcutAction::CycleFormality => {
-            on_formality_cycle(user_state.clone()).emit(());
-        }
-        ShortcutAction::FocusGoalInput => {
-            focus_goal_input(goal_input_ref);
-        }
-        ShortcutAction::FocusChatInput => {
-            focus_chat_input(chat_input_ref);
-        }
-    }
-}
-
-fn toggle_practice_settings(ui_state: &UseReducerHandle<UIState>) {
-    if ui_state.panel_open {
-        ui_state.dispatch(UIStateAction::ClosePanel);
-    } else {
-        ui_state.dispatch(UIStateAction::OpenPanel);
-    }
-}
-
-fn replay_last_message(
-    app_state: &UseReducerHandle<AppState>,
-    user_state: &UseReducerHandle<OptionalUserState>,
-) {
-    if let Some(state) = user_state.0.as_ref()
-        && let Some(msg) = state.get_active_branch_messages().last()
-    {
-        on_replay_message(app_state.clone()).emit((*msg).clone());
-    }
-}
-
-fn focus_goal_input(goal_input_ref: &NodeRef) {
-    if let Some(input) = goal_input_ref.cast::<HtmlInputElement>() {
-        let _ = input.focus();
-    }
-}
-
-fn focus_chat_input(chat_input_ref: &NodeRef) {
-    if let Some(textarea) = chat_input_ref.cast::<HtmlTextAreaElement>() {
-        let _ = textarea.focus();
-    }
-}
-
-fn is_typing_in_input(target: &Option<web_sys::EventTarget>) -> bool {
-    target
-        .as_ref()
-        .and_then(|t| t.dyn_ref::<HtmlInputElement>())
-        .is_some()
-        || target
-            .as_ref()
-            .and_then(|t| t.dyn_ref::<HtmlTextAreaElement>())
-            .is_some()
-}
-
-fn should_handle_shortcut(action: &ShortcutAction, is_input: bool) -> bool {
-    match action {
-        ShortcutAction::FocusGoalInput | ShortcutAction::FocusChatInput => true,
-        _ => !is_input,
     }
 }
 
@@ -140,46 +41,6 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();
-
-    // Global keyboard shortcut handler
-    {
-        let ui_state = ui_state.clone();
-        let app_state = app_state.clone();
-        let user_state = user_state.clone();
-        let chat_input_ref = chat_input_ref.clone();
-        let goal_input_ref = goal_input_ref.clone();
-
-        use_effect_with((), move |_| {
-            let shortcuts = default_shortcuts();
-
-            let listener = EventListener::new(&window(), "keydown", move |e| {
-                if let Some(event) = e.dyn_ref::<KeyboardEvent>() {
-                    let target = event.target();
-                    let is_input = is_typing_in_input(&target);
-
-                    for (action, binding) in &shortcuts {
-                        if matches_binding(event, binding) {
-                            let should_handle = should_handle_shortcut(action, is_input);
-
-                            if should_handle {
-                                event.prevent_default();
-                                handle_shortcut_action(
-                                    action,
-                                    &ui_state,
-                                    &app_state,
-                                    &user_state,
-                                    &chat_input_ref,
-                                    &goal_input_ref,
-                                );
-                                break;
-                            }
-                        }
-                    }
-                }
-            });
-            move || drop(listener)
-        });
-    }
 
     html! {
         <>
@@ -248,7 +109,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 </div>
 
                 // Floating panel toggle button
-                <button class="panel-toggle" onclick={{
+                <button class="panel-toggle" accesskey="p" onclick={{
                     let ui_state = ui_state.clone();
                     Callback::from(move |_| {
                         ui_state.dispatch(if ui_state.panel_open {
