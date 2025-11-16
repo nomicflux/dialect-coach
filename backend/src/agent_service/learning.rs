@@ -104,7 +104,7 @@ impl LearningAgent {
             prompt: &prompt,
             history: &history_with_prefill,
             max_tokens: 512,
-            temperature: 0.2,
+            temperature: 0.0,
         };
 
         let (result, usage) = retry_completion_call(self.agent.as_ref(), &request, 3).await;
@@ -161,15 +161,20 @@ fn build_learning_system_content(params: &LearningAgentParams<'_>) -> String {
 fn learning_mode_context(teaching_mode: &TeachingMode) -> &'static str {
     match teaching_mode {
         TeachingMode::Corrective => {
-            "# WHAT IS A COMMUNICATION ERROR\n\
-            - Wrong word that changes meaning\n\
-            - Grammar natives wouldn't use in chat\n\
-            - Misspelled words (typos, not missing optional marks)\n\n\
-            # NOT A COMMUNICATION ERROR\n\
-            - Missing tashkeel (Arabic diacritics) - natives skip them in chat\n\
-            - Missing/different punctuation\n\
-            - Capitalization differences\n\
-            - Valid dialectal forms\n\n"
+            "# COMMUNICATION ERROR DETECTION\n\
+            Default: The user's text is CORRECT. Most messages have zero errors.\n\
+            Only flag errors a native speaker would actually notice and reject.\n\n\
+            BEFORE flagging anything, verify:\n\
+            1. Is this actually wrong in THIS dialect? (not just different from standard/formal)\n\
+            2. Would natives notice or care in casual chat?\n\
+            3. Is your correction meaningfully different, not just orthographic variation?\n\
+            If ANY answer is NO → do not flag. When unsure → do not flag.\n\n\
+            NOT errors (never flag):\n\
+            - Arabic without short vowel marks (tashkeel: ◌َ ◌ُ ◌ِ ◌ّ ◌ْ) - standard in chat\n\
+            - Spanish without ¿ or ¡ - common in casual typing\n\
+            - Capitalization differences - casual chat norm\n\
+            - Valid dialectal spellings and forms\n\n\
+            Returning {\"mistakes\": []} is normal and expected for most messages.\n\n"
         }
         TeachingMode::Explanatory => {
             "# WHAT TO LOG\n\
@@ -352,7 +357,7 @@ impl LearningAgent {
                 };
                 let config = super::util::GenerationConfig {
                     max_tokens: 512,
-                    temperature: 0.2,
+                    temperature: 0.0,
                 };
                 match retry_ctx
                     .retry_with_error_feedback_tracked(
