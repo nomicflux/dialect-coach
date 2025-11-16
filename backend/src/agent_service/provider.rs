@@ -222,6 +222,12 @@ impl CompletionAgent for UnifiedCompletionAgent {
             }
             ProviderCompletionModel::OpenAI(model) => {
                 let mut rig_request = self.build_completion_request(request, false);
+                let actual_max_tokens = request.max_tokens + 200;
+                rig_request.max_tokens = Some(actual_max_tokens);
+                tracing::debug!(
+                    "OpenAI reasoning budget: adding 200 tokens to max_tokens={}",
+                    request.max_tokens
+                );
                 rig_request.additional_params = Some(serde_json::json!({
                     "reasoning": {
                         "effort": "minimal"
