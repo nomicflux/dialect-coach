@@ -24,9 +24,17 @@ fn channel_env(prefix: &str, suffix: &str) -> Option<String> {
     env::var(format!("{}_{}", prefix, suffix)).ok()
 }
 
+fn load_reasoning_budget(channel_prefix: &str) -> u32 {
+    channel_env(channel_prefix, "REASONING_BUDGET")
+        .and_then(|v| v.parse::<u32>().ok())
+        .or_else(|| env::var("OPENAI_REASONING_BUDGET").ok().and_then(|v| v.parse::<u32>().ok()))
+        .unwrap_or(200)
+}
+
 fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
     let provider =
         channel_env(prefix, "PROVIDER").unwrap_or_else(|| ANTHROPIC_PROVIDER.to_string());
+    let reasoning_budget = load_reasoning_budget(prefix);
     match provider.as_str() {
         ANTHROPIC_PROVIDER => {
             let api_key = channel_env(prefix, "API_KEY")
@@ -38,7 +46,7 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
                     )
                 })?;
             let model = channel_env(prefix, "MODEL").or_else(|| env::var("ANTHROPIC_MODEL").ok());
-            let config = ProviderAgentConfig::anthropic(api_key, model);
+            let config = ProviderAgentConfig::anthropic(api_key, model, reasoning_budget);
             let agent = CompletionAgentFactory::build(config)?;
             Ok(Arc::from(agent))
         }
@@ -49,7 +57,7 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
                     anyhow!("Missing API key: set {}_API_KEY or OPENAI_API_KEY", prefix)
                 })?;
             let model = channel_env(prefix, "MODEL").or_else(|| env::var("OPENAI_MODEL").ok());
-            let config = ProviderAgentConfig::openai(api_key, model);
+            let config = ProviderAgentConfig::openai(api_key, model, reasoning_budget);
             let agent = CompletionAgentFactory::build(config)?;
             Ok(Arc::from(agent))
         }
