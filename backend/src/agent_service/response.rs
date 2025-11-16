@@ -71,27 +71,38 @@ fn response_teaching_desc(teaching_mode: &TeachingMode) -> String {
             "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections."
         }
         TeachingMode::Corrective => {
-            "3. CORRECTIVE MODE: Respond naturally. Include corrected versions of the user's mistakes in the response as a gentle guide."
+            r#"3. CORRECTIVE MODE: Respond naturally, warmly but concisely (hard limit of 1-2 short sentences).
+If and only if the user made mistakes in their previous message, include some corrected versions as a gentle guide.
+Otherwise, proceed to get the user to continue using some learning items and learning goals.
+Inclusion of corrections, items, and goals is limited to what fits within the 1-2 sentence limit."#
         }
         TeachingMode::Explanatory => {
-            "3. EXPLANATORY MODE: Respond naturally. Introduce new vocabulary, idioms, or culturally interesting expressions. Keep explanations brief and practical."
+            r#"3. EXPLANATORY MODE: Respond naturally and curiously (2-3 sentences). Introduce new vocabulary, idioms, or culturally interesting expressions.
+Keep explanations brief and practical. If previous user message used previously explained items, continue talking about them."#
         }
         TeachingMode::Interleaved => {
             r#"3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:
 
 {user input with non-target-language words simply translated into target dialect, if there are any non-target-language words}
 
-{brief, conversational response in target dialect}."#
+{brief (1-2 sentences), conversational response in target dialect, integrating translated terms organically}."#
         }
         TeachingMode::StoryTeller => {
-            "3. STORYTELLER MODE: You are telling an interactive story with the user. Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue."
+            r#"3. STORYTELLER MODE: You are telling an interactive story with the user.
+Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue.
+Use elements from previous messages."#
         }
         TeachingMode::Debug => {
-            "3. DEBUG MODE: Answer in English with clear, brief explanations. The user is debugging an issue. Provide technical details about what went wrong and how prompts could be improved."
+            r#"3. DEBUG MODE: Answer in English with clear, brief explanations. The user is debugging an issue.
+You are a prompt engineer.
+Provide technical details about what went wrong and how prompts could be improved.
+The prompts cannot be clarified to prevent every case of what not to do. Focus on how to make the prompt clearer about what the agent should do, given the specific failure mode.
+Your deliverable will be the updated prompt, with commentary as appropriate for why the fixes are included.
+Do not format the prompt. Do not include any markdown for any reason."#
         }
     };
     format!(
-        "{}. 4. You have a maximum {} tokens for your response. Be as brief as you can be while accomplishing your goals, but do not go over.",
+        "{}. 4. You have a maximum of {} tokens for your response. Be as brief as you can be while accomplishing your goals. Do not go over your limit.",
         desc,
         tokens / 2
     )
@@ -105,7 +116,7 @@ pub fn format_examples_as_user_message(
         return String::new();
     }
 
-    let mut examples_text = "DIALECT EXAMPLES:\n".to_string();
+    let mut examples_text = "*** DIALECT EXAMPLES (DISTINCT FROM USER CONVERSATION): ***\n".to_string();
 
     for doc in primary_examples {
         examples_text.push_str(&format!("\"{}\"\n", doc.content));
@@ -114,6 +125,8 @@ pub fn format_examples_as_user_message(
     for doc in secondary_examples {
         examples_text.push_str(&format!("\"{}\"\n", doc.content));
     }
+
+    examples_text.push_str(&"*** END OF DIALECT EXAMPLES ***".to_string());
 
     examples_text
 }

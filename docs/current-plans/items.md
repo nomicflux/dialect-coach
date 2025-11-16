@@ -18,3 +18,6 @@
 - stay logged in (session cookies)
 - sidebar position, collapsed status
 - learning items by language
+- keyboard shortcuts
+- inline translation
+- change "empty" for new/root branches
