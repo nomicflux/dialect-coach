@@ -34,21 +34,31 @@ impl KeyBinding {
             meta: false,
         }
     }
+
+    pub fn with_alt(key: &str) -> Self {
+        Self {
+            key: key.to_string(),
+            ctrl: false,
+            shift: false,
+            alt: true,
+            meta: false,
+        }
+    }
 }
 
 pub fn default_shortcuts() -> HashMap<ShortcutAction, KeyBinding> {
     let mut map = HashMap::new();
-    map.insert(ShortcutAction::ToggleSidebar, KeyBinding::new("ArrowLeft", true, false));
-    map.insert(ShortcutAction::ToggleLearningPanel, KeyBinding::new("ArrowRight", true, false));
-    map.insert(ShortcutAction::ToggleUsageFooter, KeyBinding::new("u", true, false));
-    map.insert(ShortcutAction::TogglePracticeSettings, KeyBinding::new("p", true, false));
-    map.insert(ShortcutAction::ToggleAutoSpeak, KeyBinding::new("s", true, true)); // Ctrl+Shift+S
-    map.insert(ShortcutAction::ReplayLastMessage, KeyBinding::new("s", true, false));
-    map.insert(ShortcutAction::CycleDialect, KeyBinding::new("d", true, false));
-    map.insert(ShortcutAction::CycleTeachingMode, KeyBinding::new("t", true, false));
-    map.insert(ShortcutAction::CycleFormality, KeyBinding::new("r", true, false));
-    map.insert(ShortcutAction::FocusGoalInput, KeyBinding::new("g", true, false));
-    map.insert(ShortcutAction::FocusChatInput, KeyBinding::new("c", true, false));
+    map.insert(ShortcutAction::ToggleSidebar, KeyBinding::with_alt("["));
+    map.insert(ShortcutAction::ToggleLearningPanel, KeyBinding::with_alt("]"));
+    map.insert(ShortcutAction::ToggleUsageFooter, KeyBinding::with_alt("u"));
+    map.insert(ShortcutAction::TogglePracticeSettings, KeyBinding::with_alt("p"));
+    map.insert(ShortcutAction::ToggleAutoSpeak, KeyBinding::with_alt("a"));
+    map.insert(ShortcutAction::ReplayLastMessage, KeyBinding::with_alt("r"));
+    map.insert(ShortcutAction::CycleDialect, KeyBinding::with_alt("d"));
+    map.insert(ShortcutAction::CycleTeachingMode, KeyBinding::with_alt("m"));
+    map.insert(ShortcutAction::CycleFormality, KeyBinding::with_alt("f"));
+    map.insert(ShortcutAction::FocusGoalInput, KeyBinding::with_alt("g"));
+    map.insert(ShortcutAction::FocusChatInput, KeyBinding::with_alt("i"));
     map
 }
 
@@ -104,27 +114,37 @@ mod tests {
     fn test_default_shortcuts_sidebar_binding() {
         let shortcuts = default_shortcuts();
         let binding = shortcuts.get(&ShortcutAction::ToggleSidebar).unwrap();
-        assert_eq!(binding.key, "ArrowLeft");
-        assert!(binding.ctrl);
-        assert!(!binding.shift);
+        assert_eq!(binding.key, "[");
+        assert!(binding.alt);
+        assert!(!binding.ctrl);
     }
 
     #[test]
-    fn test_default_shortcuts_auto_speak_has_shift() {
+    fn test_default_shortcuts_auto_speak_uses_alt() {
         let shortcuts = default_shortcuts();
         let binding = shortcuts.get(&ShortcutAction::ToggleAutoSpeak).unwrap();
-        assert_eq!(binding.key, "s");
-        assert!(binding.ctrl);
-        assert!(binding.shift);
+        assert_eq!(binding.key, "a");
+        assert!(binding.alt);
+        assert!(!binding.ctrl);
     }
 
     #[test]
-    fn test_default_shortcuts_replay_no_shift() {
+    fn test_default_shortcuts_replay_uses_alt() {
         let shortcuts = default_shortcuts();
         let binding = shortcuts.get(&ShortcutAction::ReplayLastMessage).unwrap();
-        assert_eq!(binding.key, "s");
-        assert!(binding.ctrl);
+        assert_eq!(binding.key, "r");
+        assert!(binding.alt);
+        assert!(!binding.ctrl);
+    }
+
+    #[test]
+    fn test_key_binding_with_alt() {
+        let binding = KeyBinding::with_alt("d");
+        assert_eq!(binding.key, "d");
+        assert!(binding.alt);
+        assert!(!binding.ctrl);
         assert!(!binding.shift);
+        assert!(!binding.meta);
     }
 
     #[test]
