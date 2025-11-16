@@ -8,11 +8,15 @@ pub struct InputBoxProps {
     pub disabled: bool,
     #[prop_or_default]
     pub external_value: Option<String>,
+    #[prop_or_default]
+    pub textarea_ref: Option<NodeRef>,
 }
 
 #[function_component(InputBox)]
 pub fn input_box(props: &InputBoxProps) -> Html {
     let input_value = use_state(String::new);
+    let default_ref = use_node_ref();
+    let textarea_node_ref = props.textarea_ref.clone().unwrap_or(default_ref);
 
     // Update input value if external value is provided
     {
@@ -66,6 +70,7 @@ pub fn input_box(props: &InputBoxProps) -> Html {
     html! {
         <form class="composer" onsubmit={on_submit}>
             <textarea
+                ref={textarea_node_ref}
                 class="composer-input"
                 placeholder={if props.disabled { "Connecting..." } else { "Type message… (Shift+Enter to send)" }}
                 value={(*input_value).clone()}

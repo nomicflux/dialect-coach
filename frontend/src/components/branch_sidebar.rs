@@ -19,6 +19,8 @@ pub struct BranchSidebarProps {
     pub on_delete_branch: Option<Callback<Uuid>>,
     #[prop_or_default]
     pub on_rename_branch: Option<Callback<(Uuid, String)>>,
+    #[prop_or_default]
+    pub goal_input_ref: Option<NodeRef>,
 }
 
 fn count_branch_messages(messages: &[Message], branch: &ConversationBranch) -> usize {
@@ -202,6 +204,7 @@ fn render_expanded_view(props: &BranchSidebarProps) -> Html {
                 goals={props.learning_goals.clone()}
                 on_add={props.on_add_goal.clone()}
                 on_delete={props.on_delete_goal.clone()}
+                input_ref={props.goal_input_ref.clone()}
             />
         </>
     }

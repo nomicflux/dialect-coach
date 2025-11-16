@@ -6,6 +6,8 @@ pub struct LearningGoalsPanelProps {
     pub goals: Vec<String>,
     pub on_add: Callback<String>,
     pub on_delete: Callback<usize>,
+    #[prop_or_default]
+    pub input_ref: Option<NodeRef>,
 }
 
 fn render_goal_item(goal: &str, index: usize, on_delete: Callback<usize>) -> Html {
@@ -36,7 +38,8 @@ fn render_input_section(input_ref: NodeRef, on_add: Callback<MouseEvent>) -> Htm
 
 #[function_component(LearningGoalsPanel)]
 pub fn learning_goals_panel(props: &LearningGoalsPanelProps) -> Html {
-    let input_ref = use_node_ref();
+    let default_ref = use_node_ref();
+    let input_ref = props.input_ref.clone().unwrap_or(default_ref);
     let handle_add = {
         let input_ref = input_ref.clone();
         let on_add = props.on_add.clone();
