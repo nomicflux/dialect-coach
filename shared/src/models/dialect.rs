@@ -35,6 +35,8 @@ pub enum Dialect {
     ArabicMaghrebi,
     #[serde(rename = "arabic_iraqi")]
     ArabicIraqi,
+    #[serde(rename = "arabic_msa")]
+    ArabicMSA,
 
     // French dialects
     #[serde(rename = "french_quebecois")]
@@ -93,7 +95,8 @@ impl Dialect {
             | Self::ArabicLevantine
             | Self::ArabicGulf
             | Self::ArabicMaghrebi
-            | Self::ArabicIraqi => Language::Arabic,
+            | Self::ArabicIraqi
+            | Self::ArabicMSA => Language::Arabic,
 
             Self::FrenchQuebecois
             | Self::FrenchParisian
@@ -134,6 +137,7 @@ impl Dialect {
             Self::ArabicGulf => "arabic_gulf",
             Self::ArabicMaghrebi => "arabic_maghrebi",
             Self::ArabicIraqi => "arabic_iraqi",
+            Self::ArabicMSA => "arabic_msa",
 
             Self::FrenchQuebecois => "french_quebecois",
             Self::FrenchParisian => "french_parisian",
@@ -173,6 +177,7 @@ impl Dialect {
             Self::ArabicGulf => "Gulf Arabic",
             Self::ArabicMaghrebi => "Maghrebi Arabic",
             Self::ArabicIraqi => "Iraqi Arabic",
+            Self::ArabicMSA => "Modern Standard Arabic",
 
             Self::FrenchQuebecois => "Quebec French",
             Self::FrenchParisian => "Parisian French",
@@ -215,6 +220,7 @@ impl Dialect {
             Self::ArabicGulf,
             Self::ArabicMaghrebi,
             Self::ArabicIraqi,
+            Self::ArabicMSA,
         ]
     }
 
@@ -289,6 +295,7 @@ impl Dialect {
             Self::ArabicGulf,
             Self::ArabicMaghrebi,
             Self::ArabicIraqi,
+            Self::ArabicMSA,
             Self::FrenchQuebecois,
             Self::FrenchParisian,
             Self::FrenchSwiss,
@@ -325,6 +332,7 @@ impl Dialect {
             "arabic_gulf" => Some(Self::ArabicGulf),
             "arabic_maghrebi" => Some(Self::ArabicMaghrebi),
             "arabic_iraqi" => Some(Self::ArabicIraqi),
+            "arabic_msa" => Some(Self::ArabicMSA),
             "french_quebecois" => Some(Self::FrenchQuebecois),
             "french_parisian" => Some(Self::FrenchParisian),
             "french_swiss" => Some(Self::FrenchSwiss),
@@ -430,6 +438,7 @@ fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<String>> 
         Dialect::ArabicGulf => {
             build_voice_map(Some("DANw8bnAVbjDEHwZIoYa"), Some("ar-SA-ZariyahNeural"))
         }
+        Dialect::ArabicMSA => build_voice_map(None, None),
         Dialect::FrenchQuebecois => {
             build_voice_map(Some("j9RedbMRSNQ74PyikQwD"), Some("fr-CA-SylvieNeural"))
         }
