@@ -10,7 +10,10 @@ use crate::app::user_state_callbacks::{
 use crate::components::{
     BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls, UsageFooter,
 };
+use crate::keyboard_shortcuts::{default_shortcuts, matches_binding, ShortcutAction};
 use crate::services::websocket::ConnectionState;
+use gloo::events::EventListener;
+use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
 #[derive(Properties)]
@@ -41,6 +44,46 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();
+
+    {
+        let ui_state = ui_state.clone();
+        let user_state = user_state.clone();
+        use_effect_with((), move |_| {
+            let shortcuts = default_shortcuts();
+            let window = web_sys::window().unwrap();
+            let listener = EventListener::new(&window, "keydown", move |event| {
+                let event = event.dyn_ref::<web_sys::KeyboardEvent>().unwrap();
+                for (action, binding) in &shortcuts {
+                    if matches_binding(event, binding) {
+                        event.prevent_default();
+                        match action {
+                            ShortcutAction::ToggleSidebar => {
+                                ui_state.dispatch(UIStateAction::ToggleSidebar);
+                            }
+                            ShortcutAction::ToggleLearningPanel => {
+                                ui_state.dispatch(UIStateAction::ToggleLearningPanel);
+                            }
+                            ShortcutAction::ToggleUsageFooter => {
+                                ui_state.dispatch(UIStateAction::ToggleUsageFooter);
+                            }
+                            ShortcutAction::TogglePracticeSettings => {
+                                ui_state.dispatch(if ui_state.panel_open {
+                                    UIStateAction::ClosePanel
+                                } else {
+                                    UIStateAction::OpenPanel
+                                });
+                            }
+                            ShortcutAction::ToggleAutoSpeak => {
+                                user_state.dispatch(UserStateAction::ToggleTTS);
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+            move || drop(listener)
+        });
+    }
 
     html! {
         <>
@@ -109,7 +152,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 </div>
 
                 // Floating panel toggle button
-                <button class="panel-toggle" accesskey="p" onclick={{
+                <button class="panel-toggle" onclick={{
                     let ui_state = ui_state.clone();
                     Callback::from(move |_| {
                         ui_state.dispatch(if ui_state.panel_open {

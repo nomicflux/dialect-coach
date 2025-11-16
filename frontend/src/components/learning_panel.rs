@@ -140,7 +140,6 @@ fn render_collapsed_view(props: &LearningPanelProps) -> Html {
             </div>
             <button
                 class="learning-panel-toggle-button"
-                accesskey="]"
                 onclick={Callback::from({
                     let on_toggle = props.on_toggle.clone();
                     move |_| on_toggle.emit(())
@@ -249,7 +248,6 @@ fn render_expanded_view(props: &LearningPanelProps) -> Html {
             </div>
             <button
                 class="learning-panel-toggle-button"
-                accesskey="]"
                 onclick={Callback::from({
                     let on_toggle = props.on_toggle.clone();
                     move |_| on_toggle.emit(())

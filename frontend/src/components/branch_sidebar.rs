@@ -185,7 +185,6 @@ fn render_expanded_view(props: &BranchSidebarProps) -> Html {
             </div>
             <button
                 class="sidebar-toggle"
-                accesskey="["
                 onclick={Callback::from({
                     let on_toggle = props.on_toggle.clone();
                     move |_| on_toggle.emit(())
@@ -220,7 +219,6 @@ fn render_collapsed_view(props: &BranchSidebarProps) -> Html {
             </div>
             <button
                 class="sidebar-toggle"
-                accesskey="["
                 onclick={Callback::from({
                     let on_toggle = props.on_toggle.clone();
                     move |_| on_toggle.emit(())
