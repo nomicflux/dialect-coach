@@ -4,7 +4,6 @@
 - ai starts convo
 - ai responds after branching before ai message
 - branch at beginning of convo
-- no dialect rich, but use professional ("standard")
 - options for standard language practice, not dialect
 - ruby & romaji for japanese
 - transliteration for Arabic

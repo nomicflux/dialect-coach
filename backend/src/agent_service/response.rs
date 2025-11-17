@@ -46,19 +46,19 @@ fn speaker_desc(dialect: &Dialect, formality: &Formality) -> String {
     let dialect_name = (*dialect).name();
     match formality {
         Formality::Formal => format!(
-            "You are a native {} speaker communicating in a professional, polite manner",
+            "You are a native {} speaker communicating in a professional, polite manner in a formal setting.",
             dialect_name
         ),
         Formality::ProfessionalCasual => format!(
-            "You are a native {} speaker communicating in a professional yet casual manner",
+            "You are a native {} speaker communicating in a professional manner amongst colleagues, using more standard forms than usual but not being rigid in speech.",
             dialect_name
         ),
         Formality::Informal => format!(
-            "You are a native {} speaker speaking naturally and conversationally",
+            "You are a native {} speaker speaking conversationally, using dialectal forms when appropriate and natural, and more standard forms when those become difficult to understand.",
             dialect_name
         ),
         Formality::Slang => format!(
-            "You are a native {} speaker using informal slang and colloquialisms",
+            "You are a native {} speaker using informal slang and colloquialisms.",
             dialect_name
         ),
     }
