@@ -1,8 +1,6 @@
 - Add learning items manually (like vocab words)
 - Plan out learning course
 - central usage stats (no overlap)
-- ai starts convo
-- ai responds after branching before ai message
 - branch at beginning of convo
 - options for standard language practice, not dialect
 - ruby & romaji for japanese
@@ -17,7 +15,6 @@
 - sidebar position, collapsed status
 - learning items by language
 - keyboard shortcuts
-- inline translation
 - change "empty" for new/root branches
   - still broken: deleting conversation doesn't delete 
 - keyboard shortcuts between branches

@@ -1,5 +1,5 @@
 use dialect_coach_shared::UserState;
-use dialect_coach_shared::models::{ConversationBranch, Formality, Message};
+use dialect_coach_shared::models::{ConversationBranch, Message};
 use uuid::Uuid;
 use web_sys::HtmlElement;
 use yew::prelude::*;
@@ -12,10 +12,6 @@ pub struct ChatWindowProps {
     pub is_loading: bool,
     #[prop_or_default]
     pub on_replay_message: Option<Callback<Message>>,
-    #[prop_or_default]
-    pub on_prompt_click: Option<Callback<(String, String)>>, // (button_id, phrase)
-    #[prop_or_default]
-    pub translating_button: Option<String>, // Track which specific button is translating
     #[prop_or_default]
     pub on_delete_message: Option<Callback<Uuid>>,
     #[prop_or_default]
@@ -40,39 +36,20 @@ fn needs_continue_button(messages: &[&Message]) -> bool {
     messages.last().map(|m| !m.is_agent()).unwrap_or(false)
 }
 
-fn get_context_aware_prompt(prompt_type: &str, formality: Formality) -> &'static str {
-    match (prompt_type, formality) {
-        ("greeting", Formality::Formal) => "Good day, how are you doing?",
-        ("greeting", Formality::ProfessionalCasual) => "Hello, how are you?",
-        ("greeting", Formality::Informal) => "Hey there, what's up?",
-        ("greeting", Formality::Slang) => "Yo, what's good?",
-
-        ("weather", Formality::Formal) => "What is the weather forecast for today?",
-        ("weather", Formality::ProfessionalCasual) => "What's the weather like today?",
-        ("weather", Formality::Informal) => "How's it looking outside?",
-        ("weather", Formality::Slang) => "What's the weather doing?",
-
-        ("food", Formality::Formal) => "I would like to place an order, please",
-        ("food", Formality::ProfessionalCasual) => "I'd like to order some food",
-        ("food", Formality::Informal) => "Can I get something to eat?",
-        ("food", Formality::Slang) => "What's good to eat here?",
-
-        _ => "Hello, how are you?", // fallback
-    }
-}
-
-fn render_auto_start_button(on_auto_start: &Option<Callback<()>>, is_loading: bool) -> Html {
+fn render_start_button(on_auto_start: &Option<Callback<()>>, is_loading: bool) -> Html {
     match on_auto_start {
         Some(callback) => {
             let onclick = callback.reform(|_| ());
             html! {
-                <button
-                    class="auto-start-button"
-                    onclick={onclick}
-                    disabled={is_loading}
-                >
-                    {"Let AI start the conversation"}
-                </button>
+                <div class="continue-branch-container">
+                    <button
+                        class="continue-button"
+                        onclick={onclick}
+                        disabled={is_loading}
+                    >
+                        {"Start conversation"}
+                    </button>
+                </div>
             }
         }
         None => html! {},
@@ -96,7 +73,6 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
         });
     }
 
-    let formality = props.user_state.formality;
     let active_messages = props.user_state.get_active_branch_messages();
 
     html! {
@@ -107,79 +83,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                         <div class="empty">
                             <div class="empty-icon">{"💬"}</div>
                             <h3 class="empty-title">{"Ready to practice!"}</h3>
-                            <p class="empty-body">{"Start a conversation to practice your dialect. Try one of these:"}</p>
-                            {render_auto_start_button(&props.on_auto_start, props.is_loading)}
-                            <div class="prompt-list">
-                                <button class="prompt-item"
-                                        disabled={props.translating_button.is_some()}
-                                        onclick={{
-                                    let on_prompt_click = props.on_prompt_click.clone();
-                                    let form = formality;
-                                    Callback::from(move |_| {
-                                        if let Some(callback) = &on_prompt_click {
-                                            let prompt = get_context_aware_prompt("greeting", form);
-                                            callback.emit(("greeting".to_string(), prompt.to_string()));
-                                        }
-                                    })
-                                }}>
-                                    {if props.translating_button.as_ref() == Some(&"greeting".to_string()) {
-                                        "Translating..."
-                                    } else {
-                                        match formality {
-                                            Formality::Formal => "Good day, how are you doing?",
-                                            Formality::ProfessionalCasual => "Hello, how are you?",
-                                            Formality::Informal => "Hey there, what's up?",
-                                            Formality::Slang => "Yo, what's good?",
-                                        }
-                                    }}
-                                </button>
-                                <button class="prompt-item"
-                                        disabled={props.translating_button.is_some()}
-                                        onclick={{
-                                    let on_prompt_click = props.on_prompt_click.clone();
-                                    let form = formality;
-                                    Callback::from(move |_| {
-                                        if let Some(callback) = &on_prompt_click {
-                                            let prompt = get_context_aware_prompt("weather", form);
-                                            callback.emit(("weather".to_string(), prompt.to_string()));
-                                        }
-                                    })
-                                }}>
-                                    {if props.translating_button.as_ref() == Some(&"weather".to_string()) {
-                                        "Translating..."
-                                    } else {
-                                        match formality {
-                                            Formality::Formal => "What is the weather forecast for today?",
-                                            Formality::ProfessionalCasual => "What's the weather like today?",
-                                            Formality::Informal => "How's it looking outside?",
-                                            Formality::Slang => "What's the weather doing?",
-                                        }
-                                    }}
-                                </button>
-                                <button class="prompt-item"
-                                        disabled={props.translating_button.is_some()}
-                                        onclick={{
-                                    let on_prompt_click = props.on_prompt_click.clone();
-                                    let form = formality;
-                                    Callback::from(move |_| {
-                                        if let Some(callback) = &on_prompt_click {
-                                            let prompt = get_context_aware_prompt("food", form);
-                                            callback.emit(("food".to_string(), prompt.to_string()));
-                                        }
-                                    })
-                                }}>
-                                    {if props.translating_button.as_ref() == Some(&"food".to_string()) {
-                                        "Translating..."
-                                    } else {
-                                        match formality {
-                                            Formality::Formal => "I would like to place an order, please",
-                                            Formality::ProfessionalCasual => "I'd like to order some food",
-                                            Formality::Informal => "Can I get something to eat?",
-                                            Formality::Slang => "What's good to eat here?",
-                                        }
-                                    }}
-                                </button>
-                            </div>
+                            <p class="empty-body">{"Start a conversation to practice your dialect."}</p>
+                            {render_start_button(&props.on_auto_start, props.is_loading)}
                         </div>
                     }
                 } else {

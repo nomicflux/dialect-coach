@@ -74,65 +74,6 @@ pub fn on_send_message(
     })
 }
 
-pub fn on_prompt_click(
-    app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
-    ui_state: UseReducerHandle<UIState>,
-) -> Callback<(String, String)> {
-    let app_state = app_state.clone();
-    let user_state = user_state.clone();
-    let ui_state = ui_state.clone();
-
-    Callback::from(move |(button_id, english_phrase): (String, String)| {
-        let state = match user_state.0.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-
-        info!(
-            "Translating prompt from button '{}': {}",
-            button_id, english_phrase
-        );
-
-        // Set loading state for specific button
-        ui_state.dispatch(UIStateAction::PushTranslatingButton(button_id));
-        app_state.dispatch(AppStateAction::ClearError);
-
-        let ui_state = ui_state.clone();
-        let current_dialect = state.current_dialect();
-        let formality = state.formality;
-        let app_state = app_state.clone();
-
-        // Start async translation
-        wasm_bindgen_futures::spawn_local(async move {
-            match app_state
-                .translation_service
-                .translate_phrase(&english_phrase, current_dialect, Some(formality))
-                .await
-            {
-                Ok(translated) => {
-                    info!(
-                        "Translation success: '{}' -> '{}'",
-                        english_phrase, translated
-                    );
-                    ui_state.dispatch(UIStateAction::EnterInputPrompt(translated));
-                    ui_state.dispatch(UIStateAction::ClearTranslatingButton);
-                }
-                Err(e) => {
-                    error!("Translation failed: {}", e);
-                    // Fallback to English phrase on error
-                    ui_state.dispatch(UIStateAction::EnterInputPrompt(english_phrase));
-                    app_state.dispatch(AppStateAction::SetError(format!(
-                        "Translation failed, using English phrase: {}",
-                        e
-                    )));
-                    ui_state.dispatch(UIStateAction::ClearTranslatingButton);
-                }
-            }
-        });
-    })
-}
-
 pub fn on_tts_toggle(
     app_state: UseReducerHandle<AppState>,
     user_state: UseReducerHandle<OptionalUserState>,
