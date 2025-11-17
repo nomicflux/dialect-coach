@@ -54,7 +54,7 @@ impl UserState {
             tts_enabled: false,
             selected_language: Language::Spanish,
             selected_dialect: Dialect::SpanishCuban,
-            formality: Formality::Casual,
+            formality: Formality::Informal,
             teaching_mode: TeachingMode::Immersive,
             active_branch_id: initial_branch_id,
             branches: vec![initial_branch],
@@ -91,8 +91,8 @@ impl UserState {
     pub fn formality_display(&self) -> &'static str {
         match self.formality {
             Formality::Formal => "Formal",
-            Formality::Casual => "Casual",
-            Formality::DialectRich => "Dialect-Rich",
+            Formality::ProfessionalCasual => "Professional Casual",
+            Formality::Informal => "Informal",
             Formality::Slang => "Slang",
         }
     }
@@ -262,7 +262,7 @@ mod tests {
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
         MessageMetadata::at_now(
-            Formality::Casual,
+            Formality::Informal,
             TeachingMode::Immersive,
             Language::Spanish,
             Dialect::SpanishArgentinian,

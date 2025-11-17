@@ -115,7 +115,7 @@ mod tests {
         let config = DialectConfig {
             language: Language::Spanish,
             dialect: Dialect::SpanishMexican,
-            formality: Formality::Casual,
+            formality: Formality::Informal,
             teaching_mode: TeachingMode::Immersive,
             personality_traits: vec!["friendly".to_string()],
         };

@@ -490,10 +490,10 @@ pub fn dialect_features(dialect: Dialect) -> DialectWithFeatures {
 pub enum Formality {
     #[serde(rename = "formal")]
     Formal,
-    #[serde(rename = "casual")]
-    Casual,
-    #[serde(rename = "dialect_rich")]
-    DialectRich,
+    #[serde(rename = "professional_casual")]
+    ProfessionalCasual,
+    #[serde(rename = "informal")]
+    Informal,
     #[serde(rename = "slang")]
     Slang,
 }
@@ -504,8 +504,8 @@ impl Formality {
     pub fn id(&self) -> &'static str {
         match self {
             Self::Formal => "formal",
-            Self::Casual => "casual",
-            Self::DialectRich => "dialect_rich",
+            Self::ProfessionalCasual => "professional_casual",
+            Self::Informal => "informal",
             Self::Slang => "slang",
         }
     }
@@ -514,19 +514,19 @@ impl Formality {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Formal => "Formal",
-            Self::Casual => "Casual",
-            Self::DialectRich => "Dialect-Rich",
+            Self::ProfessionalCasual => "Professional Casual",
+            Self::Informal => "Informal",
             Self::Slang => "Slang",
         }
     }
 
-    /// Parse from serde ID format ("formal", "casual", "dialect_rich", "slang")
+    /// Parse from serde ID format ("formal", "professional_casual", "informal", "slang")
     /// This is the canonical string format for database storage and serialization
     pub fn from_id(id: &str) -> Option<Self> {
         match id {
             "formal" => Some(Self::Formal),
-            "casual" => Some(Self::Casual),
-            "dialect_rich" => Some(Self::DialectRich),
+            "professional_casual" => Some(Self::ProfessionalCasual),
+            "informal" => Some(Self::Informal),
             "slang" => Some(Self::Slang),
             _ => None,
         }
@@ -539,7 +539,7 @@ impl FromStr for Formality {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::from_id(s).ok_or_else(|| {
             format!(
-                "Invalid formality ID: '{}'. Use serde ID format like 'casual' or 'dialect_rich'.",
+                "Invalid formality ID: '{}'. Use serde ID format like 'informal' or 'professional_casual'.",
                 s
             )
         })
@@ -594,7 +594,7 @@ impl Default for DialectConfig {
         Self {
             language: Language::Spanish,
             dialect: Dialect::SpanishMexican,
-            formality: Formality::Casual,
+            formality: Formality::Informal,
             teaching_mode: TeachingMode::Immersive,
             personality_traits: vec!["friendly".to_string(), "patient".to_string()],
         }

@@ -194,7 +194,7 @@ mod tests {
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
         MessageMetadata::at_now(
-            Formality::Casual,
+            Formality::Informal,
             TeachingMode::Immersive,
             Language::Spanish,
             Dialect::SpanishArgentinian,
@@ -209,7 +209,7 @@ mod tests {
 
         assert_eq!(msg.metadata.session_id, session_id);
         assert_eq!(msg.get_content(), "Hello");
-        assert_eq!(msg.metadata.formality, Formality::Casual);
+        assert_eq!(msg.metadata.formality, Formality::Informal);
         assert_eq!(msg.metadata.teaching_mode, TeachingMode::Immersive);
     }
 
@@ -218,7 +218,7 @@ mod tests {
         let msg = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
 
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"formality\":\"casual\""));
+        assert!(json.contains("\"formality\":\"informal\""));
         assert!(json.contains("\"teaching_mode\":\"immersive\""));
 
         // Verify metadata fields are not null
