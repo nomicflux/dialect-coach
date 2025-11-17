@@ -12,6 +12,14 @@ pub enum MessageContent {
     AgentMessage { content: Box<AgentResponse> },
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum AIActionRequest {
+    StartConversation,
+    ContinueBranch { parent_message_id: Uuid },
+    ExplainMessage { message_id: Uuid },
+    TranslateMessage { message_id: Uuid },
+}
+
 /// A message in a chat session
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
@@ -624,5 +632,18 @@ mod tests {
 
         let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_ai_action_request_serialization() {
+        let action = AIActionRequest::StartConversation;
+        let json = serde_json::to_string(&action).unwrap();
+        assert!(json.contains("StartConversation"));
+
+        let action = AIActionRequest::ExplainMessage {
+            message_id: Uuid::new_v4(),
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        assert!(json.contains("ExplainMessage"));
     }
 }

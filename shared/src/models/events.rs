@@ -1,4 +1,4 @@
-use super::{Message, Participant};
+use super::{Message, Participant, AIActionRequest};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -30,6 +30,12 @@ pub enum WsEvent {
     RequestAgentResponse {
         session_id: Uuid,
         agent_id: String,
+    },
+
+    RequestAIAction {
+        session_id: Uuid,
+        user_id: Uuid,
+        action: AIActionRequest,
     },
 
     // Server -> Client
@@ -79,6 +85,7 @@ impl WsEvent {
                 | WsEvent::SendMessage { .. }
                 | WsEvent::UserTyping { .. }
                 | WsEvent::RequestAgentResponse { .. }
+                | WsEvent::RequestAIAction { .. }
         )
     }
 
@@ -95,6 +102,7 @@ impl WsEvent {
             | WsEvent::SendMessage { session_id, .. }
             | WsEvent::UserTyping { session_id }
             | WsEvent::RequestAgentResponse { session_id, .. }
+            | WsEvent::RequestAIAction { session_id, .. }
             | WsEvent::SessionJoined { session_id, .. } => Some(*session_id),
             _ => None,
         }
@@ -142,5 +150,18 @@ mod tests {
         };
 
         assert_eq!(error_event.session_id(), None);
+    }
+
+    #[test]
+    fn test_request_ai_action_event() {
+        use super::AIActionRequest;
+
+        let event = WsEvent::RequestAIAction {
+            session_id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            action: AIActionRequest::StartConversation,
+        };
+        assert!(event.is_client_event());
+        assert!(event.session_id().is_some());
     }
 }
