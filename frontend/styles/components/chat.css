@@ -47,6 +47,28 @@
   line-height: 1.6;
 }
 
+.auto-start-button {
+  background-color: var(--teal);
+  color: white;
+  border: none;
+  border-radius: var(--r-m);
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: var(--s-4);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.auto-start-button:hover {
+  background-color: var(--coral);
+}
+
+.auto-start-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .prompt-list {
   display: flex;
   flex-direction: column;

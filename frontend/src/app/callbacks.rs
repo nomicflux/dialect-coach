@@ -2,7 +2,9 @@ use crate::app::app_helpers::extract_learning_items;
 use crate::app::app_state::{
     AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
 };
-use dialect_coach_shared::{AuthCredentials, PastLearningItems, UserMessageWithContext};
+use dialect_coach_shared::{
+    AIActionRequest, AuthCredentials, PastLearningItems, UserMessageWithContext,
+};
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -264,5 +266,40 @@ pub fn on_signout_click(
         app_state.dispatch(AppStateAction::DestroySession);
         user_state.dispatch(UserStateAction::ClearUserState);
         app_state.dispatch(AppStateAction::ClearUser);
+    })
+}
+
+pub fn on_auto_start(
+    app_state: UseReducerHandle<AppState>,
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<()> {
+    Callback::from(move |_| {
+        let state = match user_state.0.as_ref() {
+            Some(s) => s,
+            None => return,
+        };
+
+        let session_id = app_state.session_id().unwrap_or_else(Uuid::new_v4);
+        let user_id = state.user_id;
+
+        info!("Sending auto-start conversation request");
+
+        match app_state.ws_service.borrow().send_ai_action(
+            AIActionRequest::StartConversation,
+            session_id,
+            user_id,
+        ) {
+            Ok(_) => {
+                info!("Auto-start request sent successfully");
+                app_state.dispatch(AppStateAction::SetLoading);
+            }
+            Err(e) => {
+                error!("Failed to send auto-start request: {}", e);
+                app_state.dispatch(AppStateAction::SetError(format!(
+                    "Failed to start conversation: {}",
+                    e
+                )));
+            }
+        }
     })
 }

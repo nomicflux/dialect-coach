@@ -20,6 +20,8 @@ pub struct ChatWindowProps {
     pub on_delete_message: Option<Callback<Uuid>>,
     #[prop_or_default]
     pub on_create_branch: Option<Callback<Uuid>>,
+    #[prop_or_default]
+    pub on_auto_start: Option<Callback<()>>,
 }
 
 fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool {
@@ -46,6 +48,24 @@ fn get_context_aware_prompt(prompt_type: &str, formality: Formality) -> &'static
         ("food", Formality::Slang) => "What's good to eat here?",
 
         _ => "Hello, how are you?", // fallback
+    }
+}
+
+fn render_auto_start_button(on_auto_start: &Option<Callback<()>>, is_loading: bool) -> Html {
+    match on_auto_start {
+        Some(callback) => {
+            let onclick = callback.reform(|_| ());
+            html! {
+                <button
+                    class="auto-start-button"
+                    onclick={onclick}
+                    disabled={is_loading}
+                >
+                    {"Let AI start the conversation"}
+                </button>
+            }
+        }
+        None => html! {},
     }
 }
 
@@ -78,6 +98,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                             <div class="empty-icon">{"💬"}</div>
                             <h3 class="empty-title">{"Ready to practice!"}</h3>
                             <p class="empty-body">{"Start a conversation to practice your dialect. Try one of these:"}</p>
+                            {render_auto_start_button(&props.on_auto_start, props.is_loading)}
                             <div class="prompt-list">
                                 <button class="prompt-item"
                                         disabled={props.translating_button.is_some()}

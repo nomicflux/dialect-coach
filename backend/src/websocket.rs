@@ -7,8 +7,8 @@ use axum::{
 };
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::{
-    AgentResponse, AgentUsageStats, Dialect, Message, MessageContent, MessageMetadata, UserMessage,
-    UserMessageWithContext, UserState, UserStateMessage,
+    AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Message, MessageContent,
+    MessageMetadata, UserMessage, UserMessageWithContext, UserState, UserStateMessage, WsEvent,
 };
 use futures_util::{SinkExt, StreamExt};
 use rig::completion::{
@@ -605,6 +605,98 @@ async fn call_agent_and_respond(
     }
 }
 
+fn build_action_context(action: &AIActionRequest, user_state: &UserState) -> String {
+    let dialect_name = user_state.current_dialect().name();
+    let formality_name = user_state.formality.name();
+
+    match action {
+        AIActionRequest::StartConversation => {
+            format!(
+                "[System: Please greet the user in {} with {} formality level]",
+                dialect_name, formality_name
+            )
+        }
+        AIActionRequest::ContinueBranch { .. } => "[System: Continue the conversation]".to_string(),
+        AIActionRequest::ExplainMessage { .. } => {
+            "[System: Explain your previous response in simpler terms]".to_string()
+        }
+        AIActionRequest::TranslateMessage { .. } => {
+            "[System: Provide word-by-word translation of your previous response]".to_string()
+        }
+    }
+}
+
+async fn process_ai_action_request(
+    state: &AppState,
+    user_id: Uuid,
+    action: AIActionRequest,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    tracing::info!(user_id = %user_id, "Processing AI action request: {:?}", action);
+
+    let user_state = match load_user_state_for_action(state, user_id).await {
+        Some(us) => us,
+        None => {
+            tracing::error!(user_id = %user_id, "User state not found for AI action");
+            return Err(());
+        }
+    };
+
+    let context = build_action_context(&action, &user_state);
+    let session_id = Uuid::new_v4();
+    let metadata = create_metadata_from_user_state(&user_state, session_id);
+
+    let user_message = Message::user_message(context, metadata.clone(), None);
+    let msg_with_context = create_ai_action_context(user_state.clone(), user_message.clone());
+
+    let dialect = metadata.dialect;
+    let context_vec = build_context_from_messages(&msg_with_context.context_messages);
+
+    call_agent_and_respond(state, &msg_with_context, dialect, &context_vec, tx).await
+}
+
+fn create_metadata_from_user_state(user_state: &UserState, session_id: Uuid) -> MessageMetadata {
+    MessageMetadata::at_now(
+        user_state.formality,
+        user_state.teaching_mode,
+        user_state.current_dialect().language(),
+        user_state.current_dialect(),
+        session_id,
+    )
+}
+
+async fn load_user_state_for_action(state: &AppState, user_id: Uuid) -> Option<UserState> {
+    match state.user_persistence.load(user_id).await {
+        Ok(Some(us)) => Some(us),
+        Ok(None) => None,
+        Err(e) => {
+            tracing::error!(user_id = %user_id, "Failed to load user state: {}", e);
+            None
+        }
+    }
+}
+
+fn create_ai_action_context(
+    user_state: UserState,
+    user_message: Message,
+) -> UserMessageWithContext {
+    use dialect_coach_shared::PastLearningItems;
+
+    UserMessageWithContext::new(
+        user_state.user_id,
+        user_message,
+        PastLearningItems {
+            mistakes: vec![],
+            explained: vec![],
+            translated: vec![],
+            exploratory: vec![],
+        },
+        user_state.active_branch_id,
+        user_state.get_active_branch_messages().into_iter().cloned().collect(),
+        user_state.learning_goals.clone(),
+    )
+}
+
 async fn process_user_message(
     state: &AppState,
     msg_with_context: UserMessageWithContext,
@@ -643,32 +735,8 @@ fn create_recv_task(
             if let WsMessage::Text(text) = msg {
                 tracing::debug!("Received message: {}", text);
 
-                match serde_json::from_str::<UserMessageWithContext>(&text) {
-                    Ok(msg_with_context) => {
-                        tracing::info!(
-                            "Valid message in session {}: '{}' with {} mistakes, {} explained, {} translated, {} exploratory",
-                            msg_with_context.message.metadata.session_id,
-                            msg_with_context.message.get_content(),
-                            msg_with_context.past_mistakes.len(),
-                            msg_with_context.past_explained.len(),
-                            msg_with_context.past_translated.len(),
-                            msg_with_context.past_exploratory.len()
-                        );
-
-                        if process_user_message(&state, msg_with_context, &tx)
-                            .await
-                            .is_err()
-                        {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Failed to parse message JSON: {}. Raw message: {}",
-                            e,
-                            text
-                        );
-                    }
+                if try_parse_ws_event(&text, &state, &tx).await.is_err() {
+                    try_parse_user_message(&text, &state, &tx).await;
                 }
             } else if let WsMessage::Close(_) = msg {
                 tracing::info!("Client closed connection: {}", conn_id);
@@ -676,6 +744,47 @@ fn create_recv_task(
             }
         }
     })
+}
+
+async fn try_parse_ws_event(
+    text: &str,
+    state: &AppState,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    match serde_json::from_str::<WsEvent>(text) {
+        Ok(WsEvent::RequestAIAction {
+            user_id, action, ..
+        }) => {
+            tracing::info!(user_id = %user_id, "Received AI action request: {:?}", action);
+            process_ai_action_request(state, user_id, action, tx).await
+        }
+        Ok(_) => {
+            tracing::warn!("Received unsupported WsEvent type");
+            Err(())
+        }
+        Err(_) => Err(()),
+    }
+}
+
+async fn try_parse_user_message(text: &str, state: &AppState, tx: &mpsc::UnboundedSender<String>) {
+    match serde_json::from_str::<UserMessageWithContext>(text) {
+        Ok(msg_with_context) => {
+            tracing::info!(
+                "Valid message in session {}: '{}' with {} mistakes, {} explained, {} translated, {} exploratory",
+                msg_with_context.message.metadata.session_id,
+                msg_with_context.message.get_content(),
+                msg_with_context.past_mistakes.len(),
+                msg_with_context.past_explained.len(),
+                msg_with_context.past_translated.len(),
+                msg_with_context.past_exploratory.len()
+            );
+
+            let _ = process_user_message(state, msg_with_context, tx).await;
+        }
+        Err(e) => {
+            tracing::error!("Failed to parse message JSON: {}. Raw message: {}", e, text);
+        }
+    }
 }
 
 /// WebSocket handler

@@ -1,4 +1,4 @@
-use dialect_coach_shared::{Message, UserMessageWithContext};
+use dialect_coach_shared::{AIActionRequest, Message, UserMessageWithContext, WsEvent};
 use futures_channel::mpsc;
 use futures_util::{SinkExt, StreamExt};
 use gloo_net::websocket::{Message as WsMessage, futures::WebSocket};
@@ -6,6 +6,7 @@ use gloo_timers::callback::Timeout;
 use log::{error, info, warn};
 use std::cell::RefCell;
 use std::rc::Rc;
+use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use yew::Callback;
 
@@ -330,7 +331,46 @@ impl WebSocketService {
         *self.reconnection_timeout.borrow_mut() = None;
         self.set_state(ConnectionState::Disconnected);
     }
+
+    /// Send an AI action request through the WebSocket
+    pub fn send_ai_action(
+        &self,
+        action: AIActionRequest,
+        session_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<(), String> {
+        let event = WsEvent::RequestAIAction {
+            session_id,
+            user_id,
+            action,
+        };
+        self.send_event(&event)
+    }
+
+    /// Send a WsEvent through the WebSocket
+    fn send_event(&self, event: &WsEvent) -> Result<(), String> {
+        let json = serde_json::to_string(event)
+            .map_err(|e| format!("Failed to serialize event: {}", e))?;
+
+        if !self.is_connected() {
+            info!("WebSocket not connected, queueing event");
+            self.pending_messages.borrow_mut().push(json);
+            return Ok(());
+        }
+
+        info!("Sending WsEvent: {} bytes", json.len());
+
+        if let Some(sender) = self.sender.borrow().as_ref() {
+            sender
+                .unbounded_send(json)
+                .map_err(|e| format!("Failed to send event: {}", e))?;
+            Ok(())
+        } else {
+            Err("WebSocket sender not initialized".to_string())
+        }
+    }
 }
+
 
 impl Drop for WebSocketService {
     fn drop(&mut self) {
