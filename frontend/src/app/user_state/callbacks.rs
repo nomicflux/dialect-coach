@@ -55,10 +55,10 @@ pub fn on_formality_change(user_state: UseReducerHandle<OptionalUserState>) -> C
             let value = select.value();
             let f = match value.as_str() {
                 "formal" => Formality::Formal,
-                "casual" => Formality::Casual,
-                "dialect_rich" => Formality::DialectRich,
+                "professional_casual" => Formality::ProfessionalCasual,
+                "informal" => Formality::Informal,
                 "slang" => Formality::Slang,
-                _ => Formality::Casual,
+                _ => Formality::Informal,
             };
             user_state.dispatch(UserStateAction::ChangeFormality(f));
         }
@@ -113,8 +113,8 @@ pub fn on_formality_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Ca
         };
         let formalities = [
             Formality::Formal,
-            Formality::Casual,
-            Formality::DialectRich,
+            Formality::ProfessionalCasual,
+            Formality::Informal,
             Formality::Slang,
         ];
         let current = state.formality;

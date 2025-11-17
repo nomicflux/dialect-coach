@@ -443,9 +443,9 @@ fn cycle_dialect(state: &UserState) -> Dialect {
 
 fn cycle_formality(current: Formality) -> Formality {
     match current {
-        Formality::Formal => Formality::Casual,
-        Formality::Casual => Formality::DialectRich,
-        Formality::DialectRich => Formality::Slang,
+        Formality::Formal => Formality::ProfessionalCasual,
+        Formality::ProfessionalCasual => Formality::Informal,
+        Formality::Informal => Formality::Slang,
         Formality::Slang => Formality::Formal,
     }
 }
@@ -743,7 +743,7 @@ mod tests {
         Message::user_message(
             "test".to_string(),
             MessageMetadata::at_now(
-                Formality::Casual,
+                Formality::Informal,
                 TeachingMode::Immersive,
                 Language::Spanish,
                 Dialect::SpanishMexican,
@@ -1204,9 +1204,9 @@ mod tests {
 
     #[test]
     fn test_cycle_formality() {
-        assert_eq!(cycle_formality(Formality::Formal), Formality::Casual);
-        assert_eq!(cycle_formality(Formality::Casual), Formality::DialectRich);
-        assert_eq!(cycle_formality(Formality::DialectRich), Formality::Slang);
+        assert_eq!(cycle_formality(Formality::Formal), Formality::ProfessionalCasual);
+        assert_eq!(cycle_formality(Formality::ProfessionalCasual), Formality::Informal);
+        assert_eq!(cycle_formality(Formality::Informal), Formality::Slang);
         assert_eq!(cycle_formality(Formality::Slang), Formality::Formal);
     }
 
@@ -1258,7 +1258,7 @@ mod tests {
         let action = UserStateAction::CycleFormality;
         state = apply_user_state_action(&state, action);
 
-        assert_eq!(state.formality, Formality::Casual);
+        assert_eq!(state.formality, Formality::ProfessionalCasual);
     }
 
     #[test]

@@ -49,12 +49,12 @@ fn speaker_desc(dialect: &Dialect, formality: &Formality) -> String {
             "You are a native {} speaker communicating in a professional, polite manner",
             dialect_name
         ),
-        Formality::Casual => format!(
-            "You are a native {} speaker speaking naturally and conversationally",
+        Formality::ProfessionalCasual => format!(
+            "You are a native {} speaker communicating in a professional yet casual manner",
             dialect_name
         ),
-        Formality::DialectRich => format!(
-            "You are a native {} speaker actively showcasing distinctive dialect features and expressions",
+        Formality::Informal => format!(
+            "You are a native {} speaker speaking naturally and conversationally",
             dialect_name
         ),
         Formality::Slang => format!(
@@ -126,7 +126,7 @@ pub fn format_examples_as_user_message(
         examples_text.push_str(&format!("\"{}\"\n", doc.content));
     }
 
-    examples_text.push_str(&"*** END OF DIALECT EXAMPLES ***".to_string());
+    examples_text.push_str("*** END OF DIALECT EXAMPLES ***");
 
     examples_text
 }
@@ -206,12 +206,12 @@ pub fn log_response_success(
 
 fn get_sample_formalities(formality: Formality) -> Vec<Formality> {
     match formality {
-        Formality::Formal => vec![Formality::Formal, Formality::Casual],
-        Formality::Casual => vec![Formality::Casual, Formality::DialectRich],
-        Formality::DialectRich => {
-            vec![Formality::Casual, Formality::DialectRich, Formality::Slang]
+        Formality::Formal => vec![Formality::Formal, Formality::ProfessionalCasual],
+        Formality::ProfessionalCasual => {
+            vec![Formality::ProfessionalCasual, Formality::Informal]
         }
-        Formality::Slang => vec![Formality::Slang, Formality::DialectRich],
+        Formality::Informal => vec![Formality::Informal, Formality::Slang],
+        Formality::Slang => vec![Formality::Slang, Formality::Informal],
     }
 }
 
@@ -282,8 +282,8 @@ fn build_system_content(
 ) -> String {
     let formality_label = match formality {
         Formality::Formal => "FORMAL",
-        Formality::Casual => "CASUAL",
-        Formality::DialectRich => "DIALECT-RICH",
+        Formality::ProfessionalCasual => "PROFESSIONAL-CASUAL",
+        Formality::Informal => "INFORMAL",
         Formality::Slang => "SLANG",
     };
 
@@ -820,19 +820,19 @@ mod tests {
     #[test]
     fn test_get_sample_formalities() {
         let formal = get_sample_formalities(Formality::Formal);
-        assert_eq!(formal, vec![Formality::Formal, Formality::Casual]);
+        assert_eq!(formal, vec![Formality::Formal, Formality::ProfessionalCasual]);
 
-        let casual = get_sample_formalities(Formality::Casual);
-        assert_eq!(casual, vec![Formality::Casual, Formality::DialectRich]);
-
-        let dialect_rich = get_sample_formalities(Formality::DialectRich);
+        let professional_casual = get_sample_formalities(Formality::ProfessionalCasual);
         assert_eq!(
-            dialect_rich,
-            vec![Formality::Casual, Formality::DialectRich, Formality::Slang]
+            professional_casual,
+            vec![Formality::ProfessionalCasual, Formality::Informal]
         );
 
+        let informal = get_sample_formalities(Formality::Informal);
+        assert_eq!(informal, vec![Formality::Informal, Formality::Slang]);
+
         let slang = get_sample_formalities(Formality::Slang);
-        assert_eq!(slang, vec![Formality::Slang, Formality::DialectRich]);
+        assert_eq!(slang, vec![Formality::Slang, Formality::Informal]);
     }
 
     #[test]
@@ -868,14 +868,14 @@ mod tests {
     #[test]
     fn test_group_examples_by_formality() {
         let dialect = Dialect::SpanishMexican;
-        let doc1 = DialectDocument::new("Hello".to_string(), dialect, Some(Formality::Casual));
+        let doc1 = DialectDocument::new("Hello".to_string(), dialect, Some(Formality::Informal));
         let doc2 = DialectDocument::new("Hola".to_string(), dialect, Some(Formality::Formal));
         let doc3 = DialectDocument::new("Hey".to_string(), dialect, None);
-        let doc4 = DialectDocument::new("Hi".to_string(), dialect, Some(Formality::Casual));
+        let doc4 = DialectDocument::new("Hi".to_string(), dialect, Some(Formality::Informal));
 
         let examples = vec![doc1, doc2, doc3, doc4];
         let (primary, secondary) =
-            group_examples_by_formality(&examples, Formality::Casual, 10, 10);
+            group_examples_by_formality(&examples, Formality::Informal, 10, 10);
 
         assert_eq!(primary.len(), 3);
         assert_eq!(secondary.len(), 1);
@@ -890,18 +890,18 @@ mod tests {
             examples.push(DialectDocument::new(
                 format!("Example {}", i),
                 dialect,
-                Some(Formality::Casual),
+                Some(Formality::Informal),
             ));
         }
 
-        let (primary, _secondary) = group_examples_by_formality(&examples, Formality::Casual, 5, 5);
+        let (primary, _secondary) = group_examples_by_formality(&examples, Formality::Informal, 5, 5);
         assert_eq!(primary.len(), 5);
     }
 
     #[test]
     fn test_build_system_content_debug() {
         let dialect = Dialect::SpanishMexican;
-        let formality = Formality::Casual;
+        let formality = Formality::Informal;
         let teaching_mode = TeachingMode::Debug;
         let learning_goals = vec![];
         let past_learning_items = PastLearningItems::default();
@@ -923,7 +923,7 @@ mod tests {
     #[test]
     fn test_build_system_content_normal() {
         let dialect = Dialect::SpanishArgentinian;
-        let formality = Formality::Casual;
+        let formality = Formality::Informal;
         let teaching_mode = TeachingMode::Immersive;
         let learning_goals = vec!["Goal 1".to_string()];
         let past_learning_items = PastLearningItems::default();
@@ -939,7 +939,7 @@ mod tests {
         assert!(content.contains("# YOUR ROLE"));
         assert!(content.contains("MIMIC THE PATTERNS"));
         assert!(content.contains("MAINTAIN FORMALITY"));
-        assert!(content.contains("casual"));
+        assert!(content.contains("informal"));
         assert!(content.contains("# LEARNING GOALS"));
         assert!(content.contains("Goal 1"));
     }
@@ -947,7 +947,7 @@ mod tests {
     #[test]
     fn test_build_conversation_history_with_examples() {
         let dialect = Dialect::SpanishMexican;
-        let doc1 = DialectDocument::new("Hello".to_string(), dialect, Some(Formality::Casual));
+        let doc1 = DialectDocument::new("Hello".to_string(), dialect, Some(Formality::Informal));
         let doc2 = DialectDocument::new("Hola".to_string(), dialect, Some(Formality::Formal));
 
         let conversation_history = vec![RigMessage::User {

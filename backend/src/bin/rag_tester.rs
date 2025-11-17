@@ -70,19 +70,19 @@ fn get_test_dialects() -> Vec<(Dialect, Formality, &'static str)> {
     vec![
         (
             Dialect::SpanishArgentinian,
-            Formality::DialectRich,
+            Formality::Informal,
             "¿Che, qué hacés?",
         ),
         (
             Dialect::SpanishCuban,
-            Formality::DialectRich,
+            Formality::Informal,
             "¿Qué bola asere?",
         ),
-        (Dialect::ArabicLevantine, Formality::DialectRich, "كيفك؟"),
-        (Dialect::ArabicGulf, Formality::DialectRich, "شلونك؟"),
+        (Dialect::ArabicLevantine, Formality::Informal, "كيفك؟"),
+        (Dialect::ArabicGulf, Formality::Informal, "شلونك؟"),
         (
             Dialect::FrenchQuebecois,
-            Formality::DialectRich,
+            Formality::Informal,
             "Comment ça va?",
         ),
     ]

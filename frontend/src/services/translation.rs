@@ -85,12 +85,12 @@ mod tests {
         let request = TranslateRequest {
             phrase: "Hello, how are you?".to_string(),
             dialect: Dialect::SpanishMexican.id().to_string(),
-            formality: Some(Formality::Casual.id().to_string()),
+            formality: Some(Formality::Informal.id().to_string()),
         };
 
         let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains("spanish_mexican"));
-        assert!(json.contains("casual"));
+        assert!(json.contains("informal"));
         assert!(json.contains("Hello, how are you?"));
     }
 
@@ -122,8 +122,8 @@ mod tests {
     fn test_request_with_all_formalities() {
         let test_cases = vec![
             (Formality::Formal, "formal"),
-            (Formality::Casual, "casual"),
-            (Formality::DialectRich, "dialect_rich"),
+            (Formality::ProfessionalCasual, "professional_casual"),
+            (Formality::Informal, "informal"),
             (Formality::Slang, "slang"),
         ];
 
@@ -173,8 +173,8 @@ mod tests {
 
         // Test that formality.id() returns canonical format
         assert_eq!(Formality::Formal.id(), "formal");
-        assert_eq!(Formality::Casual.id(), "casual");
-        assert_eq!(Formality::DialectRich.id(), "dialect_rich");
+        assert_eq!(Formality::ProfessionalCasual.id(), "professional_casual");
+        assert_eq!(Formality::Informal.id(), "informal");
         assert_eq!(Formality::Slang.id(), "slang");
     }
 }

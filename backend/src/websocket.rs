@@ -1032,7 +1032,7 @@ mod tests {
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
         MessageMetadata::at_now(
-            Formality::Casual,
+            Formality::Informal,
             TeachingMode::Immersive,
             Language::Spanish,
             Dialect::SpanishArgentinian,
@@ -1067,7 +1067,7 @@ mod tests {
 
         assert_eq!(error_msg.get_content(), "Test error");
         assert_eq!(error_msg.metadata.session_id, session_id);
-        assert_eq!(error_msg.metadata.formality, Formality::Casual);
+        assert_eq!(error_msg.metadata.formality, Formality::Informal);
         assert_eq!(error_msg.metadata.teaching_mode, TeachingMode::Immersive);
     }
 
@@ -1103,7 +1103,7 @@ mod tests {
 
         assert_eq!(msg.get_content(), "Test response");
         assert_eq!(msg.metadata.session_id, session_id);
-        assert_eq!(msg.metadata.formality, Formality::Casual);
+        assert_eq!(msg.metadata.formality, Formality::Informal);
         assert_eq!(msg.metadata.teaching_mode, TeachingMode::Immersive);
         assert_eq!(msg.parent_id, Some(parent_id));
     }

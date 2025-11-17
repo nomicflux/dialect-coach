@@ -63,7 +63,7 @@ pub async fn translate_handler(
             }
         }
     } else {
-        Formality::Casual
+        Formality::Informal
     };
 
     // Translate the phrase
@@ -107,8 +107,8 @@ async fn translate_phrase(
     // Create a specialized translation prompt
     let formality_desc = match formality {
         Formality::Formal => "formal and polite",
-        Formality::Casual => "casual and conversational",
-        Formality::DialectRich => "rich with distinctive dialect features",
+        Formality::ProfessionalCasual => "professional yet casual",
+        Formality::Informal => "casual and conversational",
         Formality::Slang => "informal with slang and colloquialisms",
     };
 
@@ -139,7 +139,7 @@ mod tests {
         let request = TranslateRequest {
             phrase: "Hello".to_string(),
             dialect: "spanish_mexican".to_string(),
-            formality: Some("casual".to_string()),
+            formality: Some("informal".to_string()),
         };
 
         assert!(request.dialect.parse::<Dialect>().is_ok());
@@ -157,7 +157,7 @@ mod tests {
         );
         assert_eq!(
             request.formality.unwrap().parse::<Formality>().unwrap(),
-            Formality::Casual
+            Formality::Informal
         );
 
         // Test invalid dialect parsing
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn test_all_supported_formalities() {
         // Test all formality variants can be parsed using canonical format
-        let test_cases = vec!["formal", "casual", "dialect_rich", "slang"];
+        let test_cases = vec!["formal", "professional_casual", "informal", "slang"];
 
         for formality_str in test_cases {
             let result = formality_str.parse::<Formality>();
@@ -207,11 +207,11 @@ mod tests {
     fn test_translation_prompt_generation() {
         let phrase = "Hello, how are you?";
         let dialect = Dialect::SpanishMexican;
-        let formality = Formality::Casual;
+        let formality = Formality::Informal;
 
         // Test prompt generation doesn't panic and includes expected elements
         let formality_desc = match formality {
-            Formality::Casual => "casual and conversational",
+            Formality::Informal => "casual and conversational",
             _ => panic!("Unexpected formality in test"),
         };
 

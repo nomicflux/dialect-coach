@@ -31,18 +31,18 @@ fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool
 fn get_context_aware_prompt(prompt_type: &str, formality: Formality) -> &'static str {
     match (prompt_type, formality) {
         ("greeting", Formality::Formal) => "Good day, how are you doing?",
-        ("greeting", Formality::Casual) => "Hello, how are you?",
-        ("greeting", Formality::DialectRich) => "Hey there, what's up?",
+        ("greeting", Formality::ProfessionalCasual) => "Hello, how are you?",
+        ("greeting", Formality::Informal) => "Hey there, what's up?",
         ("greeting", Formality::Slang) => "Yo, what's good?",
 
         ("weather", Formality::Formal) => "What is the weather forecast for today?",
-        ("weather", Formality::Casual) => "What's the weather like today?",
-        ("weather", Formality::DialectRich) => "How's it looking outside?",
+        ("weather", Formality::ProfessionalCasual) => "What's the weather like today?",
+        ("weather", Formality::Informal) => "How's it looking outside?",
         ("weather", Formality::Slang) => "What's the weather doing?",
 
         ("food", Formality::Formal) => "I would like to place an order, please",
-        ("food", Formality::Casual) => "I'd like to order some food",
-        ("food", Formality::DialectRich) => "Can I get something to eat?",
+        ("food", Formality::ProfessionalCasual) => "I'd like to order some food",
+        ("food", Formality::Informal) => "Can I get something to eat?",
         ("food", Formality::Slang) => "What's good to eat here?",
 
         _ => "Hello, how are you?", // fallback
@@ -96,8 +96,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                     } else {
                                         match formality {
                                             Formality::Formal => "Good day, how are you doing?",
-                                            Formality::Casual => "Hello, how are you?",
-                                            Formality::DialectRich => "Hey there, what's up?",
+                                            Formality::ProfessionalCasual => "Hello, how are you?",
+                                            Formality::Informal => "Hey there, what's up?",
                                             Formality::Slang => "Yo, what's good?",
                                         }
                                     }}
@@ -119,8 +119,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                     } else {
                                         match formality {
                                             Formality::Formal => "What is the weather forecast for today?",
-                                            Formality::Casual => "What's the weather like today?",
-                                            Formality::DialectRich => "How's it looking outside?",
+                                            Formality::ProfessionalCasual => "What's the weather like today?",
+                                            Formality::Informal => "How's it looking outside?",
                                             Formality::Slang => "What's the weather doing?",
                                         }
                                     }}
@@ -142,8 +142,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                     } else {
                                         match formality {
                                             Formality::Formal => "I would like to place an order, please",
-                                            Formality::Casual => "I'd like to order some food",
-                                            Formality::DialectRich => "Can I get something to eat?",
+                                            Formality::ProfessionalCasual => "I'd like to order some food",
+                                            Formality::Informal => "Can I get something to eat?",
                                             Formality::Slang => "What's good to eat here?",
                                         }
                                     }}
