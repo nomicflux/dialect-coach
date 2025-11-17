@@ -94,10 +94,10 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 user_state.dispatch(UserStateAction::ToggleTTS);
                             }
                             ShortcutAction::ReplayLastMessage => {
-                                if let Some(state) = user_state.0.as_ref() {
-                                    if let Some(msg) = state.get_active_branch_messages().last() {
-                                        on_replay_message(app_state.clone()).emit((*msg).clone());
-                                    }
+                                if let Some(state) = user_state.0.as_ref()
+                                    && let Some(msg) = state.get_active_branch_messages().last()
+                                {
+                                    on_replay_message(app_state.clone()).emit((*msg).clone());
                                 }
                             }
                             ShortcutAction::CycleDialect => {

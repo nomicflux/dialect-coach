@@ -58,7 +58,7 @@ mod tests {
             DialectDocument::new(
                 "Test content 2".to_string(),
                 Dialect::ArabicEgyptian,
-                Some(Formality::Casual),
+                Some(Formality::Informal),
             ),
             DialectDocument::new("Test content 3".to_string(), Dialect::ArabicEgyptian, None),
         ];
@@ -100,9 +100,9 @@ mod tests {
 
         let formality_dist = &metadata["formality_distribution"];
         assert_eq!(formality_dist["formal"], 1);
-        assert_eq!(formality_dist["casual"], 1);
+        assert_eq!(formality_dist["informal"], 1);
         assert_eq!(formality_dist["unspecified"], 1);
-        assert_eq!(formality_dist["dialect_rich"], 0);
+        assert_eq!(formality_dist["professional_casual"], 0);
         assert_eq!(formality_dist["slang"], 0);
     }
 
@@ -149,12 +149,12 @@ mod tests {
             DialectDocument::new(
                 "Test".to_string(),
                 Dialect::ArabicEgyptian,
-                Some(Formality::Casual),
+                Some(Formality::Informal),
             ),
             DialectDocument::new(
                 "Test".to_string(),
                 Dialect::ArabicEgyptian,
-                Some(Formality::DialectRich),
+                Some(Formality::ProfessionalCasual),
             ),
             DialectDocument::new(
                 "Test".to_string(),
@@ -168,8 +168,8 @@ mod tests {
         let result = count_formality(&documents);
 
         assert_eq!(result["formal"], 2);
-        assert_eq!(result["casual"], 1);
-        assert_eq!(result["dialect_rich"], 1);
+        assert_eq!(result["informal"], 1);
+        assert_eq!(result["professional_casual"], 1);
         assert_eq!(result["slang"], 1);
         assert_eq!(result["unspecified"], 2);
     }
@@ -180,8 +180,8 @@ mod tests {
         let result = count_formality(&documents);
 
         assert_eq!(result["formal"], 0);
-        assert_eq!(result["casual"], 0);
-        assert_eq!(result["dialect_rich"], 0);
+        assert_eq!(result["informal"], 0);
+        assert_eq!(result["professional_casual"], 0);
         assert_eq!(result["slang"], 0);
         assert_eq!(result["unspecified"], 0);
     }
@@ -257,7 +257,7 @@ mod tests {
             DialectDocument::new(
                 "Test content 2".to_string(),
                 Dialect::ArabicEgyptian,
-                Some(Formality::DialectRich),
+                Some(Formality::ProfessionalCasual),
             ),
         ];
 
@@ -360,12 +360,12 @@ mod tests {
             DialectDocument::new(
                 "Test".to_string(),
                 Dialect::ArabicEgyptian,
-                Some(Formality::Casual),
+                Some(Formality::Informal),
             ),
             DialectDocument::new(
                 "Test".to_string(),
                 Dialect::ArabicEgyptian,
-                Some(Formality::DialectRich),
+                Some(Formality::ProfessionalCasual),
             ),
             DialectDocument::new(
                 "Test".to_string(),
@@ -380,16 +380,16 @@ mod tests {
         // Verify JSON structure
         assert!(result.is_object());
         assert_eq!(result["formal"], 1);
-        assert_eq!(result["casual"], 1);
-        assert_eq!(result["dialect_rich"], 1);
+        assert_eq!(result["informal"], 1);
+        assert_eq!(result["professional_casual"], 1);
         assert_eq!(result["slang"], 1);
         assert_eq!(result["unspecified"], 1);
 
         // Verify all expected keys exist
         let obj = result.as_object().unwrap();
         assert!(obj.contains_key("formal"));
-        assert!(obj.contains_key("casual"));
-        assert!(obj.contains_key("dialect_rich"));
+        assert!(obj.contains_key("informal"));
+        assert!(obj.contains_key("professional_casual"));
         assert!(obj.contains_key("slang"));
         assert!(obj.contains_key("unspecified"));
     }

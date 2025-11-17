@@ -296,8 +296,8 @@ fn test_parse_formality_variants() {
     use dialect_coach_shared::Formality;
     assert_eq!(docs[0].formality, Some(Formality::Formal));
     assert_eq!(docs[1].formality, Some(Formality::Formal));
-    assert_eq!(docs[2].formality, Some(Formality::Casual));
-    assert_eq!(docs[3].formality, Some(Formality::Casual)); // informal -> casual
+    assert_eq!(docs[2].formality, Some(Formality::Informal)); // casual -> informal
+    assert_eq!(docs[3].formality, Some(Formality::Informal)); // informal -> informal
     assert_eq!(docs[4].formality, Some(Formality::Slang));
     assert_eq!(docs[5].formality, Some(Formality::Slang));
     assert!(docs[6].formality.is_none()); // unknown

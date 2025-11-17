@@ -116,10 +116,10 @@ pub enum TeachingMode {
 }
 
 pub enum Formality {
-    Formal,       // Polite, proper grammar
-    Casual,       // Everyday conversation
-    DialectRich,  // Heavy dialect markers
-    Slang,        // Informal/street language
+    Formal,             // Polite, proper grammar
+    ProfessionalCasual, // Professional yet casual
+    Informal,           // Everyday conversation
+    Slang,              // Informal/street language
 }
 ```
 

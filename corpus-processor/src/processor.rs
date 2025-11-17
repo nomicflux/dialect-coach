@@ -314,16 +314,16 @@ pub fn save_documents(documents: &[DialectDocument], output_path: &str) -> Resul
 /// Count formality distribution
 pub fn count_formality(documents: &[DialectDocument]) -> serde_json::Value {
     let mut formal = 0;
-    let mut casual = 0;
-    let mut dialect_rich = 0;
+    let mut professional_casual = 0;
+    let mut informal = 0;
     let mut slang = 0;
     let mut unspecified = 0;
 
     for doc in documents {
         match doc.formality {
             Some(dialect_coach_shared::Formality::Formal) => formal += 1,
-            Some(dialect_coach_shared::Formality::Casual) => casual += 1,
-            Some(dialect_coach_shared::Formality::DialectRich) => dialect_rich += 1,
+            Some(dialect_coach_shared::Formality::ProfessionalCasual) => professional_casual += 1,
+            Some(dialect_coach_shared::Formality::Informal) => informal += 1,
             Some(dialect_coach_shared::Formality::Slang) => slang += 1,
             None => unspecified += 1,
         }
@@ -331,8 +331,8 @@ pub fn count_formality(documents: &[DialectDocument]) -> serde_json::Value {
 
     serde_json::json!({
         "formal": formal,
-        "casual": casual,
-        "dialect_rich": dialect_rich,
+        "professional_casual": professional_casual,
+        "informal": informal,
         "slang": slang,
         "unspecified": unspecified,
     })

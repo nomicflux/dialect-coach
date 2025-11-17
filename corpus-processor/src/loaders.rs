@@ -231,7 +231,8 @@ fn load_json_file(path: &Path, dialect: Dialect) -> Result<Vec<DialectDocument>>
 fn parse_formality(s: &str) -> Option<Formality> {
     match s.trim().to_lowercase().as_str() {
         "formal" => Some(Formality::Formal),
-        "casual" | "informal" => Some(Formality::Casual),
+        "professional_casual" => Some(Formality::ProfessionalCasual),
+        "informal" | "casual" => Some(Formality::Informal),
         "slang" => Some(Formality::Slang),
         _ => None,
     }
@@ -244,7 +245,18 @@ mod tests {
     #[test]
     fn test_parse_formality() {
         assert!(matches!(parse_formality("formal"), Some(Formality::Formal)));
-        assert!(matches!(parse_formality("Casual"), Some(Formality::Casual)));
+        assert!(matches!(
+            parse_formality("professional_casual"),
+            Some(Formality::ProfessionalCasual)
+        ));
+        assert!(matches!(
+            parse_formality("informal"),
+            Some(Formality::Informal)
+        ));
+        assert!(matches!(
+            parse_formality("casual"),
+            Some(Formality::Informal)
+        ));
         assert!(matches!(parse_formality("SLANG"), Some(Formality::Slang)));
         assert!(parse_formality("unknown").is_none());
     }
