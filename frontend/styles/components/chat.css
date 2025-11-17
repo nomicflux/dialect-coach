@@ -476,3 +476,38 @@
   font-size: 1.15em;
   line-height: 1.8;
 }
+
+/* Message action buttons */
+.message-actions {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.action-button {
+  font-size: var(--text-xs);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-s);
+  border: 1px solid var(--ink-faint);
+  background-color: var(--surface-muted);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.action-button:hover {
+  background-color: var(--surface);
+  border-color: var(--ink-soft);
+}
+
+.explain-button:hover {
+  background-color: var(--teal-tint);
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.translate-button:hover {
+  background-color: var(--coral-tint);
+  border-color: var(--coral);
+  color: var(--coral);
+}

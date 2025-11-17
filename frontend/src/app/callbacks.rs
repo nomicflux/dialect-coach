@@ -338,3 +338,79 @@ pub fn on_continue_branch(
         }
     })
 }
+
+pub fn on_explain_message(
+    app_state: UseReducerHandle<AppState>,
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<Uuid> {
+    Callback::from(move |message_id: Uuid| {
+        let state = match user_state.0.as_ref() {
+            Some(s) => s,
+            None => {
+                error!("No user state for explain message");
+                return;
+            }
+        };
+
+        let session_id = app_state.session_id().unwrap_or_else(Uuid::new_v4);
+        let user_id = state.user_id;
+
+        info!("Sending explain message request");
+
+        match app_state.ws_service.borrow().send_ai_action(
+            AIActionRequest::ExplainMessage { message_id },
+            session_id,
+            user_id,
+        ) {
+            Ok(_) => {
+                info!("Explain message request sent successfully");
+                app_state.dispatch(AppStateAction::SetLoading);
+            }
+            Err(e) => {
+                error!("Failed to send explain message request: {}", e);
+                app_state.dispatch(AppStateAction::SetError(format!(
+                    "Failed to explain message: {}",
+                    e
+                )));
+            }
+        }
+    })
+}
+
+pub fn on_translate_message(
+    app_state: UseReducerHandle<AppState>,
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<Uuid> {
+    Callback::from(move |message_id: Uuid| {
+        let state = match user_state.0.as_ref() {
+            Some(s) => s,
+            None => {
+                error!("No user state for translate message");
+                return;
+            }
+        };
+
+        let session_id = app_state.session_id().unwrap_or_else(Uuid::new_v4);
+        let user_id = state.user_id;
+
+        info!("Sending translate message request");
+
+        match app_state.ws_service.borrow().send_ai_action(
+            AIActionRequest::TranslateMessage { message_id },
+            session_id,
+            user_id,
+        ) {
+            Ok(_) => {
+                info!("Translate message request sent successfully");
+                app_state.dispatch(AppStateAction::SetLoading);
+            }
+            Err(e) => {
+                error!("Failed to send translate message request: {}", e);
+                app_state.dispatch(AppStateAction::SetError(format!(
+                    "Failed to translate message: {}",
+                    e
+                )));
+            }
+        }
+    })
+}

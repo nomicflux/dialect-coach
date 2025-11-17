@@ -24,6 +24,10 @@ pub struct ChatWindowProps {
     pub on_auto_start: Option<Callback<()>>,
     #[prop_or_default]
     pub on_continue_branch: Option<Callback<Uuid>>,
+    #[prop_or_default]
+    pub on_explain: Option<Callback<Uuid>>,
+    #[prop_or_default]
+    pub on_translate: Option<Callback<Uuid>>,
 }
 
 fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool {
@@ -192,6 +196,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         on_delete={props.on_delete_message.clone()}
                                         on_create_branch={props.on_create_branch.clone()}
                                         has_child_branches={has_children}
+                                        on_explain={props.on_explain.clone()}
+                                        on_translate={props.on_translate.clone()}
                                     />
                                 }
                             })}

@@ -15,6 +15,10 @@ pub struct MessageBubbleProps {
     pub on_create_branch: Option<Callback<Uuid>>,
     #[prop_or(false)]
     pub has_child_branches: bool,
+    #[prop_or_default]
+    pub on_explain: Option<Callback<Uuid>>,
+    #[prop_or_default]
+    pub on_translate: Option<Callback<Uuid>>,
 }
 
 fn render_delete_button(on_delete: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
@@ -100,6 +104,47 @@ fn render_branch_button(
     }
 }
 
+fn render_action_buttons(
+    on_explain: &Option<Callback<Uuid>>,
+    on_translate: &Option<Callback<Uuid>>,
+    msg_id: Uuid,
+) -> Html {
+    if on_explain.is_none() && on_translate.is_none() {
+        return html! {};
+    }
+
+    html! {
+        <div class="message-actions">
+            {render_explain_button(on_explain, msg_id)}
+            {render_translate_button(on_translate, msg_id)}
+        </div>
+    }
+}
+
+fn render_explain_button(on_explain: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
+    if let Some(callback) = on_explain {
+        let cb = callback.clone();
+        let onclick = Callback::from(move |_| cb.emit(msg_id));
+        html! {
+            <button class="action-button explain-button" {onclick}>{"Explain"}</button>
+        }
+    } else {
+        html! {}
+    }
+}
+
+fn render_translate_button(on_translate: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
+    if let Some(callback) = on_translate {
+        let cb = callback.clone();
+        let onclick = Callback::from(move |_| cb.emit(msg_id));
+        html! {
+            <button class="action-button translate-button" {onclick}>{"Translate"}</button>
+        }
+    } else {
+        html! {}
+    }
+}
+
 #[function_component(MessageBubble)]
 pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     let (msg_class, avatar_class, bubble_class, avatar_text) =
@@ -117,10 +162,14 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                         {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
                     </div>
                     <div class="message-content" {lang}>{&props.message.get_content()}</div>
+                    {if props.message.is_agent() {
+                        render_action_buttons(&props.on_explain, &props.on_translate, props.message.id)
+                    } else {
+                        html! {}
+                    }}
                     <div class="message-time">{props.message.metadata.timestamp.to_rfc3339()}</div>
                 </div>
             </div>
-            // Branch point - displayed under the message node
             {render_branch_button(&props.on_create_branch, props.message.id, props.has_child_branches)}
         </>
     }
