@@ -22,3 +22,4 @@
 - change "empty" for new/root branches
   - still broken: deleting conversation doesn't delete 
 - keyboard shortcuts between branches
+  - still need shortcuts to play sound
