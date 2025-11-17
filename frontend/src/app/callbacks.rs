@@ -303,3 +303,38 @@ pub fn on_auto_start(
         }
     })
 }
+
+pub fn on_continue_branch(
+    app_state: UseReducerHandle<AppState>,
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<Uuid> {
+    Callback::from(move |parent_message_id: Uuid| {
+        let state = match user_state.0.as_ref() {
+            Some(s) => s,
+            None => return,
+        };
+
+        let session_id = app_state.session_id().unwrap_or_else(Uuid::new_v4);
+        let user_id = state.user_id;
+
+        info!("Sending continue branch request");
+
+        match app_state.ws_service.borrow().send_ai_action(
+            AIActionRequest::ContinueBranch { parent_message_id },
+            session_id,
+            user_id,
+        ) {
+            Ok(_) => {
+                info!("Continue branch request sent successfully");
+                app_state.dispatch(AppStateAction::SetLoading);
+            }
+            Err(e) => {
+                error!("Failed to send continue branch request: {}", e);
+                app_state.dispatch(AppStateAction::SetError(format!(
+                    "Failed to continue conversation: {}",
+                    e
+                )));
+            }
+        }
+    })
+}

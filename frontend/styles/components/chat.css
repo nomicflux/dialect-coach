@@ -428,6 +428,28 @@
   border-color: var(--coral);
 }
 
+/* Continue branch button */
+.continue-branch-container {
+  display: flex;
+  justify-content: center;
+  padding: var(--s-3);
+}
+
+.continue-button {
+  background-color: var(--slate-600, #475569);
+  color: white;
+  border: none;
+  border-radius: var(--r-m);
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.continue-button:hover {
+  background-color: var(--slate-700, #334155);
+}
+
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
   .message,

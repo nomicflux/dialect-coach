@@ -1,4 +1,4 @@
-use crate::app::app_callbacks::{on_auto_start, on_prompt_click, on_send_message, on_tts_toggle};
+use crate::app::app_callbacks::{on_auto_start, on_continue_branch, on_prompt_click, on_send_message, on_tts_toggle};
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
 use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction, UserStateAction};
@@ -163,6 +163,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_state.clone()))}
                         on_create_branch={Some(on_create_branch(user_state.clone()))}
                         on_auto_start={Some(on_auto_start(app_state.clone(), user_state.clone()))}
+                        on_continue_branch={Some(on_continue_branch(app_state.clone(), user_state.clone()))}
                     />
                     <SpeechControls
                         on_speech={on_send_message(app_state.clone(), user_state.clone())}
