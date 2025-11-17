@@ -8,66 +8,111 @@ pub enum ShortcutAction {
     ToggleUsageFooter,
     TogglePracticeSettings,
     ToggleAutoSpeak,
+    ReplayLastMessage,
+    CycleDialect,
+    CycleTeachingMode,
+    CycleFormality,
+    FocusGoalInput,
+    FocusChatInput,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeyBinding {
-    pub key: String,
+    pub code: String,
     pub ctrl: bool,
-    pub alt: bool,
+    pub shift: bool,
 }
 
 impl KeyBinding {
-    pub fn with_ctrl_alt(key: &str) -> Self {
+    pub fn with_ctrl_shift(code: &str) -> Self {
         Self {
-            key: key.to_string(),
+            code: code.to_string(),
             ctrl: true,
-            alt: true,
+            shift: true,
         }
     }
 }
 
 pub fn default_shortcuts() -> HashMap<ShortcutAction, KeyBinding> {
     let mut map = HashMap::new();
-    map.insert(ShortcutAction::ToggleSidebar, KeyBinding::with_ctrl_alt("["));
+    map.insert(
+        ShortcutAction::ToggleSidebar,
+        KeyBinding::with_ctrl_shift("BracketLeft"),
+    );
     map.insert(
         ShortcutAction::ToggleLearningPanel,
-        KeyBinding::with_ctrl_alt("]"),
+        KeyBinding::with_ctrl_shift("BracketRight"),
     );
     map.insert(
         ShortcutAction::ToggleUsageFooter,
-        KeyBinding::with_ctrl_alt("u"),
+        KeyBinding::with_ctrl_shift("KeyU"),
     );
     map.insert(
         ShortcutAction::TogglePracticeSettings,
-        KeyBinding::with_ctrl_alt("p"),
+        KeyBinding::with_ctrl_shift("KeyP"),
     );
     map.insert(
         ShortcutAction::ToggleAutoSpeak,
-        KeyBinding::with_ctrl_alt("a"),
+        KeyBinding::with_ctrl_shift("KeyA"),
+    );
+    map.insert(
+        ShortcutAction::ReplayLastMessage,
+        KeyBinding::with_ctrl_shift("KeyR"),
+    );
+    map.insert(
+        ShortcutAction::CycleDialect,
+        KeyBinding::with_ctrl_shift("KeyD"),
+    );
+    map.insert(
+        ShortcutAction::CycleTeachingMode,
+        KeyBinding::with_ctrl_shift("KeyT"),
+    );
+    map.insert(
+        ShortcutAction::CycleFormality,
+        KeyBinding::with_ctrl_shift("KeyF"),
+    );
+    map.insert(
+        ShortcutAction::FocusGoalInput,
+        KeyBinding::with_ctrl_shift("KeyG"),
+    );
+    map.insert(
+        ShortcutAction::FocusChatInput,
+        KeyBinding::with_ctrl_shift("KeyC"),
     );
     map
 }
 
 pub fn matches_binding(event: &KeyboardEvent, binding: &KeyBinding) -> bool {
-    event.ctrl_key() == binding.ctrl && event.alt_key() == binding.alt && event.key() == binding.key
+    event.ctrl_key() == binding.ctrl
+        && event.shift_key() == binding.shift
+        && event.code() == binding.code
 }
 
 pub fn accesskey_documentation() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        ("ToggleSidebar", "Ctrl+Option+[", "Toggle branch sidebar"),
+        ("ToggleSidebar", "Ctrl+Shift+[", "Toggle branch sidebar"),
         (
             "ToggleLearningPanel",
-            "Ctrl+Option+]",
+            "Ctrl+Shift+]",
             "Toggle learning panel",
         ),
-        ("ToggleUsageFooter", "Ctrl+Option+u", "Toggle usage footer"),
+        ("ToggleUsageFooter", "Ctrl+Shift+U", "Toggle usage footer"),
         (
             "TogglePracticeSettings",
-            "Ctrl+Option+p",
+            "Ctrl+Shift+P",
             "Toggle practice settings",
         ),
-        ("ToggleAutoSpeak", "Ctrl+Option+a", "Toggle auto-speak/TTS"),
+        ("ToggleAutoSpeak", "Ctrl+Shift+A", "Toggle auto-speak/TTS"),
+        (
+            "ReplayLastMessage",
+            "Ctrl+Shift+R",
+            "Replay last message",
+        ),
+        ("CycleDialect", "Ctrl+Shift+D", "Cycle dialect"),
+        ("CycleTeachingMode", "Ctrl+Shift+T", "Cycle teaching mode"),
+        ("CycleFormality", "Ctrl+Shift+F", "Cycle formality"),
+        ("FocusGoalInput", "Ctrl+Shift+G", "Focus goal input"),
+        ("FocusChatInput", "Ctrl+Shift+C", "Focus chat input"),
     ]
 }
 
@@ -85,69 +130,84 @@ mod tests {
     }
 
     #[test]
-    fn test_key_binding_with_ctrl_alt() {
-        let binding = KeyBinding::with_ctrl_alt("a");
-        assert_eq!(binding.key, "a");
+    fn test_key_binding_with_ctrl_shift() {
+        let binding = KeyBinding::with_ctrl_shift("KeyA");
+        assert_eq!(binding.code, "KeyA");
         assert!(binding.ctrl);
-        assert!(binding.alt);
+        assert!(binding.shift);
     }
 
     #[test]
     fn test_default_shortcuts_contains_all_actions() {
         let shortcuts = default_shortcuts();
-        assert_eq!(shortcuts.len(), 5);
+        assert_eq!(shortcuts.len(), 11);
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleSidebar));
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleLearningPanel));
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleUsageFooter));
         assert!(shortcuts.contains_key(&ShortcutAction::TogglePracticeSettings));
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleAutoSpeak));
+        assert!(shortcuts.contains_key(&ShortcutAction::ReplayLastMessage));
+        assert!(shortcuts.contains_key(&ShortcutAction::CycleDialect));
+        assert!(shortcuts.contains_key(&ShortcutAction::CycleTeachingMode));
+        assert!(shortcuts.contains_key(&ShortcutAction::CycleFormality));
+        assert!(shortcuts.contains_key(&ShortcutAction::FocusGoalInput));
+        assert!(shortcuts.contains_key(&ShortcutAction::FocusChatInput));
     }
 
     #[test]
     fn test_default_shortcuts_uses_correct_keys() {
         let shortcuts = default_shortcuts();
         assert_eq!(
-            shortcuts.get(&ShortcutAction::ToggleSidebar).unwrap().key,
-            "["
+            shortcuts.get(&ShortcutAction::ToggleSidebar).unwrap().code,
+            "BracketLeft"
         );
         assert_eq!(
             shortcuts
                 .get(&ShortcutAction::ToggleLearningPanel)
                 .unwrap()
-                .key,
-            "]"
+                .code,
+            "BracketRight"
         );
         assert_eq!(
             shortcuts
                 .get(&ShortcutAction::ToggleUsageFooter)
                 .unwrap()
-                .key,
-            "u"
+                .code,
+            "KeyU"
         );
         assert_eq!(
             shortcuts
                 .get(&ShortcutAction::TogglePracticeSettings)
                 .unwrap()
-                .key,
-            "p"
+                .code,
+            "KeyP"
         );
         assert_eq!(
-            shortcuts.get(&ShortcutAction::ToggleAutoSpeak).unwrap().key,
-            "a"
+            shortcuts
+                .get(&ShortcutAction::ToggleAutoSpeak)
+                .unwrap()
+                .code,
+            "KeyA"
         );
     }
 
     #[test]
     fn test_accesskey_documentation_contains_all_implemented() {
         let docs = accesskey_documentation();
-        assert_eq!(docs.len(), 5);
+        assert_eq!(docs.len(), 11);
 
         let keys: Vec<&str> = docs.iter().map(|(_, key, _)| *key).collect();
-        assert!(keys.contains(&"Ctrl+Option+["));
-        assert!(keys.contains(&"Ctrl+Option+]"));
-        assert!(keys.contains(&"Ctrl+Option+u"));
-        assert!(keys.contains(&"Ctrl+Option+p"));
-        assert!(keys.contains(&"Ctrl+Option+a"));
+        assert!(keys.contains(&"Ctrl+Shift+["));
+        assert!(keys.contains(&"Ctrl+Shift+]"));
+        assert!(keys.contains(&"Ctrl+Shift+U"));
+        assert!(keys.contains(&"Ctrl+Shift+P"));
+        assert!(keys.contains(&"Ctrl+Shift+A"));
+        assert!(keys.contains(&"Ctrl+Shift+R"));
+        assert!(keys.contains(&"Ctrl+Shift+D"));
+        assert!(keys.contains(&"Ctrl+Shift+T"));
+        assert!(keys.contains(&"Ctrl+Shift+F"));
+        assert!(keys.contains(&"Ctrl+Shift+G"));
+        assert!(keys.contains(&"Ctrl+Shift+C"));
     }
 
     #[test]

@@ -20,3 +20,5 @@
 - keyboard shortcuts
 - inline translation
 - change "empty" for new/root branches
+  - still broken: deleting conversation doesn't delete 
+- keyboard shortcuts between branches

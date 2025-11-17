@@ -1,4 +1,4 @@
-use dialect_coach_shared::models::Message;
+use dialect_coach_shared::models::{Language, Message};
 use dialect_coach_shared::models::dialect::dialect_features;
 use uuid::Uuid;
 use yew::prelude::*;
@@ -64,6 +64,16 @@ fn get_css_classes(is_own: bool) -> (&'static str, &'static str, &'static str, &
     }
 }
 
+fn language_code(lang: Language) -> &'static str {
+    match lang {
+        Language::Spanish => "es",
+        Language::Arabic => "ar",
+        Language::French => "fr",
+        Language::English => "en",
+        Language::Japanese => "ja",
+    }
+}
+
 fn render_branch_button(
     on_create_branch: &Option<Callback<Uuid>>,
     msg_id: Uuid,
@@ -94,6 +104,7 @@ fn render_branch_button(
 pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     let (msg_class, avatar_class, bubble_class, avatar_text) =
         get_css_classes(props.is_own_message);
+    let lang = language_code(props.message.metadata.language);
 
     html! {
         <>
@@ -105,7 +116,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                         <div class="message-author">{if props.message.is_agent() { "agent" } else { "user" }}</div>
                         {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
                     </div>
-                    <div class="message-content">{&props.message.get_content()}</div>
+                    <div class="message-content" {lang}>{&props.message.get_content()}</div>
                     <div class="message-time">{props.message.metadata.timestamp.to_rfc3339()}</div>
                 </div>
             </div>

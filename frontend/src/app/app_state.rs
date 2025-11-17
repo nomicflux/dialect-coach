@@ -366,6 +366,9 @@ pub enum UserStateAction {
     RenameBranch(Uuid, String),
     AddLearningGoal(String),
     DeleteLearningGoal(usize),
+    CycleDialect,
+    CycleFormality,
+    CycleTeachingMode,
 }
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
@@ -427,6 +430,35 @@ fn update_item_score(mut item: LearningItem, analysis: &AgentAnalysis) -> Learni
 
 fn add_score(current: u8, delta: i8) -> u8 {
     (current as i32 + delta as i32).clamp(0, 100) as u8
+}
+
+fn cycle_dialect(state: &UserState) -> Dialect {
+    let dialects = state.current_dialects();
+    let current = state.current_dialect();
+    match dialects.iter().position(|df| df.dialect == current) {
+        Some(idx) => dialects[(idx + 1) % dialects.len()].dialect,
+        None => current,
+    }
+}
+
+fn cycle_formality(current: Formality) -> Formality {
+    match current {
+        Formality::Formal => Formality::Casual,
+        Formality::Casual => Formality::DialectRich,
+        Formality::DialectRich => Formality::Slang,
+        Formality::Slang => Formality::Formal,
+    }
+}
+
+fn cycle_teaching_mode(current: TeachingMode) -> TeachingMode {
+    match current {
+        TeachingMode::Immersive => TeachingMode::Corrective,
+        TeachingMode::Corrective => TeachingMode::Explanatory,
+        TeachingMode::Explanatory => TeachingMode::Interleaved,
+        TeachingMode::Interleaved => TeachingMode::StoryTeller,
+        TeachingMode::StoryTeller => TeachingMode::Debug,
+        TeachingMode::Debug => TeachingMode::Immersive,
+    }
 }
 
 fn apply_score_updates(items: Vec<LearningItem>, analysis: &AgentAnalysis) -> Vec<LearningItem> {
@@ -657,6 +689,15 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::DeleteLearningGoal(index) => {
             next.learning_goals = delete_learning_goal(next.learning_goals, index);
+        }
+        UserStateAction::CycleDialect => {
+            next.selected_dialect = cycle_dialect(&next);
+        }
+        UserStateAction::CycleFormality => {
+            next.formality = cycle_formality(next.formality);
+        }
+        UserStateAction::CycleTeachingMode => {
+            next.teaching_mode = cycle_teaching_mode(next.teaching_mode);
         }
         UserStateAction::ClearUserState => {
             // This should never be called - ClearUserState is handled at OptionalUserState level
@@ -1159,5 +1200,75 @@ mod tests {
     fn test_add_score_floors_at_zero() {
         assert_eq!(add_score(0, -5), 0);
         assert_eq!(add_score(3, -10), 0);
+    }
+
+    #[test]
+    fn test_cycle_formality() {
+        assert_eq!(cycle_formality(Formality::Formal), Formality::Casual);
+        assert_eq!(cycle_formality(Formality::Casual), Formality::DialectRich);
+        assert_eq!(cycle_formality(Formality::DialectRich), Formality::Slang);
+        assert_eq!(cycle_formality(Formality::Slang), Formality::Formal);
+    }
+
+    #[test]
+    fn test_cycle_teaching_mode() {
+        assert_eq!(
+            cycle_teaching_mode(TeachingMode::Immersive),
+            TeachingMode::Corrective
+        );
+        assert_eq!(
+            cycle_teaching_mode(TeachingMode::Corrective),
+            TeachingMode::Explanatory
+        );
+        assert_eq!(
+            cycle_teaching_mode(TeachingMode::Explanatory),
+            TeachingMode::Interleaved
+        );
+        assert_eq!(
+            cycle_teaching_mode(TeachingMode::Interleaved),
+            TeachingMode::StoryTeller
+        );
+        assert_eq!(
+            cycle_teaching_mode(TeachingMode::StoryTeller),
+            TeachingMode::Debug
+        );
+        assert_eq!(
+            cycle_teaching_mode(TeachingMode::Debug),
+            TeachingMode::Immersive
+        );
+    }
+
+    #[test]
+    fn test_cycle_dialect_action() {
+        let mut state = UserState::new(Uuid::new_v4());
+        state.selected_language = Language::Spanish;
+        state.selected_dialect = Dialect::SpanishMexican;
+
+        let action = UserStateAction::CycleDialect;
+        state = apply_user_state_action(&state, action);
+
+        assert_ne!(state.selected_dialect, Dialect::SpanishMexican);
+    }
+
+    #[test]
+    fn test_cycle_formality_action() {
+        let mut state = UserState::new(Uuid::new_v4());
+        state.formality = Formality::Formal;
+
+        let action = UserStateAction::CycleFormality;
+        state = apply_user_state_action(&state, action);
+
+        assert_eq!(state.formality, Formality::Casual);
+    }
+
+    #[test]
+    fn test_cycle_teaching_mode_action() {
+        let mut state = UserState::new(Uuid::new_v4());
+        state.teaching_mode = TeachingMode::Immersive;
+
+        let action = UserStateAction::CycleTeachingMode;
+        state = apply_user_state_action(&state, action);
+
+        assert_eq!(state.teaching_mode, TeachingMode::Corrective);
     }
 }

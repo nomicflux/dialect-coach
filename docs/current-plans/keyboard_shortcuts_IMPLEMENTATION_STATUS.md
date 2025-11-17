@@ -480,7 +480,61 @@ pub fn shortcut_help_text() -> Vec<(String, String)> {
 ---
 
 ## Issues Encountered
-(To be updated as implementation progresses)
+
+### Issue 1: Stale Closure in Keyboard Event Handler
+**Status**: RESOLVED
+**Date**: 2025-11-16
+**Resolution Date**: 2025-11-16
+
+**Problem**:
+- Dialect, Teaching Mode, and Formality shortcuts cycle once then stop
+- The keyboard event handler is created once in `use_effect_with((), ...)`
+- Captures `user_state` at initialization time
+- `on_dialect_cycle(user_state.clone())` reads `user_state.0.as_ref()` which is stale
+- Buttons work because they're recreated each render with fresh state
+
+**Failed Approaches**:
+- Using refs to store callbacks (rejected - overcomplicated)
+- Adding version counters (rejected - overcomplicated)
+
+**Solution Implemented**:
+Added reducer actions (`CycleDialect`, `CycleFormality`, `CycleTeachingMode`) that perform the cycling logic within the reducer itself. The keyboard shortcut handler now dispatches these actions directly instead of calling callback functions. This works because:
+1. `user_state.dispatch()` doesn't read current state - it just sends an action
+2. The reducer receives the actual current state when it processes the action
+3. Pure helper functions (`cycle_dialect`, `cycle_formality`, `cycle_teaching_mode`) implement the cycling logic
+
+**Files Modified**:
+- `frontend/src/app/app_state.rs` - Added enum variants and reducer logic
+- `frontend/src/components/main_content.rs` - Updated shortcut handler to dispatch actions
+
+### Issue 2: Sound Options Not Working
+**Status**: UNRESOLVED
+**Date**: 2025-11-16
+
+**Problem**:
+- Replay last message (Ctrl+Shift+R) doesn't work
+- Toggle auto-play (Ctrl+Shift+A) doesn't work
+- Likely same stale closure issue as Issue 1
+
+**Attempted Fix**:
+Changed `use_effect_with((), ...)` to `use_effect_with(user_state.clone(), ...)` - did not resolve the issue.
+
+### Issue 3: Keyboard Layout Inconsistency (Dvorak)
+**Status**: RESOLVED
+**Date**: 2025-11-16
+**Resolution Date**: 2025-11-16
+
+**Problem**:
+- Ctrl+Shift+C works based on Dvorak layout (user's actual C key)
+- All other shortcuts work based on QWERTY positions
+- This is inconsistent - should be one or the other
+- Need to investigate why C behaves differently
+
+**Root Cause**:
+FocusChatInput was incorrectly bound to KeyI instead of KeyC. When user pressed their Dvorak C key (physical KeyI position), it triggered FocusChatInput. The fix was to correct the binding to KeyC.
+
+**Solution**:
+Changed FocusChatInput from KeyI to KeyC in `frontend/src/keyboard_shortcuts.rs:80`
 
 ## Success Criteria
 - All 12 shortcuts implemented and functional

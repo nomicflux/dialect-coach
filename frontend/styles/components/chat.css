@@ -423,3 +423,12 @@
     transform: none;
   }
 }
+
+/* Language-specific fonts */
+.message-content:lang(ar) {
+  font-family: 'Aref Ruqaa', serif;
+  direction: rtl;
+  text-align: right;
+  font-size: 1.15em;
+  line-height: 1.8;
+}

@@ -47,12 +47,29 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     {
         let ui_state = ui_state.clone();
+        let app_state = app_state.clone();
         let user_state = user_state.clone();
-        use_effect_with((), move |_| {
+        let chat_input_ref = chat_input_ref.clone();
+        let goal_input_ref = goal_input_ref.clone();
+        use_effect_with(user_state.clone(), move |_| {
             let shortcuts = default_shortcuts();
             let window = web_sys::window().unwrap();
             let listener = EventListener::new(&window, "keydown", move |event| {
                 let event = event.dyn_ref::<web_sys::KeyboardEvent>().unwrap();
+                // Debug: log key events when Ctrl or Shift is pressed
+                if event.ctrl_key() || event.shift_key() {
+                    web_sys::console::log_1(
+                        &format!(
+                            "Key: '{}', code: '{}', ctrl: {}, shift: {}, meta: {}",
+                            event.key(),
+                            event.code(),
+                            event.ctrl_key(),
+                            event.shift_key(),
+                            event.meta_key()
+                        )
+                        .into(),
+                    );
+                }
                 for (action, binding) in &shortcuts {
                     if matches_binding(event, binding) {
                         event.prevent_default();
@@ -75,6 +92,32 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             }
                             ShortcutAction::ToggleAutoSpeak => {
                                 user_state.dispatch(UserStateAction::ToggleTTS);
+                            }
+                            ShortcutAction::ReplayLastMessage => {
+                                if let Some(state) = user_state.0.as_ref() {
+                                    if let Some(msg) = state.get_active_branch_messages().last() {
+                                        on_replay_message(app_state.clone()).emit((*msg).clone());
+                                    }
+                                }
+                            }
+                            ShortcutAction::CycleDialect => {
+                                user_state.dispatch(UserStateAction::CycleDialect);
+                            }
+                            ShortcutAction::CycleTeachingMode => {
+                                user_state.dispatch(UserStateAction::CycleTeachingMode);
+                            }
+                            ShortcutAction::CycleFormality => {
+                                user_state.dispatch(UserStateAction::CycleFormality);
+                            }
+                            ShortcutAction::FocusGoalInput => {
+                                if let Some(input) = goal_input_ref.cast::<web_sys::HtmlInputElement>() {
+                                    let _ = input.focus();
+                                }
+                            }
+                            ShortcutAction::FocusChatInput => {
+                                if let Some(textarea) = chat_input_ref.cast::<web_sys::HtmlTextAreaElement>() {
+                                    let _ = textarea.focus();
+                                }
                             }
                         }
                         break;
