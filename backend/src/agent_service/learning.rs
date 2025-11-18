@@ -163,32 +163,35 @@ fn learning_mode_context(teaching_mode: &TeachingMode) -> &'static str {
         TeachingMode::Corrective => {
             "# COMMUNICATION ERROR DETECTION\n\
             Default: The user's text is CORRECT. Most messages have zero errors.\n\
-            Only flag errors a native speaker would actually notice and reject.\n\n\
+            Only flag errors in the previous user message that a native speaker would actually notice and reject.\n\n\
             BEFORE flagging anything, verify:\n\
             1. Is this actually wrong in THIS dialect? (not just different from standard/formal)\n\
             2. Would natives notice or care in casual chat?\n\
-            3. Is your correction meaningfully different, not just orthographic variation?\n\
+            3. Is this only less common instead of actually wrong?\n\
+            4. Is your correction meaningfully different, not just orthographic variation?\n\
+            5. Is it in the previous user message (not assistent message, not dialect examples, not further back in the conversation)?\n\
             If ANY answer is NO → do not flag. When unsure → do not flag.\n\n\
             NOT errors (never flag):\n\
             - Arabic without short vowel marks (tashkeel: ◌َ ◌ُ ◌ِ ◌ّ ◌ْ) - standard in chat\n\
             - Spanish without ¿ or ¡ - common in casual typing\n\
+            - In general, missing or incorrect punctuation marks are not errors (common to leave out in casual typing)\n\
             - Capitalization differences - casual chat norm\n\
             - Valid dialectal spellings and forms\n\n\
             Returning {\"mistakes\": []} is normal and expected for most messages.\n\n"
         }
         TeachingMode::Explanatory => {
             "# WHAT TO LOG\n\
-            - New vocabulary, idioms, or cultural context introduced in the conversation\n\
+            - New vocabulary, idioms, or cultural context introduced in the previous assistant message\n\
             - Only noteworthy items worth remembering\n\n"
         }
         TeachingMode::Interleaved => {
             "# WHAT TO LOG\n\
-            - Words/phrases user needed translated from source language to target dialect\n\
+            - Words/phrases user needed translated from source language to target dialect in the previous user message\n\
             - Focus on translations, not errors\n\n"
         }
         TeachingMode::StoryTeller => {
             "# WHAT TO LOG\n\
-            - New language patterns or features user should practice\n\
+            - New language patterns or features user should practice from the previous assistant message\n\
             - Points that naturally fit the story context\n\n"
         }
         TeachingMode::Immersive | TeachingMode::Debug => "",

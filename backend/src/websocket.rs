@@ -618,7 +618,7 @@ fn build_action_context(action: &AIActionRequest, user_state: &UserState) -> Str
         }
         AIActionRequest::ContinueBranch { .. } => "[System: Continue the conversation]".to_string(),
         AIActionRequest::ExplainMessage { .. } => {
-            "[System: Explain your previous response in simpler terms]".to_string()
+            "[System: Explain your previous response in simpler terms, using fewer and more basic words.]".to_string()
         }
         AIActionRequest::TranslateMessage { .. } => {
             "[System: Provide word-by-word translation of your previous response]".to_string()
@@ -735,6 +735,9 @@ fn create_recv_task(
             if let WsMessage::Text(text) = msg {
                 tracing::debug!("Received message: {}", text);
 
+                // TODO: need to unify these. Don't parse, get error, reparse.
+                // TODO: send last conversation message if not present.
+                // TODO: use existing session id, do not create.
                 if try_parse_ws_event(&text, &state, &tx).await.is_err() {
                     try_parse_user_message(&text, &state, &tx).await;
                 }
