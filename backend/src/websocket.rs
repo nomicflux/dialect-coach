@@ -735,11 +735,9 @@ fn create_recv_task(
             if let WsMessage::Text(text) = msg {
                 tracing::debug!("Received message: {}", text);
 
-                // TODO: need to unify these. Don't parse, get error, reparse.
                 // TODO: send last conversation message if not present.
-                // TODO: use existing session id, do not create.
                 if try_parse_ws_event(&text, &state, &tx).await.is_err() {
-                    try_parse_user_message(&text, &state, &tx).await;
+                    tracing::error!("Error parsing WsEvent");
                 }
             } else if let WsMessage::Close(_) = msg {
                 tracing::info!("Client closed connection: {}", conn_id);
@@ -761,32 +759,19 @@ async fn try_parse_ws_event(
             tracing::info!(user_id = %user_id, "Received AI action request: {:?}", action);
             process_ai_action_request(state, user_id, action, tx).await
         }
+        Ok(WsEvent::UserMessage { user_message }) => {
+            if process_user_message(state, user_message, tx).await.is_err() {
+                tracing::error!("Error processing user message");
+                Err(())
+            } else {
+                Ok(())
+            }
+        }
         Ok(_) => {
             tracing::warn!("Received unsupported WsEvent type");
             Err(())
         }
         Err(_) => Err(()),
-    }
-}
-
-async fn try_parse_user_message(text: &str, state: &AppState, tx: &mpsc::UnboundedSender<String>) {
-    match serde_json::from_str::<UserMessageWithContext>(text) {
-        Ok(msg_with_context) => {
-            tracing::info!(
-                "Valid message in session {}: '{}' with {} mistakes, {} explained, {} translated, {} exploratory",
-                msg_with_context.message.metadata.session_id,
-                msg_with_context.message.get_content(),
-                msg_with_context.past_mistakes.len(),
-                msg_with_context.past_explained.len(),
-                msg_with_context.past_translated.len(),
-                msg_with_context.past_exploratory.len()
-            );
-
-            let _ = process_user_message(state, msg_with_context, tx).await;
-        }
-        Err(e) => {
-            tracing::error!("Failed to parse message JSON: {}. Raw message: {}", e, text);
-        }
     }
 }
 

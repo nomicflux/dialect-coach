@@ -1,6 +1,7 @@
 use super::{Message, Participant, AIActionRequest};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use super::message::UserMessageWithContext;
 
 /// WebSocket events for real-time communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +68,10 @@ pub enum WsEvent {
 
     TypingIndicator {
         participant_id: String,
+    },
+
+    UserMessage {
+        user_message: UserMessageWithContext,
     },
 
     Error {
