@@ -297,8 +297,10 @@ impl WebSocketService {
         &self,
         message_with_context: &UserMessageWithContext,
     ) -> Result<(), String> {
-        let json = serde_json::to_string(&WsEvent::UserMessage { user_message: (*message_with_context).clone() })
-            .map_err(|e| format!("Failed to serialize message: {}", e))?;
+        let json = serde_json::to_string(&WsEvent::UserMessage {
+            user_message: (*message_with_context).clone(),
+        })
+        .map_err(|e| format!("Failed to serialize message: {}", e))?;
 
         if !self.is_connected() {
             // Queue the message for later
@@ -370,7 +372,6 @@ impl WebSocketService {
         }
     }
 }
-
 
 impl Drop for WebSocketService {
     fn drop(&mut self) {

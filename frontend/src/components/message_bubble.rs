@@ -1,5 +1,5 @@
-use dialect_coach_shared::models::{Language, Message};
 use dialect_coach_shared::models::dialect::dialect_features;
+use dialect_coach_shared::models::{Language, Message};
 use uuid::Uuid;
 use yew::prelude::*;
 

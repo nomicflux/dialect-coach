@@ -1,3 +1,5 @@
+mod errors;
+
 use axum::{
     extract::{
         State,
@@ -23,29 +25,6 @@ use crate::agent_service::{AgentService, response::GenerateResponseParams};
 use crate::rag_config::RAGConfig;
 use crate::rate_limiter::service::RateLimiterService;
 
-fn auth_error_to_message(error: crate::auth_service::AuthError) -> String {
-    use crate::auth_service::{AuthError, UnauthorizedReason};
-    match error {
-        AuthError::UserExists => "Username already taken".to_string(),
-        AuthError::InvalidCredentials => "Invalid credentials".to_string(),
-        AuthError::UserNotFound => "User not found".to_string(),
-        AuthError::Unauthorized(UnauthorizedReason::InviteCodeExpired) => {
-            "Invite code has expired".to_string()
-        }
-        AuthError::Unauthorized(UnauthorizedReason::InviteCodeInvalid) => {
-            "Invalid invite code".to_string()
-        }
-        AuthError::Unauthorized(UnauthorizedReason::InviteCodeUsed) => {
-            "Invite code already used".to_string()
-        }
-        AuthError::Persistence(msg) => format!("Authentication error: {}", msg),
-    }
-}
-
-fn error_to_agent_response(error_message: String) -> AgentResponse {
-    AgentResponse::from(error_message)
-}
-
 fn convert_to_rig_message(message: &Message) -> RigMessage {
     match message.content.clone() {
         MessageContent::UserMessage { content } => RigMessage::User {
@@ -67,7 +46,7 @@ fn build_context_from_messages(messages: &[Message]) -> Vec<RigMessage> {
 }
 
 fn create_error_message(error_text: String, metadata: MessageMetadata) -> Message {
-    let error_response = error_to_agent_response(error_text);
+    let error_response = errors::error_to_agent_response(error_text);
     Message::agent_message(error_response, metadata, None)
 }
 
@@ -692,7 +671,11 @@ fn create_ai_action_context(
             exploratory: vec![],
         },
         user_state.active_branch_id,
-        user_state.get_active_branch_messages().into_iter().cloned().collect(),
+        user_state
+            .get_active_branch_messages()
+            .into_iter()
+            .cloned()
+            .collect(),
         user_state.learning_goals.clone(),
     )
 }
@@ -1001,7 +984,7 @@ async fn handle_create_user(
         Err(e) => {
             let error_msg =
                 if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
-                    auth_error_to_message(auth_error.clone())
+                    errors::auth_error_to_message(auth_error.clone())
                 } else {
                     format!("Failed to create user: {}", e)
                 };
@@ -1026,7 +1009,7 @@ async fn handle_sign_in(
         Err(e) => {
             let error_msg =
                 if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
-                    auth_error_to_message(auth_error.clone())
+                    errors::auth_error_to_message(auth_error.clone())
                 } else {
                     format!("Authentication failed: {}", e)
                 };

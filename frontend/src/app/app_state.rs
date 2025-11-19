@@ -1204,8 +1204,14 @@ mod tests {
 
     #[test]
     fn test_cycle_formality() {
-        assert_eq!(cycle_formality(Formality::Formal), Formality::ProfessionalCasual);
-        assert_eq!(cycle_formality(Formality::ProfessionalCasual), Formality::Informal);
+        assert_eq!(
+            cycle_formality(Formality::Formal),
+            Formality::ProfessionalCasual
+        );
+        assert_eq!(
+            cycle_formality(Formality::ProfessionalCasual),
+            Formality::Informal
+        );
         assert_eq!(cycle_formality(Formality::Informal), Formality::Slang);
         assert_eq!(cycle_formality(Formality::Slang), Formality::Formal);
     }

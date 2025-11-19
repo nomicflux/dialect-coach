@@ -116,7 +116,8 @@ pub fn format_examples_as_user_message(
         return String::new();
     }
 
-    let mut examples_text = "*** DIALECT EXAMPLES (DISTINCT FROM USER CONVERSATION): ***\n".to_string();
+    let mut examples_text =
+        "*** DIALECT EXAMPLES (DISTINCT FROM USER CONVERSATION): ***\n".to_string();
 
     for doc in primary_examples {
         examples_text.push_str(&format!("\"{}\"\n", doc.content));
@@ -820,7 +821,10 @@ mod tests {
     #[test]
     fn test_get_sample_formalities() {
         let formal = get_sample_formalities(Formality::Formal);
-        assert_eq!(formal, vec![Formality::Formal, Formality::ProfessionalCasual]);
+        assert_eq!(
+            formal,
+            vec![Formality::Formal, Formality::ProfessionalCasual]
+        );
 
         let professional_casual = get_sample_formalities(Formality::ProfessionalCasual);
         assert_eq!(
@@ -894,7 +898,8 @@ mod tests {
             ));
         }
 
-        let (primary, _secondary) = group_examples_by_formality(&examples, Formality::Informal, 5, 5);
+        let (primary, _secondary) =
+            group_examples_by_formality(&examples, Formality::Informal, 5, 5);
         assert_eq!(primary.len(), 5);
     }
 
@@ -989,7 +994,12 @@ mod tests {
             })),
         }];
 
-        let history = build_conversation_history_with_examples(&conversation_history, &[], &[], ANTHROPIC_PROVIDER);
+        let history = build_conversation_history_with_examples(
+            &conversation_history,
+            &[],
+            &[],
+            ANTHROPIC_PROVIDER,
+        );
 
         assert_eq!(history.len(), 2);
         match &history[0] {

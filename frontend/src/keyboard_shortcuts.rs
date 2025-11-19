@@ -103,11 +103,7 @@ pub fn accesskey_documentation() -> Vec<(&'static str, &'static str, &'static st
             "Toggle practice settings",
         ),
         ("ToggleAutoSpeak", "Ctrl+Shift+A", "Toggle auto-speak/TTS"),
-        (
-            "ReplayLastMessage",
-            "Ctrl+Shift+R",
-            "Replay last message",
-        ),
+        ("ReplayLastMessage", "Ctrl+Shift+R", "Replay last message"),
         ("CycleDialect", "Ctrl+Shift+D", "Cycle dialect"),
         ("CycleTeachingMode", "Ctrl+Shift+T", "Cycle teaching mode"),
         ("CycleFormality", "Ctrl+Shift+F", "Cycle formality"),

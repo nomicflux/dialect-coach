@@ -14,7 +14,7 @@ pub mod retry;
 pub mod util;
 
 use provider::{
-    ANTHROPIC_PROVIDER, OPENAI_PROVIDER, CompletionAgent, CompletionAgentFactory,
+    ANTHROPIC_PROVIDER, CompletionAgent, CompletionAgentFactory, OPENAI_PROVIDER,
     ProviderAgentConfig,
 };
 use response::ResponseContext;
@@ -27,7 +27,11 @@ fn channel_env(prefix: &str, suffix: &str) -> Option<String> {
 fn load_reasoning_budget(channel_prefix: &str) -> u32 {
     channel_env(channel_prefix, "REASONING_BUDGET")
         .and_then(|v| v.parse::<u32>().ok())
-        .or_else(|| env::var("OPENAI_REASONING_BUDGET").ok().and_then(|v| v.parse::<u32>().ok()))
+        .or_else(|| {
+            env::var("OPENAI_REASONING_BUDGET")
+                .ok()
+                .and_then(|v| v.parse::<u32>().ok())
+        })
         .unwrap_or(200)
 }
 
@@ -238,9 +242,6 @@ mod tests {
         assert_eq!(agent.provider(), OPENAI_PROVIDER);
         assert_eq!(agent.model(), "gpt-4-turbo");
     }
-
-
-
 
     #[test]
     fn test_load_reasoning_budget_channel_specific() {

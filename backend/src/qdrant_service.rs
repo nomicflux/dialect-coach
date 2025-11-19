@@ -197,7 +197,9 @@ impl QdrantService {
                     let s = s.as_ref();
                     match s {
                         "Formal" => Some(dialect_coach_shared::Formality::Formal),
-                        "ProfessionalCasual" => Some(dialect_coach_shared::Formality::ProfessionalCasual),
+                        "ProfessionalCasual" => {
+                            Some(dialect_coach_shared::Formality::ProfessionalCasual)
+                        }
                         "Informal" => Some(dialect_coach_shared::Formality::Informal),
                         "Slang" => Some(dialect_coach_shared::Formality::Slang),
                         _ => None,
@@ -261,7 +263,9 @@ impl QdrantService {
                     let s = s.as_ref();
                     match s {
                         "Formal" => Some(dialect_coach_shared::Formality::Formal),
-                        "ProfessionalCasual" => Some(dialect_coach_shared::Formality::ProfessionalCasual),
+                        "ProfessionalCasual" => {
+                            Some(dialect_coach_shared::Formality::ProfessionalCasual)
+                        }
                         "Informal" => Some(dialect_coach_shared::Formality::Informal),
                         "Slang" => Some(dialect_coach_shared::Formality::Slang),
                         _ => None,

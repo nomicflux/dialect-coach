@@ -1,18 +1,16 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
+use rig::client::completion::CompletionClient;
 use rig::completion::message::AssistantContent;
 use rig::completion::{
-    CompletionModel, CompletionRequest as RigCompletionRequest, CompletionError,
+    CompletionError, CompletionModel, CompletionRequest as RigCompletionRequest,
     Message as RigMessage,
 };
-use rig::client::completion::CompletionClient;
 use rig::one_or_many::OneOrMany;
 use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
 use rig::providers::anthropic::{CLAUDE_3_5_SONNET, Client as AnthropicClient};
+use rig::providers::openai::responses_api::ResponsesCompletionModel as OpenAICompletionModel;
 use rig::providers::openai::{Client as OpenAIClient, GPT_4O};
-use rig::providers::openai::responses_api::{
-    ResponsesCompletionModel as OpenAICompletionModel,
-};
 
 pub const ANTHROPIC_PROVIDER: &str = "anthropic";
 pub const OPENAI_PROVIDER: &str = "openai";
@@ -213,11 +211,11 @@ impl CompletionAgent for UnifiedCompletionAgent {
     ) -> Result<CompletionOutcome, CompletionAgentError> {
         match &self.completion_model {
             ProviderCompletionModel::Anthropic(model) => {
-                let rig_request = self.build_completion_request(
-                    request,
-                    self.provider_supports_temperature(),
-                );
-                let response = model.completion(rig_request).await
+                let rig_request =
+                    self.build_completion_request(request, self.provider_supports_temperature());
+                let response = model
+                    .completion(rig_request)
+                    .await
                     .map_err(|err| self.categorize_error(err))?;
                 let text = self.extract_text(&response.choice)?;
                 Ok(CompletionOutcome {
@@ -315,7 +313,11 @@ mod tests {
 
     #[test]
     fn test_provider_agent_config_openai_custom_model() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), Some("gpt-4-turbo".to_string()), 300);
+        let config = ProviderAgentConfig::openai(
+            "sk-test-key".to_string(),
+            Some("gpt-4-turbo".to_string()),
+            300,
+        );
         assert_eq!(config.provider, OPENAI_PROVIDER);
         assert_eq!(config.model, "gpt-4-turbo");
         assert_eq!(config.api_key, "sk-test-key");
@@ -333,7 +335,11 @@ mod tests {
 
     #[test]
     fn test_provider_agent_config_anthropic_custom_model() {
-        let config = ProviderAgentConfig::anthropic("test-key".to_string(), Some("claude-3-opus".to_string()), 250);
+        let config = ProviderAgentConfig::anthropic(
+            "test-key".to_string(),
+            Some("claude-3-opus".to_string()),
+            250,
+        );
         assert_eq!(config.provider, ANTHROPIC_PROVIDER);
         assert_eq!(config.model, "claude-3-opus");
         assert_eq!(config.api_key, "test-key");

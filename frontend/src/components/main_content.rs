@@ -1,4 +1,7 @@
-use crate::app::app_callbacks::{on_auto_start, on_continue_branch, on_explain_message, on_send_message, on_translate_message, on_tts_toggle};
+use crate::app::app_callbacks::{
+    on_auto_start, on_continue_branch, on_explain_message, on_send_message, on_translate_message,
+    on_tts_toggle,
+};
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
 use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction, UserStateAction};
@@ -10,7 +13,7 @@ use crate::app::user_state_callbacks::{
 use crate::components::{
     BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls, UsageFooter,
 };
-use crate::keyboard_shortcuts::{default_shortcuts, matches_binding, ShortcutAction};
+use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
 use gloo::events::EventListener;
 use wasm_bindgen::JsCast;
@@ -110,12 +113,16 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 user_state.dispatch(UserStateAction::CycleFormality);
                             }
                             ShortcutAction::FocusGoalInput => {
-                                if let Some(input) = goal_input_ref.cast::<web_sys::HtmlInputElement>() {
+                                if let Some(input) =
+                                    goal_input_ref.cast::<web_sys::HtmlInputElement>()
+                                {
                                     let _ = input.focus();
                                 }
                             }
                             ShortcutAction::FocusChatInput => {
-                                if let Some(textarea) = chat_input_ref.cast::<web_sys::HtmlTextAreaElement>() {
+                                if let Some(textarea) =
+                                    chat_input_ref.cast::<web_sys::HtmlTextAreaElement>()
+                                {
                                     let _ = textarea.focus();
                                 }
                             }

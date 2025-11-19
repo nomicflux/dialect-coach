@@ -1,7 +1,7 @@
-use super::{Message, Participant, AIActionRequest};
+use super::message::UserMessageWithContext;
+use super::{AIActionRequest, Message, Participant};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::message::UserMessageWithContext;
 
 /// WebSocket events for real-time communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
