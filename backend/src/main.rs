@@ -199,13 +199,12 @@ async fn main() -> Result<()> {
         admin_token,
     };
 
-    // Build main application with routes
     let mut app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(websocket::websocket_handler))
         .route(
             "/ws/user_state",
-            get(websocket::user_state_websocket_handler),
+            get(websocket::user_state::user_state_websocket_handler),
         )
         .route("/ws/user", get(websocket::user_websocket_handler))
         .route(
