@@ -298,7 +298,7 @@ impl WebSocketService {
         message_with_context: &UserMessageWithContext,
     ) -> Result<(), String> {
         let json = serde_json::to_string(&WsEvent::UserMessage {
-            user_message: (*message_with_context).clone(),
+            user_message: Box::new((*message_with_context).clone()),
         })
         .map_err(|e| format!("Failed to serialize message: {}", e))?;
 

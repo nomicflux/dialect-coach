@@ -14,7 +14,7 @@ pub enum WsEvent {
     },
 
     UserMessage {
-        user_message: UserMessageWithContext,
+        user_message: Box<UserMessageWithContext>,
     },
 }
 

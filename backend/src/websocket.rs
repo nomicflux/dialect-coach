@@ -68,7 +68,7 @@ async fn try_parse_ws_event(
             agents::process_ai_action_request(state, user_id, action, tx).await
         }
         Ok(WsEvent::UserMessage { user_message }) => {
-            if agents::process_user_message(state, user_message, tx)
+            if agents::process_user_message(state, *user_message, tx)
                 .await
                 .is_err()
             {
@@ -77,10 +77,6 @@ async fn try_parse_ws_event(
             } else {
                 Ok(())
             }
-        }
-        Ok(_) => {
-            tracing::warn!("Received unsupported WsEvent type");
-            Err(())
         }
         Err(_) => Err(()),
     }
