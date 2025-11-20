@@ -62,10 +62,12 @@ async fn try_parse_ws_event(
 ) -> Result<(), ()> {
     match serde_json::from_str::<WsEvent>(text) {
         Ok(WsEvent::RequestAIAction {
-            user_id, action, ..
+            user_id,
+            action,
+            session_id,
         }) => {
             tracing::info!(user_id = %user_id, "Received AI action request: {:?}", action);
-            agents::process_ai_action_request(state, user_id, action, tx).await
+            agents::process_ai_action_request(state, user_id, session_id, action, tx).await
         }
         Ok(WsEvent::UserMessage { user_message }) => {
             if agents::process_user_message(state, *user_message, tx)

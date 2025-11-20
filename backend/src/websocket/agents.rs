@@ -288,6 +288,7 @@ fn build_action_context(action: &AIActionRequest, user_state: &UserState) -> Str
 pub async fn process_ai_action_request(
     state: &AppState,
     user_id: Uuid,
+    session_id: Uuid,
     action: AIActionRequest,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
@@ -302,7 +303,6 @@ pub async fn process_ai_action_request(
     };
 
     let context = build_action_context(&action, &user_state);
-    let session_id = Uuid::new_v4();
     let metadata = user_state::create_metadata_from_user_state(&user_state, session_id);
 
     let user_message = Message::user_message(context, metadata.clone(), None);
