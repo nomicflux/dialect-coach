@@ -226,6 +226,30 @@ async fn run_agents_parallel(
     }
 }
 
+async fn simple_call_and_respond(
+    state: &AppState,
+    prompt: &Message,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    let response = state.agent.generate_simple_response(prompt.as_str()).await;
+
+    match response {
+        Ok(agent_response) => {
+            tracing::info!("Agent generated simple response",);
+            handle_agent_success(state, prompt, agent_response, tx)
+                .await
+                .map_err(|e| {
+                    tracing::error!("{}", e);
+                })
+        }
+        Err(e) => {
+            tracing::error!("Agent error: {}", e);
+            let _ = handle_agent_error(prompt, e, tx).await;
+            Ok(())
+        }
+    }
+}
+
 pub async fn call_agent_and_respond(
     state: &AppState,
     msg_with_context: &UserMessageWithContext,
@@ -275,12 +299,34 @@ fn build_action_context(action: &AIActionRequest, user_state: &UserState) -> Str
                 dialect_name, formality_name
             )
         }
-        AIActionRequest::ContinueBranch { .. } => "[System: Continue the conversation]".to_string(),
-        AIActionRequest::ExplainMessage { .. } => {
-            "[System: Explain your previous response in simpler terms, using fewer and more basic words.]".to_string()
+        AIActionRequest::ContinueBranch { parent_message_id } => {
+            let message: Option<Message> = user_state.msg_by_id(*parent_message_id);
+            format!(
+                "[System: Continue the conversation in {} with {} formality level] {}",
+                dialect_name,
+                formality_name,
+                message
+                    .iter()
+                    .fold("[Start with a simple greeting]", |_, msg| msg.as_str())
+            )
+            .to_string()
         }
-        AIActionRequest::TranslateMessage { .. } => {
-            "[System: Provide word-by-word translation of your previous response]".to_string()
+        AIActionRequest::ExplainMessage { message_id } => {
+            let message: Option<Message> = user_state.msg_by_id(*message_id);
+            format!(
+                "[System: Explain this response in simpler terms, using fewer and more basic words.] {}",
+                message.iter().fold("[Ignore, no message given]", |_, msg| msg.as_str())
+            ).to_string()
+        }
+        AIActionRequest::TranslateMessage { message_id } => {
+            let message: Option<Message> = user_state.msg_by_id(*message_id);
+            format!(
+                "[System: Provide phrase-by-phrase translation of your previous response] {}",
+                message
+                    .iter()
+                    .fold("[Ignore, no message given]", |_, msg| msg.as_str())
+            )
+            .to_string()
         }
     }
 }
@@ -306,37 +352,8 @@ pub async fn process_ai_action_request(
     let metadata = user_state::create_metadata_from_user_state(&user_state, session_id);
 
     let user_message = Message::user_message(context, metadata.clone(), None);
-    let msg_with_context = create_ai_action_context(user_state.clone(), user_message.clone());
 
-    let dialect = metadata.dialect;
-    let context_vec = build_context_from_messages(&msg_with_context.context_messages);
-
-    call_agent_and_respond(state, &msg_with_context, dialect, &context_vec, tx).await
-}
-
-fn create_ai_action_context(
-    user_state: UserState,
-    user_message: Message,
-) -> UserMessageWithContext {
-    use dialect_coach_shared::PastLearningItems;
-
-    UserMessageWithContext::new(
-        user_state.user_id,
-        user_message,
-        PastLearningItems {
-            mistakes: vec![],
-            explained: vec![],
-            translated: vec![],
-            exploratory: vec![],
-        },
-        user_state.active_branch_id,
-        user_state
-            .get_active_branch_messages()
-            .into_iter()
-            .cloned()
-            .collect(),
-        user_state.learning_goals.clone(),
-    )
+    simple_call_and_respond(state, &user_message, tx).await
 }
 
 async fn run_response_only(

@@ -12,6 +12,15 @@ pub enum MessageContent {
     AgentMessage { content: Box<AgentResponse> },
 }
 
+impl MessageContent {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::UserMessage { content } => content.as_str(),
+            Self::AgentMessage { content } => (*content).as_str(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AIActionRequest {
     StartConversation,
@@ -27,6 +36,12 @@ pub struct Message {
     pub parent_id: Option<Uuid>,
     pub metadata: MessageMetadata,
     pub content: MessageContent,
+}
+
+impl Message {
+    pub fn as_str(&self) -> &str {
+        self.content.as_str()
+    }
 }
 
 /// Metadata associated with a message
@@ -164,22 +179,15 @@ impl UserMessageWithContext {
     }
 }
 
-/// WebSocket messages for UserState persistence
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum UserStateMessage {
-    /// Request to save user state to backend
     Save(UserState),
-    /// Request to load user state by user_id
     Load(Uuid),
-    /// Response to save request (Ok = success, Err = error message)
     SaveResponse(Result<(), String>),
-    /// Response to load request (Some = found, None = not found)
     LoadResponse(Option<UserState>),
-    /// Update usage stats (sent after saving usage stats)
     UsageStatsUpdate(UsageStats),
 }
 
-/// WebSocket messages for User management
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum UserMessage {
     /// Request to create a new user (Client → Server)

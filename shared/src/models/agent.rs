@@ -327,6 +327,10 @@ impl AgentResponse {
             analysis: None,
         }
     }
+
+    pub fn as_str(&self) -> &str {
+        self.response.as_str()
+    }
 }
 
 impl From<&str> for AgentResponse {

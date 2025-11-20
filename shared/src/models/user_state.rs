@@ -8,7 +8,6 @@ use super::{
     Message, MessageMetadata, Mistake, TeachingMode, Translated, UsageStats,
 };
 
-/// User-specific state that persists across sessions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserState {
     pub user_id: Uuid,
@@ -25,14 +24,21 @@ pub struct UserState {
     pub usage_stats: UsageStats,
 }
 
-/// A learning item with its associated mastery score
+impl UserState {
+    pub fn msg_by_id(&self, msg_id: Uuid) -> Option<Message> {
+        self.conversation_history
+            .iter()
+            .find(|&msg| msg.id == msg_id)
+            .cloned()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LearningItem {
     pub item: LearningItemType,
     pub score: u8,
 }
 
-/// Types of learning items that can be tracked
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LearningItemType {
     Mistake(Mistake),
@@ -42,7 +48,6 @@ pub enum LearningItemType {
 }
 
 impl UserState {
-    /// Create a new UserState with default values for a given user
     pub fn new(user_id: Uuid) -> Self {
         let initial_branch = ConversationBranch::new(None, None, None);
         let initial_branch_id = initial_branch.id;

@@ -784,20 +784,17 @@ impl ResponseContext {
         }
     }
 
-    /// Simple translation without RAG - for fast prompt translation
-    pub async fn generate_simple_translation(
+    pub async fn generate_simple_response(
         &self,
         prompt: &str,
-        _dialect: Dialect,
-        _formality: Formality,
+        history: Vec<RigMessage>,
     ) -> Result<dialect_coach_shared::AgentResponse> {
-        let history: Vec<RigMessage> = Vec::new();
         let request = CompletionRequest {
             preamble: "",
             prompt,
             history: &history,
-            max_tokens: 64,
-            temperature: 0.7,
+            max_tokens: 128,
+            temperature: 0.2,
         };
         let (result, _) = retry_completion_call(self.response_agent.as_ref(), &request, 1).await;
         let text = result.context(format!(

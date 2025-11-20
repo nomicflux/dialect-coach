@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{AgentUsage, Dialect, Explained, Formality, Mistake};
+use dialect_coach_shared::{AgentUsage, Dialect, Explained, Mistake};
 use std::env;
 use std::sync::Arc;
 
@@ -157,12 +157,9 @@ impl AgentService {
         .await
     }
 
-    /// Simple translation without RAG - for fast prompt translation
-    pub async fn generate_simple_translation(
+    pub async fn generate_simple_response(
         &self,
         prompt: &str,
-        dialect: Dialect,
-        formality: Formality,
     ) -> Result<dialect_coach_shared::AgentResponse> {
         let ctx = ResponseContext {
             response_agent: self.response_agent.clone(),
@@ -170,8 +167,7 @@ impl AgentService {
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
         };
-        response::ResponseContext::generate_simple_translation(&ctx, prompt, dialect, formality)
-            .await
+        response::ResponseContext::generate_simple_response(&ctx, prompt, Vec::new()).await
     }
 
     pub fn contains_illegal_characters(text: &str) -> bool {
