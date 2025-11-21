@@ -1,5 +1,5 @@
 use super::Language;
-use super::TTSProviderType;
+use super::{Gender, TTSProviderType, TTSVoice};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -386,7 +386,7 @@ pub struct Feedback {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DialectWithFeatures {
     pub dialect: Dialect,
-    pub tts_voices: HashMap<TTSProviderType, Option<String>>,
+    pub tts_voices: HashMap<TTSProviderType, Option<TTSVoice>>,
     pub has_corpus: bool,
     pub feedback: Feedback,
 }
@@ -407,17 +407,28 @@ impl DialectWithFeatures {
 fn build_voice_map(
     elevenlabs: Option<&str>,
     azure: Option<&str>,
-) -> HashMap<TTSProviderType, Option<String>> {
+) -> HashMap<TTSProviderType, Option<TTSVoice>> {
     let mut voices = HashMap::new();
     voices.insert(
         TTSProviderType::ElevenLabs,
-        elevenlabs.map(|s| s.to_string()),
+        elevenlabs.map(|s| TTSVoice {
+            provider: TTSProviderType::ElevenLabs,
+            voice_name: s.to_string(),
+            gender: Gender::FemalePresenting,
+        }),
     );
-    voices.insert(TTSProviderType::Azure, azure.map(|s| s.to_string()));
+    voices.insert(
+        TTSProviderType::Azure,
+        azure.map(|s| TTSVoice {
+            provider: TTSProviderType::Azure,
+            voice_name: s.to_string(),
+            gender: Gender::FemalePresenting,
+        }),
+    );
     voices
 }
 
-fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<String>> {
+fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<TTSVoice>> {
     match dialect {
         Dialect::SpanishMexican => build_voice_map(Some("hHjbwzYZW17oh0p05AKv"), None),
         Dialect::SpanishArgentinian => {
@@ -688,15 +699,7 @@ mod tests {
 
     #[test]
     fn test_dialect_features_inactive_dialect() {
-        let mut tts_voices = HashMap::new();
-        tts_voices.insert(TTSProviderType::ElevenLabs, None);
-        tts_voices.insert(TTSProviderType::Azure, None);
-        let features = DialectWithFeatures {
-            dialect: Dialect::SpanishCastilian,
-            tts_voices,
-            has_corpus: false,
-            feedback: Feedback::default(),
-        };
+        let features = dialect_features(Dialect::SpanishCastilian);
         assert_eq!(features.dialect, Dialect::SpanishCastilian);
         assert!(!features.has_corpus);
         assert!(
@@ -746,5 +749,44 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn test_tts_voice_has_gender() {
+        let features = dialect_features(Dialect::SpanishCuban);
+        let elevenlabs_voice = features
+            .tts_voices
+            .get(&TTSProviderType::ElevenLabs)
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        assert_eq!(elevenlabs_voice.gender, Gender::FemalePresenting);
+        assert_eq!(elevenlabs_voice.provider, TTSProviderType::ElevenLabs);
+
+        let azure_voice = features
+            .tts_voices
+            .get(&TTSProviderType::Azure)
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        assert_eq!(azure_voice.gender, Gender::FemalePresenting);
+        assert_eq!(azure_voice.provider, TTSProviderType::Azure);
+    }
+
+    #[test]
+    fn test_all_tts_voices_have_female_presenting_gender() {
+        for dialect in Dialect::all() {
+            let features = dialect_features(dialect);
+            for (_, voice) in features.tts_voices {
+                if let Some(v) = voice {
+                    assert_eq!(
+                        v.gender,
+                        Gender::FemalePresenting,
+                        "Voice for {} should be FemalePresenting",
+                        dialect.name()
+                    );
+                }
+            }
+        }
     }
 }

@@ -314,14 +314,23 @@ fn build_action_context(action: &AIActionRequest, user_state: &UserState) -> Str
         AIActionRequest::ExplainMessage { message_id } => {
             let message: Option<Message> = user_state.msg_by_id(*message_id);
             format!(
-                "[System: Explain this response in simpler terms, using fewer and more basic words.] {}",
+                r#"[System: You are rewording the following prompt in {} for a beginner.
+Reword this response in simpler terms, using fewer and more basic words.
+Focus on ease of understanding for a beginning learner; do not change words if they are already basic enough.]
+{}"#,
+                dialect_name,
                 message.iter().fold("[Ignore, no message given]", |_, msg| msg.as_str())
             ).to_string()
         }
         AIActionRequest::TranslateMessage { message_id } => {
             let message: Option<Message> = user_state.msg_by_id(*message_id);
             format!(
-                "[System: Provide phrase-by-phrase translation of your previous response] {}",
+                r#"[System: Provide phrase-by-phrase translation of your previous response.
+Format with newlines between phrases, like such:\n\
+- <target phrase>: <English translation>\n\
+- <next target phrase>: <next English transaction>\n
+]
+{}"#,
                 message
                     .iter()
                     .fold("[Ignore, no message given]", |_, msg| msg.as_str())

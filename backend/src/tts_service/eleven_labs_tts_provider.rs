@@ -45,7 +45,7 @@ impl ElevenLabsTtsProvider {
         dialect_features
             .tts_voices
             .get(&TTSProviderType::ElevenLabs)
-            .and_then(|voice| voice.clone())
+            .and_then(|voice| voice.as_ref().map(|v| v.voice_name.clone()))
             .ok_or_else(|| {
                 TtsError::VoiceNotFound(format!(
                     "No ElevenLabs voice available for dialect {}",
