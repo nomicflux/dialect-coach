@@ -267,10 +267,13 @@ fn mimic_instruction(has_corpus: bool) -> &'static str {
 }
 
 fn extract_gender_from_dialect(dialect_with_features: &DialectWithFeatures) -> Gender {
+    use dialect_coach_shared::TTSProviderType;
+
+    // Get gender from ElevenLabs voice (the provider actually being used)
     dialect_with_features
         .tts_voices
-        .values()
-        .find_map(|voice| voice.as_ref().map(|v| v.gender))
+        .get(&TTSProviderType::ElevenLabs)
+        .and_then(|voice| voice.as_ref().map(|v| v.gender))
         .unwrap_or(Gender::FemalePresenting)
 }
 
@@ -855,6 +858,20 @@ mod tests {
             assert!(desc_male.contains("male-presenting"));
             assert!(desc_female.contains("female-presenting"));
         }
+    }
+
+    #[test]
+    fn test_extract_gender_from_dialect_uses_elevenlabs() {
+        use dialect_coach_shared::dialect_features;
+
+        // SpanishArgentinian has ElevenLabs=Male, Azure=Female
+        let features = dialect_features(Dialect::SpanishArgentinian);
+        let gender = extract_gender_from_dialect(&features);
+        assert_eq!(
+            gender,
+            Gender::MalePresenting,
+            "Should extract Male from ElevenLabs voice, not Female from Azure"
+        );
     }
 
     #[test]
