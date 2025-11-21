@@ -8,6 +8,13 @@ use super::{
     Message, MessageMetadata, Mistake, TeachingMode, Translated, UsageStats,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UserGender {
+    Male,
+    Female,
+    NonBinary,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserState {
     pub user_id: Uuid,
@@ -18,6 +25,7 @@ pub struct UserState {
     pub selected_dialect: Dialect,
     pub formality: Formality,
     pub teaching_mode: TeachingMode,
+    pub user_gender: UserGender,
     pub active_branch_id: Uuid,
     pub branches: Vec<ConversationBranch>,
     pub learning_goals: Vec<String>,
@@ -61,6 +69,7 @@ impl UserState {
             selected_dialect: Dialect::SpanishCuban,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Immersive,
+            user_gender: UserGender::NonBinary,
             active_branch_id: initial_branch_id,
             branches: vec![initial_branch],
             learning_goals: Vec::new(),
@@ -540,5 +549,15 @@ mod tests {
 
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].id, msg.id);
+    }
+
+    #[test]
+    fn test_user_gender_serialization() {
+        let genders = vec![UserGender::Male, UserGender::Female, UserGender::NonBinary];
+        for gender in genders {
+            let json = serde_json::to_string(&gender).unwrap();
+            let deserialized: UserGender = serde_json::from_str(&json).unwrap();
+            assert_eq!(gender, deserialized);
+        }
     }
 }
