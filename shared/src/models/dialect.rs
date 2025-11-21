@@ -405,55 +405,62 @@ impl DialectWithFeatures {
 }
 
 fn build_voice_map(
-    elevenlabs: Option<&str>,
-    azure: Option<&str>,
+    elevenlabs: Option<(&str, Gender)>,
+    azure: Option<(&str, Gender)>,
 ) -> HashMap<TTSProviderType, Option<TTSVoice>> {
     let mut voices = HashMap::new();
     voices.insert(
         TTSProviderType::ElevenLabs,
-        elevenlabs.map(|s| TTSVoice {
+        elevenlabs.map(|(name, gender)| TTSVoice {
             provider: TTSProviderType::ElevenLabs,
-            voice_name: s.to_string(),
-            gender: Gender::FemalePresenting,
+            voice_name: name.to_string(),
+            gender,
         }),
     );
     voices.insert(
         TTSProviderType::Azure,
-        azure.map(|s| TTSVoice {
+        azure.map(|(name, gender)| TTSVoice {
             provider: TTSProviderType::Azure,
-            voice_name: s.to_string(),
-            gender: Gender::FemalePresenting,
+            voice_name: name.to_string(),
+            gender,
         }),
     );
     voices
 }
 
 fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<TTSVoice>> {
+    use Gender::MalePresenting as M;
+    use Gender::FemalePresenting as F;
+
     match dialect {
-        Dialect::SpanishMexican => build_voice_map(Some("hHjbwzYZW17oh0p05AKv"), None),
+        Dialect::SpanishMexican => {
+            build_voice_map(Some(("hHjbwzYZW17oh0p05AKv", F)), None)
+        }
         Dialect::SpanishArgentinian => {
-            build_voice_map(Some("XmoCtjPCefjeLDu0eMSl"), Some("es-AR-ElenaNeural"))
+            build_voice_map(Some(("XmoCtjPCefjeLDu0eMSl", M)), Some(("es-AR-ElenaNeural", F)))
         }
         Dialect::SpanishCuban => {
-            build_voice_map(Some("1hB7zCGWj11SeMuBseeI"), Some("es-CU-BelkysNeural"))
+            build_voice_map(Some(("1hB7zCGWj11SeMuBseeI", M)), Some(("es-CU-BelkysNeural", F)))
         }
         Dialect::SpanishColombian => {
-            build_voice_map(Some("86V9x9hrQds83qf7zaGn"), Some("es-CO-SalomeNeural"))
+            build_voice_map(Some(("86V9x9hrQds83qf7zaGn", F)), Some(("es-CO-SalomeNeural", F)))
         }
         Dialect::ArabicEgyptian => {
-            build_voice_map(Some("LXrTqFIgiubkrMkwvOUr"), Some("ar-EG-SalmaNeural"))
+            build_voice_map(Some(("LXrTqFIgiubkrMkwvOUr", M)), Some(("ar-EG-SalmaNeural", F)))
         }
         Dialect::ArabicLevantine => {
-            build_voice_map(Some("4wf10lgibMnboGJGCLrP"), Some("ar-LB-LaylaNeural"))
+            build_voice_map(Some(("4wf10lgibMnboGJGCLrP", F)), Some(("ar-LB-LaylaNeural", F)))
         }
         Dialect::ArabicGulf => {
-            build_voice_map(Some("DANw8bnAVbjDEHwZIoYa"), Some("ar-SA-ZariyahNeural"))
+            build_voice_map(Some(("DANw8bnAVbjDEHwZIoYa", M)), Some(("ar-SA-ZariyahNeural", F)))
         }
         Dialect::ArabicMSA => build_voice_map(None, None),
         Dialect::FrenchQuebecois => {
-            build_voice_map(Some("j9RedbMRSNQ74PyikQwD"), Some("fr-CA-SylvieNeural"))
+            build_voice_map(Some(("j9RedbMRSNQ74PyikQwD", F)), Some(("fr-CA-SylvieNeural", F)))
         }
-        Dialect::FrenchAfrican => build_voice_map(Some("FgHDn7bpgpKqz7QttoyC"), None),
+        Dialect::FrenchAfrican => {
+            build_voice_map(Some(("FgHDn7bpgpKqz7QttoyC", M)), None)
+        }
         Dialect::SpanishAndalusian => build_voice_map(None, None),
         Dialect::FrenchChti => build_voice_map(None, None),
         Dialect::EnglishGeneralAmerican => build_voice_map(None, None),
@@ -760,7 +767,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .unwrap();
-        assert_eq!(elevenlabs_voice.gender, Gender::FemalePresenting);
+        assert_eq!(elevenlabs_voice.gender, Gender::MalePresenting);
         assert_eq!(elevenlabs_voice.provider, TTSProviderType::ElevenLabs);
 
         let azure_voice = features
@@ -774,16 +781,18 @@ mod tests {
     }
 
     #[test]
-    fn test_all_tts_voices_have_female_presenting_gender() {
+    fn test_all_tts_voices_have_gender_set() {
         for dialect in Dialect::all() {
             let features = dialect_features(dialect);
-            for (_, voice) in features.tts_voices {
+            for (provider, voice) in features.tts_voices {
                 if let Some(v) = voice {
-                    assert_eq!(
-                        v.gender,
-                        Gender::FemalePresenting,
-                        "Voice for {} should be FemalePresenting",
-                        dialect.name()
+                    // Verify gender is set (either MalePresenting or FemalePresenting)
+                    // This test ensures all voices have an explicit gender assignment
+                    assert!(
+                        matches!(v.gender, Gender::MalePresenting | Gender::FemalePresenting),
+                        "Voice for {} ({:?}) should have gender set",
+                        dialect.name(),
+                        provider
                     );
                 }
             }
