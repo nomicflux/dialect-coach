@@ -1,8 +1,9 @@
 use crate::app::app_state::{OptionalUserState, UIState, UIStateAction};
 use crate::app::user_state_callbacks::{
     on_dialect_change, on_formality_change, on_language_change, on_teaching_mode_change,
+    on_user_gender_change,
 };
-use dialect_coach_shared::models::Language;
+use dialect_coach_shared::models::{Language, UserGender};
 use yew::prelude::*;
 
 #[derive(Properties)]
@@ -110,6 +111,15 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
                                     <option value="interleaved">{"Interleaved"}</option>
                                     <option value="storyteller">{"Story Teller"}</option>
                                     <option value="debug">{"Debug"}</option>
+                                </select>
+                            </div>
+
+                            <div class="panel-field">
+                                <label for="user-gender-select">{"Your Gender"}</label>
+                                <select id="user-gender-select" onchange={on_user_gender_change(user_state.clone())}>
+                                    <option value="male" selected={us.user_gender == UserGender::Male}>{"Male"}</option>
+                                    <option value="female" selected={us.user_gender == UserGender::Female}>{"Female"}</option>
+                                    <option value="nonbinary" selected={us.user_gender == UserGender::NonBinary}>{"Non-binary"}</option>
                                 </select>
                             </div>
                         </div>

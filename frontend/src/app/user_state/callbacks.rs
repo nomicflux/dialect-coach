@@ -1,5 +1,5 @@
 use crate::app::app_state::{OptionalUserState, UIState, UIStateAction, UserStateAction};
-use dialect_coach_shared::models::{Formality, Language, TeachingMode};
+use dialect_coach_shared::models::{Formality, Language, TeachingMode, UserGender};
 use log::info;
 use uuid::Uuid;
 use yew::prelude::*;
@@ -84,6 +84,25 @@ pub fn on_teaching_mode_change(user_state: UseReducerHandle<OptionalUserState>) 
                 _ => TeachingMode::Immersive,
             };
             user_state.dispatch(UserStateAction::ChangeTeachingMode(tm));
+        }
+    })
+}
+
+pub fn on_user_gender_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
+    let user_state = user_state.clone();
+
+    Callback::from(move |e: Event| {
+        if user_state.0.is_none() {
+            return;
+        }
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
+            let gender = match select.value().as_str() {
+                "male" => UserGender::Male,
+                "female" => UserGender::Female,
+                "nonbinary" => UserGender::NonBinary,
+                _ => UserGender::NonBinary,
+            };
+            user_state.dispatch(UserStateAction::UpdateUserGender(gender));
         }
     })
 }

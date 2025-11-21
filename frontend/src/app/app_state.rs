@@ -2,7 +2,7 @@ pub mod callbacks;
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{
-    ConversationBranch, Dialect, Formality, Language, Message, TeachingMode,
+    ConversationBranch, Dialect, Formality, Language, Message, TeachingMode, UserGender,
 };
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
 use dialect_coach_shared::{LearningItem, LearningItemType, UsageStats, User, UserState};
@@ -352,6 +352,7 @@ pub enum UserStateAction {
     ChangeLanguage(Language),
     ChangeFormality(Formality),
     ChangeTeachingMode(TeachingMode),
+    UpdateUserGender(UserGender),
     ToggleTTS,
     ReplaceUserState(UserState),
     UpdateUsageStats(UsageStats),
@@ -614,6 +615,9 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::ChangeTeachingMode(tm) => {
             next.teaching_mode = tm;
+        }
+        UserStateAction::UpdateUserGender(gender) => {
+            next.user_gender = gender;
         }
         UserStateAction::ToggleTTS => {
             next.tts_enabled = !next.tts_enabled;

@@ -174,7 +174,15 @@ UserStateAction::UpdateUserGender(gender) => {
 - [ ] Commit: `git commit -m "Phase 2 (UI dropdown for user gender) complete"`
 - [ ] **STOP - Wait for explicit approval**
 
-**Phase 2 Status:** Not started
+**Phase 2 Status:** COMPLETE (2025-11-21)
+- Added on_user_gender_change callback in callbacks.rs
+- Added UpdateUserGender action to UserStateAction enum
+- Added reducer case in app_state.rs to handle user_gender updates
+- Added dropdown UI in settings_panel.rs "Conversation Style" section
+- Dropdown correctly shows selected state and updates UserState
+- Frontend builds successfully
+- All 370+ tests passing (100%)
+- Clippy clean (0 warnings)
 
 ---
 
