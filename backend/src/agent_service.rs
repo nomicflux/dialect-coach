@@ -208,6 +208,10 @@ mod tests {
         assert!(result.is_ok());
         let agent = result.unwrap();
         assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
+
+        unsafe {
+            std::env::remove_var("ANTHROPIC_API_KEY");
+        }
     }
 
     #[test]
@@ -222,6 +226,11 @@ mod tests {
         assert!(result.is_ok());
         let agent = result.unwrap();
         assert_eq!(agent.provider(), OPENAI_PROVIDER);
+
+        unsafe {
+            std::env::remove_var("OPENAI_API_KEY");
+            std::env::remove_var("RESPONSE_PROVIDER");
+        }
     }
 
     #[test]
@@ -237,6 +246,12 @@ mod tests {
         let agent = result.unwrap();
         assert_eq!(agent.provider(), OPENAI_PROVIDER);
         assert_eq!(agent.model(), "gpt-4-turbo");
+
+        unsafe {
+            std::env::remove_var("OPENAI_API_KEY");
+            std::env::remove_var("RESPONSE_PROVIDER");
+            std::env::remove_var("RESPONSE_MODEL");
+        }
     }
 
     #[test]

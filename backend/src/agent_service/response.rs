@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{
     AgentUsage, Dialect, DialectDocument, DialectWithFeatures, Explained, Exploratory, Formality,
-    Mistake, PastLearningItems, TeachingMode, Translated,
+    Gender, Mistake, PastLearningItems, TeachingMode, Translated,
 };
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
@@ -42,25 +42,17 @@ fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
     }
 }
 
-fn speaker_desc(dialect: &Dialect, formality: &Formality) -> String {
-    let dialect_name = (*dialect).name();
+fn speaker_desc(dialect: &Dialect, formality: &Formality, gender: &Gender) -> String {
+    let gender_str = match gender {
+        Gender::MalePresenting => "male-presenting",
+        Gender::FemalePresenting => "female-presenting",
+    };
+    let base = format!("You are a {} native {} speaker", gender_str, dialect.name());
     match formality {
-        Formality::Formal => format!(
-            "You are a native {} speaker communicating in a professional, polite manner in a formal setting.",
-            dialect_name
-        ),
-        Formality::ProfessionalCasual => format!(
-            "You are a native {} speaker communicating in a professional manner amongst colleagues, using more standard forms than usual but not being rigid in speech.",
-            dialect_name
-        ),
-        Formality::Informal => format!(
-            "You are a native {} speaker speaking conversationally, using dialectal forms when appropriate and natural, and more standard forms when those become difficult to understand.",
-            dialect_name
-        ),
-        Formality::Slang => format!(
-            "You are a native {} speaker using informal slang and colloquialisms.",
-            dialect_name
-        ),
+        Formality::Formal => format!("{} communicating in a professional, polite manner in a formal setting.", base),
+        Formality::ProfessionalCasual => format!("{} communicating in a professional manner amongst colleagues, using more standard forms than usual but not being rigid in speech.", base),
+        Formality::Informal => format!("{} speaking conversationally, using dialectal forms when appropriate and natural, and more standard forms when those become difficult to understand.", base),
+        Formality::Slang => format!("{} using informal slang and colloquialisms.", base),
     }
 }
 
@@ -274,6 +266,14 @@ fn mimic_instruction(has_corpus: bool) -> &'static str {
     }
 }
 
+fn extract_gender_from_dialect(dialect_with_features: &DialectWithFeatures) -> Gender {
+    dialect_with_features
+        .tts_voices
+        .values()
+        .find_map(|voice| voice.as_ref().map(|v| v.gender))
+        .unwrap_or(Gender::FemalePresenting)
+}
+
 fn build_system_content(
     dialect: DialectWithFeatures,
     formality: Formality,
@@ -288,7 +288,8 @@ fn build_system_content(
         Formality::Slang => "SLANG",
     };
 
-    let role_desc = speaker_desc(&dialect.dialect, &formality);
+    let gender = extract_gender_from_dialect(&dialect);
+    let role_desc = speaker_desc(&dialect.dialect, &formality, &gender);
     let teaching_rules = response_teaching_desc(&teaching_mode);
     let goals_section = learning_goals_section(learning_goals);
     let learning_items_context = format_learning_items_context(
@@ -814,6 +815,47 @@ mod tests {
     use dialect_coach_shared::{Dialect, Formality, TeachingMode};
     use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
     use rig::one_or_many::OneOrMany;
+
+    #[test]
+    fn test_speaker_desc_male_presenting_formal() {
+        let desc = speaker_desc(
+            &Dialect::SpanishMexican,
+            &Formality::Formal,
+            &Gender::MalePresenting,
+        );
+        assert!(desc.contains("male-presenting"));
+        assert!(desc.contains("Mexican Spanish"));
+        assert!(desc.contains("professional, polite manner"));
+    }
+
+    #[test]
+    fn test_speaker_desc_female_presenting_informal() {
+        let desc = speaker_desc(
+            &Dialect::SpanishArgentinian,
+            &Formality::Informal,
+            &Gender::FemalePresenting,
+        );
+        assert!(desc.contains("female-presenting"));
+        assert!(desc.contains("Argentinian Spanish"));
+        assert!(desc.contains("conversationally"));
+    }
+
+    #[test]
+    fn test_speaker_desc_includes_gender_in_all_formalities() {
+        let formalities = vec![
+            Formality::Formal,
+            Formality::ProfessionalCasual,
+            Formality::Informal,
+            Formality::Slang,
+        ];
+        for formality in formalities {
+            let desc_male = speaker_desc(&Dialect::ArabicEgyptian, &formality, &Gender::MalePresenting);
+            let desc_female =
+                speaker_desc(&Dialect::ArabicEgyptian, &formality, &Gender::FemalePresenting);
+            assert!(desc_male.contains("male-presenting"));
+            assert!(desc_female.contains("female-presenting"));
+        }
+    }
 
     #[test]
     fn test_get_sample_formalities() {

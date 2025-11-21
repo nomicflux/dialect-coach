@@ -87,8 +87,8 @@
 - [x] Run `cargo clippy` and fix ALL errors and warnings - CLEAN
 - [x] Remove all dead code (no exceptions, no excuses) - NO DEAD CODE
 - [x] Update this status document with progress - UPDATED
-- [ ] Git add and commit: `git commit -m "Phase 1 (Gender and TTS types) complete"`
-- [ ] **STOP and wait for explicit approval before Phase 2**
+- [x] Git add and commit: `git commit -m "Phase 1 (Gender and TTS types) complete"` - COMMITTED (add1f6be)
+- [x] **STOP and wait for explicit approval before Phase 2**
 
 **Phase 1 Status: COMPLETE** (2025-11-21)
 - Gender enum and TTSVoice struct added
@@ -138,13 +138,21 @@
 - Clippy clean with no warnings
 
 **End of Phase:**
-- [ ] Run FULL test suite: `cargo test`
-- [ ] Verify 100% test success (anything less is failure)
-- [ ] Run `cargo clippy` and fix ALL errors and warnings
-- [ ] Remove all dead code (no exceptions, no excuses)
-- [ ] Update this status document with progress
+- [x] Run FULL test suite: `cargo test` - ALL 370+ TESTS PASSED
+- [x] Verify 100% test success (anything less is failure) - 100% SUCCESS
+- [x] Run `cargo clippy` and fix ALL errors and warnings - CLEAN
+- [x] Remove all dead code (no exceptions, no excuses) - NO DEAD CODE
+- [x] Update this status document with progress - UPDATED
 - [ ] Git add and commit: `git commit -m "Phase 2 (Gender in prompts) complete"`
 - [ ] **STOP and wait for explicit approval before Phase 3**
+
+**Phase 2 Status: COMPLETE** (2025-11-21)
+- Modified speaker_desc() to accept gender parameter
+- Added extract_gender_from_dialect() helper function
+- Updated build_system_content() to extract and use gender
+- Gender included in agent prompts ("male-presenting" or "female-presenting")
+- Fixed test environment pollution in agent_service tests
+- All tests passing, clippy clean
 
 ### Phase 3: Verification and Documentation
 
