@@ -141,6 +141,7 @@ fn build_response_params<'a>(
         past_explained: &msg_with_context.past_explained,
         past_translated: &msg_with_context.past_translated,
         past_exploratory: &msg_with_context.past_exploratory,
+        user_gender: msg_with_context.user_gender,
     }
 }
 

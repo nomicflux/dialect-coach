@@ -1,6 +1,6 @@
 use super::{
     AgentResponse, AuthCredentials, Dialect, Explained, Formality, Language, Mistake, TeachingMode,
-    UsageStats, User, UserState,
+    UsageStats, User, UserGender, UserState,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -154,6 +154,7 @@ pub struct UserMessageWithContext {
     pub active_branch_id: Uuid,
     pub context_messages: Vec<Message>,
     pub learning_goals: Vec<String>,
+    pub user_gender: UserGender,
 }
 
 impl UserMessageWithContext {
@@ -164,6 +165,7 @@ impl UserMessageWithContext {
         active_branch_id: Uuid,
         context_messages: Vec<Message>,
         learning_goals: Vec<String>,
+        user_gender: UserGender,
     ) -> Self {
         Self {
             user_id,
@@ -175,6 +177,7 @@ impl UserMessageWithContext {
             active_branch_id,
             context_messages,
             learning_goals,
+            user_gender,
         }
     }
 }
@@ -255,6 +258,7 @@ mod tests {
             branch_id,
             vec![],
             vec![],
+            UserGender::NonBinary,
         );
 
         assert_eq!(context.message.id, msg.id);
@@ -296,6 +300,7 @@ mod tests {
             branch_id,
             vec![],
             vec![],
+            UserGender::NonBinary,
         );
 
         assert_eq!(context.past_mistakes.len(), 1);
@@ -334,6 +339,7 @@ mod tests {
             branch_id,
             vec![],
             vec![],
+            UserGender::NonBinary,
         );
 
         let json = serde_json::to_string(&context).unwrap();
@@ -374,6 +380,7 @@ mod tests {
             branch_id,
             vec![],
             vec![],
+            UserGender::NonBinary,
         );
 
         assert_eq!(context.past_translated.len(), 1);
@@ -404,6 +411,7 @@ mod tests {
             branch_id,
             vec![],
             vec![],
+            UserGender::NonBinary,
         );
 
         assert_eq!(context.past_exploratory.len(), 1);
@@ -445,6 +453,7 @@ mod tests {
             branch_id,
             vec![],
             vec![],
+            UserGender::NonBinary,
         );
 
         assert_eq!(context.past_mistakes.len(), 1);

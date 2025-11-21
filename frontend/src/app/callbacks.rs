@@ -53,6 +53,7 @@ pub fn on_send_message(
             active_branch_id,
             context_messages,
             state.learning_goals.clone(),
+            state.user_gender,
         );
 
         // Send through WebSocket

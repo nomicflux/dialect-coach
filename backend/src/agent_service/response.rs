@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{
     AgentUsage, Dialect, DialectDocument, DialectWithFeatures, Explained, Exploratory, Formality,
-    Gender, Mistake, PastLearningItems, TeachingMode, Translated,
+    Gender, Mistake, PastLearningItems, TeachingMode, Translated, UserGender,
 };
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
@@ -283,6 +283,7 @@ fn build_system_content(
     teaching_mode: TeachingMode,
     learning_goals: &[String],
     past_learning_items: &PastLearningItems,
+    user_gender: UserGender,
 ) -> String {
     let formality_label = match formality {
         Formality::Formal => "FORMAL",
@@ -302,10 +303,17 @@ fn build_system_content(
         &past_learning_items.exploratory,
     );
 
+    let user_gender_str = match user_gender {
+        UserGender::Male => "male",
+        UserGender::Female => "female",
+        UserGender::NonBinary => "non-binary",
+    };
+
     if teaching_mode == TeachingMode::Debug {
         format!(
             r#"# YOUR ROLE\n\
             {}.\n\n\
+            USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.\n\n\
             # CRITICAL RULES\n\
             1. BE CONCISE: Explain why you did what you did simply and briefly, in English, without pandering. This will be within the "response" field of the required JSON format.\n\
             2. ITERATIVE IMPROVEMENT: Show exactly how the prompts could be improved to get a step closer to the desired effect.\n\
@@ -313,13 +321,14 @@ fn build_system_content(
             {}\n\
             {}\n\
             Now respond to the user's message technically."#,
-            role_desc, goals_section, learning_items_context, JSON_OUTPUT_INSTRUCTION
+            role_desc, user_gender_str, goals_section, learning_items_context, JSON_OUTPUT_INSTRUCTION
         )
     } else {
         format!(
             "{}\n\n\
             # YOUR ROLE\n\
             {}.\n\n\
+            USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.\n\n\
             # CRITICAL RULES\n\
             {}\n\
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
@@ -332,6 +341,7 @@ fn build_system_content(
             Now respond to the user's message naturally, as a local {} speaker would, in the response field of the required JSON format. You MUST ALWAYS respond - NEVER indicate the conversation has ended. If it seems to have ended, provide a follow-up question or new topic. The response field must be non-empty. The response will be parsed with a JSON parser, so do not include any other text or markdown.",
             CONTENT_FILTERING_DIRECTIVES,
             role_desc,
+            user_gender_str,
             mimic_instruction(dialect.has_corpus),
             formality_label.to_lowercase(),
             teaching_rules,
@@ -381,6 +391,7 @@ pub struct GenerateResponseParams<'a> {
     pub past_explained: &'a [Explained],
     pub past_translated: &'a [Translated],
     pub past_exploratory: &'a [Exploratory],
+    pub user_gender: UserGender,
 }
 
 pub struct ResponseContext {
@@ -737,6 +748,7 @@ impl ResponseContext {
             params.teaching_mode,
             params.learning_goals,
             &past_learning_items,
+            params.user_gender,
         );
         tracing::debug!("System content sent to Claude:\n{}", system_content);
         let history_with_prefill = build_conversation_history_with_examples(
@@ -973,6 +985,7 @@ mod tests {
             teaching_mode,
             &learning_goals,
             &past_learning_items,
+            UserGender::NonBinary,
         );
 
         assert!(content.contains("# YOUR ROLE"));
@@ -995,6 +1008,7 @@ mod tests {
             teaching_mode,
             &learning_goals,
             &past_learning_items,
+            UserGender::NonBinary,
         );
 
         assert!(content.contains("# YOUR ROLE"));
