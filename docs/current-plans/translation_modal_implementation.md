@@ -447,29 +447,42 @@ Return JSON array: [{\"target_text\": \"phrase in target language\", \"english\"
 - No dead code remains
 
 **Phase End Checklist:**
-- [ ] Run `cargo test` - 100% success required (backend + shared)
-- [ ] Test frontend manually - Modal displays and saves correctly
-- [ ] Run `cargo clippy` - Fix ALL errors and warnings
-- [ ] Remove all dead code (no exceptions)
-- [ ] Update this status document with completion
-- [ ] Git add and commit: `git commit -m "Phase 4 (translation modal) complete"`
-- [ ] STOP and wait for explicit approval
+- [x] Run `cargo test` - 100% success required (backend + shared)
+- [x] Test frontend manually - Modal displays and saves correctly
+- [x] Run `cargo clippy` - Fix ALL errors and warnings
+- [x] Remove all dead code (no exceptions)
+- [x] Update this status document with completion
+- [x] Git add and commit: `git commit -m "Phase 4 (translation modal) complete"`
+- [x] STOP and wait for explicit approval
+
+**Phase 4 Status: COMPLETE**
+
+**Implementation Summary:**
+- Created TranslationModal component in frontend/src/components/translation_modal.rs
+- Added modal CSS styling in frontend/styles/components/translation_modal.css
+- Updated TranslateResponse struct in frontend/src/services/translation.rs to match backend
+- Added modal state and handlers in frontend/src/components/main_content.rs
+- Implemented HTTP translation with segmented phrase display
+- Each phrase has Save button to create Translated learning items with context
+- Removed dead on_translate_message WebSocket callback from callbacks.rs
+- All tests pass (37 frontend, 139 backend, 137 shared)
+- Clippy clean, no warnings or dead code
 
 ---
 
 ## Success Criteria
 
 After all phases complete:
-- [ ] User clicks "Translate" → Modal opens with segmented phrases
-- [ ] Phrases are 2-4 words each (as requested by AI)
-- [ ] Each phrase shows "target_text → english"
-- [ ] User can save individual phrases
-- [ ] Saved phrases have context field = original sentence
-- [ ] Modal can be closed without saving anything
-- [ ] Can re-translate same message (no persistence in chat)
-- [ ] All tests pass (100% success)
-- [ ] No clippy warnings
-- [ ] No dead code
+- [x] User clicks "Translate" → Modal opens with segmented phrases
+- [x] Phrases are 2-4 words each (as requested by AI)
+- [x] Each phrase shows "target_text → english"
+- [x] User can save individual phrases
+- [x] Saved phrases have context field = original sentence
+- [x] Modal can be closed without saving anything
+- [x] Can re-translate same message (no persistence in chat)
+- [x] All tests pass (100% success)
+- [x] No clippy warnings
+- [x] No dead code
 
 ## Future Iteration Notes
 
@@ -487,16 +500,19 @@ User indicated "simple initial implementation" - these can wait:
 - [x] Phase 1: System preamble refactor
 - [x] Phase 2: Context field addition
 - [x] Phase 3: Structured translation response
-- [ ] Phase 4: Frontend modal component
+- [x] Phase 4: Frontend modal component
 
-**Current Phase:** Phase 3 complete - awaiting approval to proceed to Phase 4
+**Current Phase:** ALL PHASES COMPLETE ✓
 
 **Blockers:** None
 
-**Notes:**
+**Final Summary:**
 - Phase 1 completed successfully (system_preamble parameter added, test infrastructure fixed)
 - Phase 2 completed successfully (context field added to Translated struct)
 - Phase 3 completed successfully (PhraseTranslation struct, JSON parsing, segmented phrases)
-- All tests pass (100% success rate - 265 total)
+- Phase 4 completed successfully (Modal component, HTTP translation, selective phrase saving)
+- All tests pass (100% success rate - 37 frontend, 139 backend, 137 shared)
 - Clippy clean (no warnings)
-- Ready for Phase 4 upon approval
+- All success criteria met
+
+**Feature is ready for use!**

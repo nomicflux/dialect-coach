@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::models::{Dialect, Formality};
+use dialect_coach_shared::models::{Dialect, Formality, PhraseTranslation};
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
 
@@ -11,10 +11,11 @@ struct TranslateRequest {
 }
 
 #[derive(Deserialize)]
-struct TranslateResponse {
-    translated: String,
-    success: bool,
-    error: Option<String>,
+pub struct TranslateResponse {
+    pub original_sentence: String,
+    pub segmented_phrases: Vec<PhraseTranslation>,
+    pub success: bool,
+    pub error: Option<String>,
 }
 
 /// Translation service for AI-powered phrase translation
@@ -35,7 +36,7 @@ impl TranslationService {
         phrase: &str,
         dialect: Dialect,
         formality: Option<Formality>,
-    ) -> Result<String> {
+    ) -> Result<TranslateResponse> {
         // Use ONLY canonical serde ID formats
         let request_body = TranslateRequest {
             phrase: phrase.to_string(),
@@ -72,7 +73,7 @@ impl TranslationService {
             ));
         }
 
-        Ok(translate_response.translated)
+        Ok(translate_response)
     }
 }
 
@@ -146,17 +147,20 @@ mod tests {
     #[test]
     fn test_response_deserialization() {
         // Test successful response
-        let success_json = r#"{"translated":"¡Hola! ¿Cómo estás?","success":true,"error":null}"#;
+        let success_json = r#"{"original_sentence":"Hello, how are you?","segmented_phrases":[{"target_text":"Hola","english":"Hello"},{"target_text":"¿cómo estás?","english":"how are you?"}],"success":true,"error":null}"#;
         let response: TranslateResponse = serde_json::from_str(success_json).unwrap();
         assert!(response.success);
-        assert_eq!(response.translated, "¡Hola! ¿Cómo estás?");
+        assert_eq!(response.original_sentence, "Hello, how are you?");
+        assert_eq!(response.segmented_phrases.len(), 2);
+        assert_eq!(response.segmented_phrases[0].target_text, "Hola");
+        assert_eq!(response.segmented_phrases[0].english, "Hello");
         assert!(response.error.is_none());
 
         // Test error response
-        let error_json = r#"{"translated":"","success":false,"error":"Invalid dialect"}"#;
+        let error_json = r#"{"original_sentence":"test","segmented_phrases":[],"success":false,"error":"Invalid dialect"}"#;
         let response: TranslateResponse = serde_json::from_str(error_json).unwrap();
         assert!(!response.success);
-        assert_eq!(response.translated, "");
+        assert_eq!(response.segmented_phrases.len(), 0);
         assert_eq!(response.error.unwrap(), "Invalid dialect");
     }
 

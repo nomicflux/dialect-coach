@@ -1,6 +1,5 @@
 use crate::app::app_callbacks::{
-    on_auto_start, on_continue_branch, on_explain_message, on_send_message, on_translate_message,
-    on_tts_toggle,
+    on_auto_start, on_continue_branch, on_explain_message, on_send_message, on_tts_toggle,
 };
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
@@ -11,11 +10,15 @@ use crate::app::user_state_callbacks::{
     on_formality_cycle, on_switch_branch, on_teaching_mode_cycle, on_undo_message_callback,
 };
 use crate::components::{
-    BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls, UsageFooter,
+    BranchSidebar, ChatWindow, InputBox, LearningPanel, SettingsPanel, SpeechControls,
+    TranslationModal, UsageFooter,
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
+use dialect_coach_shared::models::{MessageContent, PhraseTranslation, Translated};
 use gloo::events::EventListener;
+use log::error;
+use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
@@ -47,6 +50,72 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();
+
+    let modal_state = use_state(|| None::<(String, Vec<PhraseTranslation>)>);
+
+    let on_translate_click = {
+        let app_state = app_state.clone();
+        let user_state = user_state.clone();
+        let modal_state = modal_state.clone();
+        Callback::from(move |message_id: Uuid| {
+            let state = match user_state.0.as_ref() {
+                Some(s) => s,
+                None => {
+                    error!("No user state for translate");
+                    return;
+                }
+            };
+            let msg = match state.msg_by_id(message_id) {
+                Some(m) => m,
+                None => {
+                    error!("Message not found: {}", message_id);
+                    return;
+                }
+            };
+            let text = get_text_from_message(&msg);
+            let translation_service = app_state.translation_service.clone();
+            let dialect = state.selected_dialect;
+            let formality = state.formality;
+            let modal_state = modal_state.clone();
+
+            wasm_bindgen_futures::spawn_local(async move {
+                match translation_service
+                    .translate_phrase(&text, dialect, Some(formality))
+                    .await
+                {
+                    Ok(response) => {
+                        modal_state.set(Some((
+                            response.original_sentence,
+                            response.segmented_phrases,
+                        )));
+                    }
+                    Err(e) => {
+                        error!("Translation failed: {}", e);
+                    }
+                }
+            });
+        })
+    };
+
+    let on_close_modal = {
+        let modal_state = modal_state.clone();
+        Callback::from(move |_| {
+            modal_state.set(None);
+        })
+    };
+
+    let on_save_phrase = {
+        let user_state = user_state.clone();
+        Callback::from(move |(target, english, context): (String, String, String)| {
+            let translated = Translated::new(target, english, Some(context));
+            user_state.dispatch(UserStateAction::AddLearningItems(
+                vec![],
+                vec![],
+                vec![translated],
+                vec![],
+            ));
+        })
+    };
 
     {
         let ui_state = ui_state.clone();
@@ -170,7 +239,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_auto_start={Some(on_auto_start(app_state.clone(), user_state.clone()))}
                         on_continue_branch={Some(on_continue_branch(app_state.clone(), user_state.clone()))}
                         on_explain={Some(on_explain_message(app_state.clone(), user_state.clone()))}
-                        on_translate={Some(on_translate_message(app_state.clone(), user_state.clone()))}
+                        on_translate={Some(on_translate_click.clone())}
                     />
                     <SpeechControls
                         on_speech={on_send_message(app_state.clone(), user_state.clone())}
@@ -266,6 +335,33 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     }
                 })}
             />
+
+            {render_modal(&modal_state, &on_close_modal, &on_save_phrase)}
         </>
+    }
+}
+
+fn render_modal(
+    modal_state: &UseStateHandle<Option<(String, Vec<PhraseTranslation>)>>,
+    on_close: &Callback<()>,
+    on_save: &Callback<(String, String, String)>,
+) -> Html {
+    match modal_state.as_ref() {
+        Some((original, phrases)) => html! {
+            <TranslationModal
+                original_sentence={original.clone()}
+                phrases={phrases.clone()}
+                on_close={on_close.clone()}
+                on_save_phrase={on_save.clone()}
+            />
+        },
+        None => html! {},
+    }
+}
+
+fn get_text_from_message(msg: &dialect_coach_shared::models::Message) -> String {
+    match &msg.content {
+        MessageContent::UserMessage { content } => content.clone(),
+        MessageContent::AgentMessage { content } => content.response.clone(),
     }
 }
