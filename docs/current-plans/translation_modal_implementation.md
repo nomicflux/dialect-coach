@@ -347,12 +347,24 @@ Return JSON array: [{\"target_text\": \"phrase in target language\", \"english\"
 - No dead code remains
 
 **Phase End Checklist:**
-- [ ] Run `cargo test` - 100% success required
-- [ ] Run `cargo clippy` - Fix ALL errors and warnings
-- [ ] Remove all dead code (no exceptions)
-- [ ] Update this status document with completion
-- [ ] Git add and commit: `git commit -m "Phase 3 (structured translation response) complete"`
-- [ ] STOP and wait for explicit approval
+- [x] Run `cargo test` - 100% success required
+- [x] Run `cargo clippy` - Fix ALL errors and warnings
+- [x] Remove all dead code (no exceptions)
+- [x] Update this status document with completion
+- [x] Git add and commit: `git commit -m "Phase 3 (structured translation response) complete"`
+- [x] STOP and wait for explicit approval
+
+**Phase 3 Status: COMPLETE**
+
+**Implementation Summary:**
+- Created PhraseTranslation struct in shared/src/models/message.rs:32-36
+- Updated TranslateResponse to include original_sentence and segmented_phrases
+- Modified translate_phrase to return Vec<PhraseTranslation> with JSON parsing
+- Updated AI prompt with system preamble for JSON formatting (2-4 word phrases)
+- Added parse_phrase_translations helper for clean JSON parsing
+- Added 3 new tests: test_parse_valid_json, test_parse_invalid_json, test_parse_empty_json
+- All tests pass (265 total)
+- Clippy clean, no warnings or dead code
 
 ---
 
@@ -474,16 +486,17 @@ User indicated "simple initial implementation" - these can wait:
 
 - [x] Phase 1: System preamble refactor
 - [x] Phase 2: Context field addition
-- [ ] Phase 3: Structured translation response
+- [x] Phase 3: Structured translation response
 - [ ] Phase 4: Frontend modal component
 
-**Current Phase:** Phase 2 complete - awaiting approval to proceed to Phase 3
+**Current Phase:** Phase 3 complete - awaiting approval to proceed to Phase 4
 
 **Blockers:** None
 
 **Notes:**
 - Phase 1 completed successfully (system_preamble parameter added, test infrastructure fixed)
 - Phase 2 completed successfully (context field added to Translated struct)
-- All tests pass (100% success rate - 137 shared, 85 backend, 37 frontend)
+- Phase 3 completed successfully (PhraseTranslation struct, JSON parsing, segmented phrases)
+- All tests pass (100% success rate - 265 total)
 - Clippy clean (no warnings)
-- Ready for Phase 3 upon approval
+- Ready for Phase 4 upon approval
