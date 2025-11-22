@@ -159,6 +159,7 @@ impl AgentService {
 
     pub async fn generate_simple_response(
         &self,
+        system_preamble: &str,
         prompt: &str,
     ) -> Result<dialect_coach_shared::AgentResponse> {
         let ctx = ResponseContext {
@@ -167,7 +168,7 @@ impl AgentService {
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
         };
-        response::ResponseContext::generate_simple_response(&ctx, prompt, Vec::new()).await
+        response::ResponseContext::generate_simple_response(&ctx, system_preamble, prompt, Vec::new()).await
     }
 
     pub fn contains_illegal_characters(text: &str) -> bool {
@@ -180,6 +181,7 @@ mod tests {
     use super::*;
     use crate::embedding_service::EmbeddingService;
     use crate::qdrant_service::QdrantService;
+    use serial_test::serial;
 
     #[tokio::test]
     #[ignore] // Requires API key
@@ -197,29 +199,45 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_channel_agent_anthropic_uses_default_fallback() {
         unsafe {
-            std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+            // Clean up any env vars from previous tests first
             std::env::remove_var("RESPONSE_PROVIDER");
             std::env::remove_var("RESPONSE_API_KEY");
+            std::env::remove_var("RESPONSE_MODEL");
+            std::env::remove_var("OPENAI_API_KEY");
+
+            // Now set up for this test
+            std::env::set_var("ANTHROPIC_API_KEY", "test-key");
         }
 
         let result = load_channel_agent("RESPONSE");
-        assert!(result.is_ok());
+        if let Err(ref e) = result {
+            eprintln!("load_channel_agent failed: {}", e);
+        }
+        assert!(result.is_ok(), "Failed to load agent: {:?}", result.as_ref().err());
         let agent = result.unwrap();
         assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
 
         unsafe {
+            // Comprehensive cleanup
             std::env::remove_var("ANTHROPIC_API_KEY");
+            std::env::remove_var("RESPONSE_PROVIDER");
+            std::env::remove_var("RESPONSE_API_KEY");
+            std::env::remove_var("RESPONSE_MODEL");
+            std::env::remove_var("OPENAI_API_KEY");
         }
     }
 
     #[test]
+    #[serial]
     fn test_load_channel_agent_openai_with_channel_vars() {
         unsafe {
             std::env::set_var("OPENAI_API_KEY", "sk-test-key");
             std::env::set_var("RESPONSE_PROVIDER", "openai");
             std::env::remove_var("RESPONSE_API_KEY");
+            std::env::remove_var("ANTHROPIC_API_KEY");
         }
 
         let result = load_channel_agent("RESPONSE");
@@ -228,17 +246,23 @@ mod tests {
         assert_eq!(agent.provider(), OPENAI_PROVIDER);
 
         unsafe {
+            // Comprehensive cleanup
             std::env::remove_var("OPENAI_API_KEY");
             std::env::remove_var("RESPONSE_PROVIDER");
+            std::env::remove_var("RESPONSE_API_KEY");
+            std::env::remove_var("RESPONSE_MODEL");
+            std::env::remove_var("ANTHROPIC_API_KEY");
         }
     }
 
     #[test]
+    #[serial]
     fn test_load_channel_agent_openai_custom_model() {
         unsafe {
             std::env::set_var("OPENAI_API_KEY", "sk-test-key");
             std::env::set_var("RESPONSE_PROVIDER", "openai");
             std::env::set_var("RESPONSE_MODEL", "gpt-4-turbo");
+            std::env::remove_var("ANTHROPIC_API_KEY");
         }
 
         let result = load_channel_agent("RESPONSE");
@@ -248,13 +272,17 @@ mod tests {
         assert_eq!(agent.model(), "gpt-4-turbo");
 
         unsafe {
+            // Comprehensive cleanup
             std::env::remove_var("OPENAI_API_KEY");
             std::env::remove_var("RESPONSE_PROVIDER");
             std::env::remove_var("RESPONSE_MODEL");
+            std::env::remove_var("RESPONSE_API_KEY");
+            std::env::remove_var("ANTHROPIC_API_KEY");
         }
     }
 
     #[test]
+    #[serial]
     fn test_load_reasoning_budget_channel_specific() {
         unsafe {
             std::env::set_var("RESPONSE_REASONING_BUDGET", "300");
@@ -267,6 +295,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_reasoning_budget_global_fallback() {
         unsafe {
             std::env::set_var("OPENAI_REASONING_BUDGET", "250");
@@ -280,6 +309,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_reasoning_budget_default_fallback() {
         unsafe {
             std::env::remove_var("ANALYSIS_REASONING_BUDGET");
@@ -290,6 +320,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_reasoning_budget_precedence() {
         unsafe {
             std::env::set_var("OPENAI_REASONING_BUDGET", "100");

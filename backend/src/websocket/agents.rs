@@ -232,7 +232,7 @@ async fn simple_call_and_respond(
     prompt: &Message,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
-    let response = state.agent.generate_simple_response(prompt.as_str()).await;
+    let response = state.agent.generate_simple_response("", prompt.as_str()).await;
 
     match response {
         Ok(agent_response) => {

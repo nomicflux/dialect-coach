@@ -802,11 +802,12 @@ impl ResponseContext {
 
     pub async fn generate_simple_response(
         &self,
+        system_preamble: &str,
         prompt: &str,
         history: Vec<RigMessage>,
     ) -> Result<dialect_coach_shared::AgentResponse> {
         let request = CompletionRequest {
-            preamble: "",
+            preamble: system_preamble,
             prompt,
             history: &history,
             max_tokens: 128,

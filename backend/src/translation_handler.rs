@@ -122,7 +122,7 @@ async fn translate_phrase(
     // Use AgentService simple translation method
     let response = state
         .agent
-        .generate_simple_response(&translation_prompt)
+        .generate_simple_response("", &translation_prompt)
         .await
         .context("Failed to translate phrase")?;
 
