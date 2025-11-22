@@ -107,7 +107,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
     let on_save_phrase = {
         let user_state = user_state.clone();
         Callback::from(move |(target, english, context): (String, String, String)| {
-            let translated = Translated::new(target, english, Some(context));
+            let translated = Translated::new(english, target, Some(context));
             user_state.dispatch(UserStateAction::AddLearningItems(
                 vec![],
                 vec![],
