@@ -36,14 +36,14 @@
     margin: 0;
     font-size: var(--text-xl);
     font-weight: 600;
-    color: var(--ink);
+    color: #111827 !important;
 }
 
 .modal-close {
     background: transparent;
     border: none;
     font-size: var(--text-xl);
-    color: var(--ink);
+    color: #111827 !important;
     cursor: pointer;
     padding: 0;
     width: 2rem;
@@ -63,6 +63,7 @@
 .modal-body {
     padding: var(--s-6);
     overflow-y: auto;
+    color: #111827 !important;
 }
 
 .original-sentence {
@@ -70,11 +71,11 @@
     padding: var(--s-4);
     border-radius: var(--r-m);
     margin-bottom: var(--s-6);
-    border-left: 3px solid var(--ink);
+    border-left: 3px solid #111827;
 }
 
 .original-sentence strong {
-    color: var(--ink);
+    color: #111827 !important;
     display: block;
     margin-bottom: var(--s-2);
     font-size: var(--text-sm);
@@ -82,7 +83,7 @@
 }
 
 .original-sentence span {
-    color: var(--ink);
+    color: #111827 !important;
     font-size: var(--text-base);
 }
 
@@ -99,7 +100,8 @@
     padding: var(--s-4);
     background-color: var(--yellow);
     border-radius: var(--r-m);
-    border-left: 3px solid var(--ink);
+    border-left: 3px solid #111827;
+    color: #111827 !important;
     transition: all var(--dur-fast) var(--ease-out);
 }
 
@@ -109,14 +111,14 @@
 
 .phrase-text {
     flex: 1;
-    color: var(--ink);
+    color: #111827 !important;
     font-size: var(--text-base);
     font-weight: 500;
 }
 
 .save-button {
     background-color: var(--yellow);
-    color: var(--ink);
+    color: #111827 !important;
     border: none;
     padding: var(--s-2) var(--s-4);
     border-radius: var(--r-pill);
