@@ -15,7 +15,7 @@ use crate::components::{
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
-use dialect_coach_shared::models::{MessageContent, PhraseTranslation, Translated};
+use dialect_coach_shared::models::{LearningItem, MessageContent, PhraseTranslation, Translated, UserState};
 use gloo::events::EventListener;
 use log::error;
 use uuid::Uuid;
@@ -289,7 +289,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
                 // Learning panel
                 <LearningPanel
-                    items={us.learning_items.clone()}
+                    items={get_filtered_items(us)}
                     is_open={true}
                     is_collapsed={ui_state.learning_panel_collapsed}
                     on_close={{
@@ -364,4 +364,20 @@ fn get_text_from_message(msg: &dialect_coach_shared::models::Message) -> String 
         MessageContent::UserMessage { content } => content.clone(),
         MessageContent::AgentMessage { content } => content.response.clone(),
     }
+}
+
+fn get_filtered_items(user_state: &UserState) -> Vec<LearningItem> {
+    let active_dialect = get_active_dialect(user_state);
+    user_state.get_learning_items_for_dialect(&active_dialect)
+        .into_iter()
+        .cloned()
+        .collect()
+}
+
+fn get_active_dialect(user_state: &UserState) -> dialect_coach_shared::Dialect {
+    user_state.branches
+        .iter()
+        .find(|b| b.id == user_state.active_branch_id)
+        .map(|b| b.dialect)
+        .unwrap_or(user_state.selected_dialect)
 }

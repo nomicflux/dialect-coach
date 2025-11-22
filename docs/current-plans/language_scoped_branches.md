@@ -259,10 +259,25 @@ pub struct LearningItem {
 - Clippy clean
 
 **Phase End Checklist:**
-- [ ] Run `cargo test` - 100% success required
-- [ ] Run `cargo clippy` - Fix ALL errors and warnings
-- [ ] No dead code
-- [ ] Git commit: `git commit -m "Phase 3: Filter learning items by dialect"`
+- [x] Run `cargo test` - 100% success required
+- [x] Run `cargo clippy` - Fix ALL errors and warnings
+- [x] No dead code
+- [x] Git commit: `git commit -m "Phase 3: Filter learning items by dialect"`
+
+**Phase 3 Status: COMPLETE**
+
+**Implementation Summary:**
+- Added `get_learning_items_for_dialect()` method to UserState in shared/src/models/user_state.rs
+- Updated frontend learning panel display in frontend/src/components/main_content.rs:
+  - Added `get_filtered_items()` helper to filter by active branch dialect
+  - Added `get_active_dialect()` helper to get dialect from active branch
+- Updated backend analysis agent in backend/src/websocket/agents.rs:
+  - Added `FilteredLearningItems` struct to hold filtered items
+  - Added `filter_learning_items()` function to filter by dialect
+  - Modified `run_agents_with_analysis()` to filter learning items before analysis
+- All learning items now filtered by branch dialect before display/analysis
+- All tests pass (313 total)
+- Clippy clean
 
 ---
 
@@ -354,16 +369,17 @@ User indicated these are for "far future":
 
 - [x] Phase 1: Add dialect to ConversationBranch
 - [x] Phase 2: Add dialect to LearningItem
-- [ ] Phase 3: Filter learning items by dialect
+- [x] Phase 3: Filter learning items by dialect
 - [ ] Phase 4: Update UI to show branch dialect
 
-**Current Phase:** Phase 2 complete - ready for Phase 3
+**Current Phase:** Phase 3 complete - ready for Phase 4
 
 **Blockers:** None
 
 **Notes:**
 - Phase 1 completed successfully (branch dialect field)
 - Phase 2 completed successfully (learning item dialect field)
+- Phase 3 completed successfully (filtering by dialect)
 - All tests pass (313 total)
 - Clippy clean
-- Ready for Phase 3 upon approval
+- Ready for Phase 4 upon approval

@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::{
-    AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Message, MessageContent,
-    MessageMetadata, UserMessageWithContext, UserState,
+    AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Explained, Exploratory, Message,
+    MessageContent, MessageMetadata, Mistake, Translated, UserMessageWithContext, UserState,
 };
 
 use crate::rag_config::RAGConfig;
@@ -35,6 +35,39 @@ pub fn convert_to_rig_message(message: &Message) -> RigMessage {
 
 pub fn build_context_from_messages(messages: &[Message]) -> Vec<RigMessage> {
     messages.iter().map(convert_to_rig_message).collect()
+}
+
+struct FilteredLearningItems {
+    mistakes: Vec<Mistake>,
+    explained: Vec<Explained>,
+    translated: Vec<Translated>,
+    exploratory: Vec<Exploratory>,
+}
+
+fn filter_learning_items(user_state: &UserState, dialect: Dialect) -> FilteredLearningItems {
+    use dialect_coach_shared::LearningItemType;
+
+    let dialect_items = user_state.get_learning_items_for_dialect(&dialect);
+    let mut mistakes = Vec::new();
+    let mut explained = Vec::new();
+    let mut translated = Vec::new();
+    let mut exploratory = Vec::new();
+
+    for item in dialect_items {
+        match &item.item {
+            LearningItemType::Mistake(m) => mistakes.push(m.clone()),
+            LearningItemType::Explanation(e) => explained.push(e.clone()),
+            LearningItemType::Translation(t) => translated.push(t.clone()),
+            LearningItemType::Exploration(e) => exploratory.push(e.clone()),
+        }
+    }
+
+    FilteredLearningItems {
+        mistakes,
+        explained,
+        translated,
+        exploratory,
+    }
 }
 
 pub async fn add_agent_to_history(state: &AppState, session_id: Uuid, agent_text: &str) {
@@ -153,12 +186,14 @@ async fn run_agents_with_analysis(
     user_state: dialect_coach_shared::UserState,
     now: i64,
 ) -> Result<AgentResponse, anyhow::Error> {
+    let filtered_items = filter_learning_items(&user_state, dialect);
+
     tracing::info!(
         "Running agents in parallel: {} mistakes, {} explained, {} translated, {} exploratory items",
-        msg_with_context.past_mistakes.len(),
-        msg_with_context.past_explained.len(),
-        msg_with_context.past_translated.len(),
-        msg_with_context.past_exploratory.len()
+        filtered_items.mistakes.len(),
+        filtered_items.explained.len(),
+        filtered_items.translated.len(),
+        filtered_items.exploratory.len()
     );
 
     let user_text = msg_with_context.message.get_content();
@@ -167,10 +202,10 @@ async fn run_agents_with_analysis(
         state.agent.generate_analysis(
             dialect,
             &user_text,
-            &msg_with_context.past_mistakes,
-            &msg_with_context.past_explained,
-            &msg_with_context.past_translated,
-            &msg_with_context.past_exploratory,
+            &filtered_items.mistakes,
+            &filtered_items.explained,
+            &filtered_items.translated,
+            &filtered_items.exploratory,
         )
     );
 

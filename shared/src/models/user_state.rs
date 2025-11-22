@@ -39,6 +39,12 @@ impl UserState {
             .find(|&msg| msg.id == msg_id)
             .cloned()
     }
+
+    pub fn get_learning_items_for_dialect(&self, dialect: &Dialect) -> Vec<&LearningItem> {
+        self.learning_items.iter()
+            .filter(|item| &item.dialect == dialect)
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
