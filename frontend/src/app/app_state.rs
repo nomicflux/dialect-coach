@@ -387,18 +387,19 @@ fn add_learning_items_to_vec(
     explained: Vec<Explained>,
     translated: Vec<Translated>,
     exploratory: Vec<Exploratory>,
+    dialect: Dialect,
 ) -> Vec<LearningItem> {
     for mistake in mistakes {
-        items.push(LearningItem::new(LearningItemType::Mistake(mistake)));
+        items.push(LearningItem::new(LearningItemType::Mistake(mistake), dialect));
     }
     for expl in explained {
-        items.push(LearningItem::new(LearningItemType::Explanation(expl)));
+        items.push(LearningItem::new(LearningItemType::Explanation(expl), dialect));
     }
     for trans in translated {
-        items.push(LearningItem::new(LearningItemType::Translation(trans)));
+        items.push(LearningItem::new(LearningItemType::Translation(trans), dialect));
     }
     for explor in exploratory {
-        items.push(LearningItem::new(LearningItemType::Exploration(explor)));
+        items.push(LearningItem::new(LearningItemType::Exploration(explor), dialect));
     }
     items
 }
@@ -598,6 +599,7 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
                 explained,
                 translated,
                 exploratory,
+                next.selected_dialect,
             );
         }
         UserStateAction::UpdateScores(analysis) => {

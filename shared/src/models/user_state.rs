@@ -45,6 +45,7 @@ impl UserState {
 pub struct LearningItem {
     pub item: LearningItemType,
     pub score: u8,
+    pub dialect: Dialect,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -273,8 +274,8 @@ impl UserState {
 
 impl LearningItem {
     /// Create a new learning item with score 0
-    pub fn new(item: LearningItemType) -> Self {
-        Self { item, score: 0 }
+    pub fn new(item: LearningItemType, dialect: Dialect) -> Self {
+        Self { item, score: 0, dialect }
     }
 }
 
@@ -346,9 +347,10 @@ mod tests {
     #[test]
     fn test_learning_item_new() {
         let mistake = create_test_mistake();
-        let item = LearningItem::new(LearningItemType::Mistake(mistake.clone()));
+        let item = LearningItem::new(LearningItemType::Mistake(mistake.clone()), Dialect::SpanishMexican);
 
         assert_eq!(item.score, 0);
+        assert_eq!(item.dialect, Dialect::SpanishMexican);
         match item.item {
             LearningItemType::Mistake(m) => assert_eq!(m.id, mistake.id),
             _ => panic!("Expected Mistake variant"),
@@ -369,11 +371,12 @@ mod tests {
     #[test]
     fn test_learning_item_serialization() {
         let mistake = create_test_mistake();
-        let item = LearningItem::new(LearningItemType::Mistake(mistake));
+        let item = LearningItem::new(LearningItemType::Mistake(mistake), Dialect::SpanishMexican);
         let json = serde_json::to_string(&item).unwrap();
 
         assert!(json.contains("\"score\""));
         assert!(json.contains("\"item\""));
+        assert!(json.contains("\"dialect\""));
     }
 
     #[test]
