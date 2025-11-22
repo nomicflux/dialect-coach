@@ -14,7 +14,7 @@
 }
 
 .modal-container {
-    background: var(--surface-muted);
+    background: var(--yellow-tint);
     border-radius: var(--r-l);
     box-shadow: var(--shadow-float);
     max-width: 600px;
@@ -29,7 +29,8 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--s-5) var(--s-6);
-    border-bottom: 1px solid rgba(78, 205, 196, 0.15);
+    background-color: var(--yellow-tint);
+    border-bottom: 3px solid var(--yellow);
 }
 
 .modal-header h3 {
@@ -56,13 +57,14 @@
 }
 
 .modal-close:hover {
-    background-color: var(--yellow-tint);
-    color: var(--yellow);
+    background-color: var(--yellow);
+    color: #111827;
 }
 
 .modal-body {
     padding: var(--s-6);
     overflow-y: auto;
+    background-color: var(--yellow-tint);
     color: #111827 !important;
 }
 
