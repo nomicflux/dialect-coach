@@ -43,7 +43,7 @@
     background: transparent;
     border: none;
     font-size: var(--text-xl);
-    color: var(--ink-soft);
+    color: var(--ink);
     cursor: pointer;
     padding: 0;
     width: 2rem;
@@ -56,8 +56,8 @@
 }
 
 .modal-close:hover {
-    background-color: var(--teal-tint);
-    color: var(--teal);
+    background-color: var(--yellow-tint);
+    color: var(--yellow);
 }
 
 .modal-body {
@@ -66,11 +66,11 @@
 }
 
 .original-sentence {
-    background-color: var(--teal-tint);
+    background-color: var(--yellow-tint);
     padding: var(--s-4);
     border-radius: var(--r-m);
     margin-bottom: var(--s-6);
-    border-left: 4px solid var(--teal);
+    border-left: 3px solid var(--yellow);
 }
 
 .original-sentence strong {
@@ -97,14 +97,13 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--s-4);
-    background-color: var(--surface-muted);
+    background-color: var(--yellow-tint);
     border-radius: var(--r-m);
-    border: 1px solid rgba(78, 205, 196, 0.1);
+    border-left: 3px solid var(--yellow);
     transition: all var(--dur-fast) var(--ease-out);
 }
 
 .phrase-row:hover {
-    border-color: var(--teal);
     box-shadow: var(--shadow-soft);
 }
 
@@ -115,8 +114,8 @@
 }
 
 .save-button {
-    background-color: var(--teal);
-    color: white;
+    background-color: var(--yellow);
+    color: var(--ink);
     border: none;
     padding: var(--s-2) var(--s-4);
     border-radius: var(--r-pill);
@@ -130,6 +129,7 @@
 
 .save-button:hover {
     background-color: var(--coral);
+    color: white;
     transform: translateY(-1px);
     box-shadow: var(--shadow-soft);
 }
