@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use dialect_coach_shared::models::{Dialect, Formality};
+use dialect_coach_shared::models::{Dialect, Formality, PhraseTranslation};
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
@@ -14,7 +14,8 @@ pub struct TranslateRequest {
 
 #[derive(Serialize)]
 pub struct TranslateResponse {
-    pub translated: String,
+    pub original_sentence: String,
+    pub segmented_phrases: Vec<PhraseTranslation>,
     pub success: bool,
     pub error: Option<String>,
 }
@@ -38,7 +39,8 @@ pub async fn translate_handler(
             return (
                 StatusCode::BAD_REQUEST,
                 Json(TranslateResponse {
-                    translated: String::new(),
+                    original_sentence: request.phrase.clone(),
+                    segmented_phrases: vec![],
                     success: false,
                     error: Some(format!("Invalid dialect: {}", request.dialect)),
                 }),
@@ -55,7 +57,8 @@ pub async fn translate_handler(
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(TranslateResponse {
-                        translated: String::new(),
+                        original_sentence: request.phrase.clone(),
+                        segmented_phrases: vec![],
                         success: false,
                         error: Some(format!("Invalid formality: {}", formality_str)),
                     }),
@@ -68,16 +71,17 @@ pub async fn translate_handler(
 
     // Translate the phrase
     match translate_phrase(&state, &request.phrase, dialect, formality).await {
-        Ok(agent_response) => {
+        Ok(segmented_phrases) => {
             tracing::info!(
-                "Translation success: '{}' -> '{}'",
+                "Translation success: '{}' -> {} phrases",
                 request.phrase,
-                agent_response.response
+                segmented_phrases.len()
             );
             (
                 StatusCode::OK,
                 Json(TranslateResponse {
-                    translated: agent_response.response,
+                    original_sentence: request.phrase.clone(),
+                    segmented_phrases,
                     success: true,
                     error: None,
                 }),
@@ -88,7 +92,8 @@ pub async fn translate_handler(
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(TranslateResponse {
-                    translated: String::new(),
+                    original_sentence: request.phrase.clone(),
+                    segmented_phrases: vec![],
                     success: false,
                     error: Some(format!("Translation failed: {}", e)),
                 }),
@@ -103,8 +108,7 @@ async fn translate_phrase(
     phrase: &str,
     dialect: Dialect,
     formality: Formality,
-) -> Result<dialect_coach_shared::AgentResponse> {
-    // Create a specialized translation prompt
+) -> Result<Vec<PhraseTranslation>> {
     let formality_desc = match formality {
         Formality::Formal => "formal and polite",
         Formality::ProfessionalCasual => "professional yet casual",
@@ -112,21 +116,27 @@ async fn translate_phrase(
         Formality::Slang => "informal with slang and colloquialisms",
     };
 
+    let system_preamble = "Return ONLY valid JSON array format. Each element must have 'target_text' and 'english' fields. No other text, no markdown formatting, just the JSON array.";
+
     let translation_prompt = format!(
-        "Translate this English phrase into authentic {} speech, making it sound {}:\n\n\"{}\"\n\nReturn ONLY the translation, nothing else.",
+        "Segment this sentence into useful 2-4 word phrases and translate each to {} ({}):\n\n\"{}\"\n\nReturn JSON array: [{{\"target_text\": \"phrase in target language\", \"english\": \"English translation\"}}, ...]",
         dialect.name(),
         formality_desc,
         phrase
     );
 
-    // Use AgentService simple translation method
     let response = state
         .agent
-        .generate_simple_response("", &translation_prompt)
+        .generate_simple_response(system_preamble, &translation_prompt)
         .await
-        .context("Failed to translate phrase")?;
+        .context("Failed to get AI response")?;
 
-    Ok(response)
+    parse_phrase_translations(&response.response)
+}
+
+fn parse_phrase_translations(json_str: &str) -> Result<Vec<PhraseTranslation>> {
+    serde_json::from_str(json_str)
+        .context("Failed to parse AI response as JSON array of PhraseTranslation")
 }
 
 #[cfg(test)]
@@ -207,29 +217,48 @@ mod tests {
     fn test_translation_prompt_generation() {
         let phrase = "Hello, how are you?";
         let dialect = Dialect::SpanishMexican;
-        let formality = Formality::Informal;
-
-        // Test prompt generation doesn't panic and includes expected elements
-        let formality_desc = match formality {
-            Formality::Informal => "casual and conversational",
-            _ => panic!("Unexpected formality in test"),
-        };
-
-        let expected_elements = vec![phrase, dialect.name(), formality_desc];
+        let formality_desc = "casual and conversational";
 
         let prompt = format!(
-            "Translate this English phrase into authentic {} speech, making it sound {}:\n\n\"{}\"\n\nReturn ONLY the translation, nothing else.",
+            "Segment this sentence into useful 2-4 word phrases and translate each to {} ({}):\n\n\"{}\"\n\nReturn JSON array: [{{\"target_text\": \"phrase in target language\", \"english\": \"English translation\"}}, ...]",
             dialect.name(),
             formality_desc,
             phrase
         );
 
-        for element in expected_elements {
-            assert!(
-                prompt.contains(element),
-                "Prompt missing element: {}",
-                element
-            );
-        }
+        assert!(prompt.contains(phrase));
+        assert!(prompt.contains(dialect.name()));
+        assert!(prompt.contains(formality_desc));
+        assert!(prompt.contains("2-4 word phrases"));
+        assert!(prompt.contains("JSON array"));
+    }
+
+    #[test]
+    fn test_parse_phrase_translations_valid() {
+        let json = r#"[{"target_text": "Hola", "english": "Hello"}, {"target_text": "¿Cómo estás?", "english": "How are you?"}]"#;
+        let result = parse_phrase_translations(json);
+        assert!(result.is_ok());
+        let phrases = result.unwrap();
+        assert_eq!(phrases.len(), 2);
+        assert_eq!(phrases[0].target_text, "Hola");
+        assert_eq!(phrases[0].english, "Hello");
+        assert_eq!(phrases[1].target_text, "¿Cómo estás?");
+        assert_eq!(phrases[1].english, "How are you?");
+    }
+
+    #[test]
+    fn test_parse_phrase_translations_invalid() {
+        let invalid_json = "not valid json";
+        let result = parse_phrase_translations(invalid_json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_phrase_translations_empty_array() {
+        let json = "[]";
+        let result = parse_phrase_translations(json);
+        assert!(result.is_ok());
+        let phrases = result.unwrap();
+        assert_eq!(phrases.len(), 0);
     }
 }

@@ -29,6 +29,12 @@ pub enum AIActionRequest {
     TranslateMessage { message_id: Uuid },
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PhraseTranslation {
+    pub target_text: String,
+    pub english: String,
+}
+
 /// A message in a chat session
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
