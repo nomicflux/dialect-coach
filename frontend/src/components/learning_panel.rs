@@ -50,7 +50,13 @@ fn get_tooltip(item: &LearningItem) -> Option<String> {
     match &item.item {
         LearningItemType::Mistake(m) => Some(m.mistake_category.to_string()),
         LearningItemType::Explanation(e) => Some(e.explanation.clone()),
-        LearningItemType::Translation(t) => Some(format!("Translation: {}", t.translated_to)),
+        LearningItemType::Translation(t) => {
+            if let Some(context) = &t.context {
+                Some(format!("Translation: {}\nContext: {}", t.translated_to, context))
+            } else {
+                Some(format!("Translation: {}", t.translated_to))
+            }
+        }
         LearningItemType::Exploration(e) => Some(e.instructions_for_use.clone()),
     }
 }
