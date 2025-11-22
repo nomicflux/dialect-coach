@@ -156,6 +156,8 @@ struct TranslatedHelper {
     id: Option<TranslatedId>,
     translated_word: String,
     translated_to: String,
+    #[serde(default)]
+    context: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -163,6 +165,7 @@ pub struct Translated {
     pub id: TranslatedId,
     pub translated_word: String,
     pub translated_to: String,
+    pub context: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for Translated {
@@ -179,18 +182,20 @@ impl<'de> Deserialize<'de> for Translated {
             id,
             translated_word: helper.translated_word,
             translated_to: helper.translated_to,
+            context: helper.context,
         })
     }
 }
 
 impl Translated {
-    pub fn new(translated_word: String, translated_to: String) -> Self {
+    pub fn new(translated_word: String, translated_to: String, context: Option<String>) -> Self {
         let hash_input = format!("{}|{}", translated_word, translated_to);
         let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes());
         Self {
             id,
             translated_word,
             translated_to,
+            context,
         }
     }
 
@@ -685,13 +690,13 @@ mod tests {
 
     #[test]
     fn test_translated_get_content() {
-        let translated = Translated::new("hello".to_string(), "hola".to_string());
+        let translated = Translated::new("hello".to_string(), "hola".to_string(), None);
         assert_eq!(translated.get_content(), "hello -> hola");
     }
 
     #[test]
     fn test_translated_serialization() {
-        let translated = Translated::new("hello".to_string(), "hola".to_string());
+        let translated = Translated::new("hello".to_string(), "hola".to_string(), None);
         let json = serde_json::to_string(&translated).unwrap();
         assert!(json.contains("hello"));
         assert!(json.contains("hola"));
@@ -702,9 +707,9 @@ mod tests {
 
     #[test]
     fn test_translated_stable_id() {
-        let translated1 = Translated::new("hello".to_string(), "hola".to_string());
-        let translated2 = Translated::new("hello".to_string(), "hola".to_string());
-        let translated3 = Translated::new("hello".to_string(), "¡hola!".to_string());
+        let translated1 = Translated::new("hello".to_string(), "hola".to_string(), None);
+        let translated2 = Translated::new("hello".to_string(), "hola".to_string(), None);
+        let translated3 = Translated::new("hello".to_string(), "¡hola!".to_string(), None);
         assert_eq!(translated1.id, translated2.id);
         assert_ne!(translated1.id, translated3.id);
     }
@@ -715,10 +720,46 @@ mod tests {
         let translated: Translated = serde_json::from_str(json).unwrap();
         assert_eq!(translated.translated_word, "hello");
         assert_eq!(translated.translated_to, "hola");
+        assert_eq!(translated.context, None);
 
         let hash_input = "hello|hola";
         let expected_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, hash_input.as_bytes());
         assert_eq!(translated.id, expected_id);
+    }
+
+    #[test]
+    fn test_translated_with_context() {
+        let translated = Translated::new(
+            "hello".to_string(),
+            "hola".to_string(),
+            Some("I said hello to my friend".to_string()),
+        );
+        assert_eq!(translated.translated_word, "hello");
+        assert_eq!(translated.translated_to, "hola");
+        assert_eq!(translated.context, Some("I said hello to my friend".to_string()));
+    }
+
+    #[test]
+    fn test_translated_serialization_with_context() {
+        let translated = Translated::new(
+            "hello".to_string(),
+            "hola".to_string(),
+            Some("I said hello to my friend".to_string()),
+        );
+        let json = serde_json::to_string(&translated).unwrap();
+        assert!(json.contains("hello"));
+        assert!(json.contains("hola"));
+        assert!(json.contains("I said hello to my friend"));
+        assert!(json.contains("\"context\""));
+    }
+
+    #[test]
+    fn test_translated_deserialization_with_context() {
+        let json = r#"{"translated_word": "hello", "translated_to": "hola", "context": "I said hello"}"#;
+        let translated: Translated = serde_json::from_str(json).unwrap();
+        assert_eq!(translated.translated_word, "hello");
+        assert_eq!(translated.translated_to, "hola");
+        assert_eq!(translated.context, Some("I said hello".to_string()));
     }
 
     #[test]
@@ -841,6 +882,7 @@ mod tests {
         response.translated = Some(vec![Translated::new(
             "hello".to_string(),
             "hola".to_string(),
+            None,
         )]);
 
         let json = serde_json::to_string(&response).unwrap();

@@ -403,7 +403,7 @@ mod tests {
             },
         )];
         let explained = vec![Explained::new("órale".to_string(), "Slang".to_string())];
-        let translated = vec![Translated::new("house".to_string(), "casa".to_string())];
+        let translated = vec![Translated::new("house".to_string(), "casa".to_string(), None)];
         let exploratory = vec![Exploratory::new(
             "Prueba pretérito".to_string(),
             "Cuenta algo breve".to_string(),
@@ -438,7 +438,7 @@ mod tests {
             },
         )];
         let explained = vec![Explained::new("órale".to_string(), "Slang".to_string())];
-        let translated = vec![Translated::new("house".to_string(), "casa".to_string())];
+        let translated = vec![Translated::new("house".to_string(), "casa".to_string(), None)];
         let exploratory = vec![Exploratory::new(
             "Prueba pretérito".to_string(),
             "Cuenta algo breve".to_string(),

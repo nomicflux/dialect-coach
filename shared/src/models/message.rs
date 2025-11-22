@@ -364,7 +364,7 @@ mod tests {
 
         let msg = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
 
-        let translated = Translated::new("hello".to_string(), "hola".to_string());
+        let translated = Translated::new("hello".to_string(), "hola".to_string(), None);
 
         let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
@@ -434,7 +434,7 @@ mod tests {
 
         let explained = Explained::new("órale".to_string(), "Mexican slang".to_string());
 
-        let translated = Translated::new("hello".to_string(), "hola".to_string());
+        let translated = Translated::new("hello".to_string(), "hola".to_string(), None);
 
         let exploratory =
             Exploratory::new("Use subjunctive".to_string(), "Try 'Si fuera'".to_string());

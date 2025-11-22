@@ -201,7 +201,7 @@ mod tests {
             },
         );
         let explained = Explained::new("órale".to_string(), "Slang for wow".to_string());
-        let translated = Translated::new("house".to_string(), "casa".to_string());
+        let translated = Translated::new("house".to_string(), "casa".to_string(), None);
         let exploratory = Exploratory::new(
             "Usa el pretérito".to_string(),
             "Haz una frase corta".to_string(),
