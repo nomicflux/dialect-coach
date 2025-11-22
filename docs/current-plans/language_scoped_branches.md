@@ -196,10 +196,21 @@ pub struct LearningItem {
 - Clippy clean
 
 **Phase End Checklist:**
-- [ ] Run `cargo test` - 100% success required
-- [ ] Run `cargo clippy` - Fix ALL errors and warnings
-- [ ] No dead code
-- [ ] Git commit: `git commit -m "Phase 2: Add dialect to LearningItem"`
+- [x] Run `cargo test` - 100% success required
+- [x] Run `cargo clippy` - Fix ALL errors and warnings
+- [x] No dead code
+- [x] Git commit: `git commit -m "Phase 2: Add dialect to LearningItem"`
+
+**Phase 2 Status: COMPLETE**
+
+**Implementation Summary:**
+- Added `dialect: Dialect` field to LearningItem in shared/src/models/user_state.rs
+- Updated LearningItem::new() to accept dialect parameter
+- Modified AddLearningItems action to pass selected_dialect
+- Updated add_learning_items_to_vec() helper to accept and pass dialect
+- Updated all tests to use Dialect::SpanishMexican
+- All tests pass (313 total)
+- Clippy clean
 
 ---
 
@@ -342,16 +353,17 @@ User indicated these are for "far future":
 ## Implementation Status
 
 - [x] Phase 1: Add dialect to ConversationBranch
-- [ ] Phase 2: Add dialect to LearningItem
+- [x] Phase 2: Add dialect to LearningItem
 - [ ] Phase 3: Filter learning items by dialect
 - [ ] Phase 4: Update UI to show branch dialect
 
-**Current Phase:** Phase 1 complete - ready for Phase 2
+**Current Phase:** Phase 2 complete - ready for Phase 3
 
 **Blockers:** None
 
 **Notes:**
-- Phase 1 completed successfully
+- Phase 1 completed successfully (branch dialect field)
+- Phase 2 completed successfully (learning item dialect field)
 - All tests pass (313 total)
 - Clippy clean
-- Ready for Phase 2 upon approval
+- Ready for Phase 3 upon approval
