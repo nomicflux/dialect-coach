@@ -1,7 +1,5 @@
 - Add learning items manually (like vocab words)
 - Plan out learning course
-- central usage stats (no overlap)
-- branch at beginning of convo
 - options for standard language practice, not dialect
 - ruby & romaji for japanese
 - transliteration for Arabic
@@ -9,8 +7,6 @@
 - AAVE? Indian English?
 - feedback panel
 - add in model choice to user
-- gender of agents
-- gender of user
 - stay logged in (session cookies)
 - sidebar position, collapsed status
 - learning items by language
