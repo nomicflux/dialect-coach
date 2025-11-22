@@ -14,7 +14,7 @@
 }
 
 .modal-container {
-    background: var(--surface-raised);
+    background: var(--surface-muted);
     border-radius: var(--r-l);
     box-shadow: var(--shadow-float);
     max-width: 600px;
@@ -66,11 +66,11 @@
 }
 
 .original-sentence {
-    background-color: var(--yellow-tint);
+    background-color: var(--yellow);
     padding: var(--s-4);
     border-radius: var(--r-m);
     margin-bottom: var(--s-6);
-    border-left: 3px solid var(--yellow);
+    border-left: 3px solid var(--ink);
 }
 
 .original-sentence strong {
@@ -97,9 +97,9 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--s-4);
-    background-color: var(--yellow-tint);
+    background-color: var(--yellow);
     border-radius: var(--r-m);
-    border-left: 3px solid var(--yellow);
+    border-left: 3px solid var(--ink);
     transition: all var(--dur-fast) var(--ease-out);
 }
 
@@ -111,6 +111,7 @@
     flex: 1;
     color: var(--ink);
     font-size: var(--text-base);
+    font-weight: 500;
 }
 
 .save-button {
