@@ -317,6 +317,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         })
                     }}
                     deleted_count={ui_state.deleted_learning_items.len()}
+                    active_branch_dialect={get_active_dialect(us)}
                 />
             </div>
 

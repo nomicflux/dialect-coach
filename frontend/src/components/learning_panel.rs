@@ -1,4 +1,4 @@
-use dialect_coach_shared::{LearningItem, LearningItemType};
+use dialect_coach_shared::{Dialect, LearningItem, LearningItemType};
 use uuid::Uuid;
 use yew::prelude::*;
 
@@ -21,6 +21,7 @@ pub struct LearningPanelProps {
     pub on_delete: Callback<Uuid>,
     pub on_undo: Callback<()>,
     pub deleted_count: usize,
+    pub active_branch_dialect: Option<Dialect>,
 }
 
 fn calculate_color_from_score(score: u8, item_type: &LearningItemType) -> String {
@@ -86,6 +87,65 @@ fn count_by_type(items: &[LearningItem]) -> (usize, usize, usize, usize) {
     }
 
     (mistakes, explanations, translations, explorations)
+}
+
+fn has_active_dialect(dialect: Option<Dialect>) -> bool {
+    dialect.is_some()
+}
+
+fn create_type_change_callback(
+    selected_type: UseStateHandle<Option<String>>,
+) -> Callback<Event> {
+    Callback::from(move |e: Event| {
+        let target = e.target();
+        let input = web_sys::HtmlSelectElement::from(wasm_bindgen::JsValue::from(target));
+        let value = input.value();
+        if value == "Select type..." {
+            selected_type.set(None);
+        } else {
+            selected_type.set(Some(value));
+        }
+    })
+}
+
+fn render_type_selector(
+    selected_type: UseStateHandle<Option<String>>,
+) -> Html {
+    let current_value = selected_type.as_ref().cloned().unwrap_or_default();
+    html! {
+        <select
+            class="learning-item-type-selector"
+            onchange={create_type_change_callback(selected_type)}
+            value={current_value}
+        >
+            <option value="Select type...">{"Select type..."}</option>
+            <option value="Mistake">{"Mistake"}</option>
+            <option value="Explanation">{"Explanation"}</option>
+            <option value="Translation">{"Translation"}</option>
+            <option value="Exploration">{"Exploration"}</option>
+        </select>
+    }
+}
+
+fn render_add_item_form(
+    selected_type: &UseStateHandle<Option<String>>,
+    branch_dialect: Option<Dialect>,
+) -> Html {
+    if !has_active_dialect(branch_dialect) {
+        return html! {
+            <div class="add-learning-item-form">
+                <p class="empty-message">
+                    {"Send a message to start practicing before adding items"}
+                </p>
+            </div>
+        };
+    }
+    html! {
+        <div class="add-learning-item-form">
+            <h4 class="section-title">{"Add Learning Item"}</h4>
+            {render_type_selector(selected_type.clone())}
+        </div>
+    }
 }
 
 fn render_collapsed_type_indicator(
@@ -243,7 +303,10 @@ fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> Html 
     }
 }
 
-fn render_expanded_view(props: &LearningPanelProps) -> Html {
+fn render_expanded_view(
+    props: &LearningPanelProps,
+    selected_type: &UseStateHandle<Option<String>>,
+) -> Html {
     let (accomplishments, still_learning): (Vec<_>, Vec<_>) =
         props.items.iter().partition(|item| item.score == 100);
 
@@ -263,6 +326,7 @@ fn render_expanded_view(props: &LearningPanelProps) -> Html {
                 {"►"}
             </button>
             <div class="learning-panel-content">
+                {render_add_item_form(selected_type, props.active_branch_dialect)}
                 if !accomplishments.is_empty() {
                     <div class="learning-section">
                         <h4 class="section-title">{"Accomplishments"}</h4>
@@ -303,6 +367,7 @@ fn render_expanded_view(props: &LearningPanelProps) -> Html {
 
 #[function_component(LearningPanel)]
 pub fn learning_panel(props: &LearningPanelProps) -> Html {
+    let selected_type = use_state(|| None::<String>);
     let panel_class = if props.is_collapsed {
         "learning-panel learning-panel--collapsed"
     } else {
@@ -314,7 +379,7 @@ pub fn learning_panel(props: &LearningPanelProps) -> Html {
             {if props.is_collapsed {
                 render_collapsed_view(props)
             } else {
-                render_expanded_view(props)
+                render_expanded_view(props, &selected_type)
             }}
         </div>
     }
