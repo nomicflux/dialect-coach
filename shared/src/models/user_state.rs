@@ -64,8 +64,7 @@ pub enum LearningItemType {
 
 impl UserState {
     pub fn new(user_id: Uuid) -> Self {
-        let initial_dialect = Dialect::SpanishCuban;
-        let initial_branch = ConversationBranch::new(None, None, None, initial_dialect);
+        let initial_branch = ConversationBranch::new(None, None, None, None);
         let initial_branch_id = initial_branch.id;
 
         Self {
@@ -74,7 +73,7 @@ impl UserState {
             conversation_history: Vec::new(),
             tts_enabled: false,
             selected_language: Language::Spanish,
-            selected_dialect: initial_dialect,
+            selected_dialect: Dialect::SpanishCuban,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Immersive,
             user_gender: UserGender::NonBinary,
@@ -207,7 +206,7 @@ impl UserState {
     }
 
     fn reset_branches_to_root(&mut self) {
-        let branch = ConversationBranch::new(None, None, None, self.selected_dialect);
+        let branch = ConversationBranch::new(None, None, None, None);
         self.active_branch_id = branch.id;
         self.branches = vec![branch];
     }
@@ -232,7 +231,7 @@ impl UserState {
         for leaf_id in leaves {
             let parent_id = self.find_message(leaf_id).and_then(|msg| msg.parent_id);
             let dialect = self.branch_dialect(leaf_id);
-            branches.push(ConversationBranch::new(parent_id, None, Some(leaf_id), dialect));
+            branches.push(ConversationBranch::new(parent_id, None, Some(leaf_id), Some(dialect)));
         }
         branches
     }
@@ -506,7 +505,7 @@ mod tests {
     fn test_get_child_branches_one() {
         let mut state = create_test_user_state();
         let message_id = Uuid::new_v4();
-        let branch = ConversationBranch::new(Some(message_id), None, None, Dialect::SpanishMexican);
+        let branch = ConversationBranch::new(Some(message_id), None, None, Some(Dialect::SpanishMexican));
         let branch_id = branch.id;
         state.branches.push(branch);
 
@@ -519,7 +518,7 @@ mod tests {
     fn test_find_branch_root_exists() {
         let mut state = create_test_user_state();
         let parent_msg_id = Uuid::new_v4();
-        let branch = ConversationBranch::new(Some(parent_msg_id), None, None, Dialect::SpanishMexican);
+        let branch = ConversationBranch::new(Some(parent_msg_id), None, None, Some(Dialect::SpanishMexican));
         let branch_id = branch.id;
         state.branches.push(branch);
 

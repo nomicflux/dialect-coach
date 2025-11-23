@@ -12,7 +12,7 @@ pub struct ConversationBranch {
     pub leaf_message_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub name: Option<String>,
-    pub dialect: Dialect,
+    pub dialect: Option<Dialect>,
 }
 
 impl ConversationBranch {
@@ -20,7 +20,7 @@ impl ConversationBranch {
         parent_message_id: Option<Uuid>,
         name: Option<String>,
         leaf_message_id: Option<Uuid>,
-        dialect: Dialect,
+        dialect: Option<Dialect>,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -40,40 +40,40 @@ mod tests {
     #[test]
     fn test_new_branch_with_parent() {
         let parent_id = Uuid::new_v4();
-        let branch = ConversationBranch::new(Some(parent_id), None, None, Dialect::SpanishMexican);
+        let branch = ConversationBranch::new(Some(parent_id), None, None, Some(Dialect::SpanishMexican));
 
         assert_eq!(branch.parent_message_id, Some(parent_id));
         assert_eq!(branch.name, None);
         assert_eq!(branch.leaf_message_id, None);
-        assert_eq!(branch.dialect, Dialect::SpanishMexican);
+        assert_eq!(branch.dialect, Some(Dialect::SpanishMexican));
     }
 
     #[test]
     fn test_new_branch_with_name() {
         let name = "Alternative discussion".to_string();
-        let branch = ConversationBranch::new(None, Some(name.clone()), None, Dialect::SpanishMexican);
+        let branch = ConversationBranch::new(None, Some(name.clone()), None, Some(Dialect::SpanishMexican));
 
         assert_eq!(branch.parent_message_id, None);
         assert_eq!(branch.name, Some(name));
         assert_eq!(branch.leaf_message_id, None);
-        assert_eq!(branch.dialect, Dialect::SpanishMexican);
+        assert_eq!(branch.dialect, Some(Dialect::SpanishMexican));
     }
 
     #[test]
     fn test_new_branch_root() {
-        let branch = ConversationBranch::new(None, None, None, Dialect::SpanishMexican);
+        let branch = ConversationBranch::new(None, None, None, None);
 
         assert_eq!(branch.parent_message_id, None);
         assert_eq!(branch.name, None);
         assert_eq!(branch.leaf_message_id, None);
-        assert_eq!(branch.dialect, Dialect::SpanishMexican);
+        assert_eq!(branch.dialect, None);
     }
 
     #[test]
     fn test_branch_serialization() {
         let parent_id = Uuid::new_v4();
         let branch =
-            ConversationBranch::new(Some(parent_id), Some("Test Branch".to_string()), None, Dialect::SpanishMexican);
+            ConversationBranch::new(Some(parent_id), Some("Test Branch".to_string()), None, Some(Dialect::SpanishMexican));
 
         let json = serde_json::to_string(&branch).unwrap();
         assert!(json.contains(&branch.id.to_string()));

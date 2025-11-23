@@ -136,7 +136,7 @@ fn render_branch_item(
     };
     let branch_id = branch.id;
     let branch_name = get_branch_display_name(messages, branch);
-    let dialect_name = branch.dialect.name();
+    let dialect_name = branch.dialect.map(|d| d.name()).unwrap_or("Unknown");
 
     html! {
         <div class={branch_class}>

@@ -378,6 +378,6 @@ fn get_active_dialect(user_state: &UserState) -> dialect_coach_shared::Dialect {
     user_state.branches
         .iter()
         .find(|b| b.id == user_state.active_branch_id)
-        .map(|b| b.dialect)
+        .and_then(|b| b.dialect)
         .unwrap_or(user_state.selected_dialect)
 }
