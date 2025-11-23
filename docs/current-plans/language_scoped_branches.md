@@ -318,27 +318,36 @@ pub struct LearningItem {
 - Clippy clean
 
 **Phase End Checklist:**
-- [ ] Run `cargo test` - 100% success required
-- [ ] Run `cargo clippy` - Fix ALL errors and warnings
-- [ ] No dead code
-- [ ] Manual UI testing - branch dialect displays correctly
-- [ ] Git commit: `git commit -m "Phase 4: Show branch dialect in UI"`
+- [x] Run `cargo test` - 100% success required
+- [x] Run `cargo clippy` - Fix ALL errors and warnings
+- [x] No dead code
+- [x] Manual UI testing - branch dialect displays correctly
+- [x] Git commit: `git commit -m "Phase 4: Show branch dialect in UI"`
+
+**Phase 4 Status: COMPLETE**
+
+**Implementation Summary:**
+- Updated branch_sidebar.rs to display dialect in branch UI
+- Branch dialect now shows next to branch names in sidebar
+- All tests pass (313 total)
+- Clippy clean
+- Committed: "Phase 4: Show branch dialect in UI"
 
 ---
 
 ## Success Criteria
 
 After all phases complete:
-- [ ] Each branch has a specific dialect
-- [ ] Learning items tagged with dialect
-- [ ] Learning panel only shows items from active branch's dialect
-- [ ] Analysis agent only grades items from current dialect
-- [ ] UI clearly shows which dialect context user is in
-- [ ] Switching branches switches language context
-- [ ] No cross-dialect data bleeding
-- [ ] All tests pass (100% success)
-- [ ] No clippy warnings
-- [ ] No dead code
+- [x] Each branch has a specific dialect
+- [x] Learning items tagged with dialect
+- [x] Learning panel only shows items from active branch's dialect
+- [x] Analysis agent only grades items from current dialect
+- [x] UI clearly shows which dialect context user is in
+- [x] Switching branches switches language context
+- [x] No cross-dialect data bleeding
+- [x] All tests pass (100% success)
+- [x] No clippy warnings
+- [x] No dead code
 
 ## Future Enhancements (Out of Scope)
 
@@ -370,9 +379,9 @@ User indicated these are for "far future":
 - [x] Phase 1: Add dialect to ConversationBranch
 - [x] Phase 2: Add dialect to LearningItem
 - [x] Phase 3: Filter learning items by dialect
-- [ ] Phase 4: Update UI to show branch dialect
+- [x] Phase 4: Update UI to show branch dialect
 
-**Current Phase:** Phase 3 complete - ready for Phase 4
+**Current Phase:** ALL PHASES COMPLETE ✅
 
 **Blockers:** None
 
@@ -380,6 +389,8 @@ User indicated these are for "far future":
 - Phase 1 completed successfully (branch dialect field)
 - Phase 2 completed successfully (learning item dialect field)
 - Phase 3 completed successfully (filtering by dialect)
+- Phase 4 completed successfully (UI displays branch dialect)
 - All tests pass (313 total)
 - Clippy clean
-- Ready for Phase 4 upon approval
+- All success criteria met
+- Language-scoped branches feature is COMPLETE
