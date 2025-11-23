@@ -367,17 +367,18 @@ fn get_text_from_message(msg: &dialect_coach_shared::models::Message) -> String 
 }
 
 fn get_filtered_items(user_state: &UserState) -> Vec<LearningItem> {
-    let active_dialect = get_active_dialect(user_state);
-    user_state.get_learning_items_for_dialect(&active_dialect)
-        .into_iter()
-        .cloned()
-        .collect()
+    match get_active_dialect(user_state) {
+        Some(dialect) => user_state.get_learning_items_for_dialect(&dialect)
+            .into_iter()
+            .cloned()
+            .collect(),
+        None => Vec::new(),
+    }
 }
 
-fn get_active_dialect(user_state: &UserState) -> dialect_coach_shared::Dialect {
+fn get_active_dialect(user_state: &UserState) -> Option<dialect_coach_shared::Dialect> {
     user_state.branches
         .iter()
         .find(|b| b.id == user_state.active_branch_id)
         .and_then(|b| b.dialect)
-        .unwrap_or(user_state.selected_dialect)
 }
