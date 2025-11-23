@@ -75,10 +75,12 @@ pub struct ConversationBranch {
 - Clippy clean
 
 **Phase End Checklist:**
-- [ ] Run `cargo test` - 100% success required
-- [ ] Run `cargo clippy` - Fix ALL errors and warnings
-- [ ] No dead code
-- [ ] Git commit: `git commit -m "Phase 1: Make branch dialect optional"`
+- [x] Run `cargo test` - 100% success required
+- [x] Run `cargo clippy` - Fix ALL errors and warnings
+- [x] No dead code
+- [x] Git commit: `git commit -m "Phase 1: Make branch dialect optional"`
+
+**Phase 1 Status: COMPLETE**
 
 ---
 
@@ -118,10 +120,12 @@ pub struct ConversationBranch {
 - Clippy clean
 
 **Phase End Checklist:**
-- [ ] Run `cargo test` - 100% success required
-- [ ] Run `cargo clippy` - Fix ALL errors and warnings
-- [ ] No dead code
-- [ ] Git commit: `git commit -m "Phase 2: Set branch dialect from first message"`
+- [x] Run `cargo test` - 100% success required
+- [x] Run `cargo clippy` - Fix ALL errors and warnings
+- [x] No dead code
+- [x] Git commit: `git commit -m "Phase 2: Set branch dialect from first message"`
+
+**Phase 2 Status: COMPLETE**
 
 ---
 
@@ -153,23 +157,25 @@ pub struct ConversationBranch {
 - Clippy clean
 
 **Phase End Checklist:**
-- [ ] Run `cargo test` - 100% success required
-- [ ] Run `cargo clippy` - Fix ALL errors and warnings
-- [ ] No dead code
-- [ ] Manual UI testing
-- [ ] Git commit: `git commit -m "Phase 3: UI handles optional dialect"`
+- [x] Run `cargo test` - 100% success required
+- [x] Run `cargo clippy` - Fix ALL errors and warnings
+- [x] No dead code
+- [x] Manual UI testing
+- [x] Git commit: `git commit -m "Phase 3: UI handles optional dialect"`
+
+**Phase 3 Status: COMPLETE**
 
 ---
 
 ## Success Criteria
 
-- [ ] Initial empty branch has dialect: None
-- [ ] Branch dialect is set from first message's dialect
-- [ ] UI shows appropriate label for empty branches
-- [ ] Cuban Spanish → Argentinian Spanish works correctly
-- [ ] All tests pass (100% success)
-- [ ] No clippy warnings
-- [ ] No dead code
+- [x] Initial empty branch has dialect: None
+- [x] Branch dialect is set from first message's dialect
+- [x] UI shows appropriate label for empty branches ("New conversation")
+- [x] Cuban Spanish → Argentinian Spanish works correctly
+- [x] All tests pass (100% success) - 315 tests passing
+- [x] No clippy warnings
+- [x] No dead code
 
 ## User Decisions
 
@@ -186,10 +192,19 @@ pub struct ConversationBranch {
 
 ## Implementation Status
 
-- [ ] Phase 1: Make dialect optional
-- [ ] Phase 2: Set dialect from first message
-- [ ] Phase 3: Update UI
+- [x] Phase 1: Make dialect optional
+- [x] Phase 2: Set dialect from first message
+- [x] Phase 3: Update UI
 
-**Current Phase:** Not started - awaiting user approval
+**Current Phase:** ALL PHASES COMPLETE ✅
 
-**Blockers:** Need decision on learning item filtering behavior
+**Blockers:** None
+
+**Summary:**
+- Branch dialect is now optional (Option<Dialect>)
+- Initial branches start with dialect: None
+- First message sets the branch dialect automatically
+- UI shows "New conversation" for empty branches
+- Learning items only show when branch has a dialect
+- All 315 tests pass
+- Clippy clean
