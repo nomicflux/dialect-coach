@@ -582,6 +582,7 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
 
             msg.parent_id = current_leaf;
             let new_msg_id = msg.id;
+            let msg_dialect = msg.metadata.dialect;
             next.conversation_history.push(msg);
 
             if let Some(branch) = next
@@ -590,6 +591,10 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
                 .find(|b| b.id == next.active_branch_id)
             {
                 branch.leaf_message_id = Some(new_msg_id);
+                // Set branch dialect from first message if dialect is None
+                if branch.dialect.is_none() {
+                    branch.dialect = Some(msg_dialect);
+                }
             }
         }
         UserStateAction::AddLearningItems(mistakes, explained, translated, exploratory) => {

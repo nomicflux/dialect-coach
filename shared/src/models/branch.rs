@@ -31,6 +31,12 @@ impl ConversationBranch {
             dialect,
         }
     }
+
+    pub fn set_dialect_if_none(&mut self, dialect: Dialect) {
+        if self.dialect.is_none() {
+            self.dialect = Some(dialect);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -82,5 +88,23 @@ mod tests {
 
         let deserialized: ConversationBranch = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, branch);
+    }
+
+    #[test]
+    fn test_set_dialect_if_none_sets_when_none() {
+        let mut branch = ConversationBranch::new(None, None, None, None);
+        assert_eq!(branch.dialect, None);
+
+        branch.set_dialect_if_none(Dialect::SpanishMexican);
+        assert_eq!(branch.dialect, Some(Dialect::SpanishMexican));
+    }
+
+    #[test]
+    fn test_set_dialect_if_none_does_not_override() {
+        let mut branch = ConversationBranch::new(None, None, None, Some(Dialect::SpanishCuban));
+        assert_eq!(branch.dialect, Some(Dialect::SpanishCuban));
+
+        branch.set_dialect_if_none(Dialect::SpanishMexican);
+        assert_eq!(branch.dialect, Some(Dialect::SpanishCuban));
     }
 }
