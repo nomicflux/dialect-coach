@@ -191,7 +191,6 @@ fn dispatch_learning_item(selected_type: Option<&String>, fields: &FormFields, u
 }
 
 struct ClearStates {
-    selected_type: UseStateHandle<Option<String>>,
     mistake: UseStateHandle<String>,
     correction: UseStateHandle<String>,
     category: UseStateHandle<String>,
@@ -204,9 +203,8 @@ struct ClearStates {
     instructions: UseStateHandle<String>,
 }
 
-fn create_clear_callback(states: ClearStates) -> Callback<()> {
+fn create_clear_fields_callback(states: ClearStates) -> Callback<()> {
     Callback::from(move |_| {
-        states.selected_type.set(None);
         states.mistake.set(String::new());
         states.correction.set(String::new());
         states.category.set(String::new());
@@ -217,6 +215,16 @@ fn create_clear_callback(states: ClearStates) -> Callback<()> {
         states.context.set(String::new());
         states.point.set(String::new());
         states.instructions.set(String::new());
+    })
+}
+
+fn create_clear_all_callback(
+    selected_type: UseStateHandle<Option<String>>,
+    clear_fields: Callback<()>,
+) -> Callback<()> {
+    Callback::from(move |_| {
+        selected_type.set(None);
+        clear_fields.emit(());
     })
 }
 
@@ -362,6 +370,7 @@ fn render_save_cancel_buttons(
 }
 
 fn render_add_item_form(
+    form_expanded: &UseStateHandle<bool>,
     selected_type: &UseStateHandle<Option<String>>,
     branch_dialect: Option<Dialect>,
     fields: &FormFields,
@@ -374,6 +383,22 @@ fn render_add_item_form(
                 <p class="empty-message">
                     {"Send a message to start practicing before adding items"}
                 </p>
+            </div>
+        };
+    }
+
+    if !**form_expanded {
+        return html! {
+            <div class="add-learning-item-form">
+                <button
+                    class="expand-form-button"
+                    onclick={{
+                        let form_expanded = form_expanded.clone();
+                        Callback::from(move |_| form_expanded.set(true))
+                    }}
+                >
+                    {"+ Add Learning Item"}
+                </button>
             </div>
         };
     }
@@ -401,7 +426,18 @@ fn render_add_item_form(
     let save_enabled = is_form_valid(selected_type.as_ref(), fields);
     html! {
         <div class="add-learning-item-form">
-            <h4 class="section-title">{"Add Learning Item"}</h4>
+            <div class="form-header">
+                <h4 class="section-title">{"Add Learning Item"}</h4>
+                <button
+                    class="collapse-form-button"
+                    onclick={{
+                        let form_expanded = form_expanded.clone();
+                        Callback::from(move |_| form_expanded.set(false))
+                    }}
+                >
+                    {"−"}
+                </button>
+            </div>
             {render_type_selector(selected_type.clone())}
             {field_html}
             {render_save_cancel_buttons(save_enabled, on_save, on_cancel)}
@@ -566,6 +602,7 @@ fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> Html 
 
 fn render_expanded_view(
     props: &LearningPanelProps,
+    form_expanded: &UseStateHandle<bool>,
     selected_type: &UseStateHandle<Option<String>>,
     fields: &FormFields,
     on_save: Callback<()>,
@@ -590,7 +627,6 @@ fn render_expanded_view(
                 {"►"}
             </button>
             <div class="learning-panel-content">
-                {render_add_item_form(selected_type, props.active_branch_dialect, fields, on_save, on_cancel)}
                 if !accomplishments.is_empty() {
                     <div class="learning-section">
                         <h4 class="section-title">{"Accomplishments"}</h4>
@@ -612,6 +648,8 @@ fn render_expanded_view(
                 if accomplishments.is_empty() && still_learning.is_empty() {
                     <p class="empty-message">{"No learning items yet. Start chatting to build your learning progress!"}</p>
                 }
+
+                {render_add_item_form(form_expanded, selected_type, props.active_branch_dialect, fields, on_save, on_cancel)}
             </div>
 
             if props.deleted_count > 0 {
@@ -631,6 +669,7 @@ fn render_expanded_view(
 
 #[function_component(LearningPanel)]
 pub fn learning_panel(props: &LearningPanelProps) -> Html {
+    let form_expanded = use_state(|| false);
     let selected_type = use_state(|| None::<String>);
     let specific_mistake = use_state(String::new);
     let correction = use_state(String::new);
@@ -661,8 +700,7 @@ pub fn learning_panel(props: &LearningPanelProps) -> Html {
         instructions: instructions.clone(),
     };
 
-    let clear = create_clear_callback(ClearStates {
-        selected_type: selected_type.clone(),
+    let clear_fields = create_clear_fields_callback(ClearStates {
         mistake: specific_mistake.clone(),
         correction: correction.clone(),
         category: category.clone(),
@@ -675,28 +713,30 @@ pub fn learning_panel(props: &LearningPanelProps) -> Html {
         instructions: instructions.clone(),
     });
 
+    let clear_all = create_clear_all_callback(selected_type.clone(), clear_fields.clone());
+
     let on_save = {
         let selected_type = selected_type.clone();
         let fields = fields.clone();
         let user_state = props.user_state.clone();
-        let clear = clear.clone();
+        let clear_fields = clear_fields.clone();
         Callback::from(move |_| {
             if !is_form_valid(selected_type.as_ref(), &fields) {
                 return;
             }
             dispatch_learning_item(selected_type.as_ref(), &fields, &user_state);
-            clear.emit(());
+            clear_fields.emit(());
         })
     };
 
-    let on_cancel = clear;
+    let on_cancel = clear_all;
 
     html! {
         <div class={panel_class}>
             {if props.is_collapsed {
                 render_collapsed_view(props)
             } else {
-                render_expanded_view(props, &selected_type, &fields, on_save, on_cancel)
+                render_expanded_view(props, &form_expanded, &selected_type, &fields, on_save, on_cancel)
             }}
         </div>
     }

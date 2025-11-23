@@ -4,7 +4,6 @@
 - ruby & romaji for japanese
 - transliteration for Arabic
 - language-specific options in general
-- AAVE? Indian English?
 - feedback panel
 - add in model choice to user
 - stay logged in (session cookies)
@@ -12,3 +11,9 @@
 - keyboard shortcuts
 - keyboard shortcuts between branches
   - still need shortcuts to play sound
+- partial learning items (add word, let AI give translation)
+- need to improve explanations
+
+Longer Term
+---
+- AAVE? Indian English?
