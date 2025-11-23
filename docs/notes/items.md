@@ -9,9 +9,6 @@
 - add in model choice to user
 - stay logged in (session cookies)
 - sidebar position, collapsed status
-- learning items by language
 - keyboard shortcuts
-- change "empty" for new/root branches
-  - still broken: deleting conversation doesn't delete 
 - keyboard shortcuts between branches
   - still need shortcuts to play sound
