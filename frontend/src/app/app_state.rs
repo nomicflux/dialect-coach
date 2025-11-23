@@ -706,7 +706,17 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             next.learning_goals = delete_learning_goal(next.learning_goals, index);
         }
         UserStateAction::CycleDialect => {
+            let old_language = next.selected_dialect.language();
             next.selected_dialect = cycle_dialect(&next);
+            let new_language = next.selected_dialect.language();
+
+            // If language changed, create a new branch for the new language
+            if old_language != new_language {
+                let new_branch = ConversationBranch::new(None, None, None, None);
+                let new_branch_id = new_branch.id;
+                next.branches.push(new_branch);
+                next.active_branch_id = new_branch_id;
+            }
         }
         UserStateAction::CycleFormality => {
             next.formality = cycle_formality(next.formality);
