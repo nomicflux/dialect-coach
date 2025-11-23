@@ -391,7 +391,7 @@ fn render_add_item_form(
         return html! {
             <div class="add-learning-item-form">
                 <button
-                    class="expand-form-button"
+                    class="save-learning-item-button"
                     onclick={{
                         let form_expanded = form_expanded.clone();
                         Callback::from(move |_| form_expanded.set(true))
@@ -426,10 +426,10 @@ fn render_add_item_form(
     let save_enabled = is_form_valid(selected_type.as_ref(), fields);
     html! {
         <div class="add-learning-item-form">
-            <div class="form-header">
+            <div class="form-buttons">
                 <h4 class="section-title">{"Add Learning Item"}</h4>
                 <button
-                    class="collapse-form-button"
+                    class="cancel-learning-item-button"
                     onclick={{
                         let form_expanded = form_expanded.clone();
                         Callback::from(move |_| form_expanded.set(false))
