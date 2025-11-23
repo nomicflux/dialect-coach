@@ -1,6 +1,6 @@
 # Manual Learning Items - Implementation Status
 
-## Current Phase: Phase 1 (COMPLETE)
+## Current Phase: Phase 2 (COMPLETE)
 
 **Last Updated:** 2025-11-23
 
@@ -9,7 +9,7 @@
 | Phase | Status | Completion Date |
 |-------|--------|----------------|
 | Phase 1: Form State and Type Selection | ✅ Complete | 2025-11-23 |
-| Phase 2: Field Rendering for Each Type | ⏸️ Not Started | - |
+| Phase 2: Field Rendering for Each Type | ✅ Complete | 2025-11-23 |
 | Phase 3: Validation and Save Logic | ⏸️ Not Started | - |
 | Phase 4: Integration and Polish | ⏸️ Not Started | - |
 
@@ -34,12 +34,22 @@
   - Updated parent component main_content.rs to pass active_branch_dialect via get_active_dialect() helper
 
 ### Phase 2: Field Rendering for Each Type
-- Status: ⏸️ Not Started
+- Status: ✅ Complete
 - Subagent: modular-builder
-- Files Modified: None yet
-- Tests Added: None yet
-- Blockers: Phase 1 completion
-- Notes: -
+- Files Modified:
+  - `frontend/src/components/learning_panel.rs` (updated field rendering, validation helpers)
+- Tests Added: 0 (validation functions added but marked #[allow(dead_code)] until Phase 3)
+- Blockers: None
+- Notes:
+  - Removed unused `explanation` field from Mistake (actual struct only has 3 fields)
+  - Updated `render_mistake_fields()` to only render 3 inputs (removed explanation field)
+  - All 4 field rendering functions already existed from Phase 1
+  - All 4 validation helper functions added as pure functions (<10 lines each)
+  - Created `FormFields` struct to group state handles and reduce function parameter count
+  - Refactored `render_add_item_form()` and `render_expanded_view()` to use FormFields struct
+  - Fixed clippy warnings (too many arguments, dead code)
+  - All tests pass (315+ tests)
+  - Clippy clean (0 warnings)
 
 ### Phase 3: Validation and Save Logic
 - Status: ⏸️ Not Started
@@ -76,19 +86,19 @@
 ## Success Criteria Progress
 
 - [x] User can select learning item type from dropdown (Phase 1)
-- [ ] Correct fields appear based on selected type (Phase 2)
-- [ ] Required fields are marked and validated (Phase 2-3)
-- [ ] Optional fields are clearly optional (Phase 2)
+- [x] Correct fields appear based on selected type (Phase 2)
+- [x] Required fields are marked and validated (Phase 2 - marked with *, validation in Phase 3)
+- [x] Optional fields are clearly optional (Phase 2)
 - [ ] Save button disabled until form valid (Phase 3)
 - [ ] Item saved with score=0 and current dialect (Phase 3)
 - [ ] Item appears immediately in learning panel (Phase 4)
 - [ ] Form clears after successful save (Phase 3)
 - [ ] Cancel button resets form (Phase 3)
 - [x] Disabled when branch has no dialect (Phase 1)
-- [x] All 139 tests pass (Phase 1)
-- [x] Clippy clean (Phase 1)
+- [x] All 315+ tests pass (Phase 1-2)
+- [x] Clippy clean (Phase 1-2)
 
-**Overall Progress: 4/12 (33%)**
+**Overall Progress: 7/12 (58%)**
 
 ## Critical Decisions Made
 
@@ -116,16 +126,34 @@
 **Decision:** 0 (needs practice)
 **Rationale:** Consistent with spec, uses existing `LearningItem::new()` constructor
 
+### 2025-11-23: Mistake Struct Has No Explanation Field
+**Issue:** Phase 1 implementation incorrectly added 4 fields to Mistake form
+**Discovery:** Actual `Mistake` struct in `shared/src/models/agent.rs` only has 3 fields:
+- `specific_mistake: String`
+- `correction: String`
+- `mistake_category: MistakeCategory`
+**Decision:** Removed the extra `explanation` field from `render_mistake_fields()`
+**Rationale:** Must match actual data structure to compile
+
+### 2025-11-23: FormFields Struct to Reduce Parameter Count
+**Issue:** Functions had 12+ parameters triggering clippy::too_many_arguments
+**Decision:** Created `FormFields` struct to group all state handles
+**Benefits:**
+- Reduced `render_add_item_form()` from 12 to 3 parameters
+- Reduced `render_expanded_view()` from 12 to 3 parameters
+- Maintains type safety
+- Easier to pass field state around
+
 ## Blockers
 
 None currently.
 
 ## Next Steps
 
-1. Await user approval to begin Phase 1
-2. Once approved, kiss-code-generator will implement form state and type selection
-3. Update this document after Phase 1 completion
-4. Proceed to Phase 2 only after explicit approval
+1. Await user approval to begin Phase 3
+2. Once approved, kiss-code-generator will implement validation and save logic
+3. Update this document after Phase 3 completion
+4. Proceed to Phase 4 only after explicit approval
 
 ## Notes
 

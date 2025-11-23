@@ -108,6 +108,39 @@ fn create_type_change_callback(
     })
 }
 
+#[allow(dead_code)]
+fn is_mistake_valid(mistake: &str, corr: &str, cat: &str) -> bool {
+    !mistake.trim().is_empty() && !corr.trim().is_empty() && !cat.is_empty()
+}
+
+#[allow(dead_code)]
+fn is_explanation_valid(phrase: &str, expl: &str) -> bool {
+    !phrase.trim().is_empty() && !expl.trim().is_empty()
+}
+
+#[allow(dead_code)]
+fn is_translation_valid(word: &str, trans: &str) -> bool {
+    !word.trim().is_empty() && !trans.trim().is_empty()
+}
+
+#[allow(dead_code)]
+fn is_exploration_valid(point: &str, instr: &str) -> bool {
+    !point.trim().is_empty() && !instr.trim().is_empty()
+}
+
+struct FormFields {
+    mistake: UseStateHandle<String>,
+    correction: UseStateHandle<String>,
+    category: UseStateHandle<String>,
+    phrase: UseStateHandle<String>,
+    explanation: UseStateHandle<String>,
+    word: UseStateHandle<String>,
+    translation: UseStateHandle<String>,
+    context: UseStateHandle<String>,
+    point: UseStateHandle<String>,
+    instructions: UseStateHandle<String>,
+}
+
 fn render_type_selector(
     selected_type: UseStateHandle<Option<String>>,
 ) -> Html {
@@ -127,9 +160,94 @@ fn render_type_selector(
     }
 }
 
+fn create_input_change_callback(state: UseStateHandle<String>) -> Callback<Event> {
+    Callback::from(move |e: Event| {
+        let target = e.target();
+        let input = web_sys::HtmlInputElement::from(wasm_bindgen::JsValue::from(target));
+        state.set(input.value());
+    })
+}
+
+fn create_select_change_callback(state: UseStateHandle<String>) -> Callback<Event> {
+    Callback::from(move |e: Event| {
+        let target = e.target();
+        let select = web_sys::HtmlSelectElement::from(wasm_bindgen::JsValue::from(target));
+        state.set(select.value());
+    })
+}
+
+fn render_mistake_fields(
+    mistake: UseStateHandle<String>,
+    corr: UseStateHandle<String>,
+    cat: UseStateHandle<String>,
+) -> Html {
+    html! {
+        <div class="mistake-fields">
+            <input type="text" placeholder="Incorrect *" value={(*mistake).clone()}
+                onchange={create_input_change_callback(mistake)} />
+            <input type="text" placeholder="Correct *" value={(*corr).clone()}
+                onchange={create_input_change_callback(corr)} />
+            <select value={(*cat).clone()} onchange={create_select_change_callback(cat)}>
+                <option value="">{"Select category *"}</option>
+                <option value="SpellingError">{"Spelling Error"}</option>
+                <option value="VocabularyError">{"Vocabulary Error"}</option>
+                <option value="GrammarError">{"Grammar Error"}</option>
+                <option value="DialectUsageError">{"Dialect Usage Error"}</option>
+                <option value="Other">{"Other"}</option>
+            </select>
+        </div>
+    }
+}
+
+fn render_explanation_fields(
+    phrase: UseStateHandle<String>,
+    expl: UseStateHandle<String>,
+) -> Html {
+    html! {
+        <div class="explanation-fields">
+            <input type="text" placeholder="Phrase *" value={(*phrase).clone()}
+                onchange={create_input_change_callback(phrase)} />
+            <input type="text" placeholder="Explanation *" value={(*expl).clone()}
+                onchange={create_input_change_callback(expl)} />
+        </div>
+    }
+}
+
+fn render_translation_fields(
+    word: UseStateHandle<String>,
+    trans: UseStateHandle<String>,
+    ctx: UseStateHandle<String>,
+) -> Html {
+    html! {
+        <div class="translation-fields">
+            <input type="text" placeholder="English *" value={(*word).clone()}
+                onchange={create_input_change_callback(word)} />
+            <input type="text" placeholder="Translation *" value={(*trans).clone()}
+                onchange={create_input_change_callback(trans)} />
+            <input type="text" placeholder="Context (optional)" value={(*ctx).clone()}
+                onchange={create_input_change_callback(ctx)} />
+        </div>
+    }
+}
+
+fn render_exploration_fields(
+    point: UseStateHandle<String>,
+    instr: UseStateHandle<String>,
+) -> Html {
+    html! {
+        <div class="exploration-fields">
+            <input type="text" placeholder="Item *" value={(*point).clone()}
+                onchange={create_input_change_callback(point)} />
+            <input type="text" placeholder="Instructions *" value={(*instr).clone()}
+                onchange={create_input_change_callback(instr)} />
+        </div>
+    }
+}
+
 fn render_add_item_form(
     selected_type: &UseStateHandle<Option<String>>,
     branch_dialect: Option<Dialect>,
+    fields: &FormFields,
 ) -> Html {
     if !has_active_dialect(branch_dialect) {
         return html! {
@@ -140,10 +258,32 @@ fn render_add_item_form(
             </div>
         };
     }
+    let field_html = match selected_type.as_ref().map(|s| s.as_str()) {
+        Some("Mistake") => render_mistake_fields(
+            fields.mistake.clone(),
+            fields.correction.clone(),
+            fields.category.clone()
+        ),
+        Some("Explanation") => render_explanation_fields(
+            fields.phrase.clone(),
+            fields.explanation.clone()
+        ),
+        Some("Translation") => render_translation_fields(
+            fields.word.clone(),
+            fields.translation.clone(),
+            fields.context.clone()
+        ),
+        Some("Exploration") => render_exploration_fields(
+            fields.point.clone(),
+            fields.instructions.clone()
+        ),
+        _ => html! {},
+    };
     html! {
         <div class="add-learning-item-form">
             <h4 class="section-title">{"Add Learning Item"}</h4>
             {render_type_selector(selected_type.clone())}
+            {field_html}
         </div>
     }
 }
@@ -306,6 +446,7 @@ fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> Html 
 fn render_expanded_view(
     props: &LearningPanelProps,
     selected_type: &UseStateHandle<Option<String>>,
+    fields: &FormFields,
 ) -> Html {
     let (accomplishments, still_learning): (Vec<_>, Vec<_>) =
         props.items.iter().partition(|item| item.score == 100);
@@ -326,7 +467,7 @@ fn render_expanded_view(
                 {"►"}
             </button>
             <div class="learning-panel-content">
-                {render_add_item_form(selected_type, props.active_branch_dialect)}
+                {render_add_item_form(selected_type, props.active_branch_dialect, fields)}
                 if !accomplishments.is_empty() {
                     <div class="learning-section">
                         <h4 class="section-title">{"Accomplishments"}</h4>
@@ -368,10 +509,33 @@ fn render_expanded_view(
 #[function_component(LearningPanel)]
 pub fn learning_panel(props: &LearningPanelProps) -> Html {
     let selected_type = use_state(|| None::<String>);
+    let specific_mistake = use_state(String::new);
+    let correction = use_state(String::new);
+    let category = use_state(String::new);
+    let new_phrase = use_state(String::new);
+    let explanation_text = use_state(String::new);
+    let translated_word = use_state(String::new);
+    let translated_to = use_state(String::new);
+    let context_text = use_state(String::new);
+    let point_to_try = use_state(String::new);
+    let instructions = use_state(String::new);
     let panel_class = if props.is_collapsed {
         "learning-panel learning-panel--collapsed"
     } else {
         "learning-panel"
+    };
+
+    let fields = FormFields {
+        mistake: specific_mistake.clone(),
+        correction: correction.clone(),
+        category: category.clone(),
+        phrase: new_phrase.clone(),
+        explanation: explanation_text.clone(),
+        word: translated_word.clone(),
+        translation: translated_to.clone(),
+        context: context_text.clone(),
+        point: point_to_try.clone(),
+        instructions: instructions.clone(),
     };
 
     html! {
@@ -379,7 +543,7 @@ pub fn learning_panel(props: &LearningPanelProps) -> Html {
             {if props.is_collapsed {
                 render_collapsed_view(props)
             } else {
-                render_expanded_view(props, &selected_type)
+                render_expanded_view(props, &selected_type, &fields)
             }}
         </div>
     }
