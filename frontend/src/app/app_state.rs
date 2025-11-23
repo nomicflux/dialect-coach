@@ -570,6 +570,13 @@ fn prepare_state_for_action(state: &UserState) -> UserState {
     prepared
 }
 
+fn create_new_branch_for_language(state: &mut UserState) {
+    let new_branch = ConversationBranch::new(None, None, None, None);
+    let new_branch_id = new_branch.id;
+    state.branches.push(new_branch);
+    state.active_branch_id = new_branch_id;
+}
+
 fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserState {
     let mut next = state.clone();
     match action {
@@ -611,11 +618,22 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             next.learning_items = apply_score_updates(next.learning_items, &analysis);
         }
         UserStateAction::ChangeDialect(dialect) => {
+            let old_language = next.selected_dialect.language();
             next.selected_dialect = dialect;
+            let new_language = dialect.language();
+
+            if old_language != new_language {
+                create_new_branch_for_language(&mut next);
+            }
         }
         UserStateAction::ChangeLanguage(language) => {
+            let old_language = next.selected_language;
             next.selected_language = language;
             next.selected_dialect = default_dialect_for_language(language);
+
+            if old_language != language {
+                create_new_branch_for_language(&mut next);
+            }
         }
         UserStateAction::ChangeFormality(formality) => {
             next.formality = formality;
@@ -710,12 +728,8 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             next.selected_dialect = cycle_dialect(&next);
             let new_language = next.selected_dialect.language();
 
-            // If language changed, create a new branch for the new language
             if old_language != new_language {
-                let new_branch = ConversationBranch::new(None, None, None, None);
-                let new_branch_id = new_branch.id;
-                next.branches.push(new_branch);
-                next.active_branch_id = new_branch_id;
+                create_new_branch_for_language(&mut next);
             }
         }
         UserStateAction::CycleFormality => {
