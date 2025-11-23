@@ -469,3 +469,132 @@
     font-weight: 600;
     color: var(--ink);
 }
+
+/* Add learning item form styles */
+.add-learning-item-form {
+    padding: 16px;
+    margin-bottom: 20px;
+    background: var(--surface);
+    border-radius: var(--r-m);
+    box-shadow: var(--shadow-soft);
+    border: 1px solid rgba(78, 205, 196, 0.15);
+}
+
+.add-learning-item-form h4 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: var(--ink);
+}
+
+.learning-item-type-selector {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: var(--surface-muted);
+    border: 1px solid var(--ink-soft);
+    border-radius: var(--r-s);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+}
+
+.learning-item-type-selector:hover {
+    border-color: var(--teal);
+}
+
+.learning-item-type-selector:focus {
+    outline: none;
+    border-color: var(--teal);
+    box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.1);
+}
+
+.mistake-fields,
+.explanation-fields,
+.translation-fields,
+.exploration-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.mistake-fields input,
+.explanation-fields input,
+.translation-fields input,
+.exploration-fields input,
+.mistake-fields select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--surface-muted);
+    border: 1px solid var(--ink-soft);
+    border-radius: var(--r-s);
+    font-size: var(--text-sm);
+    color: var(--ink);
+    transition: all var(--dur-fast) var(--ease-out);
+    box-sizing: border-box;
+}
+
+.mistake-fields input:focus,
+.explanation-fields input:focus,
+.translation-fields input:focus,
+.exploration-fields input:focus,
+.mistake-fields select:focus {
+    outline: none;
+    border-color: var(--teal);
+    box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.1);
+}
+
+.mistake-fields input::placeholder,
+.explanation-fields input::placeholder,
+.translation-fields input::placeholder,
+.exploration-fields input::placeholder {
+    color: var(--ink-soft);
+}
+
+.form-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.save-learning-item-button,
+.cancel-learning-item-button {
+    padding: 8px 16px;
+    border-radius: var(--r-s);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+    border: none;
+}
+
+.save-learning-item-button {
+    background: var(--teal);
+    color: white;
+}
+
+.save-learning-item-button:hover:not(:disabled) {
+    background: rgba(78, 205, 196, 0.85);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
+}
+
+.save-learning-item-button:disabled {
+    background: var(--ink-soft);
+    color: rgba(255, 255, 255, 0.6);
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.cancel-learning-item-button {
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--ink-soft);
+}
+
+.cancel-learning-item-button:hover {
+    background: var(--surface-muted);
+    border-color: var(--ink);
+    color: var(--ink);
+}
