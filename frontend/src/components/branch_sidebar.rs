@@ -136,10 +136,12 @@ fn render_branch_item(
     };
     let branch_id = branch.id;
     let branch_name = get_branch_display_name(messages, branch);
+    let dialect_name = branch.dialect.name();
 
     html! {
         <div class={branch_class}>
             <div class="branch-info">
+                <span class="branch-dialect">{dialect_name}</span>
                 <span class="branch-name">{branch_name}</span>
                 <span class="branch-count">{format!("({} msgs)", message_count)}</span>
             </div>
