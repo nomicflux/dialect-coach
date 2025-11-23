@@ -1,4 +1,8 @@
-use dialect_coach_shared::{Dialect, LearningItem, LearningItemType};
+use crate::app::app_state::{OptionalUserState, UserStateAction};
+use dialect_coach_shared::{
+    Dialect, Explained, Exploratory, LearningItem, LearningItemType, Mistake, MistakeCategory,
+    Translated,
+};
 use uuid::Uuid;
 use yew::prelude::*;
 
@@ -22,6 +26,7 @@ pub struct LearningPanelProps {
     pub on_undo: Callback<()>,
     pub deleted_count: usize,
     pub active_branch_dialect: Option<Dialect>,
+    pub user_state: UseReducerHandle<OptionalUserState>,
 }
 
 fn calculate_color_from_score(score: u8, item_type: &LearningItemType) -> String {
@@ -108,26 +113,114 @@ fn create_type_change_callback(
     })
 }
 
-#[allow(dead_code)]
 fn is_mistake_valid(mistake: &str, corr: &str, cat: &str) -> bool {
     !mistake.trim().is_empty() && !corr.trim().is_empty() && !cat.is_empty()
 }
 
-#[allow(dead_code)]
 fn is_explanation_valid(phrase: &str, expl: &str) -> bool {
     !phrase.trim().is_empty() && !expl.trim().is_empty()
 }
 
-#[allow(dead_code)]
 fn is_translation_valid(word: &str, trans: &str) -> bool {
     !word.trim().is_empty() && !trans.trim().is_empty()
 }
 
-#[allow(dead_code)]
 fn is_exploration_valid(point: &str, instr: &str) -> bool {
     !point.trim().is_empty() && !instr.trim().is_empty()
 }
 
+fn create_mistake_from_form(mistake: &str, corr: &str, cat: &str) -> Mistake {
+    let ctx = "user-provided context".to_string();
+    let category = match cat {
+        "SpellingError" => MistakeCategory::SpellingError { context: ctx },
+        "VocabularyError" => MistakeCategory::VocabularyError { context: ctx },
+        "GrammarError" => MistakeCategory::GrammarError { context: ctx },
+        "DialectUsageError" => MistakeCategory::DialectUsageError { context: ctx },
+        _ => MistakeCategory::Other { context: ctx },
+    };
+    Mistake::new(mistake.trim().to_string(), corr.trim().to_string(), category)
+}
+
+fn create_explanation_from_form(phrase: &str, expl: &str) -> Explained {
+    Explained::new(phrase.trim().to_string(), expl.trim().to_string())
+}
+
+fn create_translation_from_form(word: &str, trans: &str, ctx: &str) -> Translated {
+    let context = if ctx.trim().is_empty() {
+        None
+    } else {
+        Some(ctx.trim().to_string())
+    };
+    Translated::new(word.trim().to_string(), trans.trim().to_string(), context)
+}
+
+fn create_exploration_from_form(point: &str, instr: &str) -> Exploratory {
+    Exploratory::new(point.trim().to_string(), instr.trim().to_string())
+}
+
+fn is_form_valid(selected_type: Option<&String>, fields: &FormFields) -> bool {
+    match selected_type.map(|s| s.as_str()) {
+        Some("Mistake") => is_mistake_valid(&fields.mistake, &fields.correction, &fields.category),
+        Some("Explanation") => is_explanation_valid(&fields.phrase, &fields.explanation),
+        Some("Translation") => is_translation_valid(&fields.word, &fields.translation),
+        Some("Exploration") => is_exploration_valid(&fields.point, &fields.instructions),
+        _ => false,
+    }
+}
+
+fn dispatch_learning_item(selected_type: Option<&String>, fields: &FormFields, user_state: &UseReducerHandle<OptionalUserState>) {
+    match selected_type.map(|s| s.as_str()) {
+        Some("Mistake") => {
+            let item = create_mistake_from_form(&fields.mistake, &fields.correction, &fields.category);
+            user_state.dispatch(UserStateAction::AddLearningItems(vec![item], vec![], vec![], vec![]));
+        }
+        Some("Explanation") => {
+            let item = create_explanation_from_form(&fields.phrase, &fields.explanation);
+            user_state.dispatch(UserStateAction::AddLearningItems(vec![], vec![item], vec![], vec![]));
+        }
+        Some("Translation") => {
+            let item = create_translation_from_form(&fields.word, &fields.translation, &fields.context);
+            user_state.dispatch(UserStateAction::AddLearningItems(vec![], vec![], vec![item], vec![]));
+        }
+        Some("Exploration") => {
+            let item = create_exploration_from_form(&fields.point, &fields.instructions);
+            user_state.dispatch(UserStateAction::AddLearningItems(vec![], vec![], vec![], vec![item]));
+        }
+        _ => {}
+    }
+}
+
+struct ClearStates {
+    selected_type: UseStateHandle<Option<String>>,
+    mistake: UseStateHandle<String>,
+    correction: UseStateHandle<String>,
+    category: UseStateHandle<String>,
+    phrase: UseStateHandle<String>,
+    explanation: UseStateHandle<String>,
+    word: UseStateHandle<String>,
+    translation: UseStateHandle<String>,
+    context: UseStateHandle<String>,
+    point: UseStateHandle<String>,
+    instructions: UseStateHandle<String>,
+}
+
+fn create_clear_callback(states: ClearStates) -> Callback<()> {
+    Callback::from(move |_| {
+        states.selected_type.set(None);
+        states.mistake.set(String::new());
+        states.correction.set(String::new());
+        states.category.set(String::new());
+        states.phrase.set(String::new());
+        states.explanation.set(String::new());
+        states.word.set(String::new());
+        states.translation.set(String::new());
+        states.context.set(String::new());
+        states.point.set(String::new());
+        states.instructions.set(String::new());
+    })
+}
+
+#[derive(Clone)]
 struct FormFields {
     mistake: UseStateHandle<String>,
     correction: UseStateHandle<String>,
@@ -244,10 +337,36 @@ fn render_exploration_fields(
     }
 }
 
+fn render_save_cancel_buttons(
+    save_enabled: bool,
+    on_save: Callback<()>,
+    on_cancel: Callback<()>,
+) -> Html {
+    html! {
+        <div class="form-buttons">
+            <button
+                class="save-learning-item-button"
+                disabled={!save_enabled}
+                onclick={on_save.reform(|_| ())}
+            >
+                {"Save"}
+            </button>
+            <button
+                class="cancel-learning-item-button"
+                onclick={on_cancel.reform(|_| ())}
+            >
+                {"Cancel"}
+            </button>
+        </div>
+    }
+}
+
 fn render_add_item_form(
     selected_type: &UseStateHandle<Option<String>>,
     branch_dialect: Option<Dialect>,
     fields: &FormFields,
+    on_save: Callback<()>,
+    on_cancel: Callback<()>,
 ) -> Html {
     if !has_active_dialect(branch_dialect) {
         return html! {
@@ -279,11 +398,13 @@ fn render_add_item_form(
         ),
         _ => html! {},
     };
+    let save_enabled = is_form_valid(selected_type.as_ref(), fields);
     html! {
         <div class="add-learning-item-form">
             <h4 class="section-title">{"Add Learning Item"}</h4>
             {render_type_selector(selected_type.clone())}
             {field_html}
+            {render_save_cancel_buttons(save_enabled, on_save, on_cancel)}
         </div>
     }
 }
@@ -447,6 +568,8 @@ fn render_expanded_view(
     props: &LearningPanelProps,
     selected_type: &UseStateHandle<Option<String>>,
     fields: &FormFields,
+    on_save: Callback<()>,
+    on_cancel: Callback<()>,
 ) -> Html {
     let (accomplishments, still_learning): (Vec<_>, Vec<_>) =
         props.items.iter().partition(|item| item.score == 100);
@@ -467,7 +590,7 @@ fn render_expanded_view(
                 {"►"}
             </button>
             <div class="learning-panel-content">
-                {render_add_item_form(selected_type, props.active_branch_dialect, fields)}
+                {render_add_item_form(selected_type, props.active_branch_dialect, fields, on_save, on_cancel)}
                 if !accomplishments.is_empty() {
                     <div class="learning-section">
                         <h4 class="section-title">{"Accomplishments"}</h4>
@@ -538,12 +661,42 @@ pub fn learning_panel(props: &LearningPanelProps) -> Html {
         instructions: instructions.clone(),
     };
 
+    let clear = create_clear_callback(ClearStates {
+        selected_type: selected_type.clone(),
+        mistake: specific_mistake.clone(),
+        correction: correction.clone(),
+        category: category.clone(),
+        phrase: new_phrase.clone(),
+        explanation: explanation_text.clone(),
+        word: translated_word.clone(),
+        translation: translated_to.clone(),
+        context: context_text.clone(),
+        point: point_to_try.clone(),
+        instructions: instructions.clone(),
+    });
+
+    let on_save = {
+        let selected_type = selected_type.clone();
+        let fields = fields.clone();
+        let user_state = props.user_state.clone();
+        let clear = clear.clone();
+        Callback::from(move |_| {
+            if !is_form_valid(selected_type.as_ref(), &fields) {
+                return;
+            }
+            dispatch_learning_item(selected_type.as_ref(), &fields, &user_state);
+            clear.emit(());
+        })
+    };
+
+    let on_cancel = clear;
+
     html! {
         <div class={panel_class}>
             {if props.is_collapsed {
                 render_collapsed_view(props)
             } else {
-                render_expanded_view(props, &selected_type, &fields)
+                render_expanded_view(props, &selected_type, &fields, on_save, on_cancel)
             }}
         </div>
     }
