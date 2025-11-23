@@ -689,6 +689,14 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::SwitchBranch(branch_id) => {
             next.active_branch_id = branch_id;
+
+            // Update selected_dialect to match the branch's dialect
+            if let Some(branch) = next.branches.iter().find(|b| b.id == branch_id)
+                && let Some(dialect) = branch.dialect
+            {
+                next.selected_dialect = dialect;
+                next.selected_language = dialect.language();
+            }
         }
         UserStateAction::DeleteBranch(branch_id) => {
             let branch_data = next
