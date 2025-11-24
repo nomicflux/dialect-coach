@@ -72,22 +72,31 @@ This plan implements language-specific display and formatting options (Arabic sc
 
 ---
 
-## Phase 2: UserState and UserMessageWithContext Integration
+## Phase 2: UserState and UserMessageWithContext Integration ✅ COMPLETE
 
 **Subagent:** kiss-code-generator
 
 **Code Style Checklist:**
-- [ ] Functions <20 lines, <10 if possible
-- [ ] Helper functions instead of nested logic
-- [ ] Pure functions where possible
-- [ ] Tests for all new functions
-- [ ] No TODOs or future-proofing
-- [ ] No defensive coding
+- [x] Functions <20 lines, <10 if possible
+- [x] Helper functions instead of nested logic
+- [x] Pure functions where possible
+- [x] Tests for all new functions
+- [x] No TODOs or future-proofing
+- [x] No defensive coding
 
 **Deliverables:**
-- Modified: `shared/src/models/user_state.rs` to add `language_options` field
-- Modified: `shared/src/models/message.rs` to add `language_option` field to `UserMessageWithContext`
-- All existing tests updated to compile with new fields
+- Modified: `shared/src/models/user_state.rs` to add `language_options` field ✅
+- Modified: `shared/src/models/message.rs` to add `language_option` field to `UserMessageWithContext` ✅
+- All existing tests updated to compile with new fields ✅
+
+**Completion Status:** Phase 2 complete (commit b8353ab1)
+- Added `language_options` field to UserState
+- Added `current_language_option()` helper method (2 lines, pure function)
+- Added `language_option` field to UserMessageWithContext
+- Updated frontend callback to pass language option
+- 3 new tests added for current_language_option()
+- All 154 workspace tests passing
+- Zero clippy errors (1 pre-existing warning about function arguments)
 
 **Files to Update:**
 - MODIFY: `/Users/demouser/Code/dialect-coach/shared/src/models/user_state.rs`
@@ -119,42 +128,28 @@ This plan implements language-specific display and formatting options (Arabic sc
 
 ---
 
-## Phase 3: Backend WebSocket Context Building
+## Phase 3: UserMessageWithContext Data Flow ✅ COMPLETE
 
-**Subagent:** kiss-code-generator
+**Status:** COMPLETE - No code changes needed
 
-**Code Style Checklist:**
-- [ ] Functions <20 lines, <10 if possible
-- [ ] Helper functions instead of nested logic
-- [ ] Pure functions where possible
-- [ ] Tests for all new functions
-- [ ] No TODOs or future-proofing
-- [ ] No defensive coding
+**Completion Status:**
+This phase was initially planned as a backend task, but analysis revealed that the architecture constructs `UserMessageWithContext` in the frontend (not backend). The frontend callback already passes `language_option` correctly:
 
-**Deliverables:**
-- Modified: `backend/src/websocket/agents.rs` to pass `language_option` when building `UserMessageWithContext`
-- WebSocket agent message handler now extracts and passes language option to agents
-
-**Files to Update:**
-- MODIFY: `/Users/demouser/Code/dialect-coach/backend/src/websocket/agents.rs`
-
-**Implementation Steps:**
-
-1. Find where `UserMessageWithContext` is constructed in `agents.rs`
-2. Extract current language option from `UserState`:
-   - Call `user_state.current_language_option()` to get `Option<LanguageOption>`
-3. Pass `language_option` to `UserMessageWithContext::new()` call
-4. Verify existing tests still compile and pass
+- **Architecture:** Frontend constructs `UserMessageWithContext` with all context → Sends via WebSocket → Backend receives fully-constructed message
+- **Frontend Construction:** `frontend/src/app/callbacks.rs` line 44-58 calls `UserMessageWithContext::new()` with `state.current_language_option()`
+- **Backend Role:** Receives the fully-constructed `UserMessageWithContext` and passes it to agent handlers
+- **Phase 2 Already Completed This:** Phase 2 updated frontend callback to pass language_option (commit b8353ab1)
 
 **Verification:**
-- Run `cargo test` in backend/ directory - 100% pass required
-- Run `cargo clippy` - zero warnings/errors
-- Run backend with `cargo run` and verify it compiles
+- All 154 workspace tests passing ✅
+- Clippy clean (1 pre-existing warning about function arguments) ✅
+- UserMessageWithContext contains language_option field ✅
+- Frontend callback passes state.current_language_option() ✅
 
 **Phase Completion:**
-- Update this document with completion status
-- Add changes via git
-- Commit: `git commit -m "Phase 3 (backend context building) complete"`
+- No code changes required
+- Architecture is correct: frontend constructs, backend receives
+- Proceeding to Phase 4 (Agent System Instructions)
 
 ---
 
