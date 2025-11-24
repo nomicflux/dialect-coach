@@ -1,4 +1,3 @@
-- Add learning items manually (like vocab words)
 - Plan out learning course
 - options for standard language practice, not dialect
 - ruby & romaji for japanese

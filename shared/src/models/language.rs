@@ -45,6 +45,11 @@ impl Language {
             Language::Japanese => "Japanese",
         }
     }
+
+    /// Get the language family (returns self as Language represents language families)
+    pub fn language_family(&self) -> Language {
+        *self
+    }
 }
 
 impl fmt::Display for Language {
@@ -75,5 +80,14 @@ mod tests {
         assert!(languages.contains(&Language::French));
         assert!(languages.contains(&Language::English));
         assert!(languages.contains(&Language::Japanese));
+    }
+
+    #[test]
+    fn test_language_family() {
+        assert_eq!(Language::Spanish.language_family(), Language::Spanish);
+        assert_eq!(Language::Arabic.language_family(), Language::Arabic);
+        assert_eq!(Language::French.language_family(), Language::French);
+        assert_eq!(Language::English.language_family(), Language::English);
+        assert_eq!(Language::Japanese.language_family(), Language::Japanese);
     }
 }
