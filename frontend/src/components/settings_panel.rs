@@ -1,9 +1,9 @@
 use crate::app::app_state::{OptionalUserState, UIState, UIStateAction};
 use crate::app::user_state_callbacks::{
-    on_dialect_change, on_formality_change, on_language_change, on_teaching_mode_change,
-    on_user_gender_change,
+    on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
+    on_language_change, on_teaching_mode_change, on_user_gender_change,
 };
-use dialect_coach_shared::models::{Language, UserGender};
+use dialect_coach_shared::models::{ArabicScript, JapaneseScript, Language, UserGender};
 use yew::prelude::*;
 
 #[derive(Properties)]
@@ -124,6 +124,55 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
                             </div>
                         </div>
                     </div>
+
+                    {match us.selected_language {
+                        Language::Arabic => {
+                            html! {
+                                <div class="panel-section">
+                                    <h4 class="panel-section-title">{"Display Options"}</h4>
+                                    <div class="field-group">
+                                        <div class="panel-field">
+                                            <label for="arabic-script-select">{"Script:"}</label>
+                                            <select
+                                                id="arabic-script-select"
+                                                onchange={on_arabic_script_change(user_state.clone())}
+                                                value={us.language_options.arabic_script.unwrap_or_default().to_string()}
+                                            >
+                                                <option value="naskh" selected={matches!(us.language_options.arabic_script, Some(ArabicScript::Naskh)) || us.language_options.arabic_script.is_none()}>{"Naskh"}</option>
+                                                <option value="ruqa" selected={matches!(us.language_options.arabic_script, Some(ArabicScript::Ruqa))}>{"Ruq'a"}</option>
+                                                <option value="latin" selected={matches!(us.language_options.arabic_script, Some(ArabicScript::Latin))}>{"Latin (Romanized)"}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        Language::Japanese => {
+                            html! {
+                                <div class="panel-section">
+                                    <h4 class="panel-section-title">{"Display Options"}</h4>
+                                    <div class="field-group">
+                                        <div class="panel-field">
+                                            <label for="japanese-script-select">{"Script:"}</label>
+                                            <select
+                                                id="japanese-script-select"
+                                                onchange={on_japanese_script_change(user_state.clone())}
+                                                value={us.language_options.japanese_script.unwrap_or_default().to_string()}
+                                            >
+                                                <option value="romaji" selected={matches!(us.language_options.japanese_script, Some(JapaneseScript::Romaji))}>{"Romaji"}</option>
+                                                <option value="only_kana" selected={matches!(us.language_options.japanese_script, Some(JapaneseScript::OnlyKana))}>{"Kana Only"}</option>
+                                                <option value="kanji_with_ruby" selected={matches!(us.language_options.japanese_script, Some(JapaneseScript::KanjiWithRuby)) || us.language_options.japanese_script.is_none()}>{"Kanji with Furigana"}</option>
+                                                <option value="kanji" selected={matches!(us.language_options.japanese_script, Some(JapaneseScript::Kanji))}>{"Kanji"}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        _ => {
+                            html! {}
+                        }
+                    }}
                 </div>
             </div>
 
