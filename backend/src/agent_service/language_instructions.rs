@@ -19,7 +19,7 @@ pub fn build_language_instruction(language_option: &Option<LanguageOption>) -> S
             "You must respond using only hiragana and katakana. Do not use kanji.".to_string()
         }
         Some(LanguageOption::Japanese(JapaneseScript::KanjiWithRuby)) => {
-            "You must respond using kanji with furigana. Format kanji with readings as: <ruby>漢字<rt>かんじ</rt></ruby>".to_string()
+            "You must respond using kanji with furigana. ONLY wrap kanji in ruby tags - do NOT wrap hiragana or katakana. Put the hiragana reading inside the <rt> tag. Example: 今日 becomes <ruby>今日<rt>きょう</rt></ruby>. Leave hiragana as-is: は remains は (not in ruby tags).".to_string()
         }
         Some(LanguageOption::Japanese(JapaneseScript::Kanji)) => {
             "You must respond using standard kanji without annotations.".to_string()
@@ -86,7 +86,7 @@ mod tests {
         let option = Some(LanguageOption::Japanese(JapaneseScript::KanjiWithRuby));
         assert_eq!(
             build_language_instruction(&option),
-            "You must respond using kanji with furigana. Format kanji with readings as: <ruby>漢字<rt>かんじ</rt></ruby>"
+            "You must respond using kanji with furigana. ONLY wrap kanji in ruby tags - do NOT wrap hiragana or katakana. Put the hiragana reading inside the <rt> tag. Example: 今日 becomes <ruby>今日<rt>きょう</rt></ruby>. Leave hiragana as-is: は remains は (not in ruby tags)."
         );
     }
 

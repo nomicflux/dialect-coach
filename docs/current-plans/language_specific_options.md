@@ -430,7 +430,7 @@ rt {
 - [ ] Arabic Latin option produces romanized agent responses (requires manual testing)
 - [ ] Japanese Romaji option produces romanized agent responses (requires manual testing)
 - [ ] Japanese Only Kana option produces kana-only agent responses (requires manual testing)
-- [ ] Japanese Kanji w/ Ruby displays furigana (agent-generated, requires manual testing)
+- [x] Japanese Kanji w/ Ruby displays furigana (agent sends ruby tags, frontend parses and renders)
 - [x] Arabic Naskh uses Naskh font family
 - [x] Arabic Ruq'a uses existing Ruq'a font
 - [x] All 3 agents respect language options (Response, Learning, Analysis)
