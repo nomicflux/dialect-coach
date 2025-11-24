@@ -580,6 +580,15 @@ fn create_new_branch_for_language(state: &mut UserState) {
     state.active_branch_id = new_branch_id;
 }
 
+fn sync_to_active_branch(state: &mut UserState) {
+    if let Some(branch) = state.branches.iter().find(|b| b.id == state.active_branch_id)
+        && let Some(dialect) = branch.dialect
+    {
+        state.selected_dialect = dialect;
+        state.selected_language = dialect.language();
+    }
+}
+
 fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserState {
     let mut next = state.clone();
     match action {
@@ -689,17 +698,11 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             let new_branch_id = new_branch.id;
             next.branches.push(new_branch);
             next.active_branch_id = new_branch_id;
+            sync_to_active_branch(&mut next);
         }
         UserStateAction::SwitchBranch(branch_id) => {
             next.active_branch_id = branch_id;
-
-            // Update selected_dialect to match the branch's dialect
-            if let Some(branch) = next.branches.iter().find(|b| b.id == branch_id)
-                && let Some(dialect) = branch.dialect
-            {
-                next.selected_dialect = dialect;
-                next.selected_language = dialect.language();
-            }
+            sync_to_active_branch(&mut next);
         }
         UserStateAction::DeleteBranch(branch_id) => {
             let branch_data = next
@@ -721,6 +724,7 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
                     .first()
                     .map(|b| b.id)
                     .unwrap_or(next.active_branch_id);
+                sync_to_active_branch(&mut next);
             }
         }
         UserStateAction::RenameBranch(branch_id, name) => {
