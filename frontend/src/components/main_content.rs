@@ -265,6 +265,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         disabled={!matches!(app_state.connection_state, ConnectionState::Connected)}
                         external_value={(ui_state.input_prompt_value).clone()}
                         textarea_ref={Some(chat_input_ref.clone())}
+                        language_option={us.current_language_option()}
                     />
                     {render_message_undo_notification(
                         ui_state.deleted_messages.len(),

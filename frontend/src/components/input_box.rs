@@ -1,5 +1,17 @@
+use dialect_coach_shared::models::{ArabicScript, LanguageOption};
 use web_sys::KeyboardEvent;
 use yew::prelude::*;
+
+fn font_class(lang_option: &Option<LanguageOption>) -> &'static str {
+    match lang_option {
+        Some(LanguageOption::Arabic(script)) => match script {
+            ArabicScript::Naskh => "arabic-naskh",
+            ArabicScript::Ruqa => "arabic-ruqa",
+            ArabicScript::Latin => "arabic-latin",
+        },
+        _ => "",
+    }
+}
 
 #[derive(Properties, PartialEq)]
 pub struct InputBoxProps {
@@ -10,6 +22,8 @@ pub struct InputBoxProps {
     pub external_value: Option<String>,
     #[prop_or_default]
     pub textarea_ref: Option<NodeRef>,
+    #[prop_or_default]
+    pub language_option: Option<LanguageOption>,
 }
 
 #[function_component(InputBox)]
@@ -67,11 +81,13 @@ pub fn input_box(props: &InputBoxProps) -> Html {
         })
     };
 
+    let font_class_name = font_class(&props.language_option);
+
     html! {
         <form class="composer" onsubmit={on_submit}>
             <textarea
                 ref={textarea_node_ref}
-                class="composer-input"
+                class={classes!("composer-input", font_class_name)}
                 placeholder={if props.disabled { "Connecting..." } else { "Type message… (Shift+Enter to send)" }}
                 value={(*input_value).clone()}
                 oninput={on_input}
