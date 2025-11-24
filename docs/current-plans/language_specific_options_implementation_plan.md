@@ -153,22 +153,30 @@ This phase was initially planned as a backend task, but analysis revealed that t
 
 ---
 
-## Phase 4: Agent System Instructions
+## Phase 4: Agent System Instructions ✅ COMPLETE
 
 **Subagent:** modular-builder
 
 **Code Style Checklist:**
-- [ ] Functions <20 lines, <10 if possible
-- [ ] Helper functions instead of nested logic
-- [ ] Pure functions where possible
-- [ ] Tests for all new functions
-- [ ] No TODOs or future-proofing
-- [ ] No defensive coding
+- [x] Functions <20 lines, <10 if possible
+- [x] Helper functions instead of nested logic
+- [x] Pure functions where possible
+- [x] Tests for all new functions
+- [x] No TODOs or future-proofing
+- [x] No defensive coding
 
 **Deliverables:**
-- Modified: All 5 agent files to include conditional system instructions based on `language_option`
-- Helper function to generate language-specific instructions
-- Agents format responses according to script preference
+- Modified: All 3 agent files to include conditional system instructions based on `language_option` ✅
+- Helper function to generate language-specific instructions ✅
+- Agents format responses according to script preference ✅
+
+**Completion Status:** Phase 4 complete (commit dfe1cf37)
+- Created language_instructions.rs with pure helper function
+- 8 comprehensive unit tests for all language option variants
+- Updated response, learning, and analysis agents
+- Updated websocket handlers to pass language_option
+- All 249 workspace tests passing
+- Clippy clean (only pre-existing warnings about function arguments)
 
 **Files to Update:**
 - MODIFY: `/Users/demouser/Code/dialect-coach/backend/src/agent_service/response.rs`

@@ -1,5 +1,5 @@
 use crate::app::app_state::{OptionalUserState, UIState, UIStateAction, UserStateAction};
-use dialect_coach_shared::models::{Formality, Language, TeachingMode, UserGender};
+use dialect_coach_shared::models::{ArabicScript, Formality, JapaneseScript, Language, TeachingMode, UserGender};
 use log::info;
 use uuid::Uuid;
 use yew::prelude::*;
@@ -270,6 +270,47 @@ pub fn on_delete_learning_item_callback(
                 ui_state.dispatch(UIStateAction::PushDeletedLearningItem(item.clone()));
             }
             user_state.dispatch(UserStateAction::DeleteLearningItem(id));
+        }
+    })
+}
+
+pub fn on_arabic_script_change(
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<Event> {
+    let user_state = user_state.clone();
+    Callback::from(move |e: Event| {
+        if user_state.0.is_none() {
+            return;
+        }
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
+            let script = match select.value().as_str() {
+                "naskh" => ArabicScript::Naskh,
+                "ruqa" => ArabicScript::Ruqa,
+                "latin" => ArabicScript::Latin,
+                _ => ArabicScript::Naskh,
+            };
+            user_state.dispatch(UserStateAction::SetArabicScript(script));
+        }
+    })
+}
+
+pub fn on_japanese_script_change(
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<Event> {
+    let user_state = user_state.clone();
+    Callback::from(move |e: Event| {
+        if user_state.0.is_none() {
+            return;
+        }
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
+            let script = match select.value().as_str() {
+                "romaji" => JapaneseScript::Romaji,
+                "only_kana" => JapaneseScript::OnlyKana,
+                "kanji_with_ruby" => JapaneseScript::KanjiWithRuby,
+                "kanji" => JapaneseScript::Kanji,
+                _ => JapaneseScript::KanjiWithRuby,
+            };
+            user_state.dispatch(UserStateAction::SetJapaneseScript(script));
         }
     })
 }

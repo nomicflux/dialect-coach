@@ -3,6 +3,7 @@ pub mod callbacks;
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{
     ConversationBranch, Dialect, Formality, Language, Message, TeachingMode, UserGender,
+    ArabicScript, JapaneseScript,
 };
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
 use dialect_coach_shared::{LearningItem, LearningItemType, UsageStats, User, UserState};
@@ -370,6 +371,8 @@ pub enum UserStateAction {
     CycleDialect,
     CycleFormality,
     CycleTeachingMode,
+    SetArabicScript(ArabicScript),
+    SetJapaneseScript(JapaneseScript),
 }
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
@@ -745,6 +748,12 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::CycleTeachingMode => {
             next.teaching_mode = cycle_teaching_mode(next.teaching_mode);
+        }
+        UserStateAction::SetArabicScript(script) => {
+            next.language_options.arabic_script = Some(script);
+        }
+        UserStateAction::SetJapaneseScript(script) => {
+            next.language_options.japanese_script = Some(script);
         }
         UserStateAction::ClearUserState => {
             // This should never be called - ClearUserState is handled at OptionalUserState level
