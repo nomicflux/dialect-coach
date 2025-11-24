@@ -12,6 +12,7 @@
   - still need shortcuts to play sound
 - partial learning items (add word, let AI give translation)
 - need to improve explanations
+- on deleting language branch, previous branch does not change language back
 
 Longer Term
 ---
