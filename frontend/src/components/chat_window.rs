@@ -93,6 +93,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                             {for active_messages.iter().map(|msg| {
                                 let is_own = !msg.is_agent();
                                 let has_children = has_child_branches(msg.id, &props.user_state.branches);
+                                let language_option = props.user_state.language_options.for_language(msg.metadata.language);
                                 html! {
                                     <MessageBubble
                                         message={(*msg).clone()}
@@ -103,6 +104,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         has_child_branches={has_children}
                                         on_explain={props.on_explain.clone()}
                                         on_translate={props.on_translate.clone()}
+                                        {language_option}
                                     />
                                 }
                             })}

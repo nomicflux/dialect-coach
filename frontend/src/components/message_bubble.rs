@@ -1,5 +1,5 @@
 use dialect_coach_shared::models::dialect::dialect_features;
-use dialect_coach_shared::models::{Language, Message};
+use dialect_coach_shared::models::{Language, LanguageOption, Message};
 use uuid::Uuid;
 use yew::prelude::*;
 
@@ -19,6 +19,8 @@ pub struct MessageBubbleProps {
     pub on_explain: Option<Callback<Uuid>>,
     #[prop_or_default]
     pub on_translate: Option<Callback<Uuid>>,
+    #[prop_or_default]
+    pub language_option: Option<LanguageOption>,
 }
 
 fn render_delete_button(on_delete: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
@@ -75,6 +77,20 @@ fn language_code(lang: Language) -> &'static str {
         Language::French => "fr",
         Language::English => "en",
         Language::Japanese => "ja",
+    }
+}
+
+fn font_class(lang_option: &Option<LanguageOption>) -> &'static str {
+    match lang_option {
+        Some(LanguageOption::Arabic(script)) => {
+            use dialect_coach_shared::models::ArabicScript;
+            match script {
+                ArabicScript::Naskh => "arabic-naskh",
+                ArabicScript::Ruqa => "arabic-ruqa",
+                ArabicScript::Latin => "arabic-latin",
+            }
+        }
+        _ => "",
     }
 }
 
@@ -150,6 +166,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     let (msg_class, avatar_class, bubble_class, avatar_text) =
         get_css_classes(props.is_own_message);
     let lang = language_code(props.message.metadata.language);
+    let font_class_name = font_class(&props.language_option);
 
     html! {
         <>
@@ -161,7 +178,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                         <div class="message-author">{if props.message.is_agent() { "agent" } else { "user" }}</div>
                         {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
                     </div>
-                    <div class="message-content" {lang}>{&props.message.get_content()}</div>
+                    <div class={classes!("message-content", font_class_name)} {lang}>{&props.message.get_content()}</div>
                     {if props.message.is_agent() {
                         render_action_buttons(&props.on_explain, &props.on_translate, props.message.id)
                     } else {

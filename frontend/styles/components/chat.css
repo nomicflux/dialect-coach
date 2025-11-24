@@ -470,11 +470,34 @@
 
 /* Language-specific fonts */
 .message-content:lang(ar) {
-  font-family: 'Aref Ruqaa', serif;
   direction: rtl;
   text-align: right;
   font-size: 1.15em;
   line-height: 1.8;
+}
+
+/* Arabic Naskh font */
+.arabic-naskh {
+  font-family: "Times New Roman", "Noto Naskh Arabic", serif;
+}
+
+/* Arabic Ruq'a font */
+.arabic-ruqa {
+  font-family: 'Aref Ruqaa', serif;
+}
+
+/* Arabic Latin - uses default fonts */
+.arabic-latin {
+  /* default font */
+}
+
+/* Japanese ruby text support */
+ruby {
+  ruby-position: over;
+}
+
+rt {
+  font-size: 0.5em;
 }
 
 /* Message action buttons */
