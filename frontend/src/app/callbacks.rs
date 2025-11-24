@@ -54,6 +54,7 @@ pub fn on_send_message(
             context_messages,
             state.learning_goals.clone(),
             state.user_gender,
+            state.current_language_option(),
         );
 
         // Send through WebSocket

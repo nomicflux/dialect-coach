@@ -5,7 +5,8 @@ use uuid::Uuid;
 use super::dialect::dialect_features;
 use super::{
     ConversationBranch, Dialect, DialectWithFeatures, Explained, Exploratory, Formality, Language,
-    Message, MessageMetadata, Mistake, TeachingMode, Translated, UsageStats,
+    LanguageOption, LanguageOptions, Message, MessageMetadata, Mistake, TeachingMode, Translated,
+    UsageStats,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +31,7 @@ pub struct UserState {
     pub branches: Vec<ConversationBranch>,
     pub learning_goals: Vec<String>,
     pub usage_stats: UsageStats,
+    pub language_options: LanguageOptions,
 }
 
 impl UserState {
@@ -81,6 +83,7 @@ impl UserState {
             branches: vec![initial_branch],
             learning_goals: Vec::new(),
             usage_stats: UsageStats::default(),
+            language_options: LanguageOptions::default(),
         }
     }
 
@@ -100,6 +103,10 @@ impl UserState {
 
     pub fn current_dialect(&self) -> Dialect {
         self.selected_dialect
+    }
+
+    pub fn current_language_option(&self) -> Option<LanguageOption> {
+        self.language_options.for_language(self.selected_language)
     }
 
     pub fn current_dialects(&self) -> Vec<DialectWithFeatures> {
@@ -576,5 +583,36 @@ mod tests {
             let deserialized: UserGender = serde_json::from_str(&json).unwrap();
             assert_eq!(gender, deserialized);
         }
+    }
+
+    #[test]
+    fn test_current_language_option_with_arabic() {
+        use crate::models::language_options::{ArabicScript, LanguageOption};
+
+        let mut state = create_test_user_state();
+        state.selected_language = Language::Arabic;
+        state.language_options.arabic_script = Some(ArabicScript::Ruqa);
+
+        let option = state.current_language_option();
+        assert_eq!(option, Some(LanguageOption::Arabic(ArabicScript::Ruqa)));
+    }
+
+    #[test]
+    fn test_current_language_option_with_japanese() {
+        use crate::models::language_options::{JapaneseScript, LanguageOption};
+
+        let mut state = create_test_user_state();
+        state.selected_language = Language::Japanese;
+        state.language_options.japanese_script = Some(JapaneseScript::Romaji);
+
+        let option = state.current_language_option();
+        assert_eq!(option, Some(LanguageOption::Japanese(JapaneseScript::Romaji)));
+    }
+
+    #[test]
+    fn test_current_language_option_with_spanish() {
+        let state = create_test_user_state();
+        let option = state.current_language_option();
+        assert_eq!(option, None);
     }
 }
