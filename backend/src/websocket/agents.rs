@@ -175,6 +175,7 @@ fn build_response_params<'a>(
         past_translated: &msg_with_context.past_translated,
         past_exploratory: &msg_with_context.past_exploratory,
         user_gender: msg_with_context.user_gender,
+        language_option: &msg_with_context.language_option,
     }
 }
 
@@ -206,6 +207,7 @@ async fn run_agents_with_analysis(
             &filtered_items.explained,
             &filtered_items.translated,
             &filtered_items.exploratory,
+            &msg_with_context.language_option,
         )
     );
 

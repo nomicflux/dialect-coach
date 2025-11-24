@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{AgentUsage, Dialect, Explained, Mistake};
+use dialect_coach_shared::{AgentUsage, Dialect, Explained, LanguageOption, Mistake};
 use std::env;
 use std::sync::Arc;
 
@@ -7,6 +7,7 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
 pub mod analysis;
+pub mod language_instructions;
 pub mod learning;
 pub mod provider;
 pub mod response;
@@ -138,6 +139,7 @@ impl AgentService {
         explained: &[Explained],
         translated: &[dialect_coach_shared::Translated],
         exploratory: &[dialect_coach_shared::Exploratory],
+        language_option: &Option<LanguageOption>,
     ) -> (
         Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
         Vec<AgentUsage>,
@@ -153,6 +155,7 @@ impl AgentService {
             explained,
             translated,
             exploratory,
+            language_option,
         )
         .await
     }

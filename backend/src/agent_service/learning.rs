@@ -1,11 +1,12 @@
 use anyhow::Result;
 use dialect_coach_shared::{
-    AgentUsage, Dialect, Explained, Exploratory, Formality, Mistake, TeachingMode, Translated,
+    AgentUsage, Dialect, Explained, Exploratory, Formality, LanguageOption, Mistake, TeachingMode, Translated,
 };
 use rig::completion::Message as RigMessage;
 use serde::Deserialize;
 use std::sync::Arc;
 
+use super::language_instructions::build_language_instruction;
 use super::provider::{CompletionAgent, CompletionRequest};
 use super::retry::{RetryContext, build_retry_learning_preamble, retry_completion_call};
 use super::util::{
@@ -25,6 +26,7 @@ pub struct LearningAgentParams<'a> {
     pub past_explained: &'a [Explained],
     pub past_translated: &'a [Translated],
     pub past_exploratory: &'a [Exploratory],
+    pub language_option: &'a Option<LanguageOption>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -137,11 +139,17 @@ impl LearningAgent {
 }
 
 fn build_learning_system_content(params: &LearningAgentParams<'_>) -> String {
+    let language_instr = build_language_instruction(params.language_option);
+    let lang_section = if !language_instr.is_empty() {
+        format!("\n\nLANGUAGE INSTRUCTION: {}\n", language_instr)
+    } else {
+        String::new()
+    };
     format!(
         "# LEARNING AGENT ROLE\n\
         You evaluate the user's latest message and the assistant's reply for new learning items.\n\n\
         # EVALUATION CONTEXT\n\
-        You are a native speaker of {} with {} formality.\n\n\
+        You are a native speaker of {} with {} formality.{}\n\
         {}\
         # RULES\n\
         - Log learning items only, not conversational responses\n\
@@ -152,6 +160,7 @@ fn build_learning_system_content(params: &LearningAgentParams<'_>) -> String {
         {}\n",
         params.dialect.name(),
         params.formality.name(),
+        lang_section,
         learning_mode_context(&params.teaching_mode),
         JSON_OUTPUT_INSTRUCTION,
         learning_output_format_spec(&params.teaching_mode)
@@ -420,6 +429,7 @@ mod tests {
             past_explained: &explained,
             past_translated: &translated,
             past_exploratory: &exploratory,
+            language_option: &None,
         };
         let content = build_learning_system_content(&params);
         assert!(content.contains("LEARNING AGENT ROLE"));
@@ -455,6 +465,7 @@ mod tests {
             past_explained: &explained,
             past_translated: &translated,
             past_exploratory: &exploratory,
+            language_option: &None,
         };
         let prompt = build_learning_prompt(&params);
         assert!(prompt.contains("LATEST USER MESSAGE"));

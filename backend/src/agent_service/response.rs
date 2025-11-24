@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{
     AgentUsage, Dialect, DialectDocument, DialectWithFeatures, Explained, Exploratory, Formality,
-    Gender, Mistake, PastLearningItems, TeachingMode, Translated, UserGender,
+    Gender, LanguageOption, Mistake, PastLearningItems, TeachingMode, Translated, UserGender,
 };
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
@@ -11,6 +11,7 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
 
+use super::language_instructions::build_language_instruction;
 use super::learning::{LearningAgent, LearningAgentOutput, LearningAgentParams};
 use super::provider::{CompletionAgent, CompletionRequest};
 use super::retry::{RetryContext, build_retry_response_preamble, retry_completion_call};
@@ -284,6 +285,7 @@ fn build_system_content(
     learning_goals: &[String],
     past_learning_items: &PastLearningItems,
     user_gender: UserGender,
+    language_option: &Option<LanguageOption>,
 ) -> String {
     let formality_label = match formality {
         Formality::Formal => "FORMAL",
@@ -309,11 +311,18 @@ fn build_system_content(
         UserGender::NonBinary => "non-binary",
     };
 
+    let language_instr = build_language_instruction(language_option);
+
     if teaching_mode == TeachingMode::Debug {
+        let lang_section = if !language_instr.is_empty() {
+            format!("\n\nLANGUAGE INSTRUCTION: {}", language_instr)
+        } else {
+            String::new()
+        };
         format!(
             r#"# YOUR ROLE\n\
             {}.\n\n\
-            USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.\n\n\
+            USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.{}\n\n\
             # CRITICAL RULES\n\
             1. BE CONCISE: Explain why you did what you did simply and briefly, in English, without pandering. This will be within the "response" field of the required JSON format.\n\
             2. ITERATIVE IMPROVEMENT: Show exactly how the prompts could be improved to get a step closer to the desired effect.\n\
@@ -321,14 +330,19 @@ fn build_system_content(
             {}\n\
             {}\n\
             Now respond to the user's message technically."#,
-            role_desc, user_gender_str, goals_section, learning_items_context, JSON_OUTPUT_INSTRUCTION
+            role_desc, user_gender_str, lang_section, goals_section, learning_items_context, JSON_OUTPUT_INSTRUCTION
         )
     } else {
+        let lang_section = if !language_instr.is_empty() {
+            format!("\n\nLANGUAGE INSTRUCTION: {}", language_instr)
+        } else {
+            String::new()
+        };
         format!(
             "{}\n\n\
             # YOUR ROLE\n\
             {}.\n\n\
-            USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.\n\n\
+            USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.{}\n\n\
             # CRITICAL RULES\n\
             {}\n\
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
@@ -342,6 +356,7 @@ fn build_system_content(
             CONTENT_FILTERING_DIRECTIVES,
             role_desc,
             user_gender_str,
+            lang_section,
             mimic_instruction(dialect.has_corpus),
             formality_label.to_lowercase(),
             teaching_rules,
@@ -392,6 +407,7 @@ pub struct GenerateResponseParams<'a> {
     pub past_translated: &'a [Translated],
     pub past_exploratory: &'a [Exploratory],
     pub user_gender: UserGender,
+    pub language_option: &'a Option<LanguageOption>,
 }
 
 pub struct ResponseContext {
@@ -557,6 +573,7 @@ impl ResponseContext {
             past_explained: params.past_explained,
             past_translated: params.past_translated,
             past_exploratory: params.past_exploratory,
+            language_option: params.language_option,
         };
         let (result, usage) = learning_agent
             .generate_learning_items(&learning_params)
@@ -749,6 +766,7 @@ impl ResponseContext {
             params.learning_goals,
             &past_learning_items,
             params.user_gender,
+            params.language_option,
         );
         tracing::debug!("System content sent to Claude:\n{}", system_content);
         let history_with_prefill = build_conversation_history_with_examples(
@@ -987,6 +1005,7 @@ mod tests {
             &learning_goals,
             &past_learning_items,
             UserGender::NonBinary,
+            &None,
         );
 
         assert!(content.contains("# YOUR ROLE"));
@@ -1010,6 +1029,7 @@ mod tests {
             &learning_goals,
             &past_learning_items,
             UserGender::NonBinary,
+            &None,
         );
 
         assert!(content.contains("# YOUR ROLE"));

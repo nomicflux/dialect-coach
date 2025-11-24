@@ -1,7 +1,8 @@
 use anyhow::Result;
-use dialect_coach_shared::{AgentUsage, Dialect, Explained, Mistake};
+use dialect_coach_shared::{AgentUsage, Dialect, Explained, LanguageOption, Mistake};
 use rig::completion::Message as RigMessage;
 
+use super::language_instructions::build_language_instruction;
 use super::provider::CompletionRequest;
 use super::retry::{RetryContext, build_retry_analysis_preamble, retry_completion_call};
 use super::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response};
@@ -74,9 +75,16 @@ pub fn analysis_agent_preamble(
     explained: &[Explained],
     translated: &[dialect_coach_shared::Translated],
     exploratory: &[dialect_coach_shared::Exploratory],
+    language_option: &Option<LanguageOption>,
 ) -> String {
+    let language_instr = build_language_instruction(language_option);
+    let lang_section = if !language_instr.is_empty() {
+        format!("\n\nLANGUAGE INSTRUCTION: {}\n", language_instr)
+    } else {
+        String::new()
+    };
     format!(
-        r#"You are analyzing a language learner's progress in {}. Here are the learning items, with scoring directions for each category.
+        r#"You are analyzing a language learner's progress in {}. Here are the learning items, with scoring directions for each category.{}
 
 {}{}{}{}
 
@@ -97,6 +105,7 @@ Example correct format:
 Return ONLY the JSON object, starting with {{:
 {{"mistake_scores": {{}}, "explained_scores": {{}}, "translated_scores": {{}}, "exploratory_scores": {{}}}}"#,
         dialect.name(),
+        lang_section,
         format_mistakes_for_analysis(mistakes),
         format_explained_for_analysis(explained),
         format_translated_for_analysis(translated),
@@ -248,6 +257,7 @@ pub async fn generate_analysis(
     explained: &[Explained],
     translated: &[dialect_coach_shared::Translated],
     exploratory: &[dialect_coach_shared::Exploratory],
+    language_option: &Option<LanguageOption>,
 ) -> (
     Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
     Vec<AgentUsage>,
@@ -259,7 +269,7 @@ pub async fn generate_analysis(
 
     log_analysis_start(mistakes, explained, translated, exploratory);
 
-    let preamble = analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory);
+    let preamble = analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory, language_option);
     tracing::debug!("Analysis preamble sent to Claude:\n{}", preamble);
 
     let prompt = format_analysis_prompt(msg);
