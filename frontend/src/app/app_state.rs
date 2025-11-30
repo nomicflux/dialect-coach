@@ -14,6 +14,7 @@ use std::rc::Rc;
 use uuid::Uuid;
 use yew::prelude::*;
 
+use crate::services::enrichment_service::EnrichmentService;
 use crate::services::save_queue::PendingSaveQueue;
 use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
@@ -61,6 +62,7 @@ pub struct AppState {
     pub user_ws_service: Rc<RefCell<UserWebSocketService>>,
     pub tts_service: Option<Rc<CloudTtsService>>,
     pub translation_service: Rc<TranslationService>,
+    pub enrichment_service: Rc<EnrichmentService>,
     pub save_queue: Rc<PendingSaveQueue>,
     pub autoplay_enabled: bool,
     pub rate_limit_state: RateLimitState,
@@ -85,6 +87,7 @@ impl Default for AppState {
             ))),
             tts_service: Some(Rc::new(CloudTtsService::new("http://localhost:3000"))),
             translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
+            enrichment_service: Rc::new(EnrichmentService::new("http://localhost:3000")),
             save_queue: Rc::new(PendingSaveQueue::new()),
             autoplay_enabled: false,
             rate_limit_state: RateLimitState::default(),
@@ -227,6 +230,10 @@ pub enum UIStateAction {
     PopDeletedMessage,
     ShowUserCreationPage,
     HideUserCreationPage,
+    SetExplainLoading { message_id: Uuid },
+    ClearExplainLoading { message_id: Uuid },
+    SetTranslateLoading { message_id: Uuid },
+    ClearTranslateLoading { message_id: Uuid },
 }
 
 #[derive(Clone)]
@@ -246,6 +253,8 @@ pub struct UIState {
     pub deleted_learning_items: VecDeque<LearningItem>,
     pub deleted_messages: VecDeque<Message>,
     pub show_user_creation_page: bool,
+    pub explain_loading: HashSet<Uuid>,
+    pub translate_loading: HashSet<Uuid>,
 }
 
 impl Default for UIState {
@@ -266,6 +275,8 @@ impl Default for UIState {
             deleted_learning_items: VecDeque::new(),
             deleted_messages: VecDeque::new(),
             show_user_creation_page: false,
+            explain_loading: HashSet::new(),
+            translate_loading: HashSet::new(),
         }
     }
 }
@@ -326,6 +337,18 @@ impl UIState {
             }
             UIStateAction::HideUserCreationPage => {
                 next.show_user_creation_page = false;
+            }
+            UIStateAction::SetExplainLoading { message_id } => {
+                next.explain_loading.insert(message_id);
+            }
+            UIStateAction::ClearExplainLoading { message_id } => {
+                next.explain_loading.remove(&message_id);
+            }
+            UIStateAction::SetTranslateLoading { message_id } => {
+                next.translate_loading.insert(message_id);
+            }
+            UIStateAction::ClearTranslateLoading { message_id } => {
+                next.translate_loading.remove(&message_id);
             }
         }
         next

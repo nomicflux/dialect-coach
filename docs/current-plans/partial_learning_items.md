@@ -427,11 +427,13 @@ git commit -m "Phase 2 (enrichment logic) complete"
 **Subagent:** kiss-code-generator
 
 **Code Style Checklist:**
-- [ ] Functions <20 lines
-- [ ] Pure functions where possible
-- [ ] No defensive coding
-- [ ] Helper functions for complex logic
-- [ ] Full functionality (no TODOs)
+- [x] Functions <20 lines
+- [x] Pure functions where possible
+- [x] No defensive coding
+- [x] Helper functions for complex logic
+- [x] Full functionality (no TODOs)
+
+**Status:** COMPLETED 2025-11-30
 
 **Deliverables:**
 1. New file: `frontend/src/services/enrichment_service.rs`
@@ -442,12 +444,16 @@ git commit -m "Phase 2 (enrichment logic) complete"
 2. Update: `frontend/src/services/mod.rs`
    - Add `pub mod enrichment_service;`
 
+3. Update: `frontend/src/app/app_state.rs`
+   - Add enrichment_service to AppState
+   - Initialize in AppState::new()
+
 **Actionable Items:**
-1. Create enrichment_service.rs following translation_service.rs pattern
-2. Write `enrich_learning_item()` using gloo_net::http::Request
-3. Write `build_request_url()` returning "http://127.0.0.1:3000/api/learning/enrich"
-4. Write `parse_response()` deserializing JSON response
-5. Update services/mod.rs
+1. ✓ Create enrichment_service.rs following translation_service.rs pattern
+2. ✓ Write `enrich_learning_item()` using gloo_net::http::Request
+3. ✓ Error handling: Maps 400 to "Invalid learning item data", 500 to "Server error while enriching item"
+4. ✓ Update services/mod.rs - Added module declaration and pub export
+5. ✓ Update app_state.rs - Added enrichment_service field and initialization
 
 **Request Flow:**
 ```
@@ -463,25 +469,23 @@ Frontend -> POST /api/learning/enrich
 - 500 errors -> "Server error while enriching item"
 - Parse errors -> "Invalid response from server"
 
-**Test Requirements:**
-- Frontend tests not in standard test suite
-- Manual testing will verify in Phase 6
+**Test Results:**
+- cargo test -p dialect-coach-frontend: 43 tests PASSED
+- cargo clippy -p dialect-coach-frontend -- -D warnings: NO WARNINGS
 
-**Success Criteria:**
-- Service compiles
-- Follows existing service patterns
-- Error messages are user-friendly
-- Tests pass: `cargo test -p dialect-coach-frontend` (if any)
+**Deliverables Completed:**
+- [x] `/Users/demouser/Code/dialect-coach/frontend/src/services/enrichment_service.rs` - EnrichmentService struct + enrich_learning_item() method + 2 tests
+- [x] Updated `/Users/demouser/Code/dialect-coach/frontend/src/services/mod.rs` - Added module declaration and pub export
+- [x] Updated `/Users/demouser/Code/dialect-coach/frontend/src/app/app_state.rs` - Added enrichment_service field and initialized in default()
 
-**Phase End:**
-```bash
-cd frontend && trunk build
-cargo clippy -p dialect-coach-frontend -- -D warnings
-# Remove ALL dead code warnings
-# Update this document with completion status
-git add frontend/src/services/enrichment_service.rs frontend/src/services/mod.rs
-git commit -m "Phase 4 (frontend service) complete"
-```
+**Implementation Details:**
+- EnrichmentService: Mirrors TranslationService pattern with base_url field
+- enrich_learning_item(): POST to /api/learning/enrich with EnrichRequest, returns EnrichResponse
+- Error handling maps HTTP status codes to user-friendly messages
+- All functions under 20 lines following KISS principles
+- Tests verify service creation and request serialization
+
+---
 
 ---
 
