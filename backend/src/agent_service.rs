@@ -7,6 +7,7 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
 pub mod analysis;
+pub mod enrichment;
 pub mod language_instructions;
 pub mod learning;
 pub mod provider;
@@ -172,6 +173,16 @@ impl AgentService {
 
     pub fn contains_illegal_characters(text: &str) -> bool {
         contains_illegal_characters(text)
+    }
+
+    pub async fn enrich_learning_item(
+        &self,
+        req: dialect_coach_shared::EnrichRequest,
+    ) -> anyhow::Result<dialect_coach_shared::EnrichResponse> {
+        let retry_ctx = retry::RetryContext {
+            agent: self.learning_agent.clone(),
+        };
+        enrichment::enrich_learning_item(&retry_ctx, &req).await
     }
 }
 

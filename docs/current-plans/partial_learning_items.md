@@ -235,11 +235,13 @@ git commit -m "Phase 1 (partial data types) complete"
 **Subagent:** modular-builder
 
 **Code Style Checklist:**
-- [ ] Functions <20 lines
-- [ ] Pure functions where possible
-- [ ] No defensive coding
-- [ ] Helper functions for complex logic
-- [ ] Full functionality (no TODOs)
+- [x] Functions <20 lines
+- [x] Pure functions where possible
+- [x] No defensive coding
+- [x] Helper functions for complex logic
+- [x] Full functionality (no TODOs)
+
+**Status:** COMPLETED 2025-11-30
 
 **Deliverables:**
 1. New file: `backend/src/agent_service/enrichment.rs`
@@ -342,6 +344,25 @@ cargo clippy -p dialect-coach-backend -- -D warnings
 git add backend/src/agent_service/enrichment.rs backend/src/agent_service.rs
 git commit -m "Phase 2 (enrichment logic) complete"
 ```
+
+**Test Results:**
+- cargo test -p dialect-coach-backend: 105 tests PASSED
+- cargo clippy -p dialect-coach-backend -- -D warnings: NO WARNINGS
+
+**Deliverables Completed:**
+- [x] `/Users/demouser/Code/dialect-coach/backend/src/agent_service/enrichment.rs` - All prompt builders, parsers, and enrichment functions + 12 tests
+- [x] Updated `/Users/demouser/Code/dialect-coach/backend/src/agent_service.rs` - Added enrichment module and public method
+
+**Implementation Details:**
+- All prompt builder functions create structured prompts for AI agent with clear response format
+- Parser functions use `extract_field()` helper to parse AI responses
+- Each partial type has dedicated `enrich_partial_*()` function using learning_agent
+- Mistake enrichment fills correction and category fields
+- Translated enrichment handles bidirectional translation (detects which field to fill based on which is provided)
+- Explained enrichment fills phrase or explanation based on what's missing
+- Exploratory enrichment fills point or instructions based on what's missing
+- Top-level `enrich_learning_item()` dispatcher delegates to appropriate enrichment function
+- All functions follow <20 line limit with helper functions for complex logic
 
 ---
 
