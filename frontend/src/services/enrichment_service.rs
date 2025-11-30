@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use dialect_coach_shared::models::{EnrichRequest, EnrichResponse};
 use gloo_net::http::Request;
 
+#[derive(PartialEq)]
 pub struct EnrichmentService {
     base_url: String,
 }

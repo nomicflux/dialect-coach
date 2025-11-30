@@ -57,6 +57,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
         let app_state = app_state.clone();
         let user_state = user_state.clone();
         let modal_state = modal_state.clone();
+        let ui_state = ui_state.clone();
         Callback::from(move |message_id: Uuid| {
             let state = match user_state.0.as_ref() {
                 Some(s) => s,
@@ -77,6 +78,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
             let dialect = state.selected_dialect;
             let formality = state.formality;
             let modal_state = modal_state.clone();
+            let ui_state_for_async = ui_state.clone();
+
+            ui_state.dispatch(UIStateAction::SetTranslateLoading { message_id });
 
             wasm_bindgen_futures::spawn_local(async move {
                 match translation_service
@@ -93,6 +97,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         error!("Translation failed: {}", e);
                     }
                 }
+                ui_state_for_async.dispatch(UIStateAction::ClearTranslateLoading { message_id });
             });
         })
     };
@@ -238,8 +243,10 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_create_branch={Some(on_create_branch(user_state.clone()))}
                         on_auto_start={Some(on_auto_start(app_state.clone(), user_state.clone()))}
                         on_continue_branch={Some(on_continue_branch(app_state.clone(), user_state.clone()))}
-                        on_explain={Some(on_explain_message(app_state.clone(), user_state.clone()))}
+                        on_explain={Some(on_explain_message(app_state.clone(), user_state.clone(), ui_state.clone()))}
                         on_translate={Some(on_translate_click.clone())}
+                        explain_loading={ui_state.explain_loading.clone()}
+                        translate_loading={ui_state.translate_loading.clone()}
                     />
                     <SpeechControls
                         on_speech={on_send_message(app_state.clone(), user_state.clone())}
@@ -320,6 +327,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     deleted_count={ui_state.deleted_learning_items.len()}
                     active_branch_dialect={Some(us.selected_dialect)}
                     user_state={user_state.clone()}
+                    enrichment_service={app_state.enrichment_service.clone()}
                 />
             </div>
 

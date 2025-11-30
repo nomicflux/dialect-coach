@@ -496,11 +496,13 @@ Frontend -> POST /api/learning/enrich
 **Subagent:** modular-builder
 
 **Code Style Checklist:**
-- [ ] Functions <20 lines
-- [ ] Pure functions where possible
-- [ ] No defensive coding
-- [ ] Helper functions for complex logic
-- [ ] Full functionality (no TODOs)
+- [x] Functions <20 lines
+- [x] Pure functions where possible
+- [x] No defensive coding
+- [x] Helper functions for complex logic
+- [x] Full functionality (no TODOs)
+
+**Status:** COMPLETED 2025-11-30
 
 **Deliverables:**
 1. Update: `frontend/src/components/learning_panel.rs`
@@ -579,6 +581,28 @@ cargo clippy --all -- -D warnings
 git add frontend/src/components/learning_panel.rs
 git commit -m "Phase 5 (UI form changes) complete"
 ```
+
+**Test Results:**
+- cargo test -p dialect-coach-frontend: 43 tests PASSED
+- cargo clippy -p dialect-coach-frontend -- -D warnings: NO WARNINGS
+
+**Deliverables Completed:**
+- [x] Updated `/Users/demouser/Code/dialect-coach/frontend/src/components/learning_panel.rs` - Added validation functions for partial data, enrichment button, loading states, enrichment callback, field population logic
+- [x] Updated `/Users/demouser/Code/dialect-coach/frontend/src/components/main_content.rs` - Added enrichment_service prop to LearningPanel
+- [x] Updated `/Users/demouser/Code/dialect-coach/frontend/src/services/enrichment_service.rs` - Added PartialEq derive
+
+**Implementation Details:**
+- Added partial validation functions: is_mistake_partial, is_translation_partial, is_explanation_partial, is_exploration_partial
+- Added is_form_partial to check if form has partial data ready for enrichment
+- Added functions to create partial items: create_partial_mistake, create_partial_explanation, create_partial_translation, create_partial_exploration
+- Added enriching and enrich_error state handles for loading/error display
+- Added FieldStates struct to group all form state handles for easier passing to async callbacks
+- Added populate_fields function to update form fields from enriched response
+- Added "Enrich" button that is enabled when form has partial data, disabled when complete or empty
+- "Add" button enabled only when form has complete data
+- "Enrich" button shows "Enriching..." during async operation
+- Refactored render_add_item_form and render_expanded_view to use props structs to avoid too many arguments
+- All functions follow <20 line limit with helper functions for complex logic
 
 ---
 

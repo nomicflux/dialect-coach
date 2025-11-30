@@ -1,8 +1,11 @@
 use crate::app::app_state::{OptionalUserState, UserStateAction};
+use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::{
-    Dialect, Explained, Exploratory, LearningItem, LearningItemType, Mistake, MistakeCategory,
-    Translated,
+    Dialect, EnrichRequest, Explained, Exploratory, LearningItem, LearningItemType, Mistake,
+    MistakeCategory, PartialExplained, PartialExploratory, PartialLearningItem, PartialMistake,
+    PartialTranslated, Translated,
 };
+use std::rc::Rc;
 use uuid::Uuid;
 use yew::prelude::*;
 
@@ -27,6 +30,7 @@ pub struct LearningPanelProps {
     pub deleted_count: usize,
     pub active_branch_dialect: Option<Dialect>,
     pub user_state: UseReducerHandle<OptionalUserState>,
+    pub enrichment_service: Rc<EnrichmentService>,
 }
 
 fn calculate_color_from_score(score: u8, item_type: &LearningItemType) -> String {
@@ -129,6 +133,28 @@ fn is_exploration_valid(point: &str, instr: &str) -> bool {
     !point.trim().is_empty() && !instr.trim().is_empty()
 }
 
+fn is_mistake_partial(mistake: &str, corr: &str) -> bool {
+    !mistake.trim().is_empty() && (corr.trim().is_empty())
+}
+
+fn is_translation_partial(word: &str, trans: &str) -> bool {
+    let word_filled = !word.trim().is_empty();
+    let trans_filled = !trans.trim().is_empty();
+    (word_filled && !trans_filled) || (!word_filled && trans_filled)
+}
+
+fn is_explanation_partial(phrase: &str, expl: &str) -> bool {
+    let phrase_filled = !phrase.trim().is_empty();
+    let expl_filled = !expl.trim().is_empty();
+    (phrase_filled || expl_filled) && !(phrase_filled && expl_filled)
+}
+
+fn is_exploration_partial(point: &str, instr: &str) -> bool {
+    let point_filled = !point.trim().is_empty();
+    let instr_filled = !instr.trim().is_empty();
+    (point_filled || instr_filled) && !(point_filled && instr_filled)
+}
+
 fn create_mistake_from_form(mistake: &str, corr: &str, cat: &str) -> Mistake {
     let ctx = "user-provided context".to_string();
     let category = match cat {
@@ -158,12 +184,60 @@ fn create_exploration_from_form(point: &str, instr: &str) -> Exploratory {
     Exploratory::new(point.trim().to_string(), instr.trim().to_string())
 }
 
+fn opt_str(s: &str) -> Option<String> {
+    if s.trim().is_empty() {
+        None
+    } else {
+        Some(s.trim().to_string())
+    }
+}
+
+fn create_partial_mistake(mistake: &str, corr: &str, cat: &str) -> PartialMistake {
+    PartialMistake {
+        specific_mistake: opt_str(mistake),
+        correction: opt_str(corr),
+        mistake_category: opt_str(cat),
+    }
+}
+
+fn create_partial_explanation(phrase: &str, expl: &str) -> PartialExplained {
+    PartialExplained {
+        new_phrase: opt_str(phrase),
+        explanation: opt_str(expl),
+    }
+}
+
+fn create_partial_translation(word: &str, trans: &str, ctx: &str) -> PartialTranslated {
+    PartialTranslated {
+        translated_word: opt_str(word),
+        translated_to: opt_str(trans),
+        context: opt_str(ctx),
+    }
+}
+
+fn create_partial_exploration(point: &str, instr: &str) -> PartialExploratory {
+    PartialExploratory {
+        point_to_try: opt_str(point),
+        instructions_for_use: opt_str(instr),
+    }
+}
+
 fn is_form_valid(selected_type: Option<&String>, fields: &FormFields) -> bool {
     match selected_type.map(|s| s.as_str()) {
         Some("Mistake") => is_mistake_valid(&fields.mistake, &fields.correction, &fields.category),
         Some("Explanation") => is_explanation_valid(&fields.phrase, &fields.explanation),
         Some("Translation") => is_translation_valid(&fields.word, &fields.translation),
         Some("Exploration") => is_exploration_valid(&fields.point, &fields.instructions),
+        _ => false,
+    }
+}
+
+fn is_form_partial(selected_type: Option<&String>, fields: &FormFields) -> bool {
+    match selected_type.map(|s| s.as_str()) {
+        Some("Mistake") => is_mistake_partial(&fields.mistake, &fields.correction),
+        Some("Explanation") => is_explanation_partial(&fields.phrase, &fields.explanation),
+        Some("Translation") => is_translation_partial(&fields.word, &fields.translation),
+        Some("Exploration") => is_exploration_partial(&fields.point, &fields.instructions),
         _ => false,
     }
 }
@@ -347,7 +421,10 @@ fn render_exploration_fields(
 
 fn render_save_cancel_buttons(
     save_enabled: bool,
+    enrich_enabled: bool,
+    enriching: bool,
     on_save: Callback<()>,
+    on_enrich: Callback<()>,
     on_cancel: Callback<()>,
 ) -> Html {
     html! {
@@ -357,7 +434,14 @@ fn render_save_cancel_buttons(
                 disabled={!save_enabled}
                 onclick={on_save.reform(|_| ())}
             >
-                {"Save"}
+                {"Add"}
+            </button>
+            <button
+                class="save-learning-item-button"
+                disabled={!enrich_enabled || enriching}
+                onclick={on_enrich.reform(|_| ())}
+            >
+                {if enriching { "Enriching..." } else { "Enrich" }}
             </button>
             <button
                 class="cancel-learning-item-button"
@@ -369,15 +453,19 @@ fn render_save_cancel_buttons(
     }
 }
 
-fn render_add_item_form(
-    form_expanded: &UseStateHandle<bool>,
-    selected_type: &UseStateHandle<Option<String>>,
+struct FormRenderProps<'a> {
+    form_expanded: &'a UseStateHandle<bool>,
+    selected_type: &'a UseStateHandle<Option<String>>,
     branch_dialect: Option<Dialect>,
-    fields: &FormFields,
+    fields: &'a FormFields,
+    enriching: bool,
     on_save: Callback<()>,
+    on_enrich: Callback<()>,
     on_cancel: Callback<()>,
-) -> Html {
-    if !has_active_dialect(branch_dialect) {
+}
+
+fn render_add_item_form(p: FormRenderProps) -> Html {
+    if !has_active_dialect(p.branch_dialect) {
         return html! {
             <div class="add-learning-item-form">
                 <p class="empty-message">
@@ -387,13 +475,13 @@ fn render_add_item_form(
         };
     }
 
-    if !**form_expanded {
+    if !**p.form_expanded {
         return html! {
             <div class="add-learning-item-form">
                 <button
                     class="save-learning-item-button"
                     onclick={{
-                        let form_expanded = form_expanded.clone();
+                        let form_expanded = p.form_expanded.clone();
                         Callback::from(move |_| form_expanded.set(true))
                     }}
                 >
@@ -402,28 +490,29 @@ fn render_add_item_form(
             </div>
         };
     }
-    let field_html = match selected_type.as_ref().map(|s| s.as_str()) {
+    let field_html = match p.selected_type.as_ref().map(|s| s.as_str()) {
         Some("Mistake") => render_mistake_fields(
-            fields.mistake.clone(),
-            fields.correction.clone(),
-            fields.category.clone()
+            p.fields.mistake.clone(),
+            p.fields.correction.clone(),
+            p.fields.category.clone()
         ),
         Some("Explanation") => render_explanation_fields(
-            fields.phrase.clone(),
-            fields.explanation.clone()
+            p.fields.phrase.clone(),
+            p.fields.explanation.clone()
         ),
         Some("Translation") => render_translation_fields(
-            fields.word.clone(),
-            fields.translation.clone(),
-            fields.context.clone()
+            p.fields.word.clone(),
+            p.fields.translation.clone(),
+            p.fields.context.clone()
         ),
         Some("Exploration") => render_exploration_fields(
-            fields.point.clone(),
-            fields.instructions.clone()
+            p.fields.point.clone(),
+            p.fields.instructions.clone()
         ),
         _ => html! {},
     };
-    let save_enabled = is_form_valid(selected_type.as_ref(), fields);
+    let save_enabled = is_form_valid(p.selected_type.as_ref(), p.fields);
+    let enrich_enabled = is_form_partial(p.selected_type.as_ref(), p.fields);
     html! {
         <div class="add-learning-item-form">
             <div class="form-buttons">
@@ -431,16 +520,16 @@ fn render_add_item_form(
                 <button
                     class="cancel-learning-item-button"
                     onclick={{
-                        let form_expanded = form_expanded.clone();
+                        let form_expanded = p.form_expanded.clone();
                         Callback::from(move |_| form_expanded.set(false))
                     }}
                 >
                     {"−"}
                 </button>
             </div>
-            {render_type_selector(selected_type.clone())}
+            {render_type_selector(p.selected_type.clone())}
             {field_html}
-            {render_save_cancel_buttons(save_enabled, on_save, on_cancel)}
+            {render_save_cancel_buttons(save_enabled, enrich_enabled, p.enriching, p.on_save, p.on_enrich, p.on_cancel)}
         </div>
     }
 }
@@ -569,6 +658,58 @@ fn render_collapsed_view(props: &LearningPanelProps) -> Html {
     }
 }
 
+fn set_field_if_present(obj: &serde_json::Map<String, serde_json::Value>, key: &str, state: &UseStateHandle<String>) {
+    if let Some(val) = obj.get(key)
+        && let Some(s) = val.as_str() {
+            state.set(s.to_string());
+        }
+}
+
+fn get_category_name(cat_obj: &serde_json::Map<String, serde_json::Value>) -> &'static str {
+    if cat_obj.contains_key("spelling_error") {
+        "SpellingError"
+    } else if cat_obj.contains_key("vocabulary_error") {
+        "VocabularyError"
+    } else if cat_obj.contains_key("grammar_error") {
+        "GrammarError"
+    } else if cat_obj.contains_key("dialect_usage_error") {
+        "DialectUsageError"
+    } else {
+        "Other"
+    }
+}
+
+#[derive(Clone)]
+struct FieldStates {
+    specific_mistake: UseStateHandle<String>,
+    correction: UseStateHandle<String>,
+    category: UseStateHandle<String>,
+    new_phrase: UseStateHandle<String>,
+    explanation_text: UseStateHandle<String>,
+    translated_word: UseStateHandle<String>,
+    translated_to: UseStateHandle<String>,
+    point_to_try: UseStateHandle<String>,
+    instructions: UseStateHandle<String>,
+}
+
+fn populate_fields(enriched_item: serde_json::Value, states: &FieldStates) {
+    if let Some(obj) = enriched_item.as_object() {
+        set_field_if_present(obj, "specific_mistake", &states.specific_mistake);
+        set_field_if_present(obj, "correction", &states.correction);
+        set_field_if_present(obj, "new_phrase", &states.new_phrase);
+        set_field_if_present(obj, "explanation", &states.explanation_text);
+        set_field_if_present(obj, "translated_word", &states.translated_word);
+        set_field_if_present(obj, "translated_to", &states.translated_to);
+        set_field_if_present(obj, "point_to_try", &states.point_to_try);
+        set_field_if_present(obj, "instructions_for_use", &states.instructions);
+
+        if let Some(cat_val) = obj.get("mistake_category")
+            && let Some(cat_obj) = cat_val.as_object() {
+                states.category.set(get_category_name(cat_obj).to_string());
+            }
+    }
+}
+
 fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> Html {
     let content = get_item_content(item);
     let tooltip = get_tooltip(item);
@@ -600,16 +741,20 @@ fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> Html 
     }
 }
 
-fn render_expanded_view(
-    props: &LearningPanelProps,
-    form_expanded: &UseStateHandle<bool>,
-    selected_type: &UseStateHandle<Option<String>>,
-    fields: &FormFields,
+struct ExpandedViewProps<'a> {
+    learning_props: &'a LearningPanelProps,
+    form_expanded: &'a UseStateHandle<bool>,
+    selected_type: &'a UseStateHandle<Option<String>>,
+    fields: &'a FormFields,
+    enriching: bool,
     on_save: Callback<()>,
+    on_enrich: Callback<()>,
     on_cancel: Callback<()>,
-) -> Html {
+}
+
+fn render_expanded_view(p: ExpandedViewProps) -> Html {
     let (accomplishments, still_learning): (Vec<_>, Vec<_>) =
-        props.items.iter().partition(|item| item.score == 100);
+        p.learning_props.items.iter().partition(|item| item.score == 100);
 
     html! {
         <>
@@ -619,7 +764,7 @@ fn render_expanded_view(
             <button
                 class="learning-panel-toggle-button"
                 onclick={Callback::from({
-                    let on_toggle = props.on_toggle.clone();
+                    let on_toggle = p.learning_props.on_toggle.clone();
                     move |_| on_toggle.emit(())
                 })}
                 title="Collapse learning panel"
@@ -631,7 +776,7 @@ fn render_expanded_view(
                     <div class="learning-section">
                         <h4 class="section-title">{"Accomplishments"}</h4>
                         <ul class="learning-items">
-                            {for accomplishments.iter().map(|item| render_learning_item(item, props.on_delete.clone()))}
+                            {for accomplishments.iter().map(|item| render_learning_item(item, p.learning_props.on_delete.clone()))}
                         </ul>
                     </div>
                 }
@@ -640,7 +785,7 @@ fn render_expanded_view(
                     <div class="learning-section">
                         <h4 class="section-title">{"Still Learning"}</h4>
                         <ul class="learning-items">
-                            {for still_learning.iter().map(|item| render_learning_item(item, props.on_delete.clone()))}
+                            {for still_learning.iter().map(|item| render_learning_item(item, p.learning_props.on_delete.clone()))}
                         </ul>
                     </div>
                 }
@@ -649,14 +794,23 @@ fn render_expanded_view(
                     <p class="empty-message">{"No learning items yet. Start chatting to build your learning progress!"}</p>
                 }
 
-                {render_add_item_form(form_expanded, selected_type, props.active_branch_dialect, fields, on_save, on_cancel)}
+                {render_add_item_form(FormRenderProps {
+                    form_expanded: p.form_expanded,
+                    selected_type: p.selected_type,
+                    branch_dialect: p.learning_props.active_branch_dialect,
+                    fields: p.fields,
+                    enriching: p.enriching,
+                    on_save: p.on_save,
+                    on_enrich: p.on_enrich,
+                    on_cancel: p.on_cancel,
+                })}
             </div>
 
-            if props.deleted_count > 0 {
+            if p.learning_props.deleted_count > 0 {
                 <div class="undo-notification">
                     <span>{"Item deleted"}</span>
                     <button class="undo-button" onclick={{
-                        let on_undo = props.on_undo.clone();
+                        let on_undo = p.learning_props.on_undo.clone();
                         Callback::from(move |_| on_undo.emit(()))
                     }}>
                         {"Undo"}
@@ -681,6 +835,8 @@ pub fn learning_panel(props: &LearningPanelProps) -> Html {
     let context_text = use_state(String::new);
     let point_to_try = use_state(String::new);
     let instructions = use_state(String::new);
+    let enriching = use_state(|| false);
+    let enrich_error = use_state(|| None::<String>);
     let panel_class = if props.is_collapsed {
         "learning-panel learning-panel--collapsed"
     } else {
@@ -729,6 +885,80 @@ pub fn learning_panel(props: &LearningPanelProps) -> Html {
         })
     };
 
+    let on_enrich = {
+        let enrichment_service = props.enrichment_service.clone();
+        let dialect = props.active_branch_dialect;
+        let selected_type = selected_type.clone();
+        let fields = fields.clone();
+        let enriching = enriching.clone();
+        let enrich_error = enrich_error.clone();
+
+        let field_states = FieldStates {
+            specific_mistake: specific_mistake.clone(),
+            correction: correction.clone(),
+            category: category.clone(),
+            new_phrase: new_phrase.clone(),
+            explanation_text: explanation_text.clone(),
+            translated_word: translated_word.clone(),
+            translated_to: translated_to.clone(),
+            point_to_try: point_to_try.clone(),
+            instructions: instructions.clone(),
+        };
+
+        Callback::from(move |_| {
+            let Some(dialect) = dialect else { return; };
+            if !is_form_partial(selected_type.as_ref(), &fields) {
+                return;
+            }
+
+            enriching.set(true);
+            enrich_error.set(None);
+
+            let partial_data = match selected_type.as_ref().map(|s| s.as_str()) {
+                Some("Mistake") => {
+                    let partial = create_partial_mistake(&fields.mistake, &fields.correction, &fields.category);
+                    PartialLearningItem::Mistake(partial)
+                }
+                Some("Explanation") => {
+                    let partial = create_partial_explanation(&fields.phrase, &fields.explanation);
+                    PartialLearningItem::Explained(partial)
+                }
+                Some("Translation") => {
+                    let partial = create_partial_translation(&fields.word, &fields.translation, &fields.context);
+                    PartialLearningItem::Translated(partial)
+                }
+                Some("Exploration") => {
+                    let partial = create_partial_exploration(&fields.point, &fields.instructions);
+                    PartialLearningItem::Exploratory(partial)
+                }
+                _ => return,
+            };
+
+            let request = EnrichRequest {
+                dialect,
+                partial_data,
+            };
+
+            let enrichment_service = enrichment_service.clone();
+            let enriching = enriching.clone();
+            let enrich_error = enrich_error.clone();
+            let field_states = field_states.clone();
+
+            wasm_bindgen_futures::spawn_local(async move {
+                match enrichment_service.enrich_learning_item(request).await {
+                    Ok(response) => {
+                        populate_fields(response.enriched_item, &field_states);
+                        enriching.set(false);
+                    }
+                    Err(e) => {
+                        enrich_error.set(Some(e.to_string()));
+                        enriching.set(false);
+                    }
+                }
+            });
+        })
+    };
+
     let on_cancel = clear_all;
 
     html! {
@@ -736,7 +966,16 @@ pub fn learning_panel(props: &LearningPanelProps) -> Html {
             {if props.is_collapsed {
                 render_collapsed_view(props)
             } else {
-                render_expanded_view(props, &form_expanded, &selected_type, &fields, on_save, on_cancel)
+                render_expanded_view(ExpandedViewProps {
+                    learning_props: props,
+                    form_expanded: &form_expanded,
+                    selected_type: &selected_type,
+                    fields: &fields,
+                    enriching: *enriching,
+                    on_save,
+                    on_enrich,
+                    on_cancel,
+                })
             }}
         </div>
     }
