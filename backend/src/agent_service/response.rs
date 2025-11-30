@@ -828,7 +828,7 @@ impl ResponseContext {
             preamble: system_preamble,
             prompt,
             history: &history,
-            max_tokens: 128,
+            max_tokens: 512,
             temperature: 0.2,
         };
         let (result, _) = retry_completion_call(self.response_agent.as_ref(), &request, 1).await;

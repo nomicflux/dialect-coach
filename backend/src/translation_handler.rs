@@ -119,7 +119,7 @@ async fn translate_phrase(
     let system_preamble = "Return ONLY valid JSON array format. Each element must have 'target_text' and 'english' fields. No other text, no markdown formatting, just the JSON array.";
 
     let translation_prompt = format!(
-        "Segment this sentence into useful 2-4 word phrases and translate each to {} ({}):\n\n\"{}\"\n\nReturn JSON array: [{{\"target_text\": \"phrase in target language\", \"english\": \"English translation\"}}, ...]",
+        "Translate this sentence to {} ({}) at multiple granularity levels:\n\n\"{}\"\n\nProvide translations for:\n1. Each individual content word (nouns, verbs, adjectives, adverbs - skip articles, prepositions, particles)\n2. Meaningful 2-word combinations (phrasal verbs, article+noun, adjective+noun, verb+preposition)\n3. Meaningful 3-5 word phrases (cohesive units, idioms, complete thoughts)\n\nIMPORTANT: Maximum 5 words per phrase. Do NOT include phrases longer than 5 words.\n\nTranslations should overlap - the same word can appear alone and in multiple phrases.\n\nReturn JSON array: [{{\"target_text\": \"phrase in target language\", \"english\": \"English translation\"}}, ...]",
         dialect.name(),
         formality_desc,
         phrase
@@ -131,12 +131,15 @@ async fn translate_phrase(
         .await
         .context("Failed to get AI response")?;
 
+    tracing::debug!("AI translation response: {}", response.response);
     parse_phrase_translations(&response.response)
 }
 
 fn parse_phrase_translations(json_str: &str) -> Result<Vec<PhraseTranslation>> {
-    serde_json::from_str(json_str)
-        .context("Failed to parse AI response as JSON array of PhraseTranslation")
+    serde_json::from_str(json_str).map_err(|e| {
+        tracing::error!("JSON parse error: {}. Raw response: {}", e, json_str);
+        anyhow::anyhow!("Failed to parse AI response as JSON array of PhraseTranslation: {}", e)
+    })
 }
 
 #[cfg(test)]
