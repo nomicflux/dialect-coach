@@ -3,6 +3,7 @@ mod admin_invites;
 mod agent_service;
 mod auth_service;
 mod embedding_service;
+mod enrichment_handler;
 mod persistence;
 mod qdrant_service;
 mod rag_config;
@@ -210,6 +211,10 @@ async fn main() -> Result<()> {
         .route(
             "/api/translate",
             post(translation_handler::translate_handler),
+        )
+        .route(
+            "/api/learning/enrich",
+            post(enrichment_handler::enrich_handler),
         )
         .route("/admin", get(serve_admin_html))
         .route("/admin/api/status", get(get_admin_status))
