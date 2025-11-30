@@ -1,6 +1,6 @@
 use super::{
     AgentResponse, AuthCredentials, Dialect, Explained, Formality, Language, LanguageOption,
-    Mistake, TeachingMode, UsageStats, User, UserGender, UserState,
+    LearningGoal, Mistake, TeachingMode, UsageStats, User, UserGender, UserState,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -159,35 +159,86 @@ pub struct UserMessageWithContext {
     pub past_exploratory: Vec<crate::models::agent::Exploratory>,
     pub active_branch_id: Uuid,
     pub context_messages: Vec<Message>,
-    pub learning_goals: Vec<String>,
+    pub learning_goals: Vec<LearningGoal>,
     pub user_gender: UserGender,
     pub language_option: Option<LanguageOption>,
 }
 
-impl UserMessageWithContext {
-    pub fn new(
-        user_id: Uuid,
-        message: Message,
-        past_learning_items: PastLearningItems,
-        active_branch_id: Uuid,
-        context_messages: Vec<Message>,
-        learning_goals: Vec<String>,
-        user_gender: UserGender,
-        language_option: Option<LanguageOption>,
-    ) -> Self {
+pub struct UserMessageWithContextBuilder {
+    user_id: Uuid,
+    message: Message,
+    past_learning_items: PastLearningItems,
+    active_branch_id: Uuid,
+    context_messages: Vec<Message>,
+    learning_goals: Vec<LearningGoal>,
+    user_gender: UserGender,
+    language_option: Option<LanguageOption>,
+}
+
+impl UserMessageWithContextBuilder {
+    pub fn new(user_id: Uuid, message: Message) -> Self {
         Self {
             user_id,
             message,
-            past_mistakes: past_learning_items.mistakes,
-            past_explained: past_learning_items.explained,
-            past_translated: past_learning_items.translated,
-            past_exploratory: past_learning_items.exploratory,
-            active_branch_id,
-            context_messages,
-            learning_goals,
-            user_gender,
-            language_option,
+            past_learning_items: PastLearningItems::default(),
+            active_branch_id: Uuid::nil(),
+            context_messages: Vec::new(),
+            learning_goals: Vec::new(),
+            user_gender: UserGender::NonBinary,
+            language_option: None,
         }
+    }
+
+    pub fn past_learning_items(mut self, items: PastLearningItems) -> Self {
+        self.past_learning_items = items;
+        self
+    }
+
+    pub fn active_branch_id(mut self, id: Uuid) -> Self {
+        self.active_branch_id = id;
+        self
+    }
+
+    pub fn context_messages(mut self, messages: Vec<Message>) -> Self {
+        self.context_messages = messages;
+        self
+    }
+
+    pub fn learning_goals(mut self, goals: Vec<LearningGoal>) -> Self {
+        self.learning_goals = goals;
+        self
+    }
+
+    pub fn user_gender(mut self, gender: UserGender) -> Self {
+        self.user_gender = gender;
+        self
+    }
+
+    pub fn language_option(mut self, option: Option<LanguageOption>) -> Self {
+        self.language_option = option;
+        self
+    }
+
+    pub fn build(self) -> UserMessageWithContext {
+        UserMessageWithContext {
+            user_id: self.user_id,
+            message: self.message,
+            past_mistakes: self.past_learning_items.mistakes,
+            past_explained: self.past_learning_items.explained,
+            past_translated: self.past_learning_items.translated,
+            past_exploratory: self.past_learning_items.exploratory,
+            active_branch_id: self.active_branch_id,
+            context_messages: self.context_messages,
+            learning_goals: self.learning_goals,
+            user_gender: self.user_gender,
+            language_option: self.language_option,
+        }
+    }
+}
+
+impl UserMessageWithContext {
+    pub fn builder(user_id: Uuid, message: Message) -> UserMessageWithContextBuilder {
+        UserMessageWithContextBuilder::new(user_id, message)
     }
 }
 
@@ -260,16 +311,11 @@ mod tests {
 
         let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
-        let context = UserMessageWithContext::new(
-            user_id,
-            msg.clone(),
-            PastLearningItems::default(),
-            branch_id,
-            vec![],
-            vec![],
-            UserGender::NonBinary,
-            None,
-        );
+        let context = UserMessageWithContext::builder(user_id, msg.clone())
+            .past_learning_items(PastLearningItems::default())
+            .active_branch_id(branch_id)
+            .user_gender(UserGender::NonBinary)
+            .build();
 
         assert_eq!(context.message.id, msg.id);
         assert_eq!(context.past_mistakes.len(), 0);
@@ -298,21 +344,16 @@ mod tests {
 
         let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
-        let context = UserMessageWithContext::new(
-            user_id,
-            msg.clone(),
-            PastLearningItems {
+        let context = UserMessageWithContext::builder(user_id, msg.clone())
+            .past_learning_items(PastLearningItems {
                 mistakes: vec![mistake.clone()],
                 explained: vec![explained.clone()],
                 translated: vec![],
                 exploratory: vec![],
-            },
-            branch_id,
-            vec![],
-            vec![],
-            UserGender::NonBinary,
-            None,
-        );
+            })
+            .active_branch_id(branch_id)
+            .user_gender(UserGender::NonBinary)
+            .build();
 
         assert_eq!(context.past_mistakes.len(), 1);
         assert_eq!(context.past_mistakes[0].id, mistake.id);
@@ -338,21 +379,16 @@ mod tests {
 
         let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
-        let context = UserMessageWithContext::new(
-            user_id,
-            msg,
-            PastLearningItems {
+        let context = UserMessageWithContext::builder(user_id, msg)
+            .past_learning_items(PastLearningItems {
                 mistakes: vec![mistake],
                 explained: vec![],
                 translated: vec![],
                 exploratory: vec![],
-            },
-            branch_id,
-            vec![],
-            vec![],
-            UserGender::NonBinary,
-            None,
-        );
+            })
+            .active_branch_id(branch_id)
+            .user_gender(UserGender::NonBinary)
+            .build();
 
         let json = serde_json::to_string(&context).unwrap();
         assert!(json.contains("\"message\""));
@@ -380,21 +416,16 @@ mod tests {
 
         let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
-        let context = UserMessageWithContext::new(
-            user_id,
-            msg.clone(),
-            PastLearningItems {
+        let context = UserMessageWithContext::builder(user_id, msg.clone())
+            .past_learning_items(PastLearningItems {
                 mistakes: vec![],
                 explained: vec![],
                 translated: vec![translated.clone()],
                 exploratory: vec![],
-            },
-            branch_id,
-            vec![],
-            vec![],
-            UserGender::NonBinary,
-            None,
-        );
+            })
+            .active_branch_id(branch_id)
+            .user_gender(UserGender::NonBinary)
+            .build();
 
         assert_eq!(context.past_translated.len(), 1);
         assert_eq!(context.past_translated[0].id, translated.id);
@@ -412,21 +443,16 @@ mod tests {
 
         let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
-        let context = UserMessageWithContext::new(
-            user_id,
-            msg.clone(),
-            PastLearningItems {
+        let context = UserMessageWithContext::builder(user_id, msg.clone())
+            .past_learning_items(PastLearningItems {
                 mistakes: vec![],
                 explained: vec![],
                 translated: vec![],
                 exploratory: vec![exploratory.clone()],
-            },
-            branch_id,
-            vec![],
-            vec![],
-            UserGender::NonBinary,
-            None,
-        );
+            })
+            .active_branch_id(branch_id)
+            .user_gender(UserGender::NonBinary)
+            .build();
 
         assert_eq!(context.past_exploratory.len(), 1);
         assert_eq!(context.past_exploratory[0].id, exploratory.id);
@@ -455,21 +481,16 @@ mod tests {
 
         let user_id = Uuid::new_v4();
         let branch_id = Uuid::new_v4();
-        let context = UserMessageWithContext::new(
-            user_id,
-            msg.clone(),
-            PastLearningItems {
+        let context = UserMessageWithContext::builder(user_id, msg.clone())
+            .past_learning_items(PastLearningItems {
                 mistakes: vec![mistake.clone()],
                 explained: vec![explained.clone()],
                 translated: vec![translated.clone()],
                 exploratory: vec![exploratory.clone()],
-            },
-            branch_id,
-            vec![],
-            vec![],
-            UserGender::NonBinary,
-            None,
-        );
+            })
+            .active_branch_id(branch_id)
+            .user_gender(UserGender::NonBinary)
+            .build();
 
         assert_eq!(context.past_mistakes.len(), 1);
         assert_eq!(context.past_explained.len(), 1);

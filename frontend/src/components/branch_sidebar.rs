@@ -1,5 +1,5 @@
 use crate::components::LearningGoalsPanel;
-use dialect_coach_shared::models::{ConversationBranch, Message};
+use dialect_coach_shared::models::{ConversationBranch, LearningGoal, Message};
 use uuid::Uuid;
 use yew::prelude::*;
 
@@ -8,7 +8,7 @@ pub struct BranchSidebarProps {
     pub branches: Vec<ConversationBranch>,
     pub active_branch_id: Uuid,
     pub messages: Vec<Message>,
-    pub learning_goals: Vec<String>,
+    pub learning_goals: Vec<LearningGoal>,
     pub on_add_goal: Callback<String>,
     pub on_delete_goal: Callback<usize>,
     pub is_collapsed: bool,

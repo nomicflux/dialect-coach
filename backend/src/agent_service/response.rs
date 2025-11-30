@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{
     AgentUsage, Dialect, DialectDocument, DialectWithFeatures, Explained, Exploratory, Formality,
-    Gender, LanguageOption, Mistake, PastLearningItems, TeachingMode, Translated, UserGender,
+    Gender, LanguageOption, LearningGoal, Mistake, PastLearningItems, TeachingMode, Translated, UserGender,
 };
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
@@ -282,7 +282,7 @@ fn build_system_content(
     dialect: DialectWithFeatures,
     formality: Formality,
     teaching_mode: TeachingMode,
-    learning_goals: &[String],
+    learning_goals: &[LearningGoal],
     past_learning_items: &PastLearningItems,
     user_gender: UserGender,
     language_option: &Option<LanguageOption>,
@@ -400,7 +400,7 @@ pub struct GenerateResponseParams<'a> {
     pub formality: Formality,
     pub teaching_mode: TeachingMode,
     pub conversation_history: &'a [RigMessage],
-    pub learning_goals: &'a [String],
+    pub learning_goals: &'a [LearningGoal],
     pub rag_config: &'a RAGConfig,
     pub past_mistakes: &'a [Mistake],
     pub past_explained: &'a [Explained],
@@ -1019,7 +1019,10 @@ mod tests {
         let dialect = Dialect::SpanishArgentinian;
         let formality = Formality::Informal;
         let teaching_mode = TeachingMode::Immersive;
-        let learning_goals = vec!["Goal 1".to_string()];
+        let learning_goals = vec![LearningGoal {
+            goal: "Goal 1".to_string(),
+            dialect: Dialect::SpanishArgentinian,
+        }];
         let past_learning_items = PastLearningItems::default();
 
         let content = build_system_content(

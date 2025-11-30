@@ -7,14 +7,14 @@ use rig::one_or_many::OneOrMany;
 pub const JSON_OUTPUT_INSTRUCTION: &str =
     "Return raw JSON only. No markdown code blocks. Start with { end with }.";
 
-pub fn learning_goals_section(goals: &[String]) -> String {
+pub fn learning_goals_section(goals: &[dialect_coach_shared::LearningGoal]) -> String {
     if goals.is_empty() {
         return String::new();
     }
     let goals_list = goals
         .iter()
         .enumerate()
-        .map(|(i, goal)| format!("{}. {}", i + 1, goal))
+        .map(|(i, learning_goal)| format!("{}. {}", i + 1, learning_goal.goal))
         .collect::<Vec<_>>()
         .join("\n");
     format!(

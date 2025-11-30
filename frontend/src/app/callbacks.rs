@@ -40,22 +40,26 @@ pub fn on_send_message(
             .cloned()
             .collect();
 
+        // Filter learning goals by selected dialect
+        let filtered_goals = state.get_learning_goals_for_dialect(&state.selected_dialect)
+            .into_iter()
+            .cloned()
+            .collect();
+
         // Build UserMessageWithContext
-        let msg_with_context = UserMessageWithContext::new(
-            state.user_id,
-            msg,
-            PastLearningItems {
+        let msg_with_context = UserMessageWithContext::builder(state.user_id, msg)
+            .past_learning_items(PastLearningItems {
                 mistakes: past_mistakes,
                 explained: past_explained,
                 translated: past_translated,
                 exploratory: past_exploratory,
-            },
-            active_branch_id,
-            context_messages,
-            state.learning_goals.clone(),
-            state.user_gender,
-            state.current_language_option(),
-        );
+            })
+            .active_branch_id(active_branch_id)
+            .context_messages(context_messages)
+            .learning_goals(filtered_goals)
+            .user_gender(state.user_gender)
+            .language_option(state.current_language_option())
+            .build();
 
         // Send through WebSocket
         match app_state

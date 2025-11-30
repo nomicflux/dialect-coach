@@ -6,7 +6,7 @@ use dialect_coach_shared::models::{
     ArabicScript, JapaneseScript,
 };
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
-use dialect_coach_shared::{LearningItem, LearningItemType, UsageStats, User, UserState};
+use dialect_coach_shared::{LearningGoal, LearningItem, LearningItemType, UsageStats, User, UserState};
 use log::error;
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
@@ -366,7 +366,7 @@ pub enum UserStateAction {
     SwitchBranch(Uuid),
     DeleteBranch(Uuid),
     RenameBranch(Uuid, String),
-    AddLearningGoal(String),
+    AddLearningGoal(LearningGoal),
     DeleteLearningGoal(usize),
     CycleDialect,
     CycleFormality,
@@ -496,12 +496,12 @@ fn undo_delete_message(mut history: Vec<Message>, msg: Message) -> Vec<Message> 
     history
 }
 
-fn add_learning_goal(mut goals: Vec<String>, goal: String) -> Vec<String> {
+fn add_learning_goal(mut goals: Vec<LearningGoal>, goal: LearningGoal) -> Vec<LearningGoal> {
     goals.push(goal);
     goals
 }
 
-fn delete_learning_goal(mut goals: Vec<String>, index: usize) -> Vec<String> {
+fn delete_learning_goal(mut goals: Vec<LearningGoal>, index: usize) -> Vec<LearningGoal> {
     goals.remove(index);
     goals
 }

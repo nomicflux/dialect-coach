@@ -21,7 +21,7 @@ pub struct LearningAgentParams<'a> {
     pub dialect: Dialect,
     pub formality: Formality,
     pub teaching_mode: TeachingMode,
-    pub learning_goals: &'a [String],
+    pub learning_goals: &'a [dialect_coach_shared::LearningGoal],
     pub past_mistakes: &'a [Mistake],
     pub past_explained: &'a [Explained],
     pub past_translated: &'a [Translated],
@@ -250,14 +250,14 @@ No learning items for this mode."#
     }
 }
 
-fn format_learning_goals(goals: &[String]) -> String {
+fn format_learning_goals(goals: &[dialect_coach_shared::LearningGoal]) -> String {
     if goals.is_empty() {
         "None.".to_string()
     } else {
         goals
             .iter()
             .enumerate()
-            .map(|(i, goal)| format!("{}. {}", i + 1, goal))
+            .map(|(i, learning_goal)| format!("{}. {}", i + 1, learning_goal.goal))
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -403,7 +403,10 @@ mod tests {
 
     #[test]
     fn test_build_learning_system_content_contains_directives() {
-        let goals = vec!["Goal 1".to_string()];
+        let goals = vec![dialect_coach_shared::LearningGoal {
+            goal: "Goal 1".to_string(),
+            dialect: Dialect::SpanishMexican,
+        }];
         let mistakes = vec![Mistake::new(
             "hablar".to_string(),
             "habla".to_string(),
@@ -439,7 +442,10 @@ mod tests {
 
     #[test]
     fn test_build_learning_prompt_includes_sections() {
-        let goals = vec!["Goal 1".to_string()];
+        let goals = vec![dialect_coach_shared::LearningGoal {
+            goal: "Goal 1".to_string(),
+            dialect: Dialect::SpanishMexican,
+        }];
         let mistakes = vec![Mistake::new(
             "hablar".to_string(),
             "habla".to_string(),

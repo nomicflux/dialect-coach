@@ -1,25 +1,26 @@
+use dialect_coach_shared::models::LearningGoal;
 use web_sys::{HtmlInputElement, MouseEvent};
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct LearningGoalsPanelProps {
-    pub goals: Vec<String>,
+    pub goals: Vec<LearningGoal>,
     pub on_add: Callback<String>,
     pub on_delete: Callback<usize>,
     #[prop_or_default]
     pub input_ref: Option<NodeRef>,
 }
 
-fn render_goal_item(goal: &str, index: usize, on_delete: Callback<usize>) -> Html {
+fn render_goal_item(goal: &LearningGoal, index: usize, on_delete: Callback<usize>) -> Html {
     html! {
         <li class="goal-item">
-            <span class="goal-text">{goal}</span>
+            <span class="goal-text">{&goal.goal}</span>
             <button class="delete-button" onclick={Callback::from(move |_| on_delete.emit(index))}>{"×"}</button>
         </li>
     }
 }
 
-fn render_goals_list(goals: &[String], on_delete: Callback<usize>) -> Html {
+fn render_goals_list(goals: &[LearningGoal], on_delete: Callback<usize>) -> Html {
     html! {
         <ul class="goals-list">
             {for goals.iter().enumerate().map(|(i, goal)| render_goal_item(goal, i, on_delete.clone()))}

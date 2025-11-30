@@ -249,19 +249,43 @@ async fn handle_analysis_response(
     }
 }
 
+pub struct AnalysisRequestParams<'a> {
+    pub dialect: Dialect,
+    pub msg: &'a String,
+    pub mistakes: &'a [Mistake],
+    pub explained: &'a [Explained],
+    pub translated: &'a [dialect_coach_shared::Translated],
+    pub exploratory: &'a [dialect_coach_shared::Exploratory],
+    pub language_option: &'a Option<LanguageOption>,
+}
+
+pub struct AnalysisParams<'a> {
+    pub retry_ctx: &'a RetryContext,
+    pub dialect: Dialect,
+    pub msg: &'a String,
+    pub mistakes: &'a [Mistake],
+    pub explained: &'a [Explained],
+    pub translated: &'a [dialect_coach_shared::Translated],
+    pub exploratory: &'a [dialect_coach_shared::Exploratory],
+    pub language_option: &'a Option<LanguageOption>,
+}
+
 pub async fn generate_analysis(
-    retry_ctx: &RetryContext,
-    dialect: Dialect,
-    msg: &String,
-    mistakes: &[Mistake],
-    explained: &[Explained],
-    translated: &[dialect_coach_shared::Translated],
-    exploratory: &[dialect_coach_shared::Exploratory],
-    language_option: &Option<LanguageOption>,
+    params: AnalysisParams<'_>,
 ) -> (
     Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
     Vec<AgentUsage>,
 ) {
+    let AnalysisParams {
+        retry_ctx,
+        dialect,
+        msg,
+        mistakes,
+        explained,
+        translated,
+        exploratory,
+        language_option,
+    } = params;
     if check_empty_learning_items(mistakes, explained, translated, exploratory) {
         tracing::debug!("Skipping analysis - no learning items");
         return (Ok(dialect_coach_shared::AgentAnalysis::new()), Vec::new());

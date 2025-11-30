@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{AgentUsage, Dialect, Explained, LanguageOption, Mistake};
+use dialect_coach_shared::AgentUsage;
 use std::env;
 use std::sync::Arc;
 
@@ -133,13 +133,7 @@ impl AgentService {
 
     pub async fn generate_analysis(
         &self,
-        dialect: Dialect,
-        msg: &String,
-        mistakes: &[Mistake],
-        explained: &[Explained],
-        translated: &[dialect_coach_shared::Translated],
-        exploratory: &[dialect_coach_shared::Exploratory],
-        language_option: &Option<LanguageOption>,
+        params: analysis::AnalysisRequestParams<'_>,
     ) -> (
         Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
         Vec<AgentUsage>,
@@ -148,14 +142,16 @@ impl AgentService {
             agent: self.analysis_agent.clone(),
         };
         crate::agent_service::analysis::generate_analysis(
-            &retry_ctx,
-            dialect,
-            msg,
-            mistakes,
-            explained,
-            translated,
-            exploratory,
-            language_option,
+            crate::agent_service::analysis::AnalysisParams {
+                retry_ctx: &retry_ctx,
+                dialect: params.dialect,
+                msg: params.msg,
+                mistakes: params.mistakes,
+                explained: params.explained,
+                translated: params.translated,
+                exploratory: params.exploratory,
+                language_option: params.language_option,
+            },
         )
         .await
     }

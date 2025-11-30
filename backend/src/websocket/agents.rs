@@ -201,13 +201,15 @@ async fn run_agents_with_analysis(
     let ((response_result, response_usage, learning_usage), (analysis_result, analysis_usage)) = tokio::join!(
         state.agent.generate_response(params),
         state.agent.generate_analysis(
-            dialect,
-            &user_text,
-            &filtered_items.mistakes,
-            &filtered_items.explained,
-            &filtered_items.translated,
-            &filtered_items.exploratory,
-            &msg_with_context.language_option,
+            crate::agent_service::analysis::AnalysisRequestParams {
+                dialect,
+                msg: &user_text,
+                mistakes: &filtered_items.mistakes,
+                explained: &filtered_items.explained,
+                translated: &filtered_items.translated,
+                exploratory: &filtered_items.exploratory,
+                language_option: &msg_with_context.language_option,
+            }
         )
     );
 

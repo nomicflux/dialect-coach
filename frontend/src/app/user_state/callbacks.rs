@@ -1,5 +1,5 @@
 use crate::app::app_state::{OptionalUserState, UIState, UIStateAction, UserStateAction};
-use dialect_coach_shared::models::{ArabicScript, Formality, JapaneseScript, Language, TeachingMode, UserGender};
+use dialect_coach_shared::models::{ArabicScript, Formality, JapaneseScript, Language, LearningGoal, TeachingMode, UserGender};
 use log::info;
 use uuid::Uuid;
 use yew::prelude::*;
@@ -234,11 +234,16 @@ pub fn on_delete_branch(user_state: UseReducerHandle<OptionalUserState>) -> Call
 
 pub fn on_add_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<String> {
     Callback::from(move |goal: String| {
-        if user_state.0.is_none() {
-            return;
-        }
-        info!("Adding learning goal: {}", goal);
-        user_state.dispatch(UserStateAction::AddLearningGoal(goal));
+        let state = match user_state.0.as_ref() {
+            Some(s) => s,
+            None => return,
+        };
+        let learning_goal = LearningGoal {
+            goal,
+            dialect: state.selected_dialect,
+        };
+        info!("Adding learning goal: {:?}", learning_goal);
+        user_state.dispatch(UserStateAction::AddLearningGoal(learning_goal));
     })
 }
 

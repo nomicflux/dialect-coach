@@ -29,7 +29,7 @@ pub struct UserState {
     pub user_gender: UserGender,
     pub active_branch_id: Uuid,
     pub branches: Vec<ConversationBranch>,
-    pub learning_goals: Vec<String>,
+    pub learning_goals: Vec<LearningGoal>,
     pub usage_stats: UsageStats,
     pub language_options: LanguageOptions,
 }
@@ -47,6 +47,12 @@ impl UserState {
             .filter(|item| &item.dialect == dialect)
             .collect()
     }
+
+    pub fn get_learning_goals_for_dialect(&self, dialect: &Dialect) -> Vec<&LearningGoal> {
+        self.learning_goals.iter()
+            .filter(|goal| &goal.dialect == dialect)
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -62,6 +68,12 @@ pub enum LearningItemType {
     Explanation(Explained),
     Translation(Translated),
     Exploration(Exploratory),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LearningGoal {
+    pub goal: String,
+    pub dialect: Dialect,
 }
 
 impl UserState {

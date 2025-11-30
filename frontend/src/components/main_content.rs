@@ -15,7 +15,7 @@ use crate::components::{
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
-use dialect_coach_shared::models::{LearningItem, MessageContent, PhraseTranslation, Translated, UserState};
+use dialect_coach_shared::models::{LearningGoal, LearningItem, MessageContent, PhraseTranslation, Translated, UserState};
 use gloo::events::EventListener;
 use log::error;
 use uuid::Uuid;
@@ -211,7 +211,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 branches={us.branches.clone()}
                 active_branch_id={us.active_branch_id}
                 messages={us.conversation_history.clone()}
-                learning_goals={us.learning_goals.clone()}
+                learning_goals={get_filtered_goals(us)}
                 on_add_goal={on_add_goal(user_state.clone())}
                 on_delete_goal={on_delete_goal(user_state.clone())}
                 is_collapsed={ui_state.sidebar_collapsed}
@@ -318,7 +318,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         })
                     }}
                     deleted_count={ui_state.deleted_learning_items.len()}
-                    active_branch_dialect={get_active_dialect(us)}
+                    active_branch_dialect={Some(us.selected_dialect)}
                     user_state={user_state.clone()}
                 />
             </div>
@@ -370,18 +370,15 @@ fn get_text_from_message(msg: &dialect_coach_shared::models::Message) -> String 
 }
 
 fn get_filtered_items(user_state: &UserState) -> Vec<LearningItem> {
-    match get_active_dialect(user_state) {
-        Some(dialect) => user_state.get_learning_items_for_dialect(&dialect)
-            .into_iter()
-            .cloned()
-            .collect(),
-        None => Vec::new(),
-    }
+    user_state.get_learning_items_for_dialect(&user_state.selected_dialect)
+        .into_iter()
+        .cloned()
+        .collect()
 }
 
-fn get_active_dialect(user_state: &UserState) -> Option<dialect_coach_shared::Dialect> {
-    user_state.branches
-        .iter()
-        .find(|b| b.id == user_state.active_branch_id)
-        .and_then(|b| b.dialect)
+fn get_filtered_goals(user_state: &UserState) -> Vec<LearningGoal> {
+    user_state.get_learning_goals_for_dialect(&user_state.selected_dialect)
+        .into_iter()
+        .cloned()
+        .collect()
 }
