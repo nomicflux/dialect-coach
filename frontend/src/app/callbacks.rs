@@ -289,6 +289,7 @@ pub fn on_continue_branch(
 pub fn on_explain_message(
     app_state: UseReducerHandle<AppState>,
     user_state: UseReducerHandle<OptionalUserState>,
+    ui_state: UseReducerHandle<UIState>,
 ) -> Callback<Uuid> {
     Callback::from(move |message_id: Uuid| {
         let state = match user_state.0.as_ref() {
@@ -312,6 +313,7 @@ pub fn on_explain_message(
             Ok(_) => {
                 info!("Explain message request sent successfully");
                 app_state.dispatch(AppStateAction::SetLoading);
+                ui_state.dispatch(UIStateAction::SetExplainLoading { message_id });
             }
             Err(e) => {
                 error!("Failed to send explain message request: {}", e);

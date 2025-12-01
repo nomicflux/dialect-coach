@@ -21,6 +21,10 @@ pub struct MessageBubbleProps {
     pub on_translate: Option<Callback<Uuid>>,
     #[prop_or_default]
     pub language_option: Option<LanguageOption>,
+    #[prop_or(false)]
+    pub is_explain_loading: bool,
+    #[prop_or(false)]
+    pub is_translate_loading: bool,
 }
 
 fn render_delete_button(on_delete: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
@@ -264,6 +268,8 @@ fn render_action_buttons(
     on_explain: &Option<Callback<Uuid>>,
     on_translate: &Option<Callback<Uuid>>,
     msg_id: Uuid,
+    is_explain_loading: bool,
+    is_translate_loading: bool,
 ) -> Html {
     if on_explain.is_none() && on_translate.is_none() {
         return html! {};
@@ -271,30 +277,32 @@ fn render_action_buttons(
 
     html! {
         <div class="message-actions">
-            {render_explain_button(on_explain, msg_id)}
-            {render_translate_button(on_translate, msg_id)}
+            {render_explain_button(on_explain, msg_id, is_explain_loading)}
+            {render_translate_button(on_translate, msg_id, is_translate_loading)}
         </div>
     }
 }
 
-fn render_explain_button(on_explain: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
+fn render_explain_button(on_explain: &Option<Callback<Uuid>>, msg_id: Uuid, is_loading: bool) -> Html {
     if let Some(callback) = on_explain {
         let cb = callback.clone();
         let onclick = Callback::from(move |_| cb.emit(msg_id));
+        let button_text = if is_loading { "Explaining..." } else { "Explain" };
         html! {
-            <button class="action-button explain-button" {onclick}>{"Explain"}</button>
+            <button class="action-button explain-button" {onclick} disabled={is_loading}>{button_text}</button>
         }
     } else {
         html! {}
     }
 }
 
-fn render_translate_button(on_translate: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
+fn render_translate_button(on_translate: &Option<Callback<Uuid>>, msg_id: Uuid, is_loading: bool) -> Html {
     if let Some(callback) = on_translate {
         let cb = callback.clone();
         let onclick = Callback::from(move |_| cb.emit(msg_id));
+        let button_text = if is_loading { "Translating..." } else { "Translate" };
         html! {
-            <button class="action-button translate-button" {onclick}>{"Translate"}</button>
+            <button class="action-button translate-button" {onclick} disabled={is_loading}>{button_text}</button>
         }
     } else {
         html! {}
@@ -322,7 +330,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                         {render_text_with_ruby(&props.message.get_content())}
                     </div>
                     {if props.message.is_agent() {
-                        render_action_buttons(&props.on_explain, &props.on_translate, props.message.id)
+                        render_action_buttons(&props.on_explain, &props.on_translate, props.message.id, props.is_explain_loading, props.is_translate_loading)
                     } else {
                         html! {}
                     }}

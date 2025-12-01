@@ -52,7 +52,7 @@ pub fn app() -> Html {
     });
 
     // WebSocket hooks
-    use_chat_websocket(app_state.clone(), user_state.clone());
+    use_chat_websocket(app_state.clone(), user_state.clone(), ui_state.clone());
     use_user_state_websocket(app_state.clone(), user_state.clone());
     use_user_websocket(app_state.clone(), ui_state.clone(), user_state.clone());
 

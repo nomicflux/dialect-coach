@@ -3,7 +3,7 @@ use crate::app::app_state::callbacks::{
     on_user_state_load_response, on_user_state_save_response, on_user_state_usage_stats_update,
     on_user_state_ws_open,
 };
-use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UserStateAction};
+use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction};
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{Message, MessageContent};
 use log::{error, info};
@@ -24,6 +24,7 @@ fn check_rate_limit_error(error_text: &str, app_state: &UseReducerHandle<AppStat
 pub fn use_chat_websocket(
     app_state: UseReducerHandle<AppState>,
     user_state: UseReducerHandle<OptionalUserState>,
+    ui_state: UseReducerHandle<UIState>,
 ) {
     let current_user = app_state.current_user.clone();
 
@@ -31,6 +32,7 @@ pub fn use_chat_websocket(
         let had_user = user_opt.is_some();
         let app_state = app_state.clone();
         let user_state = user_state.clone();
+        let ui_state = ui_state.clone();
         let ws_service_clone = app_state.ws_service.clone();
 
         if had_user {
@@ -58,8 +60,15 @@ pub fn use_chat_websocket(
 
                 let asc = app_state.clone();
                 let usc = user_state.clone();
+                let uis = ui_state.clone();
                 ws.set_on_message(Callback::from(move |msg: Message| {
                     asc.dispatch(AppStateAction::LoadingComplete);
+
+                    // Clear explain loading for the parent message if this is an agent response
+                    if msg.is_agent()
+                        && let Some(parent_id) = msg.parent_id {
+                            uis.dispatch(UIStateAction::ClearExplainLoading { message_id: parent_id });
+                        }
 
                     let msg_clone = msg.clone();
                     match msg.content {

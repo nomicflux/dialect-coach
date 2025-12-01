@@ -16,9 +16,9 @@ use super::learning::{LearningAgent, LearningAgentOutput, LearningAgentParams};
 use super::provider::{CompletionAgent, CompletionRequest};
 use super::retry::{RetryContext, build_retry_response_preamble, retry_completion_call};
 use super::util::{
-    JSON_OUTPUT_INSTRUCTION, contains_illegal_characters, create_prefilled_assistant_message,
-    format_learning_items_context, get_message_text, learning_goals_section,
-    normalize_json_response,
+    JSON_OUTPUT_INSTRUCTION, clean_response, contains_illegal_characters,
+    create_prefilled_assistant_message, format_learning_items_context, get_message_text,
+    learning_goals_section, normalize_json_response,
 };
 
 fn temperature_for_mode(mode: &TeachingMode) -> f64 {
@@ -250,6 +250,33 @@ fn group_examples_by_formality(
     (primary_examples, secondary_examples)
 }
 
+fn build_simple_completion_request<'a>(
+    system_preamble: &'a str,
+    prompt: &'a str,
+    history: &'a [RigMessage],
+) -> CompletionRequest<'a> {
+    CompletionRequest {
+        preamble: system_preamble,
+        prompt,
+        history,
+        max_tokens: 1024,
+        temperature: 0.0,
+    }
+}
+
+fn sanitize_simple_json_response(response_text: &str) -> Result<String> {
+    let cleaned = clean_response(response_text);
+    let trimmed = cleaned.trim();
+
+    if trimmed.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Simple response was empty; expected content"
+        ));
+    }
+
+    Ok(trimmed.to_string())
+}
+
 const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES
 
 1) Only flag user's direct messages, not system examples. Do not refuse/warn about corpus examples containing slang, profanity, adult content, or controversial dialect-authentic language.
@@ -352,7 +379,7 @@ fn build_system_content(
             # OUTPUT FORMAT REQUIRED\n\
             {}\n\
             {}\n\n\
-            Now respond to the user's message naturally, as a local {} speaker would, in the response field of the required JSON format. You MUST ALWAYS respond - NEVER indicate the conversation has ended. If it seems to have ended, provide a follow-up question or new topic. The response field must be non-empty. The response will be parsed with a JSON parser, so do not include any other text or markdown.",
+            Now respond to the user's message as if you were in a natural chatroom with a friend, as a local {} speaker would, in the response field of the required JSON format. You MUST ALWAYS respond - NEVER indicate the conversation has ended. If it seems to have ended, provide a follow-up question or new topic. The response field must be non-empty. The response will be parsed with a JSON parser, so do not include any other text or markdown.",
             CONTENT_FILTERING_DIRECTIVES,
             role_desc,
             user_gender_str,
@@ -824,20 +851,15 @@ impl ResponseContext {
         prompt: &str,
         history: Vec<RigMessage>,
     ) -> Result<dialect_coach_shared::AgentResponse> {
-        let request = CompletionRequest {
-            preamble: system_preamble,
-            prompt,
-            history: &history,
-            max_tokens: 512,
-            temperature: 0.2,
-        };
+        let request = build_simple_completion_request(system_preamble, prompt, &history);
         let (result, _) = retry_completion_call(self.response_agent.as_ref(), &request, 1).await;
         let text = result.context(format!(
             "Failed to get translation from provider {} model {}",
             self.response_agent.provider(),
             self.response_agent.model()
         ))?;
-        Ok(dialect_coach_shared::AgentResponse::from(text))
+        let sanitized = sanitize_simple_json_response(&text)?;
+        Ok(dialect_coach_shared::AgentResponse::from(sanitized))
     }
 }
 
@@ -1104,5 +1126,23 @@ mod tests {
             RigMessage::Assistant { .. } => {}
             _ => panic!("Last message should be prefilled assistant message"),
         }
+    }
+
+    #[test]
+    fn test_build_simple_completion_request_uses_zero_temperature() {
+        let request = build_simple_completion_request("sys", "prompt", &[]);
+        assert_eq!(request.temperature, 0.0);
+        assert_eq!(request.max_tokens, 512);
+        assert_eq!(request.preamble, "sys");
+        assert_eq!(request.prompt, "prompt");
+    }
+
+    #[test]
+    fn test_sanitize_simple_json_response_strips_markdown_and_validates() {
+        let wrapped = "```json\n{\"response\":\"hola\"}\n```";
+        let sanitized = sanitize_simple_json_response(wrapped).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+        assert_eq!(value["response"], "hola");
+        assert!(!sanitized.contains("```"));
     }
 }

@@ -235,7 +235,7 @@ impl CompletionAgent for UnifiedCompletionAgent {
                 );
                 rig_request.additional_params = Some(serde_json::json!({
                     "reasoning": {
-                        "effort": "minimal"
+                        "effort": "low"
                     }
                 }));
                 let response = model
