@@ -539,57 +539,6 @@ fn default_dialect_for_language(lang: Language) -> Dialect {
     }
 }
 
-fn get_messages_in_branch_path(
-    messages: &[Message],
-    branch_point_id: Option<Uuid>,
-    leaf_id: Uuid,
-) -> HashSet<Uuid> {
-    let mut ids = HashSet::new();
-    let mut current = Some(leaf_id);
-
-    while let Some(msg_id) = current {
-        if Some(msg_id) == branch_point_id {
-            break;
-        }
-        ids.insert(msg_id);
-        current = messages
-            .iter()
-            .find(|m| m.id == msg_id)
-            .and_then(|m| m.parent_id);
-    }
-
-    ids
-}
-
-fn get_all_descendants(messages: &[Message], parent_ids: &HashSet<Uuid>) -> HashSet<Uuid> {
-    let mut descendants = HashSet::new();
-    let mut to_check: Vec<Uuid> = parent_ids.iter().copied().collect();
-
-    while let Some(parent_id) = to_check.pop() {
-        for msg in messages {
-            if msg.parent_id == Some(parent_id) {
-                descendants.insert(msg.id);
-                to_check.push(msg.id);
-            }
-        }
-    }
-
-    descendants
-}
-
-fn remove_branch_messages(
-    mut messages: Vec<Message>,
-    branch_point_id: Option<Uuid>,
-    leaf_id: Uuid,
-) -> Vec<Message> {
-    let branch_ids = get_messages_in_branch_path(&messages, branch_point_id, leaf_id);
-    let descendant_ids = get_all_descendants(&messages, &branch_ids);
-    let mut all_ids = branch_ids;
-    all_ids.extend(descendant_ids);
-    messages.retain(|m| !all_ids.contains(&m.id));
-    messages
-}
-
 fn prepare_state_for_action(state: &UserState) -> UserState {
     let mut prepared = state.clone();
     prepared.rebuild_branches_from_history();
@@ -728,17 +677,6 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             sync_to_active_branch(&mut next);
         }
         UserStateAction::DeleteBranch(branch_id) => {
-            let branch_data = next
-                .branches
-                .iter()
-                .find(|b| b.id == branch_id)
-                .map(|b| (b.parent_message_id, b.leaf_message_id));
-
-            if let Some((parent_id, Some(leaf))) = branch_data {
-                next.conversation_history =
-                    remove_branch_messages(next.conversation_history, parent_id, leaf);
-            }
-
             next.branches.retain(|b| b.id != branch_id);
 
             if next.active_branch_id == branch_id {
@@ -884,7 +822,7 @@ mod tests {
         state = apply_user_state_action(&state, action);
 
         assert!(!state.branches.iter().any(|b| b.id == branch_id));
-        assert_eq!(state.conversation_history.len(), initial_message_count - 1);
+        assert_eq!(state.conversation_history.len(), initial_message_count);
     }
 
     #[test]
@@ -1004,14 +942,14 @@ mod tests {
         let action = UserStateAction::DeleteBranch(branch_cd_id);
         state = apply_user_state_action(&state, action);
 
-        // Assert: A, B, X, Y remain; C, D are deleted
-        assert_eq!(state.conversation_history.len(), 4);
+        // Assert: All messages remain (A, B, C, D, X, Y); only branch metadata is deleted
+        assert_eq!(state.conversation_history.len(), 6);
         assert!(state.conversation_history.iter().any(|m| m.id == msg_a.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_b.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_c.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_d.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_x.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_y.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_c.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_d.id));
         assert!(!state.branches.iter().any(|b| b.id == branch_cd_id));
     }
 
@@ -1068,29 +1006,30 @@ mod tests {
         let action = UserStateAction::DeleteBranch(branch_y_id);
         state = apply_user_state_action(&state, action);
 
-        // Assert: A, B, C, D, X, W remain; Y deleted
-        assert_eq!(state.conversation_history.len(), 6);
+        // Assert: All messages remain (A, B, C, D, X, W, Y); only branch metadata deleted
+        assert_eq!(state.conversation_history.len(), 7);
         assert!(state.conversation_history.iter().any(|m| m.id == msg_a.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_b.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_c.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_d.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_x.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_w.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_y.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_y.id));
         assert!(!state.branches.iter().any(|b| b.id == branch_y_id));
 
         // Delete branch C+D
         let action2 = UserStateAction::DeleteBranch(branch_cd_id);
         state = apply_user_state_action(&state, action2);
 
-        // Assert: A, B, X, W remain; C, D deleted
-        assert_eq!(state.conversation_history.len(), 4);
+        // Assert: All messages remain (A, B, C, D, X, W, Y); both branch metadata deleted
+        assert_eq!(state.conversation_history.len(), 7);
         assert!(state.conversation_history.iter().any(|m| m.id == msg_a.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_b.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_c.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_d.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_x.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_w.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_c.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_d.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_y.id));
         assert!(!state.branches.iter().any(|b| b.id == branch_cd_id));
     }
 
@@ -1132,14 +1071,14 @@ mod tests {
         let action = UserStateAction::DeleteBranch(branch_def_id);
         state = apply_user_state_action(&state, action);
 
-        // Assert: A, B, C remain; D, E, F deleted
-        assert_eq!(state.conversation_history.len(), 3);
+        // Assert: All messages remain (A, B, C, D, E, F); only branch metadata deleted
+        assert_eq!(state.conversation_history.len(), 6);
         assert!(state.conversation_history.iter().any(|m| m.id == msg_a.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_b.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_c.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_d.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_e.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_f.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_d.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_e.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_f.id));
         assert!(!state.branches.iter().any(|b| b.id == branch_def_id));
     }
 
@@ -1209,15 +1148,15 @@ mod tests {
             .map(|m| m.id)
             .collect();
 
-        // Assert: Active branch messages unchanged
+        // Assert: Active branch messages unchanged, all messages remain
         assert_eq!(active_before, active_after);
         assert_eq!(state.active_branch_id, branch_xy_id);
         assert!(state.conversation_history.iter().any(|m| m.id == msg_a.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_b.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_c.id));
+        assert!(state.conversation_history.iter().any(|m| m.id == msg_d.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_x.id));
         assert!(state.conversation_history.iter().any(|m| m.id == msg_y.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_c.id));
-        assert!(!state.conversation_history.iter().any(|m| m.id == msg_d.id));
     }
 
     #[test]
