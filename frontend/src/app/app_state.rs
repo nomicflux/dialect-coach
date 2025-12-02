@@ -218,12 +218,16 @@ pub enum UIStateAction {
     SetSigninUsernameInput(String),
     SetCreateEmailInput(String),
     SetCreateInviteCodeInput(String),
+    SetCreatePasswordInput(String),
     SetSigninInviteCodeInput(String),
+    SetSigninPasswordInput(String),
     ClearCreateUsernameInput,
     ClearSigninUsernameInput,
     ClearCreateEmailInput,
     ClearCreateInviteCodeInput,
+    ClearCreatePasswordInput,
     ClearSigninInviteCodeInput,
+    ClearSigninPasswordInput,
     PushDeletedLearningItem(LearningItem),
     PopDeletedLearningItem,
     PushDeletedMessage(Message),
@@ -249,7 +253,9 @@ pub struct UIState {
     pub signin_username_input: String,
     pub create_email_input: String,
     pub create_invite_code_input: String,
+    pub create_password_input: String,
     pub signin_invite_code_input: String,
+    pub signin_password_input: String,
     pub deleted_learning_items: VecDeque<LearningItem>,
     pub deleted_messages: VecDeque<Message>,
     pub show_user_creation_page: bool,
@@ -271,7 +277,9 @@ impl Default for UIState {
             signin_username_input: String::new(),
             create_email_input: String::new(),
             create_invite_code_input: String::new(),
+            create_password_input: String::new(),
             signin_invite_code_input: String::new(),
+            signin_password_input: String::new(),
             deleted_learning_items: VecDeque::new(),
             deleted_messages: VecDeque::new(),
             show_user_creation_page: false,
@@ -304,15 +312,23 @@ impl UIState {
             UIStateAction::SetSigninUsernameInput(input) => next.signin_username_input = input,
             UIStateAction::SetCreateEmailInput(input) => next.create_email_input = input,
             UIStateAction::SetCreateInviteCodeInput(input) => next.create_invite_code_input = input,
+            UIStateAction::SetCreatePasswordInput(input) => next.create_password_input = input,
             UIStateAction::SetSigninInviteCodeInput(input) => next.signin_invite_code_input = input,
+            UIStateAction::SetSigninPasswordInput(input) => next.signin_password_input = input,
             UIStateAction::ClearCreateUsernameInput => next.create_username_input = String::new(),
             UIStateAction::ClearSigninUsernameInput => next.signin_username_input = String::new(),
             UIStateAction::ClearCreateEmailInput => next.create_email_input = String::new(),
             UIStateAction::ClearCreateInviteCodeInput => {
                 next.create_invite_code_input = String::new()
             }
+            UIStateAction::ClearCreatePasswordInput => {
+                next.create_password_input = String::new()
+            }
             UIStateAction::ClearSigninInviteCodeInput => {
                 next.signin_invite_code_input = String::new()
+            }
+            UIStateAction::ClearSigninPasswordInput => {
+                next.signin_password_input = String::new()
             }
             UIStateAction::PushDeletedLearningItem(item) => {
                 next.deleted_learning_items.push_back(item);
@@ -729,8 +745,11 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
     next
 }
 
-#[derive(Clone, PartialEq)]
-pub struct OptionalUserState(pub Option<UserState>);
+#[derive(Clone, PartialEq, Default)]
+pub struct OptionalUserState {
+    pub state: Option<UserState>,
+    pub needs_save: bool,
+}
 
 impl Reducible for OptionalUserState {
     type Action = UserStateAction;
@@ -739,13 +758,25 @@ impl Reducible for OptionalUserState {
         match action {
             UserStateAction::ReplaceUserState(mut new_state) => {
                 new_state.rebuild_branches_from_history();
-                OptionalUserState(Some(new_state)).into()
+                OptionalUserState {
+                    state: Some(new_state),
+                    needs_save: false,
+                }
+                .into()
             }
-            UserStateAction::ClearUserState => OptionalUserState(None).into(),
-            _ => match &self.0 {
+            UserStateAction::ClearUserState => OptionalUserState {
+                state: None,
+                needs_save: false,
+            }
+            .into(),
+            _ => match &self.state {
                 Some(state) => {
                     let prepared = prepare_state_for_action(state);
-                    OptionalUserState(Some(apply_user_state_action(&prepared, action))).into()
+                    OptionalUserState {
+                        state: Some(apply_user_state_action(&prepared, action)),
+                        needs_save: false,
+                    }
+                    .into()
                 }
                 None => self,
             },
@@ -1185,12 +1216,15 @@ mod tests {
         base.branches.clear();
         base.active_branch_id = Uuid::new_v4();
 
-        let optional = Rc::new(OptionalUserState(Some(base)));
+        let optional = Rc::new(OptionalUserState {
+            state: Some(base),
+            needs_save: false,
+        });
         let updated = OptionalUserState::reduce(
             optional,
             UserStateAction::UpdateUsageStats(UsageStats::default()),
         );
-        let updated_state = updated.0.as_ref().unwrap();
+        let updated_state = updated.state.as_ref().unwrap();
 
         assert!(!updated_state.branches.is_empty());
         assert!(

@@ -33,7 +33,10 @@ pub fn app() -> Html {
     // No user state until authentication
     let user_state = use_reducer(|| {
         info!("App starting with no user state");
-        OptionalUserState(None)
+        OptionalUserState {
+            state: None,
+            needs_save: false,
+        }
     });
 
     // Set up debounced auto-save via WebSocket with retry queue
@@ -92,7 +95,7 @@ pub fn app() -> Html {
                             user_state={user_state.clone()}
                         />
                     }
-                } else if user_state.0.is_some() {
+                } else if user_state.state.is_some() {
                     html! {
                         <MainContent
                             app_state={app_state.clone()}

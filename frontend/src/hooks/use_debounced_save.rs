@@ -30,7 +30,7 @@ where
             pending_timeout.set(None);
 
             // Only schedule save if user_state exists
-            if let Some(state) = state_handle.0.as_ref() {
+            if let Some(state) = state_handle.state.as_ref() {
                 // Schedule new timeout
                 let state_clone = state.clone();
                 let timeout = Timeout::new(DEBOUNCE_MS, move || {
@@ -48,7 +48,7 @@ where
     // Return force_save_now callback
     let save_fn_for_callback = (*save_fn_rc).clone();
     use_callback(user_state_for_force, move |_, state_handle| {
-        if let Some(state) = state_handle.0.as_ref() {
+        if let Some(state) = state_handle.state.as_ref() {
             info!("Force save triggered");
             save_fn_for_callback(state);
         }

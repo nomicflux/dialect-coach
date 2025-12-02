@@ -17,7 +17,7 @@ pub fn on_send_message(
     let user_state = user_state.clone();
 
     Callback::from(move |content: String| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -87,7 +87,7 @@ pub fn on_tts_toggle(
     let app_state = app_state.clone();
     let user_state = user_state.clone();
     Callback::from(move |_| {
-        if let Some(state) = user_state.0.as_ref() {
+        if let Some(state) = user_state.state.as_ref() {
             let new_value = !state.tts_enabled;
             user_state.dispatch(UserStateAction::ToggleTTS);
             app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_value));
@@ -104,12 +104,13 @@ pub fn on_create_user_click(
         let username = ui_state.create_username_input.clone();
         let email = ui_state.create_email_input.clone();
         let invite_code = ui_state.create_invite_code_input.clone();
+        let password = ui_state.create_password_input.clone();
         let credentials = AuthCredentials::InviteCode(invite_code);
 
         if let Err(e) = app_state
             .user_ws_service
             .borrow()
-            .create_user(username, email, credentials)
+            .create_user(username, email, credentials, password)
         {
             error!("Failed to create user: {}", e);
             app_state.dispatch(AppStateAction::SetError(format!(
@@ -126,8 +127,9 @@ pub fn on_signin_click(
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
         let username = ui_state.signin_username_input.clone();
+        let password = ui_state.signin_password_input.clone();
 
-        if let Err(e) = app_state.user_ws_service.borrow().sign_in(username) {
+        if let Err(e) = app_state.user_ws_service.borrow().sign_in(username, password) {
             error!("Failed to sign in: {}", e);
             app_state.dispatch(AppStateAction::SetError(format!(
                 "Failed to sign in: {}",
@@ -141,27 +143,30 @@ fn clear_create_form_inputs(ui_state: &UseReducerHandle<UIState>) {
     ui_state.dispatch(UIStateAction::ClearCreateUsernameInput);
     ui_state.dispatch(UIStateAction::ClearCreateEmailInput);
     ui_state.dispatch(UIStateAction::ClearCreateInviteCodeInput);
+    ui_state.dispatch(UIStateAction::ClearCreatePasswordInput);
 }
 
 pub fn on_user_create_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
     _user_state: UseReducerHandle<OptionalUserState>,
-) -> Callback<Result<dialect_coach_shared::User, String>> {
+) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
     Callback::from(
-        move |result: Result<dialect_coach_shared::User, String>| match result {
-            Ok(user) => {
+        move |result: Result<(dialect_coach_shared::User, String), String>| match result {
+            Ok((user, token)) => {
                 info!("User created successfully: {}", user.username);
+                crate::utils::cookies::set_session_token(&token);
                 clear_create_form_inputs(&ui_state);
                 ui_state.dispatch(UIStateAction::HideUserCreationPage);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
 
                 // Trigger sign-in to load/create UserState (reuses normal sign-in flow)
+                let password = ui_state.create_password_input.clone();
                 if let Err(e) = app_state
                     .user_ws_service
                     .borrow()
-                    .sign_in(user.username.clone())
+                    .sign_in(user.username.clone(), password)
                 {
                     error!("Failed to sign in after user creation: {}", e);
                     app_state.dispatch(AppStateAction::SetError(format!(
@@ -181,17 +186,19 @@ pub fn on_user_create_response(
 fn clear_signin_form_inputs(ui_state: &UseReducerHandle<UIState>) {
     ui_state.dispatch(UIStateAction::ClearSigninUsernameInput);
     ui_state.dispatch(UIStateAction::ClearSigninInviteCodeInput);
+    ui_state.dispatch(UIStateAction::ClearSigninPasswordInput);
 }
 
 pub fn on_user_signin_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
     _user_state: UseReducerHandle<OptionalUserState>,
-) -> Callback<Result<dialect_coach_shared::User, String>> {
+) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
     Callback::from(
-        move |result: Result<dialect_coach_shared::User, String>| match result {
-            Ok(user) => {
+        move |result: Result<(dialect_coach_shared::User, String), String>| match result {
+            Ok((user, token)) => {
                 info!("Signed in successfully as: {}", user.username);
+                crate::utils::cookies::set_session_token(&token);
                 clear_signin_form_inputs(&ui_state);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
@@ -221,7 +228,7 @@ pub fn on_auto_start(
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<()> {
     Callback::from(move |_| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -256,7 +263,7 @@ pub fn on_continue_branch(
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Uuid> {
     Callback::from(move |parent_message_id: Uuid| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -292,7 +299,7 @@ pub fn on_explain_message(
     ui_state: UseReducerHandle<UIState>,
 ) -> Callback<Uuid> {
     Callback::from(move |message_id: Uuid| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => {
                 error!("No user state for explain message");

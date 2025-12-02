@@ -15,7 +15,7 @@ pub fn extract_learning_items(
     let mut translated = Vec::new();
     let mut exploratory = Vec::new();
 
-    if let Some(state) = &user_state.0 {
+    if let Some(state) = &user_state.state {
         for item in &state.learning_items {
             match &item.item {
                 LearningItemType::Mistake(m) => mistakes.push(m.clone()),

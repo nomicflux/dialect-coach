@@ -66,6 +66,23 @@ fn invite_code_field(ui_state: &UseReducerHandle<UIState>) -> Html {
     }
 }
 
+fn password_field(ui_state: &UseReducerHandle<UIState>) -> Html {
+    let ui_state = ui_state.clone();
+    let value = ui_state.create_password_input.clone();
+    html! {
+        <input
+            type="password"
+            placeholder="Password"
+            value={value}
+            oninput={Callback::from(move |e: InputEvent| {
+                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                    ui_state.dispatch(UIStateAction::SetCreatePasswordInput(input.value()));
+                }
+            })}
+        />
+    }
+}
+
 fn submit_button(
     app_state: &UseReducerHandle<AppState>,
     ui_state: &UseReducerHandle<UIState>,
@@ -92,6 +109,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                 {username_field(ui_state)}
                 {email_field(ui_state)}
                 {invite_code_field(ui_state)}
+                {password_field(ui_state)}
                 {submit_button(app_state, ui_state, user_state)}
             </div>
         </div>

@@ -7,7 +7,7 @@ use yew::prelude::*;
 pub fn on_language_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
     let user_state = user_state.clone();
     Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
@@ -28,7 +28,7 @@ pub fn on_language_change(user_state: UseReducerHandle<OptionalUserState>) -> Ca
 pub fn on_dialect_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
     let user_state = user_state.clone();
     Callback::from(move |e: Event| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -48,7 +48,7 @@ pub fn on_formality_change(user_state: UseReducerHandle<OptionalUserState>) -> C
     let user_state = user_state.clone();
 
     Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
@@ -69,7 +69,7 @@ pub fn on_teaching_mode_change(user_state: UseReducerHandle<OptionalUserState>) 
     let user_state = user_state.clone();
 
     Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
@@ -92,7 +92,7 @@ pub fn on_user_gender_change(user_state: UseReducerHandle<OptionalUserState>) ->
     let user_state = user_state.clone();
 
     Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
@@ -110,7 +110,7 @@ pub fn on_user_gender_change(user_state: UseReducerHandle<OptionalUserState>) ->
 pub fn on_dialect_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
     let user_state = user_state.clone();
     Callback::from(move |_| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -126,7 +126,7 @@ pub fn on_dialect_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Call
 pub fn on_formality_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
     let user_state = user_state.clone();
     Callback::from(move |_| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -147,7 +147,7 @@ pub fn on_formality_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Ca
 pub fn on_teaching_mode_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
     let user_state = user_state.clone();
     Callback::from(move |_| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -172,7 +172,7 @@ pub fn on_delete_message_callback(
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Uuid> {
     Callback::from(move |msg_id: Uuid| {
-        if let Some(state) = user_state.0.as_ref() {
+        if let Some(state) = user_state.state.as_ref() {
             if let Some(msg) = state
                 .conversation_history
                 .iter()
@@ -192,7 +192,7 @@ pub fn on_undo_message_callback(
 ) -> Callback<()> {
     let deleted_messages = ui_state.deleted_messages.clone();
     Callback::from(move |_| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         if let Some(msg) = deleted_messages.back().cloned() {
@@ -204,7 +204,7 @@ pub fn on_undo_message_callback(
 
 pub fn on_create_branch(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Uuid> {
     Callback::from(move |message_id: Uuid| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         info!("Creating branch from message: {}", message_id);
@@ -214,7 +214,7 @@ pub fn on_create_branch(user_state: UseReducerHandle<OptionalUserState>) -> Call
 
 pub fn on_switch_branch(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Uuid> {
     Callback::from(move |branch_id: Uuid| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         info!("Switching to branch: {}", branch_id);
@@ -224,7 +224,7 @@ pub fn on_switch_branch(user_state: UseReducerHandle<OptionalUserState>) -> Call
 
 pub fn on_delete_branch(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Uuid> {
     Callback::from(move |branch_id: Uuid| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         info!("Deleting branch: {}", branch_id);
@@ -234,7 +234,7 @@ pub fn on_delete_branch(user_state: UseReducerHandle<OptionalUserState>) -> Call
 
 pub fn on_add_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<String> {
     Callback::from(move |goal: String| {
-        let state = match user_state.0.as_ref() {
+        let state = match user_state.state.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -249,7 +249,7 @@ pub fn on_add_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<
 
 pub fn on_delete_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<usize> {
     Callback::from(move |index: usize| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         info!("Deleting learning goal at index: {}", index);
@@ -262,7 +262,7 @@ pub fn on_delete_learning_item_callback(
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Uuid> {
     Callback::from(move |id: Uuid| {
-        if let Some(state) = user_state.0.as_ref() {
+        if let Some(state) = user_state.state.as_ref() {
             if let Some(item) = state.learning_items.iter().find(|i| {
                 let item_id = match &i.item {
                     dialect_coach_shared::LearningItemType::Mistake(m) => m.id,
@@ -284,7 +284,7 @@ pub fn on_arabic_script_change(
 ) -> Callback<Event> {
     let user_state = user_state.clone();
     Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
@@ -304,7 +304,7 @@ pub fn on_japanese_script_change(
 ) -> Callback<Event> {
     let user_state = user_state.clone();
     Callback::from(move |e: Event| {
-        if user_state.0.is_none() {
+        if user_state.state.is_none() {
             return;
         }
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {

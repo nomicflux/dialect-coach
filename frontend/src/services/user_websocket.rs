@@ -11,8 +11,8 @@ use yew::Callback;
 pub struct UserWebSocketService {
     sender: Rc<RefCell<Option<futures_channel::mpsc::UnboundedSender<String>>>>,
     url: String,
-    on_create_response: Callback<Result<User, String>>,
-    on_signin_response: Callback<Result<User, String>>,
+    on_create_response: Callback<Result<(User, String), String>>,
+    on_signin_response: Callback<Result<(User, String), String>>,
     on_open: Callback<()>,
 }
 
@@ -29,12 +29,12 @@ impl UserWebSocketService {
     }
 
     /// Set callback for create user responses
-    pub fn set_on_create_response(&mut self, callback: Callback<Result<User, String>>) {
+    pub fn set_on_create_response(&mut self, callback: Callback<Result<(User, String), String>>) {
         self.on_create_response = callback;
     }
 
     /// Set callback for sign in responses
-    pub fn set_on_signin_response(&mut self, callback: Callback<Result<User, String>>) {
+    pub fn set_on_signin_response(&mut self, callback: Callback<Result<(User, String), String>>) {
         self.on_signin_response = callback;
     }
 
@@ -94,18 +94,20 @@ impl UserWebSocketService {
         username: String,
         email: String,
         credentials: AuthCredentials,
+        password: String,
     ) -> Result<(), String> {
         let msg = UserMessage::CreateUser {
             username,
             email,
             credentials,
+            password,
         };
         self.send_message(&msg)
     }
 
-    /// Sign in with username
-    pub fn sign_in(&self, username: String) -> Result<(), String> {
-        let msg = UserMessage::SignIn { username };
+    /// Sign in with username and password
+    pub fn sign_in(&self, username: String, password: String) -> Result<(), String> {
+        let msg = UserMessage::SignIn { username, password };
         self.send_message(&msg)
     }
 
@@ -127,8 +129,8 @@ impl UserWebSocketService {
 /// Process incoming UserMessage
 fn process_message(
     text: &str,
-    on_create: &Callback<Result<User, String>>,
-    on_signin: &Callback<Result<User, String>>,
+    on_create: &Callback<Result<(User, String), String>>,
+    on_signin: &Callback<Result<(User, String), String>>,
 ) {
     match serde_json::from_str::<UserMessage>(text) {
         Ok(UserMessage::CreateUserResponse(result)) => {

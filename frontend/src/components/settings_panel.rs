@@ -25,7 +25,7 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
         ui_state,
     } = props;
 
-    let us = match user_state.0.as_ref() {
+    let us = match user_state.state.as_ref() {
         Some(s) => s,
         None => return html! {},
     };
