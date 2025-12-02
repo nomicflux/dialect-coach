@@ -211,6 +211,23 @@ pub fn on_user_signin_response(
     )
 }
 
+pub fn on_validate_session_response(
+    app_state: UseReducerHandle<AppState>,
+    _user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<Result<dialect_coach_shared::User, String>> {
+    Callback::from(move |result: Result<dialect_coach_shared::User, String>| match result {
+        Ok(user) => {
+            info!("Session validated successfully for user: {}", user.username);
+            app_state.dispatch(AppStateAction::SetUser(user.clone()));
+            app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
+        }
+        Err(e) => {
+            error!("Session validation failed: {}", e);
+            crate::utils::cookies::clear_session_token();
+        }
+    })
+}
+
 pub fn on_signout_click(
     app_state: UseReducerHandle<AppState>,
     user_state: UseReducerHandle<OptionalUserState>,

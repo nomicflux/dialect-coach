@@ -13,6 +13,7 @@ pub struct UserWebSocketService {
     url: String,
     on_create_response: Callback<Result<(User, String), String>>,
     on_signin_response: Callback<Result<(User, String), String>>,
+    on_validate_session_response: Callback<Result<User, String>>,
     on_open: Callback<()>,
 }
 
@@ -24,6 +25,7 @@ impl UserWebSocketService {
             url: url.to_string(),
             on_create_response: Callback::noop(),
             on_signin_response: Callback::noop(),
+            on_validate_session_response: Callback::noop(),
             on_open: Callback::noop(),
         }
     }
@@ -36,6 +38,11 @@ impl UserWebSocketService {
     /// Set callback for sign in responses
     pub fn set_on_signin_response(&mut self, callback: Callback<Result<(User, String), String>>) {
         self.on_signin_response = callback;
+    }
+
+    /// Set callback for validate session responses
+    pub fn set_on_validate_session_response(&mut self, callback: Callback<Result<User, String>>) {
+        self.on_validate_session_response = callback;
     }
 
     /// Set callback for connection open
@@ -61,6 +68,7 @@ impl UserWebSocketService {
 
         let on_create = self.on_create_response.clone();
         let on_signin = self.on_signin_response.clone();
+        let on_validate = self.on_validate_session_response.clone();
         let on_open = self.on_open.clone();
 
         // Spawn send task
@@ -80,7 +88,7 @@ impl UserWebSocketService {
 
             while let Some(msg) = read.next().await {
                 if let Ok(WsMessage::Text(text)) = msg {
-                    process_message(&text, &on_create, &on_signin);
+                    process_message(&text, &on_create, &on_signin, &on_validate);
                 }
             }
 
@@ -111,6 +119,12 @@ impl UserWebSocketService {
         self.send_message(&msg)
     }
 
+    /// Validate session with JWT token
+    pub fn validate_session(&self, token: String) -> Result<(), String> {
+        let msg = UserMessage::ValidateSession { token };
+        self.send_message(&msg)
+    }
+
     /// Send a UserMessage
     fn send_message(&self, msg: &UserMessage) -> Result<(), String> {
         let json = serde_json::to_string(msg).map_err(|e| format!("Failed to serialize: {}", e))?;
@@ -131,6 +145,7 @@ fn process_message(
     text: &str,
     on_create: &Callback<Result<(User, String), String>>,
     on_signin: &Callback<Result<(User, String), String>>,
+    on_validate: &Callback<Result<User, String>>,
 ) {
     match serde_json::from_str::<UserMessage>(text) {
         Ok(UserMessage::CreateUserResponse(result)) => {
@@ -140,6 +155,10 @@ fn process_message(
         Ok(UserMessage::SignInResponse(result)) => {
             info!("Received SignInResponse: {:?}", result.is_ok());
             on_signin.emit(result);
+        }
+        Ok(UserMessage::ValidateSessionResponse(result)) => {
+            info!("Received ValidateSessionResponse: {:?}", result.is_ok());
+            on_validate.emit(result);
         }
         Ok(_) => {
             error!("Received unexpected UserMessage variant");

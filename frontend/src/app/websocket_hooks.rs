@@ -1,4 +1,4 @@
-use crate::app::app_callbacks::{on_user_create_response, on_user_signin_response};
+use crate::app::app_callbacks::{on_user_create_response, on_user_signin_response, on_validate_session_response};
 use crate::app::app_state::callbacks::{
     on_user_state_load_response, on_user_state_save_response, on_user_state_usage_stats_update,
     on_user_state_ws_open,
@@ -209,7 +209,8 @@ pub fn use_user_websocket(
 
         info!("Initializing user WebSocket connection");
 
-        let mut ws = app_state.user_ws_service.borrow_mut();
+        let ws_clone = app_state.user_ws_service.clone();
+        let mut ws = ws_clone.borrow_mut();
 
         ws.set_on_create_response(on_user_create_response(
             app_state.clone(),
@@ -221,7 +222,26 @@ pub fn use_user_websocket(
             ui_state.clone(),
             user_state.clone(),
         ));
-        ws.set_on_open(Callback::from(|_| info!("User WebSocket opened")));
+        ws.set_on_validate_session_response(on_validate_session_response(
+            app_state.clone(),
+            user_state.clone(),
+        ));
+
+        let ws_clone_for_open = ws_clone.clone();
+        ws.set_on_open(Callback::from(move |_| {
+            info!("User WebSocket opened");
+
+            // Check for session cookie and validate if exists
+            if let Some(token) = crate::utils::cookies::get_session_token() {
+                info!("Found session token, validating session");
+                if let Err(e) = ws_clone_for_open.borrow().validate_session(token) {
+                    error!("Failed to send session validation: {}", e);
+                }
+            } else {
+                info!("No session token found");
+            }
+        }));
+
         ws.connect();
 
         move || {
