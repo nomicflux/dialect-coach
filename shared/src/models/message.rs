@@ -261,10 +261,17 @@ pub enum UserMessage {
     },
     /// Response to create user request (Server → Client)
     CreateUserResponse(Result<User, String>),
-    /// Request to sign in with username (Client → Server)
-    SignIn { username: String },
+    /// Request to sign in with username and password (Client → Server)
+    SignIn {
+        username: String,
+        password: String,
+    },
     /// Response to sign in request (Server → Client)
     SignInResponse(Result<User, String>),
+    /// Request to validate a session token (Client → Server)
+    ValidateSession { token: String },
+    /// Response to session validation (Server → Client)
+    ValidateSessionResponse(Result<User, String>),
 }
 
 #[cfg(test)]
@@ -643,13 +650,16 @@ mod tests {
     #[test]
     fn test_user_message_sign_in_serialization() {
         let username = "bob".to_string();
+        let password = "secret123".to_string();
         let msg = UserMessage::SignIn {
             username: username.clone(),
+            password: password.clone(),
         };
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"SignIn\""));
         assert!(json.contains("bob"));
+        assert!(json.contains("secret123"));
 
         let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, msg);
@@ -698,5 +708,74 @@ mod tests {
         };
         let json = serde_json::to_string(&action).unwrap();
         assert!(json.contains("ExplainMessage"));
+    }
+
+    #[test]
+    fn test_user_message_validate_session_serialization() {
+        let token = "jwt-token-abc123".to_string();
+        let msg = UserMessage::ValidateSession {
+            token: token.clone(),
+        };
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"ValidateSession\""));
+        assert!(json.contains("jwt-token-abc123"));
+
+        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_user_message_validate_session_response_ok() {
+        let user = User::new(
+            Uuid::new_v4(),
+            "dave".to_string(),
+            "dave@example.com".to_string(),
+        );
+        let msg = UserMessage::ValidateSessionResponse(Ok(user.clone()));
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"ValidateSessionResponse\""));
+        assert!(json.contains("\"Ok\""));
+        assert!(json.contains("dave"));
+
+        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_user_message_validate_session_response_err() {
+        let error_msg = "Invalid or expired token".to_string();
+        let msg = UserMessage::ValidateSessionResponse(Err(error_msg.clone()));
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"ValidateSessionResponse\""));
+        assert!(json.contains("\"Err\""));
+        assert!(json.contains(&error_msg));
+
+        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_auth_credentials_password_in_create_user() {
+        let username = "newuser".to_string();
+        let email = "new@example.com".to_string();
+        let credentials = AuthCredentials::Password("newpassword".to_string());
+        let msg = UserMessage::CreateUser {
+            username: username.clone(),
+            email: email.clone(),
+            credentials: credentials.clone(),
+        };
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"CreateUser\""));
+        assert!(json.contains("newuser"));
+        assert!(json.contains("new@example.com"));
+        assert!(json.contains("Password"));
+        assert!(json.contains("newpassword"));
+
+        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
     }
 }

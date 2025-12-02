@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum AuthCredentials {
     InviteCode(String),
+    Password(String),
 }
 
 impl AuthCredentials {
@@ -12,9 +13,21 @@ impl AuthCredentials {
         Self::InviteCode(code)
     }
 
+    pub fn password(pwd: String) -> Self {
+        Self::Password(pwd)
+    }
+
     pub fn as_invite_code(&self) -> Option<&str> {
         match self {
             Self::InviteCode(code) => Some(code),
+            Self::Password(_) => None,
+        }
+    }
+
+    pub fn as_password(&self) -> Option<&str> {
+        match self {
+            Self::Password(pwd) => Some(pwd),
+            Self::InviteCode(_) => None,
         }
     }
 }
@@ -64,6 +77,55 @@ mod tests {
     #[test]
     fn test_clone() {
         let creds = AuthCredentials::invite_code("cloneable".to_string());
+        let cloned = creds.clone();
+        assert_eq!(creds, cloned);
+    }
+
+    #[test]
+    fn test_password_construction() {
+        let pwd = "secret123".to_string();
+        let creds = AuthCredentials::password(pwd.clone());
+        assert_eq!(creds, AuthCredentials::Password(pwd));
+    }
+
+    #[test]
+    fn test_as_password_some() {
+        let pwd = "mypassword".to_string();
+        let creds = AuthCredentials::password(pwd.clone());
+        assert_eq!(creds.as_password(), Some("mypassword"));
+    }
+
+    #[test]
+    fn test_as_password_none_for_invite_code() {
+        let creds = AuthCredentials::invite_code("CODE123".to_string());
+        assert_eq!(creds.as_password(), None);
+    }
+
+    #[test]
+    fn test_as_invite_code_none_for_password() {
+        let creds = AuthCredentials::password("pwd123".to_string());
+        assert_eq!(creds.as_invite_code(), None);
+    }
+
+    #[test]
+    fn test_password_serialization() {
+        let creds = AuthCredentials::password("test123".to_string());
+        let json = serde_json::to_string(&creds).unwrap();
+        assert!(json.contains("Password"));
+        assert!(json.contains("test123"));
+    }
+
+    #[test]
+    fn test_password_deserialization() {
+        let creds = AuthCredentials::password("mypassword".to_string());
+        let json = serde_json::to_string(&creds).unwrap();
+        let deserialized: AuthCredentials = serde_json::from_str(&json).unwrap();
+        assert_eq!(creds, deserialized);
+    }
+
+    #[test]
+    fn test_password_clone() {
+        let creds = AuthCredentials::password("cloneable_pwd".to_string());
         let cloned = creds.clone();
         assert_eq!(creds, cloned);
     }
