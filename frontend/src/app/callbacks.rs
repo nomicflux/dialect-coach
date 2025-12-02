@@ -233,7 +233,8 @@ pub fn on_signout_click(
     user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
-        info!("User signed out, clearing user state");
+        info!("User signed out, clearing user state and session cookie");
+        crate::utils::cookies::clear_session_token();
         app_state.dispatch(AppStateAction::DestroySession);
         user_state.dispatch(UserStateAction::ClearUserState);
         app_state.dispatch(AppStateAction::ClearUser);

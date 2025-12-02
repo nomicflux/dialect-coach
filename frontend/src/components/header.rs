@@ -66,6 +66,13 @@ fn render_signin_form(
                 "text".to_string(),
                 "Username".to_string()
             )}
+            {create_input_field(
+                ui_state.signin_password_input.clone(),
+                UIStateAction::SetSigninPasswordInput,
+                ui_state,
+                "password".to_string(),
+                "Password".to_string()
+            )}
             <button onclick={on_signin_click(app_state.clone(), ui_state.clone())}>
                 {"Sign In"}
             </button>
