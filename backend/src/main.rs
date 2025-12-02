@@ -2,6 +2,7 @@ mod admin;
 mod admin_invites;
 mod agent_service;
 mod auth_service;
+mod crypto;
 mod embedding_service;
 mod enrichment_handler;
 mod persistence;

@@ -3,6 +3,7 @@ use dialect_coach_shared::User;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::crypto;
 use crate::persistence::UserPersistence;
 
 #[derive(Debug, Clone)]
@@ -96,7 +97,7 @@ impl AuthService for InviteCodeAuthService {
         let mut invite = self.validate_invite_code(&token).await?;
         self.check_username_available(&username).await?;
 
-        let password_hash = crate::crypto::password::hash_password(&password)
+        let password_hash = crypto::password::hash_password(&password)
             .map_err(|e| anyhow::anyhow!("Password hashing failed: {}", e))?;
 
         let user = self
@@ -115,7 +116,7 @@ impl AuthService for InviteCodeAuthService {
             .map_err(|e| AuthError::Persistence(e.to_string()))?
             .ok_or(AuthError::UserNotFound)?;
 
-        let valid = crate::crypto::password::verify_password(password, &stored_hash)
+        let valid = crypto::password::verify_password(password, &stored_hash)
             .map_err(|e| anyhow::anyhow!("Password verification failed: {}", e))?;
 
         if !valid {

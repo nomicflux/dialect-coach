@@ -579,21 +579,22 @@
 
 - [x] Phase 1: Backend Password & JWT Infrastructure ✅ (7/7 tests passing, clippy clean)
 - [x] Phase 2: Shared Types for Session Messages ✅ (195/195 tests passing, clippy clean)
-- [x] Phase 3: Backend User Storage with Passwords ✅ (29/29 tests passing, clippy clean)
-- [ ] Phase 4: Backend WebSocket Handlers for Session
+- [x] Phase 3: Backend User Storage with Passwords ✅ (31/31 tests passing, clippy clean)
+- [x] Phase 4: Backend WebSocket Handlers for Session ✅ (110/110 tests passing, builds successfully)
 - [ ] Phase 5: Frontend Cookie Management
 - [ ] Phase 6: Session Restoration on Page Load
 - [ ] Phase 7: Logout Functionality
 - [ ] Phase 8: Integration Testing & Documentation
 
-**Current Phase:** Phase 3 Complete (FIXED: added missing load_user_by_id method)
+**Current Phase:** Phase 4 Complete
 **Blockers:** None
-**Next Steps:** Commit Phase 3, await approval for Phase 4
-**Note:** WebSocket handler compilation errors expected (will be fixed in Phase 4)
+**Next Steps:** Commit Phase 4, proceed to Phase 5 (Frontend Cookie Management)
 
-**Phase 3 Updates (Fixed Issues):**
-- Added `load_user_by_id(user_id: Uuid) -> Result<Option<User>>` to UserPersistence trait
-- Implemented in both SledPersistence and InMemoryPersistence
-- Added 2 tests for the new method (31 total backend tests passing)
-- Fixed `CreateUser` message: added `password: String` field (frontend must send invite code + password)
-- All 195 shared tests passing, all clippy clean
+**Phase 4 Summary:**
+- Updated response types to return JWT tokens: `CreateUserResponse(Result<(User, String), String>)`
+- Updated `handle_create_user` to generate JWT and return in response
+- Updated `handle_sign_in` to accept password, verify, generate JWT
+- Created `handle_validate_session` to validate JWT and return User
+- Updated WebSocket routing to handle ValidateSession messages
+- Added `mod crypto` to main.rs for binary access
+- All 110 backend tests passing, 195 shared tests passing

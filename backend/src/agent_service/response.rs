@@ -1132,7 +1132,7 @@ mod tests {
     fn test_build_simple_completion_request_uses_zero_temperature() {
         let request = build_simple_completion_request("sys", "prompt", &[]);
         assert_eq!(request.temperature, 0.0);
-        assert_eq!(request.max_tokens, 512);
+        assert_eq!(request.max_tokens, 1024);
         assert_eq!(request.preamble, "sys");
         assert_eq!(request.prompt, "prompt");
     }

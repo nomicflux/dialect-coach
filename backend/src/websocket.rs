@@ -118,11 +118,15 @@ async fn process_user_message_ws(state: &AppState, text: &str, tx: &mpsc::Unboun
             username,
             email,
             credentials,
+            password,
         }) => {
-            let _ = user::handle_create_user(state, username, email, credentials, tx).await;
+            let _ = user::handle_create_user(state, username, email, credentials, password, tx).await;
         }
-        Ok(UserMessage::SignIn { username }) => {
-            let _ = user::handle_sign_in(state, username, tx).await;
+        Ok(UserMessage::SignIn { username, password }) => {
+            let _ = user::handle_sign_in(state, username, password, tx).await;
+        }
+        Ok(UserMessage::ValidateSession { token }) => {
+            let _ = user::handle_validate_session(state, token, tx).await;
         }
         Ok(_) => {
             tracing::warn!("Received unexpected UserMessage variant from client");

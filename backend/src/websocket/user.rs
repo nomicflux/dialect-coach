@@ -4,6 +4,7 @@ use tokio::sync::mpsc;
 use super::errors;
 use crate::AppState;
 use crate::agent_service::AgentService;
+use crate::crypto;
 
 fn convert_auth_credentials(
     creds: dialect_coach_shared::AuthCredentials,
@@ -17,6 +18,9 @@ fn convert_auth_credentials(
             );
             crate::auth_service::AuthCredentials::Token(code)
         }
+        dialect_coach_shared::AuthCredentials::Password(pwd) => {
+            crate::auth_service::AuthCredentials::Password(pwd)
+        }
     }
 }
 
@@ -25,6 +29,7 @@ pub async fn handle_create_user(
     username: String,
     email: String,
     credentials: dialect_coach_shared::AuthCredentials,
+    password: String,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
     tracing::info!("Creating user: {} with email {}", username, email);
@@ -32,10 +37,18 @@ pub async fn handle_create_user(
     let auth_creds = convert_auth_credentials(credentials);
     let response = match state
         .auth_service
-        .create_user(username, email, auth_creds)
+        .create_user(username, email, auth_creds, password)
         .await
     {
-        Ok(user) => UserMessage::CreateUserResponse(Ok(user)),
+        Ok(user) => {
+            match crypto::jwt::generate_token(user.id) {
+                Ok(token) => UserMessage::CreateUserResponse(Ok((user, token))),
+                Err(e) => {
+                    tracing::error!("Failed to generate JWT: {}", e);
+                    UserMessage::CreateUserResponse(Err("Failed to generate session token".to_string()))
+                }
+            }
+        }
         Err(e) => {
             let error_msg =
                 if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
@@ -54,12 +67,21 @@ pub async fn handle_create_user(
 pub async fn handle_sign_in(
     state: &AppState,
     username: String,
+    password: String,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
     tracing::info!("Sign in request for user: {}", username);
 
-    let response = match state.auth_service.authenticate(&username).await {
-        Ok(user) => UserMessage::SignInResponse(Ok(user)),
+    let response = match state.auth_service.authenticate(&username, &password).await {
+        Ok(user) => {
+            match crypto::jwt::generate_token(user.id) {
+                Ok(token) => UserMessage::SignInResponse(Ok((user, token))),
+                Err(e) => {
+                    tracing::error!("Failed to generate JWT: {}", e);
+                    UserMessage::SignInResponse(Err("Failed to generate session token".to_string()))
+                }
+            }
+        }
         Err(e) => {
             let error_msg =
                 if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
@@ -69,6 +91,39 @@ pub async fn handle_sign_in(
                 };
             tracing::warn!("{}", error_msg);
             UserMessage::SignInResponse(Err(error_msg))
+        }
+    };
+
+    send_user_message(&response, tx)
+}
+
+pub async fn handle_validate_session(
+    state: &AppState,
+    token: String,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    tracing::info!("Validating session token");
+
+    let response = match crypto::jwt::validate_token(&token) {
+        Ok(user_id) => {
+            match state.user_persistence.load_user_by_id(user_id).await {
+                Ok(Some(user)) => {
+                    tracing::info!("Session valid for user: {}", user.username);
+                    UserMessage::ValidateSessionResponse(Ok(user))
+                }
+                Ok(None) => {
+                    tracing::warn!("User not found for valid token");
+                    UserMessage::ValidateSessionResponse(Err("User not found".to_string()))
+                }
+                Err(e) => {
+                    tracing::error!("Database error during session validation: {}", e);
+                    UserMessage::ValidateSessionResponse(Err("Failed to validate session".to_string()))
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Invalid session token: {}", e);
+            UserMessage::ValidateSessionResponse(Err("Invalid or expired session".to_string()))
         }
     };
 
@@ -124,7 +179,8 @@ mod test {
             "bob".to_string(),
             "bob@example.com".to_string(),
         );
-        let response = UserMessage::SignInResponse(Ok(user.clone()));
+        let token = "test_jwt_token".to_string();
+        let response = UserMessage::SignInResponse(Ok((user.clone(), token.clone())));
 
         let result = send_user_message(&response, &tx);
         assert!(result.is_ok());
@@ -142,15 +198,17 @@ mod test {
             "testuser".to_string(),
             "test@example.com".to_string(),
         );
-        let response = UserMessage::CreateUserResponse(Ok(user.clone()));
+        let token = "test_jwt_token".to_string();
+        let response = UserMessage::CreateUserResponse(Ok((user.clone(), token.clone())));
 
         let result = send_user_message(&response, &tx);
         assert!(result.is_ok());
 
         let json = rx.try_recv().unwrap();
         let parsed: UserMessage = serde_json::from_str(&json).unwrap();
-        if let UserMessage::CreateUserResponse(Ok(parsed_user)) = parsed {
+        if let UserMessage::CreateUserResponse(Ok((parsed_user, parsed_token))) = parsed {
             assert_eq!(parsed_user.username, "testuser");
+            assert_eq!(parsed_token, "test_jwt_token");
         } else {
             panic!("Expected CreateUserResponse(Ok)");
         }

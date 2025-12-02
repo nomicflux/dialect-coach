@@ -261,14 +261,16 @@ pub enum UserMessage {
         password: String,
     },
     /// Response to create user request (Server → Client)
-    CreateUserResponse(Result<User, String>),
+    /// Returns (User, JWT token) on success
+    CreateUserResponse(Result<(User, String), String>),
     /// Request to sign in with username and password (Client → Server)
     SignIn {
         username: String,
         password: String,
     },
     /// Response to sign in request (Server → Client)
-    SignInResponse(Result<User, String>),
+    /// Returns (User, JWT token) on success
+    SignInResponse(Result<(User, String), String>),
     /// Request to validate a session token (Client → Server)
     ValidateSession { token: String },
     /// Response to session validation (Server → Client)
@@ -626,12 +628,14 @@ mod tests {
             "alice".to_string(),
             "alice@example.com".to_string(),
         );
-        let msg = UserMessage::CreateUserResponse(Ok(user.clone()));
+        let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test".to_string();
+        let msg = UserMessage::CreateUserResponse(Ok((user.clone(), token.clone())));
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"CreateUserResponse\""));
         assert!(json.contains("\"Ok\""));
         assert!(json.contains("alice"));
+        assert!(json.contains("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
 
         let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, msg);
@@ -676,12 +680,14 @@ mod tests {
             "charlie".to_string(),
             "charlie@example.com".to_string(),
         );
-        let msg = UserMessage::SignInResponse(Ok(user.clone()));
+        let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.signin".to_string();
+        let msg = UserMessage::SignInResponse(Ok((user.clone(), token.clone())));
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"SignInResponse\""));
         assert!(json.contains("\"Ok\""));
         assert!(json.contains("charlie"));
+        assert!(json.contains("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
 
         let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, msg);
