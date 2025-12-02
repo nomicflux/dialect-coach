@@ -30,3 +30,12 @@
 ## Environment & Security Notes
 - Store provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, Azure TTS, Qdrant) in a root `.env` that mirrors `DEVELOPER_GUIDE.md`; never commit secrets or corpus exports.
 - Treat resources inside `corpus-data/` and `corpus-downloads/` as licensed assets—share only processed outputs and keep raw sources in approved storage.
+
+## General Workflaw
+
+- Literal compliance: execute the exact request as written; do not re-interpret, summarize, or paraphrase unless explicitly asked.
+- Verbatim reproduction: when asked to “repeat back”, “copy/paste”, or similar, return the referenced text verbatim with original formatting.
+- Process inclusion: treat procedural steps, completion criteria, and checklists as essential content—never drop them when repeating or extracting “steps”.
+- Scope fidelity: include only the requested block/section and nothing extra; don’t widen or narrow the scope beyond what’s specified.
+- Sequence fidelity: “next” means the immediately next chronological block in the cited plan; do not jump ahead or provide the whole plan.
+- No editorializing: add no commentary or high-level overviews unless explicitly requested.
