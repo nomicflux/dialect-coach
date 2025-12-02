@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::UserPersistence;
+use super::{UserPersistence, UserRecord};
 use anyhow::{Result, anyhow};
 use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use uuid::Uuid;
 /// when the server restarts. This is suitable for development but not for production.
 pub struct InMemoryPersistence {
     state: Arc<Mutex<HashMap<Uuid, UserState>>>,
-    users: Arc<Mutex<HashMap<String, User>>>,
+    users: Arc<Mutex<HashMap<String, UserRecord>>>,
     usage_stats: Arc<Mutex<HashMap<Uuid, UsageStats>>>,
     invite_codes: Arc<Mutex<HashMap<String, InviteCode>>>,
 }
@@ -77,7 +77,7 @@ impl UserPersistence for InMemoryPersistence {
         Ok(result)
     }
 
-    async fn create_user(&self, user: &User) -> Result<()> {
+    async fn create_user(&self, user: &User, password_hash: String) -> Result<()> {
         if user.username.trim().is_empty() {
             return Err(anyhow!("Username cannot be empty"));
         }
@@ -87,17 +87,37 @@ impl UserPersistence for InMemoryPersistence {
             return Err(anyhow!("Username already exists"));
         }
 
-        users.insert(user.username.clone(), user.clone());
+        let record = UserRecord {
+            user: user.clone(),
+            password_hash,
+        };
+        users.insert(user.username.clone(), record);
         tracing::debug!("Created user: {}", user.username);
         Ok(())
     }
 
-    async fn load_user_by_username(&self, username: &str) -> Result<Option<User>> {
+    async fn load_user_by_username(&self, username: &str) -> Result<Option<(User, String)>> {
         let users = self.users.lock().await;
-        let result = users.get(username).cloned();
+        let result = users
+            .get(username)
+            .map(|record| (record.user.clone(), record.password_hash.clone()));
         tracing::debug!(
             "Loaded user by username: {} (found: {})",
             username,
+            result.is_some()
+        );
+        Ok(result)
+    }
+
+    async fn load_user_by_id(&self, user_id: Uuid) -> Result<Option<User>> {
+        let users = self.users.lock().await;
+        let result = users
+            .values()
+            .find(|record| record.user.id == user_id)
+            .map(|record| record.user.clone());
+        tracing::debug!(
+            "Loaded user by ID: {} (found: {})",
+            user_id,
             result.is_some()
         );
         Ok(result)
@@ -236,7 +256,9 @@ mod tests {
             "testuser".to_string(),
             "test@example.com".to_string(),
         );
-        let result = persistence.create_user(&user).await;
+        let result = persistence
+            .create_user(&user, "somehash".to_string())
+            .await;
 
         assert!(result.is_ok());
     }
@@ -257,8 +279,11 @@ mod tests {
             "user2@example.com".to_string(),
         );
 
-        persistence.create_user(&user1).await.unwrap();
-        let result = persistence.create_user(&user2).await;
+        persistence
+            .create_user(&user1, "hash1".to_string())
+            .await
+            .unwrap();
+        let result = persistence.create_user(&user2, "hash2".to_string()).await;
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("already exists"));
@@ -275,13 +300,17 @@ mod tests {
             "alice".to_string(),
             "alice@example.com".to_string(),
         );
-        persistence.create_user(&user).await.unwrap();
+        persistence
+            .create_user(&user, "alicehash".to_string())
+            .await
+            .unwrap();
 
         let loaded = persistence.load_user_by_username("alice").await.unwrap();
         assert!(loaded.is_some());
-        let loaded_user = loaded.unwrap();
+        let (loaded_user, hash) = loaded.unwrap();
         assert_eq!(loaded_user.id, user_id);
         assert_eq!(loaded_user.username, "alice");
+        assert_eq!(hash, "alicehash");
     }
 
     #[tokio::test]
@@ -297,6 +326,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_load_user_by_id_found() {
+        let persistence = InMemoryPersistence::new();
+        persistence.initialize().await.unwrap();
+
+        let user = User::new(
+            Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
+        let user_id = user.id;
+        persistence
+            .create_user(&user, "password_hash".to_string())
+            .await
+            .unwrap();
+
+        let loaded = persistence.load_user_by_id(user_id).await.unwrap();
+        assert!(loaded.is_some());
+        assert_eq!(loaded.unwrap().id, user_id);
+    }
+
+    #[tokio::test]
+    async fn test_load_user_by_id_not_found() {
+        let persistence = InMemoryPersistence::new();
+        persistence.initialize().await.unwrap();
+
+        let user_id = Uuid::new_v4();
+        let loaded = persistence.load_user_by_id(user_id).await.unwrap();
+        assert!(loaded.is_none());
+    }
+
+    #[tokio::test]
     async fn test_create_user_empty_username() {
         let persistence = InMemoryPersistence::new();
         persistence.initialize().await.unwrap();
@@ -306,7 +366,7 @@ mod tests {
             "".to_string(),
             "test@example.com".to_string(),
         );
-        let result = persistence.create_user(&user).await;
+        let result = persistence.create_user(&user, "hash".to_string()).await;
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("cannot be empty"));

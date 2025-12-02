@@ -3,9 +3,16 @@ pub mod sled;
 
 use anyhow::Result;
 use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use sled::SledPersistence;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UserRecord {
+    pub user: User,
+    pub password_hash: String,
+}
 
 pub fn get_db_path() -> String {
     std::env::var("DB_PATH").unwrap_or_else(|_| {
@@ -101,6 +108,7 @@ pub trait UserPersistence: Send + Sync {
     /// # Arguments
     ///
     /// * `user` - The user to create
+    /// * `password_hash` - The bcrypt hash of the user's password
     ///
     /// # Errors
     ///
@@ -108,13 +116,30 @@ pub trait UserPersistence: Send + Sync {
     /// - A user with this username already exists
     /// - The username is empty
     /// - The create operation fails
-    async fn create_user(&self, user: &User) -> Result<()>;
+    async fn create_user(&self, user: &User, password_hash: String) -> Result<()>;
 
     /// Load user by username
     ///
     /// # Arguments
     ///
     /// * `username` - The username to search for
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some((User, String)))` if the user exists, returns user and password hash
+    /// - `Ok(None)` if the user does not exist
+    /// - `Err(_)` if the load operation fails
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the load operation fails (but not if user is not found)
+    async fn load_user_by_username(&self, username: &str) -> Result<Option<(User, String)>>;
+
+    /// Load user by user ID
+    ///
+    /// # Arguments
+    ///
+    /// * `user_id` - The UUID of the user to load
     ///
     /// # Returns
     ///
@@ -125,7 +150,7 @@ pub trait UserPersistence: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if the load operation fails (but not if user is not found)
-    async fn load_user_by_username(&self, username: &str) -> Result<Option<User>>;
+    async fn load_user_by_id(&self, user_id: Uuid) -> Result<Option<User>>;
 
     /// Save usage stats for a user
     ///

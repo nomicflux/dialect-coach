@@ -258,6 +258,7 @@ pub enum UserMessage {
         username: String,
         email: String,
         credentials: AuthCredentials,
+        password: String,
     },
     /// Response to create user request (Server → Client)
     CreateUserResponse(Result<User, String>),
@@ -600,16 +601,19 @@ mod tests {
         let username = "testuser".to_string();
         let email = "test@example.com".to_string();
         let credentials = AuthCredentials::InviteCode("CODE123".to_string());
+        let password = "secure_password".to_string();
         let msg = UserMessage::CreateUser {
             username: username.clone(),
             email: email.clone(),
             credentials: credentials.clone(),
+            password: password.clone(),
         };
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"CreateUser\""));
         assert!(json.contains("testuser"));
         assert!(json.contains("test@example.com"));
+        assert!(json.contains("secure_password"));
 
         let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, msg);
@@ -761,18 +765,20 @@ mod tests {
     fn test_auth_credentials_password_in_create_user() {
         let username = "newuser".to_string();
         let email = "new@example.com".to_string();
-        let credentials = AuthCredentials::Password("newpassword".to_string());
+        let credentials = AuthCredentials::InviteCode("INVITE123".to_string());
+        let password = "newpassword".to_string();
         let msg = UserMessage::CreateUser {
             username: username.clone(),
             email: email.clone(),
             credentials: credentials.clone(),
+            password: password.clone(),
         };
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"CreateUser\""));
         assert!(json.contains("newuser"));
         assert!(json.contains("new@example.com"));
-        assert!(json.contains("Password"));
+        assert!(json.contains("InviteCode"));
         assert!(json.contains("newpassword"));
 
         let deserialized: UserMessage = serde_json::from_str(&json).unwrap();

@@ -1,4 +1,4 @@
-use super::UserPersistence;
+use super::{UserPersistence, UserRecord};
 use anyhow::{Result, anyhow};
 use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
 use serde::{Deserialize, Serialize};
@@ -87,7 +87,7 @@ impl UserPersistence for SledPersistence {
         Ok(result)
     }
 
-    async fn create_user(&self, user: &User) -> Result<()> {
+    async fn create_user(&self, user: &User, password_hash: String) -> Result<()> {
         if user.username.trim().is_empty() {
             return Err(anyhow!("Username cannot be empty"));
         }
@@ -97,17 +97,24 @@ impl UserPersistence for SledPersistence {
             return Err(anyhow!("Username already exists"));
         }
 
-        let value = serialize_to_json(user)?;
+        let record = UserRecord {
+            user: user.clone(),
+            password_hash,
+        };
+        let value = serialize_to_json(&record)?;
         tree.insert(user.username.as_bytes(), value)?;
         tracing::debug!("Created user: {}", user.username);
         Ok(())
     }
 
-    async fn load_user_by_username(&self, username: &str) -> Result<Option<User>> {
+    async fn load_user_by_username(&self, username: &str) -> Result<Option<(User, String)>> {
         let tree = self.users_tree()?;
         let result = tree
             .get(username.as_bytes())?
-            .map(|bytes| deserialize_from_json(&bytes))
+            .map(|bytes| -> Result<(User, String)> {
+                let record: UserRecord = deserialize_from_json(&bytes)?;
+                Ok((record.user, record.password_hash))
+            })
             .transpose()?;
         tracing::debug!(
             "Loaded user by username: {} (found: {})",
@@ -115,6 +122,20 @@ impl UserPersistence for SledPersistence {
             result.is_some()
         );
         Ok(result)
+    }
+
+    async fn load_user_by_id(&self, user_id: Uuid) -> Result<Option<User>> {
+        let tree = self.users_tree()?;
+        for item in tree.iter() {
+            let (_key, bytes) = item?;
+            let record: UserRecord = deserialize_from_json(&bytes)?;
+            if record.user.id == user_id {
+                tracing::debug!("Loaded user by ID: {} (found)", user_id);
+                return Ok(Some(record.user));
+            }
+        }
+        tracing::debug!("Loaded user by ID: {} (not found)", user_id);
+        Ok(None)
     }
 
     async fn save_usage_stats(&self, user_id: Uuid, usage_stats: &UsageStats) -> Result<()> {

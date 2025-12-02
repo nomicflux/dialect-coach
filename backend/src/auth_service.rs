@@ -50,9 +50,10 @@ pub trait AuthService: Send + Sync {
         username: String,
         email: String,
         credentials: AuthCredentials,
+        password: String,
     ) -> Result<User>;
 
-    async fn authenticate(&self, username: &str) -> Result<User>;
+    async fn authenticate(&self, username: &str, password: &str) -> Result<User>;
 
     async fn is_authorized(&self, user_id: Uuid) -> Result<bool>;
 }
@@ -88,24 +89,40 @@ impl AuthService for InviteCodeAuthService {
         username: String,
         email: String,
         credentials: AuthCredentials,
+        password: String,
     ) -> Result<User> {
         let token = Self::extract_token(&credentials)?;
 
         let mut invite = self.validate_invite_code(&token).await?;
         self.check_username_available(&username).await?;
 
-        let user = self.create_and_persist_user(username, email).await?;
+        let password_hash = crate::crypto::password::hash_password(&password)
+            .map_err(|e| anyhow::anyhow!("Password hashing failed: {}", e))?;
+
+        let user = self
+            .create_and_persist_user(username, email, password_hash)
+            .await?;
         self.mark_code_used(&mut invite, user.id).await?;
 
         Ok(user)
     }
 
-    async fn authenticate(&self, username: &str) -> Result<User> {
-        self.persistence
+    async fn authenticate(&self, username: &str, password: &str) -> Result<User> {
+        let (user, stored_hash) = self
+            .persistence
             .load_user_by_username(username)
             .await
             .map_err(|e| AuthError::Persistence(e.to_string()))?
-            .ok_or_else(|| AuthError::UserNotFound.into())
+            .ok_or(AuthError::UserNotFound)?;
+
+        let valid = crate::crypto::password::verify_password(password, &stored_hash)
+            .map_err(|e| anyhow::anyhow!("Password verification failed: {}", e))?;
+
+        if !valid {
+            return Err(AuthError::InvalidCredentials.into());
+        }
+
+        Ok(user)
     }
 
     async fn is_authorized(&self, user_id: Uuid) -> Result<bool> {
@@ -170,10 +187,11 @@ impl InviteCodeAuthService {
         &self,
         username: String,
         email: String,
+        password_hash: String,
     ) -> Result<User, AuthError> {
         let user = User::new(Uuid::new_v4(), username, email);
         self.persistence
-            .create_user(&user)
+            .create_user(&user, password_hash)
             .await
             .map_err(|e| AuthError::Persistence(e.to_string()))?;
         Ok(user)
@@ -218,6 +236,7 @@ mod tests {
                 "testuser".to_string(),
                 "test@example.com".to_string(),
                 AuthCredentials::Token(code.to_string()),
+                "password123".to_string(),
             )
             .await
             .unwrap();
@@ -235,6 +254,7 @@ mod tests {
                 "testuser".to_string(),
                 "test@example.com".to_string(),
                 AuthCredentials::Token("INVALID".to_string()),
+                "password123".to_string(),
             )
             .await;
 
@@ -260,6 +280,7 @@ mod tests {
                 "testuser".to_string(),
                 "test@example.com".to_string(),
                 AuthCredentials::Token(code.to_string()),
+                "password123".to_string(),
             )
             .await;
 
@@ -285,6 +306,7 @@ mod tests {
                 "testuser".to_string(),
                 "test@example.com".to_string(),
                 AuthCredentials::Token(code.to_string()),
+                "password123".to_string(),
             )
             .await;
 
@@ -316,6 +338,7 @@ mod tests {
                 "testuser".to_string(),
                 "test1@example.com".to_string(),
                 AuthCredentials::Token(code1.to_string()),
+                "password123".to_string(),
             )
             .await
             .unwrap();
@@ -325,6 +348,7 @@ mod tests {
                 "testuser".to_string(),
                 "test2@example.com".to_string(),
                 AuthCredentials::Token(code2.to_string()),
+                "password123".to_string(),
             )
             .await;
 
@@ -343,6 +367,7 @@ mod tests {
                 "testuser".to_string(),
                 "test@example.com".to_string(),
                 AuthCredentials::Password("password".to_string()),
+                "password123".to_string(),
             )
             .await;
 
@@ -357,15 +382,18 @@ mod tests {
         let persistence = test_persistence();
         persistence.initialize().await.unwrap();
 
+        let password = "testpass123";
+        let hash = crate::crypto::password::hash_password(password).unwrap();
+
         let user = User::new(
             Uuid::new_v4(),
             "testuser".to_string(),
             "test@example.com".to_string(),
         );
-        persistence.create_user(&user).await.unwrap();
+        persistence.create_user(&user, hash).await.unwrap();
 
         let service = InviteCodeAuthService::new(persistence);
-        let result = service.authenticate("testuser").await.unwrap();
+        let result = service.authenticate("testuser", password).await.unwrap();
 
         assert_eq!(result.username, "testuser");
     }
@@ -374,7 +402,7 @@ mod tests {
     async fn test_authenticate_not_found() {
         let service = InviteCodeAuthService::new(test_persistence());
 
-        let result = service.authenticate("nonexistent").await;
+        let result = service.authenticate("nonexistent", "password").await;
 
         assert!(matches!(
             result.unwrap_err().downcast::<AuthError>().unwrap(),
@@ -438,5 +466,59 @@ mod tests {
             UnauthorizedReason::InviteCodeUsed.to_string(),
             "invite code already used"
         );
+    }
+
+    #[tokio::test]
+    async fn test_password_hashing_on_create() {
+        let persistence = test_persistence();
+        persistence.initialize().await.unwrap();
+
+        let code = "VALIDCODE";
+        let invite = InviteCode::new(code.to_string(), None);
+        persistence.create_invite_code(&invite).await.unwrap();
+
+        let service = InviteCodeAuthService::new(Arc::clone(&persistence));
+        let password = "mypassword123";
+        service
+            .create_user(
+                "testuser".to_string(),
+                "test@example.com".to_string(),
+                AuthCredentials::Token(code.to_string()),
+                password.to_string(),
+            )
+            .await
+            .unwrap();
+
+        let (_, hash) = persistence
+            .load_user_by_username("testuser")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(hash, password);
+        assert!(hash.starts_with("$2b$"));
+    }
+
+    #[tokio::test]
+    async fn test_authenticate_wrong_password() {
+        let persistence = test_persistence();
+        persistence.initialize().await.unwrap();
+
+        let password = "correctpassword";
+        let hash = crate::crypto::password::hash_password(password).unwrap();
+
+        let user = User::new(
+            Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
+        persistence.create_user(&user, hash).await.unwrap();
+
+        let service = InviteCodeAuthService::new(persistence);
+        let result = service.authenticate("testuser", "wrongpassword").await;
+
+        assert!(matches!(
+            result.unwrap_err().downcast::<AuthError>().unwrap(),
+            AuthError::InvalidCredentials
+        ));
     }
 }
