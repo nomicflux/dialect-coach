@@ -8,6 +8,7 @@ use crate::AppState;
 #[derive(Deserialize)]
 pub struct TranslateRequest {
     pub phrase: String,
+    pub context: Option<String>,
     pub dialect: String, // Will be parsed using canonical Dialect::from_str()
     pub formality: Option<String>, // Will be parsed using canonical Formality::from_str()
 }
@@ -70,7 +71,7 @@ pub async fn translate_handler(
     };
 
     // Translate the phrase
-    match translate_phrase(&state, &request.phrase, dialect, formality).await {
+    match translate_phrase(&state, &request.phrase, request.context.as_deref(), dialect, formality).await {
         Ok(segmented_phrases) => {
             tracing::info!(
                 "Translation success: '{}' -> {} phrases",
@@ -106,6 +107,7 @@ pub async fn translate_handler(
 async fn translate_phrase(
     state: &AppState,
     phrase: &str,
+    context: Option<&str>,
     dialect: Dialect,
     formality: Formality,
 ) -> Result<Vec<PhraseTranslation>> {
@@ -118,12 +120,22 @@ async fn translate_phrase(
 
     let system_preamble = "Return ONLY valid JSON array format. Each element must have 'target_text' and 'english' fields. No other text, no markdown formatting, just the JSON array.";
 
-    let translation_prompt = format!(
-        "Translate this sentence to {} ({}) at multiple granularity levels:\n\n\"{}\"\n\nProvide translations for:\n1. Each individual content word (nouns, verbs, adjectives, adverbs - skip articles, prepositions, particles)\n2. Meaningful 2-word combinations (phrasal verbs, article+noun, adjective+noun, verb+preposition)\n3. Meaningful 3-5 word phrases (cohesive units, idioms, complete thoughts)\n\nIMPORTANT: Maximum 5 words per phrase. Do NOT include phrases longer than 5 words.\n\nTranslations should overlap - the same word can appear alone and in multiple phrases.\n\nReturn JSON array: [{{\"target_text\": \"phrase in target language\", \"english\": \"English translation\"}}, ...]",
-        dialect.name(),
-        formality_desc,
-        phrase
-    );
+    let translation_prompt = if let Some(ctx) = context {
+        format!(
+            "Translate the phrase \"{}\" into {} ({}), in the context of this sentence: \"{}\"\n\nProvide translations at multiple granularity levels:\n1. Each individual content word (nouns, verbs, adjectives, adverbs - skip articles, prepositions, particles)\n2. Meaningful 2-word combinations (phrasal verbs, article+noun, adjective+noun, verb+preposition)\n3. Meaningful 3-5 word phrases (cohesive units, idioms, complete thoughts)\n\nIMPORTANT: Maximum 5 words per phrase. Do NOT include phrases longer than 5 words.\n\nTranslations should overlap - the same word can appear alone and in multiple phrases.\n\nReturn JSON array: [{{\"target_text\": \"phrase in target language\", \"english\": \"English translation\"}}, ...]",
+            phrase,
+            dialect.name(),
+            formality_desc,
+            ctx
+        )
+    } else {
+        format!(
+            "Translate this sentence to {} ({}) at multiple granularity levels:\n\n\"{}\"\n\nProvide translations for:\n1. Each individual content word (nouns, verbs, adjectives, adverbs - skip articles, prepositions, particles)\n2. Meaningful 2-word combinations (phrasal verbs, article+noun, adjective+noun, verb+preposition)\n3. Meaningful 3-5 word phrases (cohesive units, idioms, complete thoughts)\n\nIMPORTANT: Maximum 5 words per phrase. Do NOT include phrases longer than 5 words.\n\nTranslations should overlap - the same word can appear alone and in multiple phrases.\n\nReturn JSON array: [{{\"target_text\": \"phrase in target language\", \"english\": \"English translation\"}}, ...]",
+            dialect.name(),
+            formality_desc,
+            phrase
+        )
+    };
 
     let response = state
         .agent
@@ -151,6 +163,7 @@ mod tests {
         // Test valid dialect parsing
         let request = TranslateRequest {
             phrase: "Hello".to_string(),
+            context: None,
             dialect: "spanish_mexican".to_string(),
             formality: Some("informal".to_string()),
         };
@@ -176,6 +189,7 @@ mod tests {
         // Test invalid dialect parsing
         let invalid_request = TranslateRequest {
             phrase: "Hello".to_string(),
+            context: None,
             dialect: "invalid_dialect".to_string(),
             formality: None,
         };

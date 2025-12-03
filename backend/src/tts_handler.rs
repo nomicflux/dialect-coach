@@ -350,11 +350,15 @@ mod tests {
             Ok(None)
         }
 
-        async fn create_user(&self, _user: &User) -> Result<()> {
+        async fn create_user(&self, _user: &User, _password_hash: String) -> Result<()> {
             Ok(())
         }
 
-        async fn load_user_by_username(&self, _username: &str) -> Result<Option<User>> {
+        async fn load_user_by_username(&self, _username: &str) -> Result<Option<(User, String)>> {
+            Ok(None)
+        }
+
+        async fn load_user_by_id(&self, _user_id: Uuid) -> Result<Option<User>> {
             Ok(None)
         }
 

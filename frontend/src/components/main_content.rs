@@ -84,7 +84,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
             wasm_bindgen_futures::spawn_local(async move {
                 match translation_service
-                    .translate_phrase(&text, dialect, Some(formality))
+                    .translate_phrase(&text, None, dialect, Some(formality))
                     .await
                 {
                     Ok(response) => {

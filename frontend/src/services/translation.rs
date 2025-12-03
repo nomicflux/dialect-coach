@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize)]
 struct TranslateRequest {
     phrase: String,
+    context: Option<String>,
     dialect: String,           // Will send canonical serde ID format
     formality: Option<String>, // Will send canonical serde ID format
 }
@@ -34,12 +35,14 @@ impl TranslationService {
     pub async fn translate_phrase(
         &self,
         phrase: &str,
+        context: Option<String>,
         dialect: Dialect,
         formality: Option<Formality>,
     ) -> Result<TranslateResponse> {
         // Use ONLY canonical serde ID formats
         let request_body = TranslateRequest {
             phrase: phrase.to_string(),
+            context,
             dialect: dialect.id().to_string(), // Canonical serde ID format
             formality: formality.map(|f| f.id().to_string()), // Canonical serde ID format
         };
@@ -85,6 +88,7 @@ mod tests {
     fn test_request_serialization() {
         let request = TranslateRequest {
             phrase: "Hello, how are you?".to_string(),
+            context: None,
             dialect: Dialect::SpanishMexican.id().to_string(),
             formality: Some(Formality::Informal.id().to_string()),
         };
@@ -106,6 +110,7 @@ mod tests {
         for (dialect, expected_id) in test_cases {
             let request = TranslateRequest {
                 phrase: "Test phrase".to_string(),
+                context: None,
                 dialect: dialect.id().to_string(),
                 formality: None,
             };
@@ -131,6 +136,7 @@ mod tests {
         for (formality, expected_id) in test_cases {
             let request = TranslateRequest {
                 phrase: "Test phrase".to_string(),
+                context: None,
                 dialect: Dialect::SpanishMexican.id().to_string(),
                 formality: Some(formality.id().to_string()),
             };

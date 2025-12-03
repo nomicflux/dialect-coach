@@ -1,7 +1,6 @@
 - Plan out learning course
 - feedback panel
 - add in model choice to user
-- stay logged in (session cookies)
 - sidebar position, collapsed status
 - keyboard shortcuts between branches
   - still need shortcuts to play sound
@@ -11,6 +10,7 @@
 - Seperate "simple response" agent channel
 - Different screens with learning items 
     - Keep side panel as summary, but need fuller view
+- Handle larger translation message sizes
 
 Longer Term
 ---
