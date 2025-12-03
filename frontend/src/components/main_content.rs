@@ -90,7 +90,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     let formality = Some(user_state.formality);
 
                     match translation_service
-                        .translate_phrase(&selected_text, Some(context.clone()), dialect, formality)
+                        .translate_phrase(&selected_text, context.clone(), dialect, formality)
                         .await
                     {
                         Ok(response) => {

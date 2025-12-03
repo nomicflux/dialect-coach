@@ -1,23 +1,6 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::models::{Dialect, Formality, PhraseTranslation};
+use dialect_coach_shared::models::{Dialect, Formality, TranslateRequest, TranslateResponse};
 use gloo_net::http::Request;
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize)]
-struct TranslateRequest {
-    phrase: String,
-    context: Option<String>,
-    dialect: String,           // Will send canonical serde ID format
-    formality: Option<String>, // Will send canonical serde ID format
-}
-
-#[derive(Deserialize)]
-pub struct TranslateResponse {
-    pub original_sentence: String,
-    pub segmented_phrases: Vec<PhraseTranslation>,
-    pub success: bool,
-    pub error: Option<String>,
-}
 
 /// Translation service for AI-powered phrase translation
 pub struct TranslationService {
@@ -35,7 +18,7 @@ impl TranslationService {
     pub async fn translate_phrase(
         &self,
         phrase: &str,
-        context: Option<String>,
+        context: String,
         dialect: Dialect,
         formality: Option<Formality>,
     ) -> Result<TranslateResponse> {
@@ -88,7 +71,7 @@ mod tests {
     fn test_request_serialization() {
         let request = TranslateRequest {
             phrase: "Hello, how are you?".to_string(),
-            context: None,
+            context: "ctx".to_string(),
             dialect: Dialect::SpanishMexican.id().to_string(),
             formality: Some(Formality::Informal.id().to_string()),
         };
@@ -110,7 +93,7 @@ mod tests {
         for (dialect, expected_id) in test_cases {
             let request = TranslateRequest {
                 phrase: "Test phrase".to_string(),
-                context: None,
+                context: "ctx".to_string(),
                 dialect: dialect.id().to_string(),
                 formality: None,
             };
@@ -136,7 +119,7 @@ mod tests {
         for (formality, expected_id) in test_cases {
             let request = TranslateRequest {
                 phrase: "Test phrase".to_string(),
-                context: None,
+                context: "ctx".to_string(),
                 dialect: Dialect::SpanishMexican.id().to_string(),
                 formality: Some(formality.id().to_string()),
             };

@@ -1,25 +1,8 @@
 use anyhow::{Context, Result};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use dialect_coach_shared::models::{Dialect, Formality, PhraseTranslation};
-use serde::{Deserialize, Serialize};
+use dialect_coach_shared::models::{Dialect, Formality, PhraseTranslation, TranslateRequest, TranslateResponse};
 
 use crate::AppState;
-
-#[derive(Deserialize)]
-pub struct TranslateRequest {
-    pub phrase: String,
-    pub context: String,
-    pub dialect: String, // Will be parsed using canonical Dialect::from_str()
-    pub formality: Option<String>, // Will be parsed using canonical Formality::from_str()
-}
-
-#[derive(Serialize)]
-pub struct TranslateResponse {
-    pub original_sentence: String,
-    pub segmented_phrases: Vec<PhraseTranslation>,
-    pub success: bool,
-    pub error: Option<String>,
-}
 
 /// Translation endpoint - translate English phrases to dialect-specific phrases
 pub async fn translate_handler(

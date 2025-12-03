@@ -35,6 +35,24 @@ pub struct PhraseTranslation {
     pub english: String,
 }
 
+/// Request to translate a phrase to a dialect
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TranslateRequest {
+    pub phrase: String,
+    pub context: String,
+    pub dialect: String,
+    pub formality: Option<String>,
+}
+
+/// Response from translation endpoint
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TranslateResponse {
+    pub original_sentence: String,
+    pub segmented_phrases: Vec<PhraseTranslation>,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
 /// A message in a chat session
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
