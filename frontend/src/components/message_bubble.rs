@@ -29,6 +29,8 @@ pub struct MessageBubbleProps {
     pub language_option: Option<LanguageOption>,
     #[prop_or(false)]
     pub is_explain_loading: bool,
+    #[prop_or_default]
+    pub on_selection_translate: Option<Callback<(Uuid, String, String)>>,
 }
 
 fn render_delete_button(on_delete: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
@@ -334,9 +336,14 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     };
 
     let on_selection_translate = {
+        let message_id = props.message.id;
+        let callback = props.on_selection_translate.clone();
         let selection_state = selection_state.clone();
+
         Callback::from(move |(selected_text, context): (String, String)| {
-            web_sys::console::log_1(&format!("Translate: {} (context: {})", selected_text, context).into());
+            if let Some(cb) = &callback {
+                cb.emit((message_id, selected_text, context));
+            }
             selection_state.set(None);
         })
     };

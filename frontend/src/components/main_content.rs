@@ -17,6 +17,7 @@ use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_bindi
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{LearningGoal, LearningItem, PhraseTranslation, Translated, UserState};
 use gloo::events::EventListener;
+use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
@@ -60,6 +61,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     let on_save_phrase = {
         let user_state = user_state.clone();
+        let modal_state = modal_state.clone();
         Callback::from(move |(target, english, context): (String, String, String)| {
             let translated = Translated::new(english, target, Some(context));
             user_state.dispatch(UserStateAction::AddLearningItems(
@@ -68,6 +70,38 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 vec![translated],
                 vec![],
             ));
+            modal_state.set(None);
+        })
+    };
+
+    let on_selection_translate_click = {
+        let translation_service = app_state.translation_service.clone();
+        let user_state_handle = user_state.clone();
+        let modal_state = modal_state.clone();
+
+        Callback::from(move |(_message_id, selected_text, context): (Uuid, String, String)| {
+            let translation_service = translation_service.clone();
+            let user_state_handle = user_state_handle.clone();
+            let modal_state = modal_state.clone();
+
+            wasm_bindgen_futures::spawn_local(async move {
+                if let Some(user_state) = user_state_handle.state.as_ref() {
+                    let dialect = user_state.current_dialect();
+                    let formality = Some(user_state.formality);
+
+                    match translation_service
+                        .translate_phrase(&selected_text, Some(context.clone()), dialect, formality)
+                        .await
+                    {
+                        Ok(response) => {
+                            modal_state.set(Some((context, response.segmented_phrases)));
+                        }
+                        Err(e) => {
+                            web_sys::console::error_1(&format!("Translation failed: {}", e).into());
+                        }
+                    }
+                }
+            });
         })
     };
 
@@ -194,6 +228,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_continue_branch={Some(on_continue_branch(app_state.clone(), user_state.clone()))}
                         on_explain={Some(on_explain_message(app_state.clone(), user_state.clone(), ui_state.clone()))}
                         explain_loading={ui_state.explain_loading.clone()}
+                        on_selection_translate={Some(on_selection_translate_click.clone())}
                     />
                     <SpeechControls
                         on_speech={on_send_message(app_state.clone(), user_state.clone())}

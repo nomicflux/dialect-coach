@@ -25,6 +25,8 @@ pub struct ChatWindowProps {
     pub on_explain: Option<Callback<Uuid>>,
     #[prop_or_default]
     pub explain_loading: HashSet<Uuid>,
+    #[prop_or_default]
+    pub on_selection_translate: Option<Callback<(Uuid, String, String)>>,
 }
 
 fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool {
@@ -107,6 +109,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         on_explain={props.on_explain.clone()}
                                         {language_option}
                                         {is_explain_loading}
+                                        on_selection_translate={props.on_selection_translate.clone()}
                                     />
                                 }
                             })}
