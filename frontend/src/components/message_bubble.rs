@@ -1,3 +1,4 @@
+use crate::components::TranslateSelectionButton;
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Language, LanguageOption, Message};
 use uuid::Uuid;
@@ -332,6 +333,14 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
         })
     };
 
+    let on_selection_translate = {
+        let selection_state = selection_state.clone();
+        Callback::from(move |(selected_text, context): (String, String)| {
+            web_sys::console::log_1(&format!("Translate: {} (context: {})", selected_text, context).into());
+            selection_state.set(None);
+        })
+    };
+
     let (msg_class, avatar_class, bubble_class, avatar_text) =
         get_css_classes(props.is_own_message);
     let lang = language_code(props.message.metadata.language);
@@ -359,6 +368,20 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                 </div>
             </div>
             {render_branch_button(&props.on_create_branch, props.message.id, props.has_child_branches)}
+            {
+                if let Some(selection) = &*selection_state {
+                    html! {
+                        <TranslateSelectionButton
+                            selected_text={selection.text.clone()}
+                            message_context={props.message.get_content()}
+                            position={selection.position}
+                            on_translate={on_selection_translate}
+                        />
+                    }
+                } else {
+                    html! {}
+                }
+            }
         </>
     }
 }
