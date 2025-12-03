@@ -30,6 +30,8 @@ pub struct MessageBubbleProps {
     pub language_option: Option<LanguageOption>,
     #[prop_or(false)]
     pub is_explain_loading: bool,
+    #[prop_or(false)]
+    pub is_translate_loading: bool,
     #[prop_or_default]
     pub on_selection_translate: Option<Callback<(Uuid, String, String)>>,
 }
@@ -414,6 +416,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                             message_context={props.message.get_content()}
                             position={selection.position}
                             on_translate={on_selection_translate}
+                            is_loading={props.is_translate_loading}
                         />
                     }
                 } else {

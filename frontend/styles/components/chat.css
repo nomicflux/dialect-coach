@@ -555,3 +555,9 @@ rt {
 .translate-selection-btn:active {
   background-color: #2868a8;
 }
+
+.translate-selection-btn:disabled {
+  background-color: #8fb9dd;
+  cursor: not-allowed;
+  opacity: 0.7;
+}

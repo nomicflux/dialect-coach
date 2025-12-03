@@ -78,11 +78,15 @@ pub fn main_content(props: &MainContentProps) -> Html {
         let translation_service = app_state.translation_service.clone();
         let user_state_handle = user_state.clone();
         let modal_state = modal_state.clone();
+        let ui_dispatch = ui_state.clone();
 
-        Callback::from(move |(_message_id, selected_text, context): (Uuid, String, String)| {
+        Callback::from(move |(message_id, selected_text, context): (Uuid, String, String)| {
             let translation_service = translation_service.clone();
             let user_state_handle = user_state_handle.clone();
             let modal_state = modal_state.clone();
+            let ui_dispatch = ui_dispatch.clone();
+
+            ui_dispatch.dispatch(UIStateAction::SetTranslateLoading { message_id });
 
             wasm_bindgen_futures::spawn_local(async move {
                 if let Some(user_state) = user_state_handle.state.as_ref() {
@@ -101,6 +105,8 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         }
                     }
                 }
+
+                ui_dispatch.dispatch(UIStateAction::ClearTranslateLoading { message_id });
             });
         })
     };
@@ -228,6 +234,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_continue_branch={Some(on_continue_branch(app_state.clone(), user_state.clone()))}
                         on_explain={Some(on_explain_message(app_state.clone(), user_state.clone(), ui_state.clone()))}
                         explain_loading={ui_state.explain_loading.clone()}
+                        translate_loading={ui_state.translate_loading.clone()}
                         on_selection_translate={Some(on_selection_translate_click.clone())}
                     />
                     <SpeechControls
