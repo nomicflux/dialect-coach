@@ -7,8 +7,9 @@ use uuid::Uuid;
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::{
-    AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Explained, Exploratory, Message,
-    MessageContent, MessageMetadata, Mistake, Translated, UserMessageWithContext, UserState,
+    AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Explained, Exploratory, Gender,
+    Message, MessageContent, MessageMetadata, Mistake, Translated, UserGender,
+    UserMessageWithContext, UserState,
 };
 
 use crate::rag_config::RAGConfig;
@@ -328,23 +329,57 @@ pub async fn call_agent_and_respond(
     }
 }
 
+fn extract_agent_gender(user_state: &UserState) -> Gender {
+    use dialect_coach_shared::TTSProviderType;
+
+    let dialect = user_state.current_dialect();
+    let dialect_features = dialect_features(dialect);
+
+    dialect_features
+        .tts_voices
+        .get(&TTSProviderType::ElevenLabs)
+        .and_then(|voice| voice.as_ref().map(|v| v.gender))
+        .unwrap_or(Gender::FemalePresenting)
+}
+
+fn format_gender_context(user_gender: UserGender, agent_gender: Gender) -> String {
+    let user_gender_str = match user_gender {
+        UserGender::Male => "male",
+        UserGender::Female => "female",
+        UserGender::NonBinary => "non-binary",
+    };
+
+    let agent_gender_str = match agent_gender {
+        Gender::MalePresenting => "male",
+        Gender::FemalePresenting => "female",
+    };
+
+    format!(
+        "You are {} and the user is {}. Use appropriate gendered language.",
+        agent_gender_str, user_gender_str
+    )
+}
+
 fn build_action_context(action: &AIActionRequest, user_state: &UserState) -> String {
     let dialect_name = user_state.current_dialect().name();
     let formality_name = user_state.formality.name();
+    let agent_gender = extract_agent_gender(user_state);
+    let gender_context = format_gender_context(user_state.user_gender, agent_gender);
 
     match action {
         AIActionRequest::StartConversation => {
             format!(
-                "[System: Please greet the user in {} with {} formality level]",
-                dialect_name, formality_name
+                "[System: Please greet the user in {} with {} formality level. {}]",
+                dialect_name, formality_name, gender_context
             )
         }
         AIActionRequest::ContinueBranch { parent_message_id } => {
             let message: Option<Message> = user_state.msg_by_id(*parent_message_id);
             format!(
-                "[System: Continue the conversation in {} with {} formality level] {}",
+                "[System: Continue the conversation in {} with {} formality level. {}] {}",
                 dialect_name,
                 formality_name,
+                gender_context,
                 message
                     .iter()
                     .fold("[Start with a simple greeting]", |_, msg| msg.as_str())
