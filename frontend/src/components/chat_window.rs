@@ -24,11 +24,7 @@ pub struct ChatWindowProps {
     #[prop_or_default]
     pub on_explain: Option<Callback<Uuid>>,
     #[prop_or_default]
-    pub on_translate: Option<Callback<Uuid>>,
-    #[prop_or_default]
     pub explain_loading: HashSet<Uuid>,
-    #[prop_or_default]
-    pub translate_loading: HashSet<Uuid>,
 }
 
 fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool {
@@ -100,7 +96,6 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                 let has_children = has_child_branches(msg.id, &props.user_state.branches);
                                 let language_option = props.user_state.language_options.for_language(msg.metadata.language);
                                 let is_explain_loading = props.explain_loading.contains(&msg.id);
-                                let is_translate_loading = props.translate_loading.contains(&msg.id);
                                 html! {
                                     <MessageBubble
                                         message={(*msg).clone()}
@@ -110,10 +105,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         on_create_branch={props.on_create_branch.clone()}
                                         has_child_branches={has_children}
                                         on_explain={props.on_explain.clone()}
-                                        on_translate={props.on_translate.clone()}
                                         {language_option}
                                         {is_explain_loading}
-                                        {is_translate_loading}
                                     />
                                 }
                             })}

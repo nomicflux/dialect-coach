@@ -15,10 +15,8 @@ use crate::components::{
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
-use dialect_coach_shared::models::{LearningGoal, LearningItem, MessageContent, PhraseTranslation, Translated, UserState};
+use dialect_coach_shared::models::{LearningGoal, LearningItem, PhraseTranslation, Translated, UserState};
 use gloo::events::EventListener;
-use log::error;
-use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
@@ -52,55 +50,6 @@ pub fn main_content(props: &MainContentProps) -> Html {
     let goal_input_ref = use_node_ref();
 
     let modal_state = use_state(|| None::<(String, Vec<PhraseTranslation>)>);
-
-    let on_translate_click = {
-        let app_state = app_state.clone();
-        let user_state = user_state.clone();
-        let modal_state = modal_state.clone();
-        let ui_state = ui_state.clone();
-        Callback::from(move |message_id: Uuid| {
-            let state = match user_state.state.as_ref() {
-                Some(s) => s,
-                None => {
-                    error!("No user state for translate");
-                    return;
-                }
-            };
-            let msg = match state.msg_by_id(message_id) {
-                Some(m) => m,
-                None => {
-                    error!("Message not found: {}", message_id);
-                    return;
-                }
-            };
-            let text = get_text_from_message(&msg);
-            let translation_service = app_state.translation_service.clone();
-            let dialect = state.selected_dialect;
-            let formality = state.formality;
-            let modal_state = modal_state.clone();
-            let ui_state_for_async = ui_state.clone();
-
-            ui_state.dispatch(UIStateAction::SetTranslateLoading { message_id });
-
-            wasm_bindgen_futures::spawn_local(async move {
-                match translation_service
-                    .translate_phrase(&text, None, dialect, Some(formality))
-                    .await
-                {
-                    Ok(response) => {
-                        modal_state.set(Some((
-                            response.original_sentence,
-                            response.segmented_phrases,
-                        )));
-                    }
-                    Err(e) => {
-                        error!("Translation failed: {}", e);
-                    }
-                }
-                ui_state_for_async.dispatch(UIStateAction::ClearTranslateLoading { message_id });
-            });
-        })
-    };
 
     let on_close_modal = {
         let modal_state = modal_state.clone();
@@ -244,9 +193,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_auto_start={Some(on_auto_start(app_state.clone(), user_state.clone()))}
                         on_continue_branch={Some(on_continue_branch(app_state.clone(), user_state.clone()))}
                         on_explain={Some(on_explain_message(app_state.clone(), user_state.clone(), ui_state.clone()))}
-                        on_translate={Some(on_translate_click.clone())}
                         explain_loading={ui_state.explain_loading.clone()}
-                        translate_loading={ui_state.translate_loading.clone()}
                     />
                     <SpeechControls
                         on_speech={on_send_message(app_state.clone(), user_state.clone())}
@@ -367,13 +314,6 @@ fn render_modal(
             />
         },
         None => html! {},
-    }
-}
-
-fn get_text_from_message(msg: &dialect_coach_shared::models::Message) -> String {
-    match &msg.content {
-        MessageContent::UserMessage { content } => content.clone(),
-        MessageContent::AgentMessage { content } => content.response.clone(),
     }
 }
 

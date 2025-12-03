@@ -1,7 +1,14 @@
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Language, LanguageOption, Message};
 use uuid::Uuid;
+use web_sys::{window, MouseEvent};
 use yew::prelude::*;
+
+#[derive(Clone, PartialEq)]
+struct TextSelection {
+    text: String,
+    position: (f64, f64),
+}
 
 #[derive(Properties, PartialEq)]
 pub struct MessageBubbleProps {
@@ -18,13 +25,9 @@ pub struct MessageBubbleProps {
     #[prop_or_default]
     pub on_explain: Option<Callback<Uuid>>,
     #[prop_or_default]
-    pub on_translate: Option<Callback<Uuid>>,
-    #[prop_or_default]
     pub language_option: Option<LanguageOption>,
     #[prop_or(false)]
     pub is_explain_loading: bool,
-    #[prop_or(false)]
-    pub is_translate_loading: bool,
 }
 
 fn render_delete_button(on_delete: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
@@ -157,6 +160,29 @@ fn render_text_with_ruby(text: &str) -> Html {
     }
 }
 
+fn get_text_selection() -> Option<TextSelection> {
+    let window = window()?;
+    let document = window.document()?;
+    let selection = document.get_selection().ok()??;
+
+    if selection.is_collapsed() {
+        return None;
+    }
+
+    let text = selection.to_string().as_string()?;
+    if text.trim().is_empty() {
+        return None;
+    }
+
+    let range = selection.get_range_at(0).ok()?;
+    let rect = range.get_bounding_client_rect();
+
+    Some(TextSelection {
+        text,
+        position: (rect.right(), rect.bottom()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,19 +292,16 @@ fn render_branch_button(
 
 fn render_action_buttons(
     on_explain: &Option<Callback<Uuid>>,
-    on_translate: &Option<Callback<Uuid>>,
     msg_id: Uuid,
     is_explain_loading: bool,
-    is_translate_loading: bool,
 ) -> Html {
-    if on_explain.is_none() && on_translate.is_none() {
+    if on_explain.is_none() {
         return html! {};
     }
 
     html! {
         <div class="message-actions">
             {render_explain_button(on_explain, msg_id, is_explain_loading)}
-            {render_translate_button(on_translate, msg_id, is_translate_loading)}
         </div>
     }
 }
@@ -296,21 +319,19 @@ fn render_explain_button(on_explain: &Option<Callback<Uuid>>, msg_id: Uuid, is_l
     }
 }
 
-fn render_translate_button(on_translate: &Option<Callback<Uuid>>, msg_id: Uuid, is_loading: bool) -> Html {
-    if let Some(callback) = on_translate {
-        let cb = callback.clone();
-        let onclick = Callback::from(move |_| cb.emit(msg_id));
-        let button_text = if is_loading { "Translating..." } else { "Translate" };
-        html! {
-            <button class="action-button translate-button" {onclick} disabled={is_loading}>{button_text}</button>
-        }
-    } else {
-        html! {}
-    }
-}
-
 #[function_component(MessageBubble)]
 pub fn message_bubble(props: &MessageBubbleProps) -> Html {
+    let selection_state = use_state(|| None::<TextSelection>);
+
+    let on_mouseup = {
+        let selection_state = selection_state.clone();
+        Callback::from(move |_: MouseEvent| {
+            if let Some(selection) = get_text_selection() {
+                selection_state.set(Some(selection));
+            }
+        })
+    };
+
     let (msg_class, avatar_class, bubble_class, avatar_text) =
         get_css_classes(props.is_own_message);
     let lang = language_code(props.message.metadata.language);
@@ -326,11 +347,11 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                         <div class="message-author">{if props.message.is_agent() { "agent" } else { "user" }}</div>
                         {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
                     </div>
-                    <div class={classes!("message-content", font_class_name)} {lang}>
+                    <div class={classes!("message-content", font_class_name)} {lang} onmouseup={on_mouseup}>
                         {render_text_with_ruby(&props.message.get_content())}
                     </div>
                     {if props.message.is_agent() {
-                        render_action_buttons(&props.on_explain, &props.on_translate, props.message.id, props.is_explain_loading, props.is_translate_loading)
+                        render_action_buttons(&props.on_explain, props.message.id, props.is_explain_loading)
                     } else {
                         html! {}
                     }}
