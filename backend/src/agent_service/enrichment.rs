@@ -1,14 +1,18 @@
-use anyhow::{Result, anyhow};
-use dialect_coach_shared::{
-    Dialect, EnrichRequest, EnrichResponse, PartialLearningItem, PartialMistake, PartialTranslated,
-    PartialExplained, PartialExploratory, Mistake, Translated, Explained, Exploratory, MistakeCategory,
-};
 use super::retry::RetryContext;
 use super::util::GenerationConfig;
+use anyhow::{Result, anyhow};
+use dialect_coach_shared::{
+    Dialect, EnrichRequest, EnrichResponse, Explained, Exploratory, Mistake, MistakeCategory,
+    PartialExplained, PartialExploratory, PartialLearningItem, PartialMistake, PartialTranslated,
+    Translated,
+};
 
 fn build_mistake_prompt(partial: &PartialMistake, dialect: Dialect) -> String {
     let mistake = partial.specific_mistake.as_ref().unwrap();
-    let mut prompt = format!("The user made this mistake in {}: \"{}\"\n\n", dialect, mistake);
+    let mut prompt = format!(
+        "The user made this mistake in {}: \"{}\"\n\n",
+        dialect, mistake
+    );
 
     if partial.correction.is_some() && partial.mistake_category.is_some() {
         return prompt;
@@ -17,7 +21,9 @@ fn build_mistake_prompt(partial: &PartialMistake, dialect: Dialect) -> String {
     prompt.push_str("Provide the correct version and categorize the mistake type.\n\n");
     prompt.push_str("Response format:\n");
     prompt.push_str("CORRECTION: [correct version]\n");
-    prompt.push_str("CATEGORY: [SpellingError|VocabularyError|GrammarError|DialectUsageError|Other]\n");
+    prompt.push_str(
+        "CATEGORY: [SpellingError|VocabularyError|GrammarError|DialectUsageError|Other]\n",
+    );
     prompt.push_str("CONTEXT: [brief explanation for category context field]");
 
     prompt
@@ -80,29 +86,42 @@ fn extract_field(text: &str, prefix: &str) -> Option<String> {
 
 fn parse_category(text: &str, context: &str) -> Result<MistakeCategory> {
     match text.trim() {
-        "SpellingError" => Ok(MistakeCategory::SpellingError { context: context.to_string() }),
-        "VocabularyError" => Ok(MistakeCategory::VocabularyError { context: context.to_string() }),
-        "GrammarError" => Ok(MistakeCategory::GrammarError { context: context.to_string() }),
-        "DialectUsageError" => Ok(MistakeCategory::DialectUsageError { context: context.to_string() }),
-        "Other" => Ok(MistakeCategory::Other { context: context.to_string() }),
-        _ => Err(anyhow!("Unknown mistake category: {}", text))
+        "SpellingError" => Ok(MistakeCategory::SpellingError {
+            context: context.to_string(),
+        }),
+        "VocabularyError" => Ok(MistakeCategory::VocabularyError {
+            context: context.to_string(),
+        }),
+        "GrammarError" => Ok(MistakeCategory::GrammarError {
+            context: context.to_string(),
+        }),
+        "DialectUsageError" => Ok(MistakeCategory::DialectUsageError {
+            context: context.to_string(),
+        }),
+        "Other" => Ok(MistakeCategory::Other {
+            context: context.to_string(),
+        }),
+        _ => Err(anyhow!("Unknown mistake category: {}", text)),
     }
 }
 
 fn parse_mistake_response(text: &str, partial: &PartialMistake) -> Result<Mistake> {
-    let correction = partial.correction.clone()
+    let correction = partial
+        .correction
+        .clone()
         .or_else(|| extract_field(text, "CORRECTION"))
         .ok_or_else(|| anyhow!("Missing correction"))?;
 
-    let context = extract_field(text, "CONTEXT")
-        .unwrap_or_else(|| "No context".to_string());
+    let context = extract_field(text, "CONTEXT").unwrap_or_else(|| "No context".to_string());
 
     let category = if let Some(cat_str) = extract_field(text, "CATEGORY") {
         parse_category(&cat_str, &context)?
     } else if partial.mistake_category.is_some() {
         parse_category(partial.mistake_category.as_ref().unwrap(), &context)?
     } else {
-        MistakeCategory::Other { context: context.clone() }
+        MistakeCategory::Other {
+            context: context.clone(),
+        }
     };
 
     Ok(Mistake::new(
@@ -114,12 +133,12 @@ fn parse_mistake_response(text: &str, partial: &PartialMistake) -> Result<Mistak
 
 fn parse_translated_response(text: &str, partial: &PartialTranslated) -> Result<Translated> {
     let (word, to) = if partial.translated_to.is_some() {
-        let english = extract_field(text, "ENGLISH")
-            .ok_or_else(|| anyhow!("Missing English translation"))?;
+        let english =
+            extract_field(text, "ENGLISH").ok_or_else(|| anyhow!("Missing English translation"))?;
         (english, partial.translated_to.clone().unwrap())
     } else {
-        let translation = extract_field(text, "TRANSLATION")
-            .ok_or_else(|| anyhow!("Missing translation"))?;
+        let translation =
+            extract_field(text, "TRANSLATION").ok_or_else(|| anyhow!("Missing translation"))?;
         (partial.translated_word.clone().unwrap(), translation)
     };
 
@@ -127,11 +146,15 @@ fn parse_translated_response(text: &str, partial: &PartialTranslated) -> Result<
 }
 
 fn parse_explained_response(text: &str, partial: &PartialExplained) -> Result<Explained> {
-    let phrase = partial.new_phrase.clone()
+    let phrase = partial
+        .new_phrase
+        .clone()
         .or_else(|| extract_field(text, "PHRASE"))
         .ok_or_else(|| anyhow!("Missing phrase"))?;
 
-    let explanation = partial.explanation.clone()
+    let explanation = partial
+        .explanation
+        .clone()
         .or_else(|| extract_field(text, "EXPLANATION"))
         .ok_or_else(|| anyhow!("Missing explanation"))?;
 
@@ -139,11 +162,15 @@ fn parse_explained_response(text: &str, partial: &PartialExplained) -> Result<Ex
 }
 
 fn parse_exploratory_response(text: &str, partial: &PartialExploratory) -> Result<Exploratory> {
-    let point = partial.point_to_try.clone()
+    let point = partial
+        .point_to_try
+        .clone()
         .or_else(|| extract_field(text, "POINT"))
         .ok_or_else(|| anyhow!("Missing point"))?;
 
-    let instructions = partial.instructions_for_use.clone()
+    let instructions = partial
+        .instructions_for_use
+        .clone()
         .or_else(|| extract_field(text, "INSTRUCTIONS"))
         .ok_or_else(|| anyhow!("Missing instructions"))?;
 
@@ -169,7 +196,8 @@ pub async fn enrich_partial_mistake(
         temperature: config.temperature,
     };
 
-    let (result, _) = super::retry::retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
+    let (result, _) =
+        super::retry::retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
     let response = result?;
 
     parse_mistake_response(&response, partial)
@@ -194,7 +222,8 @@ pub async fn enrich_partial_translated(
         temperature: config.temperature,
     };
 
-    let (result, _) = super::retry::retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
+    let (result, _) =
+        super::retry::retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
     let response = result?;
 
     parse_translated_response(&response, partial)
@@ -219,7 +248,8 @@ pub async fn enrich_partial_explained(
         temperature: config.temperature,
     };
 
-    let (result, _) = super::retry::retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
+    let (result, _) =
+        super::retry::retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
     let response = result?;
 
     parse_explained_response(&response, partial)
@@ -244,7 +274,8 @@ pub async fn enrich_partial_exploratory(
         temperature: config.temperature,
     };
 
-    let (result, _) = super::retry::retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
+    let (result, _) =
+        super::retry::retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
     let response = result?;
 
     parse_exploratory_response(&response, partial)
@@ -347,8 +378,14 @@ mod tests {
     #[test]
     fn test_extract_field() {
         let text = "CORRECTION: Cómo andás\nCATEGORY: GrammarError";
-        assert_eq!(extract_field(text, "CORRECTION"), Some("Cómo andás".to_string()));
-        assert_eq!(extract_field(text, "CATEGORY"), Some("GrammarError".to_string()));
+        assert_eq!(
+            extract_field(text, "CORRECTION"),
+            Some("Cómo andás".to_string())
+        );
+        assert_eq!(
+            extract_field(text, "CATEGORY"),
+            Some("GrammarError".to_string())
+        );
         assert_eq!(extract_field(text, "MISSING"), None);
     }
 

@@ -40,15 +40,13 @@ pub async fn handle_create_user(
         .create_user(username, email, auth_creds, password)
         .await
     {
-        Ok(user) => {
-            match crypto::jwt::generate_token(user.id) {
-                Ok(token) => UserMessage::CreateUserResponse(Ok((user, token))),
-                Err(e) => {
-                    tracing::error!("Failed to generate JWT: {}", e);
-                    UserMessage::CreateUserResponse(Err("Failed to generate session token".to_string()))
-                }
+        Ok(user) => match crypto::jwt::generate_token(user.id) {
+            Ok(token) => UserMessage::CreateUserResponse(Ok((user, token))),
+            Err(e) => {
+                tracing::error!("Failed to generate JWT: {}", e);
+                UserMessage::CreateUserResponse(Err("Failed to generate session token".to_string()))
             }
-        }
+        },
         Err(e) => {
             let error_msg =
                 if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
@@ -73,15 +71,13 @@ pub async fn handle_sign_in(
     tracing::info!("Sign in request for user: {}", username);
 
     let response = match state.auth_service.authenticate(&username, &password).await {
-        Ok(user) => {
-            match crypto::jwt::generate_token(user.id) {
-                Ok(token) => UserMessage::SignInResponse(Ok((user, token))),
-                Err(e) => {
-                    tracing::error!("Failed to generate JWT: {}", e);
-                    UserMessage::SignInResponse(Err("Failed to generate session token".to_string()))
-                }
+        Ok(user) => match crypto::jwt::generate_token(user.id) {
+            Ok(token) => UserMessage::SignInResponse(Ok((user, token))),
+            Err(e) => {
+                tracing::error!("Failed to generate JWT: {}", e);
+                UserMessage::SignInResponse(Err("Failed to generate session token".to_string()))
             }
-        }
+        },
         Err(e) => {
             let error_msg =
                 if let Some(auth_error) = e.downcast_ref::<crate::auth_service::AuthError>() {
@@ -105,22 +101,20 @@ pub async fn handle_validate_session(
     tracing::info!("Validating session token");
 
     let response = match crypto::jwt::validate_token(&token) {
-        Ok(user_id) => {
-            match state.user_persistence.load_user_by_id(user_id).await {
-                Ok(Some(user)) => {
-                    tracing::info!("Session valid for user: {}", user.username);
-                    UserMessage::ValidateSessionResponse(Ok(user))
-                }
-                Ok(None) => {
-                    tracing::warn!("User not found for valid token");
-                    UserMessage::ValidateSessionResponse(Err("User not found".to_string()))
-                }
-                Err(e) => {
-                    tracing::error!("Database error during session validation: {}", e);
-                    UserMessage::ValidateSessionResponse(Err("Failed to validate session".to_string()))
-                }
+        Ok(user_id) => match state.user_persistence.load_user_by_id(user_id).await {
+            Ok(Some(user)) => {
+                tracing::info!("Session valid for user: {}", user.username);
+                UserMessage::ValidateSessionResponse(Ok(user))
             }
-        }
+            Ok(None) => {
+                tracing::warn!("User not found for valid token");
+                UserMessage::ValidateSessionResponse(Err("User not found".to_string()))
+            }
+            Err(e) => {
+                tracing::error!("Database error during session validation: {}", e);
+                UserMessage::ValidateSessionResponse(Err("Failed to validate session".to_string()))
+            }
+        },
         Err(e) => {
             tracing::warn!("Invalid session token: {}", e);
             UserMessage::ValidateSessionResponse(Err("Invalid or expired session".to_string()))

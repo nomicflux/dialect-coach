@@ -293,7 +293,14 @@ pub async fn generate_analysis(
 
     log_analysis_start(mistakes, explained, translated, exploratory);
 
-    let preamble = analysis_agent_preamble(&dialect, mistakes, explained, translated, exploratory, language_option);
+    let preamble = analysis_agent_preamble(
+        &dialect,
+        mistakes,
+        explained,
+        translated,
+        exploratory,
+        language_option,
+    );
     tracing::debug!("Analysis preamble sent to Claude:\n{}", preamble);
 
     let prompt = format_analysis_prompt(msg);

@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{
     AgentUsage, Dialect, DialectDocument, DialectWithFeatures, Explained, Exploratory, Formality,
-    Gender, LanguageOption, LearningGoal, Mistake, PastLearningItems, TeachingMode, Translated, UserGender,
+    Gender, LanguageOption, LearningGoal, Mistake, PastLearningItems, TeachingMode, Translated,
+    UserGender,
 };
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
@@ -50,9 +51,18 @@ fn speaker_desc(dialect: &Dialect, formality: &Formality, gender: &Gender) -> St
     };
     let base = format!("You are a {} native {} speaker", gender_str, dialect.name());
     match formality {
-        Formality::Formal => format!("{} communicating in a professional, polite manner in a formal setting.", base),
-        Formality::ProfessionalCasual => format!("{} communicating in a professional manner amongst colleagues, using more standard forms than usual but not being rigid in speech.", base),
-        Formality::Informal => format!("{} speaking conversationally, using dialectal forms when appropriate and natural, and more standard forms when those become difficult to understand.", base),
+        Formality::Formal => format!(
+            "{} communicating in a professional, polite manner in a formal setting.",
+            base
+        ),
+        Formality::ProfessionalCasual => format!(
+            "{} communicating in a professional manner amongst colleagues, using more standard forms than usual but not being rigid in speech.",
+            base
+        ),
+        Formality::Informal => format!(
+            "{} speaking conversationally, using dialectal forms when appropriate and natural, and more standard forms when those become difficult to understand.",
+            base
+        ),
         Formality::Slang => format!("{} using informal slang and colloquialisms.", base),
     }
 }
@@ -357,7 +367,12 @@ fn build_system_content(
             {}\n\
             {}\n\
             Now respond to the user's message technically."#,
-            role_desc, user_gender_str, lang_section, goals_section, learning_items_context, JSON_OUTPUT_INSTRUCTION
+            role_desc,
+            user_gender_str,
+            lang_section,
+            goals_section,
+            learning_items_context,
+            JSON_OUTPUT_INSTRUCTION
         )
     } else {
         let lang_section = if !language_instr.is_empty() {
@@ -905,9 +920,16 @@ mod tests {
             Formality::Slang,
         ];
         for formality in formalities {
-            let desc_male = speaker_desc(&Dialect::ArabicEgyptian, &formality, &Gender::MalePresenting);
-            let desc_female =
-                speaker_desc(&Dialect::ArabicEgyptian, &formality, &Gender::FemalePresenting);
+            let desc_male = speaker_desc(
+                &Dialect::ArabicEgyptian,
+                &formality,
+                &Gender::MalePresenting,
+            );
+            let desc_female = speaker_desc(
+                &Dialect::ArabicEgyptian,
+                &formality,
+                &Gender::FemalePresenting,
+            );
             assert!(desc_male.contains("male-presenting"));
             assert!(desc_female.contains("female-presenting"));
         }

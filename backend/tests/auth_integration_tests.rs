@@ -6,7 +6,10 @@ use uuid::Uuid;
 async fn test_jwt_generation_and_validation() {
     // Set a test JWT secret (required for JWT operations)
     unsafe {
-        std::env::set_var("JWT_SECRET", "test-secret-key-that-is-at-least-32-characters-long");
+        std::env::set_var(
+            "JWT_SECRET",
+            "test-secret-key-that-is-at-least-32-characters-long",
+        );
     }
 
     let user_id = Uuid::new_v4();
@@ -28,7 +31,10 @@ async fn test_jwt_generation_and_validation() {
 #[tokio::test]
 async fn test_jwt_validation_with_invalid_token() {
     unsafe {
-        std::env::set_var("JWT_SECRET", "test-secret-key-that-is-at-least-32-characters-long");
+        std::env::set_var(
+            "JWT_SECRET",
+            "test-secret-key-that-is-at-least-32-characters-long",
+        );
     }
 
     let invalid_token = "invalid.jwt.token";
@@ -60,8 +66,8 @@ async fn test_password_verification_success() {
     let password = "secure_password_123";
     let hash = crypto::password::hash_password(password).expect("Hashing should succeed");
 
-    let result = crypto::password::verify_password(password, &hash)
-        .expect("Verification should not error");
+    let result =
+        crypto::password::verify_password(password, &hash).expect("Verification should not error");
 
     assert!(result, "Password verification should succeed");
 }
@@ -75,5 +81,8 @@ async fn test_password_verification_failure() {
     let result = crypto::password::verify_password("wrong_password", &hash)
         .expect("Verification should not error");
 
-    assert!(!result, "Password verification should fail for wrong password");
+    assert!(
+        !result,
+        "Password verification should fail for wrong password"
+    );
 }

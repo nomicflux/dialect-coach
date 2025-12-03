@@ -168,7 +168,13 @@ impl AgentService {
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
         };
-        response::ResponseContext::generate_simple_response(&ctx, system_preamble, prompt, Vec::new()).await
+        response::ResponseContext::generate_simple_response(
+            &ctx,
+            system_preamble,
+            prompt,
+            Vec::new(),
+        )
+        .await
     }
 
     pub fn contains_illegal_characters(text: &str) -> bool {
@@ -226,7 +232,11 @@ mod tests {
         if let Err(ref e) = result {
             eprintln!("load_channel_agent failed: {}", e);
         }
-        assert!(result.is_ok(), "Failed to load agent: {:?}", result.as_ref().err());
+        assert!(
+            result.is_ok(),
+            "Failed to load agent: {:?}",
+            result.as_ref().err()
+        );
         let agent = result.unwrap();
         assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
 

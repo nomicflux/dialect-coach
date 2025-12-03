@@ -256,9 +256,7 @@ mod tests {
             "testuser".to_string(),
             "test@example.com".to_string(),
         );
-        let result = persistence
-            .create_user(&user, "somehash".to_string())
-            .await;
+        let result = persistence.create_user(&user, "somehash".to_string()).await;
 
         assert!(result.is_ok());
     }

@@ -201,8 +201,9 @@ async fn run_agents_with_analysis(
     let user_text = msg_with_context.message.get_content();
     let ((response_result, response_usage, learning_usage), (analysis_result, analysis_usage)) = tokio::join!(
         state.agent.generate_response(params),
-        state.agent.generate_analysis(
-            crate::agent_service::analysis::AnalysisRequestParams {
+        state
+            .agent
+            .generate_analysis(crate::agent_service::analysis::AnalysisRequestParams {
                 dialect,
                 msg: &user_text,
                 mistakes: &filtered_items.mistakes,
@@ -210,8 +211,7 @@ async fn run_agents_with_analysis(
                 translated: &filtered_items.translated,
                 exploratory: &filtered_items.exploratory,
                 language_option: &msg_with_context.language_option,
-            }
-        )
+            })
     );
 
     let usage_stats = AgentUsageStats {
@@ -272,7 +272,10 @@ async fn simple_call_and_respond(
     prompt: &Message,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
-    let response = state.agent.generate_simple_response("", prompt.as_str()).await;
+    let response = state
+        .agent
+        .generate_simple_response("", prompt.as_str())
+        .await;
 
     match response {
         Ok(agent_response) => {

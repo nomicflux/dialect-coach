@@ -120,7 +120,8 @@ async fn process_user_message_ws(state: &AppState, text: &str, tx: &mpsc::Unboun
             credentials,
             password,
         }) => {
-            let _ = user::handle_create_user(state, username, email, credentials, password, tx).await;
+            let _ =
+                user::handle_create_user(state, username, email, credentials, password, tx).await;
         }
         Ok(UserMessage::SignIn { username, password }) => {
             let _ = user::handle_sign_in(state, username, password, tx).await;

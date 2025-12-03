@@ -1,4 +1,4 @@
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
@@ -10,7 +10,8 @@ pub struct Claims {
 }
 
 fn get_secret() -> Result<String, jsonwebtoken::errors::Error> {
-    std::env::var("JWT_SECRET").map_err(|_| jsonwebtoken::errors::ErrorKind::InvalidKeyFormat.into())
+    std::env::var("JWT_SECRET")
+        .map_err(|_| jsonwebtoken::errors::ErrorKind::InvalidKeyFormat.into())
 }
 
 fn expiration_time() -> usize {
@@ -27,7 +28,11 @@ pub fn generate_token(user_id: Uuid) -> Result<String, jsonwebtoken::errors::Err
         exp: expiration_time(),
     };
     let secret = get_secret()?;
-    encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+    encode(
+        &Header::new(Algorithm::HS256),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
 }
 
 pub fn validate_token(token: &str) -> Result<Uuid, jsonwebtoken::errors::Error> {

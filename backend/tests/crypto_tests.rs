@@ -16,7 +16,10 @@ fn test_password_hash_produces_different_hashes() {
     let hash1 = password::hash_password(password).expect("Failed to hash password");
     let hash2 = password::hash_password(password).expect("Failed to hash password");
 
-    assert_ne!(hash1, hash2, "Same password should produce different hashes due to salt randomness");
+    assert_ne!(
+        hash1, hash2,
+        "Same password should produce different hashes due to salt randomness"
+    );
 }
 
 #[test]
@@ -34,7 +37,8 @@ fn test_password_verification_incorrect() {
     let wrong_password = "wrong_password";
     let hash = password::hash_password(password).expect("Failed to hash password");
 
-    let result = password::verify_password(wrong_password, &hash).expect("Failed to verify password");
+    let result =
+        password::verify_password(wrong_password, &hash).expect("Failed to verify password");
     assert!(!result, "Incorrect password should return false");
 }
 
@@ -46,7 +50,11 @@ fn test_jwt_generation_produces_valid_format() {
     let token = jwt::generate_token(user_id).expect("Failed to generate token");
 
     assert!(!token.is_empty(), "Token should not be empty");
-    assert_eq!(token.matches('.').count(), 2, "JWT should have three parts separated by dots");
+    assert_eq!(
+        token.matches('.').count(),
+        2,
+        "JWT should have three parts separated by dots"
+    );
 }
 
 #[test]
@@ -57,7 +65,10 @@ fn test_jwt_validation_returns_correct_user_id() {
     let token = jwt::generate_token(user_id).expect("Failed to generate token");
     let validated_id = jwt::validate_token(&token).expect("Failed to validate token");
 
-    assert_eq!(user_id, validated_id, "Validated user_id should match original");
+    assert_eq!(
+        user_id, validated_id,
+        "Validated user_id should match original"
+    );
 }
 
 #[test]

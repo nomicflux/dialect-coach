@@ -1,4 +1,4 @@
-use bcrypt::{hash, verify, BcryptError};
+use bcrypt::{BcryptError, hash, verify};
 
 const COST: u32 = 12;
 
