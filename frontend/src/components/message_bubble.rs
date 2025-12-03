@@ -2,6 +2,7 @@ use crate::components::TranslateSelectionButton;
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Language, LanguageOption, Message};
 use uuid::Uuid;
+use wasm_bindgen::prelude::*;
 use web_sys::{window, MouseEvent};
 use yew::prelude::*;
 
@@ -334,6 +335,36 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
             }
         })
     };
+
+    // Clear selection when selection changes and becomes empty
+    use_effect_with(selection_state.clone(), {
+        let selection_state = selection_state.clone();
+        move |_| {
+            let document = web_sys::window()
+                .and_then(|w| w.document())
+                .expect("should have document");
+
+            let callback = {
+                let selection_state = selection_state.clone();
+                Closure::wrap(Box::new(move |_: web_sys::Event| {
+                    if let Some(window) = web_sys::window()
+                        && let Ok(Some(selection)) = window.get_selection()
+                        && selection.is_collapsed()
+                    {
+                        selection_state.set(None);
+                    }
+                }) as Box<dyn Fn(_)>)
+            };
+
+            let _ = document.add_event_listener_with_callback(
+                "selectionchange",
+                callback.as_ref().unchecked_ref(),
+            );
+
+            // Keep callback alive
+            move || drop(callback)
+        }
+    });
 
     let on_selection_translate = {
         let message_id = props.message.id;
