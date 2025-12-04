@@ -21,6 +21,12 @@ use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
+#[derive(Clone, PartialEq)]
+pub enum TranslationModalState {
+    Loading { original_sentence: String },
+    Loaded { original_sentence: String, phrases: Vec<PhraseTranslation> },
+}
+
 #[derive(Properties)]
 pub struct MainContentProps {
     pub app_state: UseReducerHandle<AppState>,
@@ -50,7 +56,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();
 
-    let modal_state = use_state(|| None::<(String, Vec<PhraseTranslation>)>);
+    let modal_state = use_state(|| None::<TranslationModalState>);
 
     let on_close_modal = {
         let modal_state = modal_state.clone();
@@ -86,6 +92,11 @@ pub fn main_content(props: &MainContentProps) -> Html {
             let modal_state = modal_state.clone();
             let ui_dispatch = ui_dispatch.clone();
 
+            // Open modal immediately with loading state
+            modal_state.set(Some(TranslationModalState::Loading {
+                original_sentence: context.clone(),
+            }));
+
             ui_dispatch.dispatch(UIStateAction::SetTranslateLoading { message_id });
 
             wasm_bindgen_futures::spawn_local(async move {
@@ -98,10 +109,14 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         .await
                     {
                         Ok(response) => {
-                            modal_state.set(Some((context, response.segmented_phrases)));
+                            modal_state.set(Some(TranslationModalState::Loaded {
+                                original_sentence: context,
+                                phrases: response.segmented_phrases,
+                            }));
                         }
                         Err(e) => {
                             web_sys::console::error_1(&format!("Translation failed: {}", e).into());
+                            modal_state.set(None); // Close modal on error
                         }
                     }
                 }
@@ -342,15 +357,23 @@ pub fn main_content(props: &MainContentProps) -> Html {
 }
 
 fn render_modal(
-    modal_state: &UseStateHandle<Option<(String, Vec<PhraseTranslation>)>>,
+    modal_state: &UseStateHandle<Option<TranslationModalState>>,
     on_close: &Callback<()>,
     on_save: &Callback<(String, String, String)>,
 ) -> Html {
     match modal_state.as_ref() {
-        Some((original, phrases)) => html! {
+        Some(TranslationModalState::Loading { original_sentence }) => html! {
             <TranslationModal
-                original_sentence={original.clone()}
-                phrases={phrases.clone()}
+                original_sentence={original_sentence.clone()}
+                phrases={None}
+                on_close={on_close.clone()}
+                on_save_phrase={on_save.clone()}
+            />
+        },
+        Some(TranslationModalState::Loaded { original_sentence, phrases }) => html! {
+            <TranslationModal
+                original_sentence={original_sentence.clone()}
+                phrases={Some(phrases.clone())}
                 on_close={on_close.clone()}
                 on_save_phrase={on_save.clone()}
             />

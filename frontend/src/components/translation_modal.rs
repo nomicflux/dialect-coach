@@ -4,7 +4,7 @@ use yew::prelude::*;
 #[derive(Properties, PartialEq)]
 pub struct TranslationModalProps {
     pub original_sentence: String,
-    pub phrases: Vec<PhraseTranslation>,
+    pub phrases: Option<Vec<PhraseTranslation>>,
     pub on_close: Callback<()>,
     pub on_save_phrase: Callback<(String, String, String)>,
 }
@@ -34,11 +34,33 @@ pub fn translation_modal(props: &TranslationModalProps) -> Html {
                         <strong>{"Original: "}</strong>
                         <span>{&props.original_sentence}</span>
                     </div>
-                    <div class="phrases-list">
-                        {render_phrases(&props.phrases, &props.on_save_phrase, &props.original_sentence)}
-                    </div>
+                    {render_content(&props.phrases, &props.on_save_phrase, &props.original_sentence)}
                 </div>
             </div>
+        </div>
+    }
+}
+
+fn render_content(
+    phrases: &Option<Vec<PhraseTranslation>>,
+    on_save: &Callback<(String, String, String)>,
+    context: &str,
+) -> Html {
+    match phrases {
+        Some(phrases) => html! {
+            <div class="phrases-list">
+                {render_phrases(phrases, on_save, context)}
+            </div>
+        },
+        None => render_loading(),
+    }
+}
+
+fn render_loading() -> Html {
+    html! {
+        <div class="modal-loading">
+            <div class="loading-spinner"></div>
+            <p>{"Translating..."}</p>
         </div>
     }
 }
