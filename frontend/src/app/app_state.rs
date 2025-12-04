@@ -394,6 +394,7 @@ pub enum UserStateAction {
     ChangeTeachingMode(TeachingMode),
     UpdateUserGender(UserGender),
     ToggleTTS,
+    ToggleShowExperimentalDialects,
     ReplaceUserState(UserState),
     UpdateUsageStats(UsageStats),
     ClearUserState,
@@ -646,6 +647,9 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::ToggleTTS => {
             next.tts_enabled = !next.tts_enabled;
+        }
+        UserStateAction::ToggleShowExperimentalDialects => {
+            next.show_experimental_dialects = !next.show_experimental_dialects;
         }
         UserStateAction::ReplaceUserState(new_state) => {
             next = new_state;
@@ -1306,6 +1310,7 @@ mod tests {
         let mut state = UserState::new(Uuid::new_v4());
         state.selected_language = Language::Spanish;
         state.selected_dialect = Dialect::SpanishMexican;
+        state.show_experimental_dialects = true;
 
         let action = UserStateAction::CycleDialect;
         state = apply_user_state_action(&state, action);

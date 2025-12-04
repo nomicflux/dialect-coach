@@ -13,6 +13,13 @@
 - Handle larger translation message sizes
 - Better UX
 - In Style Of
+- Continuing conversation should use current settings
+- SHow experimental dialects (or hide them)
+- Language item deletion conflicts with tooltip
+- Translate button disappears on click, so does not show loading
+- Change source language away from English
+- Undo branch deletion
+- Show that highlighting text will let it be translated
 
 Longer Term
 ---

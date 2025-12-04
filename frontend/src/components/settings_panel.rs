@@ -1,4 +1,4 @@
-use crate::app::app_state::{OptionalUserState, UIState, UIStateAction};
+use crate::app::app_state::{OptionalUserState, UIState, UIStateAction, UserStateAction};
 use crate::app::user_state_callbacks::{
     on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
     on_language_change, on_teaching_mode_change, on_user_gender_change,
@@ -15,6 +15,32 @@ pub struct SettingsPanelProps {
 impl PartialEq for SettingsPanelProps {
     fn eq(&self, _other: &Self) -> bool {
         false
+    }
+}
+
+fn render_experimental_dialects_toggle(
+    show_experimental: bool,
+    user_state: &UseReducerHandle<OptionalUserState>,
+) -> Html {
+    html! {
+        <div class="panel-field">
+            <label class="checkbox-label">
+                <input
+                    type="checkbox"
+                    checked={show_experimental}
+                    onchange={{
+                        let user_state = user_state.clone();
+                        Callback::from(move |_| {
+                            user_state.dispatch(UserStateAction::ToggleShowExperimentalDialects);
+                        })
+                    }}
+                />
+                {" Show experimental dialects"}
+            </label>
+            <div class="field-help field-help--info">
+                {"Experimental dialects may have limited features or incomplete voice support"}
+            </div>
+        </div>
     }
 }
 
@@ -85,6 +111,8 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
                                     {"Regional variety affects accent, vocabulary, and expressions"}
                                 </div>
                             </div>
+
+                            {render_experimental_dialects_toggle(us.show_experimental_dialects, user_state)}
                         </div>
                     </div>
 

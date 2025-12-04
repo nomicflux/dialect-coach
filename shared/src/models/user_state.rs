@@ -32,6 +32,7 @@ pub struct UserState {
     pub learning_goals: Vec<LearningGoal>,
     pub usage_stats: UsageStats,
     pub language_options: LanguageOptions,
+    pub show_experimental_dialects: bool,
 }
 
 impl UserState {
@@ -96,6 +97,7 @@ impl UserState {
             learning_goals: Vec::new(),
             usage_stats: UsageStats::default(),
             language_options: LanguageOptions::default(),
+            show_experimental_dialects: false,
         }
     }
 
@@ -125,6 +127,7 @@ impl UserState {
         Dialect::for_language(self.selected_language, false, false)
             .into_iter()
             .map(dialect_features)
+            .filter(|d| self.show_experimental_dialects || !d.is_experimental)
             .collect()
     }
 

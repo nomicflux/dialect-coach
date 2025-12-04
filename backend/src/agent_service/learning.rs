@@ -191,7 +191,7 @@ fn learning_mode_context(teaching_mode: &TeachingMode) -> &'static str {
         }
         TeachingMode::Explanatory => {
             "# WHAT TO LOG\n\
-            - New vocabulary, idioms, or cultural context introduced in the previous assistant message\n\
+            - New vocabulary, idioms, or cultural context introduced in the previous assistanjt message\n\
             - Only noteworthy items worth remembering\n\n"
         }
         TeachingMode::Interleaved => {
@@ -200,9 +200,11 @@ fn learning_mode_context(teaching_mode: &TeachingMode) -> &'static str {
             - Focus on translations, not errors\n\n"
         }
         TeachingMode::StoryTeller => {
-            "# WHAT TO LOG\n\
-            - New language patterns or features user should practice from the previous assistant message\n\
-            - Points that naturally fit the story context\n\n"
+            r#"# WHAT TO LOG\n\
+            - New language patterns or linguistic features user should practice from the previous assistant message\n\
+            - Linguistic points that naturally fit the story context\n\
+            - All points MUST be SPECIFIC LINGUSTIC FEATURES.
+            "#
         }
         TeachingMode::Immersive | TeachingMode::Debug => "",
     }
@@ -239,7 +241,7 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
         }
         TeachingMode::StoryTeller => {
             r#"{
-  "exploratory": [{"point_to_try": "<language feature>", "instructions_for_use": "<how to use>"}]
+  "exploratory": [{"point_to_try": "<specific linguistic feature>", "instructions_for_use": "<how to use>"}]
 }
 - Keep to 1-2 brief points
 - Return {"exploratory": []} if nothing new introduced"#
