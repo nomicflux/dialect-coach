@@ -41,7 +41,7 @@ fn mistakes_section(mistakes: &[Mistake]) -> Option<String> {
             )
         })
         .collect::<Vec<_>>();
-    render_learning_section("Mistakes to watch - guide the user to correct usage", lines)
+    render_learning_section("Mistakes to watch - guide the user to correct usage, and demonstrate correct usage naturally of 1-2 items if any exist", lines)
 }
 
 fn explained_section(explained: &[Explained]) -> Option<String> {
@@ -50,7 +50,7 @@ fn explained_section(explained: &[Explained]) -> Option<String> {
         .map(|e| format!("- {} — {}", e.new_phrase, e.explanation))
         .collect::<Vec<_>>();
     render_learning_section(
-        "Explained items in progress - use these as a basis for conversation",
+        "Explained items in progress - use 1-2 of these as a basis for conversation if any exist",
         lines,
     )
 }
@@ -61,7 +61,7 @@ fn translated_section(translated: &[Translated]) -> Option<String> {
         .map(|t| format!("- {} -> {}", t.translated_word, t.translated_to))
         .collect::<Vec<_>>();
     render_learning_section(
-        "Translations already covered - use these words in your response and guide the user to use them",
+        "Translations already covered - use 1-3 of these words in your response if any exist, and guide the user to use them",
         lines,
     )
 }
@@ -72,7 +72,7 @@ fn exploratory_section(exploratory: &[Exploratory]) -> Option<String> {
         .map(|e| format!("- {} — {}", e.point_to_try, e.instructions_for_use))
         .collect::<Vec<_>>();
     render_learning_section(
-        "Exploratory prompts assigned - use these in your conversation with the user",
+        "Exploratory prompts assigned - use 1-2 of these in your conversation with the user if any exist",
         lines,
     )
 }

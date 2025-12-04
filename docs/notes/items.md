@@ -20,7 +20,23 @@
 - Change source language away from English
 - Undo branch deletion
 - Show that highlighting text will let it be translated
+- Hide Debug, other admin features
+- Re-check rate limits
+- restrict learning items if too many already (slow down once some present, hard stop at ~10)
+- translated text SHOULD correct for selection without introducing other words
+- flashcards for old learning items (?), or other method for persistant practice
+- check AI cache, especially for translations
+- signup page (including initial gender, explanations, additional user data)
+- games to use learning items (blanks, hangman-esque, etc.)
+- return channels separately
+- translated items include grammatical information
+- tooltips for collapsed learning items show better (they hide on side of screen)
+- better prompts for agent to use learning items
+  - decide prompts based on number of items (don't leave up to agent to calculate)
+- stronger push for learning goals
+  - learning items focused on learning goals
 
 Longer Term
 ---
 - AAVE? Indian English?
+- mobile app

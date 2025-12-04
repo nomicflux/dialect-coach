@@ -78,17 +78,29 @@ pub struct LearningGoal {
 }
 
 impl UserState {
+    pub fn default_dialect_for_language(language: Language, show_experimental: bool) -> Dialect {
+        Dialect::for_language(language, false, false)
+            .into_iter()
+            .map(dialect_features)
+            .filter(|d| show_experimental || !d.is_experimental)
+            .map(|d| d.dialect)
+            .next()
+            .unwrap_or(Dialect::SpanishArgentinian)
+    }
     pub fn new(user_id: Uuid) -> Self {
         let initial_branch = ConversationBranch::new(None, None, None, None);
         let initial_branch_id = initial_branch.id;
+        let show_experimental_dialects = false;
+        let selected_language = Language::Spanish;
+        let selected_dialect = Self::default_dialect_for_language(selected_language, show_experimental_dialects);
 
         Self {
             user_id,
             learning_items: Vec::new(),
             conversation_history: Vec::new(),
             tts_enabled: false,
-            selected_language: Language::Spanish,
-            selected_dialect: Dialect::SpanishCuban,
+            selected_language,
+            selected_dialect,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Immersive,
             user_gender: UserGender::NonBinary,
@@ -97,7 +109,7 @@ impl UserState {
             learning_goals: Vec::new(),
             usage_stats: UsageStats::default(),
             language_options: LanguageOptions::default(),
-            show_experimental_dialects: false,
+            show_experimental_dialects,
         }
     }
 

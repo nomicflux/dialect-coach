@@ -113,12 +113,13 @@ async fn translate_phrase(
 
     let translation_prompt = format!(
         r#"Translate the phrase \"{}\" into {} ({}), in the context of this sentence: \"{}\"\n\nOnly translate the given phrase, the context is only used for disambiguation of meaning.\n\
-Literally translate the given phrase exactly as given; do not translate other portions of the contextual sentence, and do not change the phrase.\n\
+Translate the given phrase \"{}\" exactly; do not translate other portions of the contextual sentence, and do not change the phrase.\n\
 Return JSON array: [{{\"target_text\": \"{}\", \"english\": \"English translation of {}\"}}, ...]"#,
         phrase,
         dialect.name(),
         formality_desc,
         context,
+        phrase,
         phrase,
         phrase,
     );

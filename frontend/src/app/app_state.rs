@@ -546,16 +546,6 @@ fn delete_learning_goal(mut goals: Vec<LearningGoal>, index: usize) -> Vec<Learn
     goals
 }
 
-fn default_dialect_for_language(lang: Language) -> Dialect {
-    match lang {
-        Language::Spanish => Dialect::SpanishCuban,
-        Language::Arabic => Dialect::ArabicEgyptian,
-        Language::French => Dialect::FrenchParisian,
-        Language::English => Dialect::EnglishGeneralAmerican,
-        Language::Japanese => Dialect::JapaneseTokyo,
-    }
-}
-
 fn prepare_state_for_action(state: &UserState) -> UserState {
     let mut prepared = state.clone();
     prepared.rebuild_branches_from_history();
@@ -630,7 +620,7 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         UserStateAction::ChangeLanguage(language) => {
             let old_language = next.selected_language;
             next.selected_language = language;
-            next.selected_dialect = default_dialect_for_language(language);
+            next.selected_dialect = UserState::default_dialect_for_language(language, next.show_experimental_dialects);
 
             if old_language != language {
                 create_new_branch_for_language(&mut next);

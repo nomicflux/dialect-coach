@@ -230,7 +230,9 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
             r#"{
   "explained": [{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}]
 }
-- Keep to 1-2 essential items
+- If there are no explained learning items, return 1-2 brief points of explanation.
+- If there are explained learning items and less than 10 learning items, return 1 brief point.
+- If there are 10 or more learning items, return an empty list.
 - Return {"explained": []} if nothing new worth cataloging"#
         }
         TeachingMode::Interleaved => {
@@ -243,7 +245,9 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
             r#"{
   "exploratory": [{"point_to_try": "<specific linguistic feature>", "instructions_for_use": "<how to use>"}]
 }
-- Keep to 1-2 brief points
+- If there are no explanatory learning items, return 1-2 brief points for the user to try to incorporate.
+- If there are explanatory learning items and less than 10 learning items, return 1 brief point.
+- If there are 10 or more learning items, return an empty list.
 - Return {"exploratory": []} if nothing new introduced"#
         }
         TeachingMode::Immersive | TeachingMode::Debug => {
