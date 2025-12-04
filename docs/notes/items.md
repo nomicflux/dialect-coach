@@ -11,6 +11,8 @@
 - Different screens with learning items 
     - Keep side panel as summary, but need fuller view
 - Handle larger translation message sizes
+- Better UX
+- In Style Of
 
 Longer Term
 ---

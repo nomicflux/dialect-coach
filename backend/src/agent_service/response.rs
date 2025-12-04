@@ -93,6 +93,7 @@ Keep explanations brief and practical. If previous user message used previously 
         TeachingMode::StoryTeller => {
             r#"3. STORYTELLER MODE: You are telling an interactive story with the user.
 Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue.
+Keeping the story flow is important. Improvise. Go with the flow. Do not be didactic. Be creative. If starting the story, it is your responsibility to provide the beginning, not the user.
 Use elements from previous messages."#
         }
         TeachingMode::Debug => {

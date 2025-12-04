@@ -388,6 +388,7 @@ pub struct DialectWithFeatures {
     pub dialect: Dialect,
     pub tts_voices: HashMap<TTSProviderType, Option<TTSVoice>>,
     pub has_corpus: bool,
+    pub is_experimental: bool,
     pub feedback: Feedback,
 }
 
@@ -492,12 +493,20 @@ fn has_corpus(dialect: Dialect) -> bool {
     )
 }
 
+fn get_is_experimental(dialect: Dialect) -> bool {
+    !matches!(
+        dialect,
+        Dialect::SpanishArgentinian | Dialect::ArabicLevantine
+    )
+}
+
 /// Get feature availability for a dialect
 pub fn dialect_features(dialect: Dialect) -> DialectWithFeatures {
     DialectWithFeatures {
         dialect,
         tts_voices: get_tts_voices(dialect),
         has_corpus: has_corpus(dialect),
+        is_experimental: get_is_experimental(dialect),
         feedback: Feedback::default(),
     }
 }
