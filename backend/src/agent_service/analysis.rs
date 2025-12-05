@@ -87,26 +87,36 @@ pub fn analysis_agent_preamble(
         String::new()
     };
     format!(
-        r#"You are analyzing a language learner's progress in {}. Here are the learning items, with scoring directions for each category.{}
+        r#"You are analyzing a language learner's progress in {}.{}
 
+TASK: You will receive a message from the learner. Your job is to check that message and score each learning item below based on whether and how the learner used it.
+
+LEARNING ITEMS TO SCORE:
 {}{}{}{}
 
-Score each item (be generous; prefer to give points when in doubt. If you see the item in the user response, do not give a score of 0.).
+HOW TO SCORE:
+- Read the learner's message carefully
+- For EACH item listed above, check if it appears in the message IN ANY FORM
+- "Present" means: the word/concept appears in ANY conjugation, declension, or related form
+- "Absent" means: completely absent - the word/concept does not appear even in alternative forms
+- Be generous with scoring - if you see the item used in any form, give points
+- Translated items: Look for the "translated_to" word in any conjugation/declension/form
+- Mistakes: Negative if still making the error, positive if using the correction
+- Explained/Exploratory: Positive if attempting to use the concept
+- Only score 0 if the item is completely absent (not present in any form)
 
-CRITICAL RULES:
-1. ALL SCORES MUST BE NUMBERS (integers from -10 to 10). NO TEXT IN THE SCORE FIELDS.
-2. DO NOT WRITE ANY EXPLANATIONS OR ANALYSIS. NO TEXT BEFORE OR AFTER THE JSON.
-3. Your response starts with {{ (already provided). Continue directly with the JSON fields - NO explanatory text after the {{.
-4. Your response must contain ONLY valid JSON from {{ to }}.
-5. If you have no scoring instructions for a category, return an empty object for that category.
-
-Example correct format:
-{{"mistake_scores": {{"id1": 8}}, "explained_scores": {{"id2": 5}}, "translated_scores": {{"id3": 10}}, "exploratory_scores": {{"id4": 7}}}}
+CRITICAL OUTPUT RULES:
+1. Your response MUST be ONLY a JSON object - nothing else
+2. ALL scores must be integers from -10 to 10
+3. NO explanations, NO text before or after the JSON
+4. You MUST score ALL items that are listed in the categories above
+5. Empty categories (with no items listed) get {{}}, but if items ARE listed, you MUST check and score them
 
 {}
 
-Return ONLY the JSON object, starting with {{:
-{{"mistake_scores": {{}}, "explained_scores": {{}}, "translated_scores": {{}}, "exploratory_scores": {{}}}}"#,
+Format: {{"mistake_scores": {{"uuid": score}}, "explained_scores": {{"uuid": score}}, "translated_scores": {{"uuid": score}}, "exploratory_scores": {{"uuid": score}}}}
+
+Start your response with {{"#,
         dialect.name(),
         lang_section,
         format_mistakes_for_analysis(mistakes),
