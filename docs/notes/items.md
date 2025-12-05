@@ -16,7 +16,6 @@
 - Continuing conversation should use current settings
 - SHow experimental dialects (or hide them)
 - Language item deletion conflicts with tooltip
-- Translate button disappears on click, so does not show loading
 - Change source language away from English
 - Undo branch deletion
 - Show that highlighting text will let it be translated
@@ -35,6 +34,10 @@
   - decide prompts based on number of items (don't leave up to agent to calculate)
 - stronger push for learning goals
   - learning items focused on learning goals
+- should be literally impossible for practice settings and bar to not show the same thing
+- clean up CSS
+- admin dashboard revamp
+- admin flag on users / ability to set & remove
 
 Longer Term
 ---

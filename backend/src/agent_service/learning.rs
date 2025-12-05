@@ -49,6 +49,52 @@ impl LearningAgentOutput {
     }
 }
 
+/// Calculate maximum items to request for each learning type
+struct LearningItemLimits {
+    max_mistakes: u8,
+    max_explained: u8,
+    max_exploratory: u8,
+}
+
+fn calculate_learning_limits(params: &LearningAgentParams<'_>) -> LearningItemLimits {
+    let total_items = params.past_mistakes.len()
+        + params.past_explained.len()
+        + params.past_translated.len()
+        + params.past_exploratory.len();
+
+    let calc_limit = |type_count: usize| -> u8 {
+        if type_count == 0 && total_items < 5 {
+            2
+        } else {
+            1
+        }
+    };
+
+    LearningItemLimits {
+        max_mistakes: calc_limit(params.past_mistakes.len()),
+        max_explained: calc_limit(params.past_explained.len()),
+        max_exploratory: calc_limit(params.past_exploratory.len()),
+    }
+}
+
+fn should_skip_learning_call(params: &LearningAgentParams<'_>) -> bool {
+    let total_items = params.past_mistakes.len()
+        + params.past_explained.len()
+        + params.past_translated.len()
+        + params.past_exploratory.len();
+
+    if total_items < 10 {
+        return false;
+    }
+
+    // Skip for modes that generate limited items
+    // Continue for Interleaved (user-controlled)
+    matches!(
+        params.teaching_mode,
+        TeachingMode::Corrective | TeachingMode::Explanatory | TeachingMode::StoryTeller
+    )
+}
+
 #[derive(Debug, Deserialize)]
 struct RawLearningAgentOutput {
     #[serde(default)]
@@ -89,7 +135,19 @@ impl LearningAgent {
             return (Ok(LearningAgentOutput::empty()), Vec::new());
         }
 
-        let system_content = build_learning_system_content(params);
+        if should_skip_learning_call(params) {
+            tracing::info!(
+                "Skipping learning agent call - {} total items (≥10)",
+                params.past_mistakes.len()
+                    + params.past_explained.len()
+                    + params.past_translated.len()
+                    + params.past_exploratory.len()
+            );
+            return (Ok(LearningAgentOutput::empty()), Vec::new());
+        }
+
+        let limits = calculate_learning_limits(params);
+        let system_content = build_learning_system_content(params, &limits);
         tracing::debug!(
             "Learning system content sent to Claude:\n{}",
             system_content
@@ -139,7 +197,10 @@ impl LearningAgent {
     }
 }
 
-fn build_learning_system_content(params: &LearningAgentParams<'_>) -> String {
+fn build_learning_system_content(
+    params: &LearningAgentParams<'_>,
+    limits: &LearningItemLimits,
+) -> String {
     let language_instr = build_language_instruction(params.language_option);
     let lang_section = if !language_instr.is_empty() {
         format!("\n\nLANGUAGE INSTRUCTION: {}\n", language_instr)
@@ -164,7 +225,7 @@ fn build_learning_system_content(params: &LearningAgentParams<'_>) -> String {
         lang_section,
         learning_mode_context(&params.teaching_mode),
         JSON_OUTPUT_INSTRUCTION,
-        learning_output_format_spec(&params.teaching_mode)
+        learning_output_format_spec(&params.teaching_mode, limits)
     )
 }
 
@@ -210,49 +271,45 @@ fn learning_mode_context(teaching_mode: &TeachingMode) -> &'static str {
     }
 }
 
-fn learning_output_format_spec(teaching_mode: &TeachingMode) -> &'static str {
+fn learning_output_format_spec(teaching_mode: &TeachingMode, limits: &LearningItemLimits) -> String {
     match teaching_mode {
         TeachingMode::Corrective => {
-            r#"{
-  "mistakes": [{
+            format!(r#"{{
+  "mistakes": [{{
     "specific_mistake": "<exact erroneous token/phrase>",
     "correction": "<replacement>",
-    "mistake_category": {"type": "<category>", "context": "<≤8 words or empty>"}
-  }]
-}
+    "mistake_category": {{"type": "<category>", "context": "<≤8 words or empty>"}}
+  }}]
+}}
 Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error, other
 - Prefer single-token fixes; multi-token only for phrase-level errors
 - Context: brief clarification or empty string
-- Maximum 3 entries
-- Return {"mistakes": []} if no communication errors"#
+- Maximum {} item(s)
+- Return {{"mistakes": []}} if no communication errors"#, limits.max_mistakes)
         }
         TeachingMode::Explanatory => {
-            r#"{
-  "explained": [{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}]
-}
-- If there are no explained learning items, return 1-2 brief points of explanation.
-- If there are explained learning items and less than 10 learning items, return 1 brief point.
-- If there are 10 or more learning items, return an empty list.
-- Return {"explained": []} if nothing new worth cataloging"#
+            format!(r#"{{
+  "explained": [{{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}}]
+}}
+- Maximum {} item(s)
+- Return {{"explained": []}} if nothing new worth cataloging"#, limits.max_explained)
         }
         TeachingMode::Interleaved => {
             r#"{
   "translated": [{"translated_word": "<source word>", "translated_to": "<dialect translation>"}]
 }
-- Return {"translated": []} when nothing required translating"#
+- Return {"translated": []} when nothing required translating"#.to_string()
         }
         TeachingMode::StoryTeller => {
-            r#"{
-  "exploratory": [{"point_to_try": "<specific linguistic feature>", "instructions_for_use": "<how to use>"}]
-}
-- If there are no explanatory learning items, return 1-2 brief points for the user to try to incorporate.
-- If there are explanatory learning items and less than 10 learning items, return 1 brief point.
-- If there are 10 or more learning items, return an empty list.
-- Return {"exploratory": []} if nothing new introduced"#
+            format!(r#"{{
+  "exploratory": [{{"point_to_try": "<specific linguistic feature>", "instructions_for_use": "<how to use>"}}]
+}}
+- Maximum {} item(s)
+- Return {{"exploratory": []}} if nothing new introduced"#, limits.max_exploratory)
         }
         TeachingMode::Immersive | TeachingMode::Debug => {
             r#"{}
-No learning items for this mode."#
+No learning items for this mode."#.to_string()
         }
     }
 }
@@ -445,7 +502,8 @@ mod tests {
             past_exploratory: &exploratory,
             language_option: &None,
         };
-        let content = build_learning_system_content(&params);
+        let limits = calculate_learning_limits(&params);
+        let content = build_learning_system_content(&params, &limits);
         assert!(content.contains("LEARNING AGENT ROLE"));
         assert!(content.contains(JSON_OUTPUT_INSTRUCTION));
         assert!(content.contains("Log learning items only"));
@@ -520,5 +578,109 @@ mod tests {
         assert!(LearningAgent::skip_mode(&TeachingMode::Immersive));
         assert!(LearningAgent::skip_mode(&TeachingMode::Debug));
         assert!(!LearningAgent::skip_mode(&TeachingMode::Corrective));
+    }
+
+    #[test]
+    fn test_calculate_learning_limits_empty_under_5() {
+        let params = LearningAgentParams {
+            user_message: "test",
+            assistant_response: "test",
+            dialect: Dialect::SpanishMexican,
+            formality: Formality::Informal,
+            teaching_mode: TeachingMode::Explanatory,
+            learning_goals: &[],
+            past_mistakes: &[],
+            past_explained: &[],
+            past_translated: &[],
+            past_exploratory: &[],
+            language_option: &None,
+        };
+        let limits = calculate_learning_limits(&params);
+        assert_eq!(limits.max_explained, 2);
+        assert_eq!(limits.max_mistakes, 2);
+        assert_eq!(limits.max_exploratory, 2);
+    }
+
+    #[test]
+    fn test_calculate_learning_limits_has_type_under_5() {
+        let explained = vec![Explained::new("test".to_string(), "test".to_string())];
+        let params = LearningAgentParams {
+            user_message: "test",
+            assistant_response: "test",
+            dialect: Dialect::SpanishMexican,
+            formality: Formality::Informal,
+            teaching_mode: TeachingMode::Explanatory,
+            learning_goals: &[],
+            past_mistakes: &[],
+            past_explained: &explained,
+            past_translated: &[],
+            past_exploratory: &[],
+            language_option: &None,
+        };
+        let limits = calculate_learning_limits(&params);
+        assert_eq!(limits.max_explained, 1); // Has items
+        assert_eq!(limits.max_mistakes, 2); // No items, total < 5
+    }
+
+    #[test]
+    fn test_should_skip_learning_call_under_10() {
+        let params = LearningAgentParams {
+            user_message: "test",
+            assistant_response: "test",
+            dialect: Dialect::SpanishMexican,
+            formality: Formality::Informal,
+            teaching_mode: TeachingMode::Corrective,
+            learning_goals: &[],
+            past_mistakes: &[],
+            past_explained: &[],
+            past_translated: &[],
+            past_exploratory: &[],
+            language_option: &None,
+        };
+        assert!(!should_skip_learning_call(&params));
+    }
+
+    #[test]
+    fn test_should_skip_learning_call_at_10_corrective() {
+        let mut explained = Vec::new();
+        for i in 0..10 {
+            explained.push(Explained::new(format!("test{}", i), "test".to_string()));
+        }
+        let params = LearningAgentParams {
+            user_message: "test",
+            assistant_response: "test",
+            dialect: Dialect::SpanishMexican,
+            formality: Formality::Informal,
+            teaching_mode: TeachingMode::Corrective,
+            learning_goals: &[],
+            past_mistakes: &[],
+            past_explained: &explained,
+            past_translated: &[],
+            past_exploratory: &[],
+            language_option: &None,
+        };
+        assert!(should_skip_learning_call(&params));
+    }
+
+    #[test]
+    fn test_should_not_skip_learning_call_at_10_interleaved() {
+        let mut explained = Vec::new();
+        for i in 0..10 {
+            explained.push(Explained::new(format!("test{}", i), "test".to_string()));
+        }
+        let params = LearningAgentParams {
+            user_message: "test",
+            assistant_response: "test",
+            dialect: Dialect::SpanishMexican,
+            formality: Formality::Informal,
+            teaching_mode: TeachingMode::Interleaved,
+            learning_goals: &[],
+            past_mistakes: &[],
+            past_explained: &explained,
+            past_translated: &[],
+            past_exploratory: &[],
+            language_option: &None,
+        };
+        assert!(!should_skip_learning_call(&params)); // Interleaved continues
     }
 }
