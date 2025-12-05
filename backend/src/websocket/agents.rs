@@ -437,10 +437,30 @@ pub async fn process_ai_action_request(
 
     let context = build_action_context(&action, &user_state);
     let metadata = user_state::create_metadata_from_user_state(&user_state, session_id);
+    let prompt_message = Message::user_message(context, metadata.clone(), None);
 
-    let user_message = Message::user_message(context, metadata.clone(), None);
-
-    simple_call_and_respond(state, &user_message, tx).await
+    match action {
+        AIActionRequest::StartConversation | AIActionRequest::ContinueBranch { .. } => {
+            match call_agent_for_conversation_action(state, &action, &user_state, user_id).await {
+                Ok(agent_response) => {
+                    tracing::info!("Agent generated conversation action response");
+                    handle_agent_success(state, &prompt_message, agent_response, tx)
+                        .await
+                        .map_err(|e| {
+                            tracing::error!("{}", e);
+                        })
+                }
+                Err(e) => {
+                    tracing::error!("Agent error: {}", e);
+                    let _ = handle_agent_error(&prompt_message, e, tx).await;
+                    Ok(())
+                }
+            }
+        }
+        AIActionRequest::ExplainMessage { .. } | AIActionRequest::TranslateMessage { .. } => {
+            simple_call_and_respond(state, &prompt_message, tx).await
+        }
+    }
 }
 
 async fn run_response_only(
@@ -456,6 +476,80 @@ async fn run_response_only(
         analysis_usage: Vec::new(),
     };
     user_state::update_and_save_usage(state, user_state, &usage_stats, now).await;
+    result
+}
+
+fn clone_messages_up_to_index(messages: &[&Message], end_idx: usize) -> Vec<Message> {
+    messages[..=end_idx].iter().map(|&msg| msg.clone()).collect()
+}
+
+fn get_branch_messages_up_to(user_state: &UserState, parent_message_id: Uuid) -> Vec<Message> {
+    let all_messages = user_state.get_active_branch_messages();
+    let parent_idx = all_messages
+        .iter()
+        .position(|msg| msg.id == parent_message_id);
+
+    match parent_idx {
+        Some(idx) => clone_messages_up_to_index(&all_messages, idx),
+        None => {
+            tracing::warn!(
+                "Parent message {} not found in active branch",
+                parent_message_id
+            );
+            Vec::new()
+        }
+    }
+}
+
+async fn call_agent_for_conversation_action(
+    state: &AppState,
+    action: &AIActionRequest,
+    user_state: &UserState,
+    user_id: Uuid,
+) -> Result<AgentResponse, anyhow::Error> {
+    let teaching_mode = user_state.teaching_mode;
+    user_state::check_rate_limits(state, user_id, teaching_mode, false).await?;
+
+    let instruction = build_action_context(action, user_state);
+    let context_messages = match action {
+        AIActionRequest::StartConversation => Vec::new(),
+        AIActionRequest::ContinueBranch { parent_message_id } => {
+            get_branch_messages_up_to(user_state, *parent_message_id)
+        }
+        _ => unreachable!("Only Start/Continue handled"),
+    };
+
+    let history_vec = build_context_from_messages(&context_messages);
+    let dialect = user_state.current_dialect();
+    let rag_config = RAGConfig::new(20, 5);
+    let language_option = user_state.current_language_option();
+
+    let params = GenerateResponseParams {
+        user_message: &instruction,
+        dialect: dialect_features(dialect),
+        formality: user_state.formality,
+        teaching_mode,
+        conversation_history: &history_vec,
+        learning_goals: &[],
+        rag_config: &rag_config,
+        past_mistakes: &[],
+        past_explained: &[],
+        past_translated: &[],
+        past_exploratory: &[],
+        user_gender: user_state.user_gender,
+        language_option: &language_option,
+    };
+
+    let (result, response_usage) = state.agent.generate_response_for_action(&params).await;
+
+    let usage_stats = AgentUsageStats {
+        response_usage,
+        learning_usage: Vec::new(),
+        analysis_usage: Vec::new(),
+    };
+    let now = chrono::Utc::now().timestamp();
+    user_state::update_and_save_usage(state, user_state.clone(), &usage_stats, now).await;
+
     result
 }
 

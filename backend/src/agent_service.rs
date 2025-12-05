@@ -129,7 +129,25 @@ impl AgentService {
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
         };
-        response::ResponseContext::generate_response(&ctx, params).await
+        response::ResponseContext::generate_response(&ctx, params, false).await
+    }
+
+    pub async fn generate_response_for_action(
+        &self,
+        params: &response::GenerateResponseParams<'_>,
+    ) -> (
+        Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
+        Vec<AgentUsage>,
+    ) {
+        let ctx = ResponseContext {
+            response_agent: self.response_agent.clone(),
+            learning_agent: self.learning_agent.clone(),
+            qdrant: self.qdrant.clone(),
+            embeddings: self.embeddings.clone(),
+        };
+        let (result, response_usage, _learning_usage) =
+            response::ResponseContext::generate_response(&ctx, params, true).await;
+        (result, response_usage)
     }
 
     pub async fn generate_analysis(

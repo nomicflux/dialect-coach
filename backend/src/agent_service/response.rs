@@ -637,6 +637,7 @@ impl ResponseContext {
         params: &GenerateResponseParams<'_>,
         system_content: &str,
         history_with_prefill: Vec<RigMessage>,
+        skip_learning: bool,
     ) -> (
         Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
         Vec<AgentUsage>,
@@ -649,6 +650,7 @@ impl ResponseContext {
                 params,
                 system_content,
                 history_with_prefill,
+                skip_learning,
             )
             .await
         {
@@ -672,6 +674,7 @@ impl ResponseContext {
         params: &GenerateResponseParams<'_>,
         system_content: &str,
         history_with_prefill: Vec<RigMessage>,
+        skip_learning: bool,
     ) -> Result<(
         dialect_coach_shared::AgentResponse,
         Vec<AgentUsage>,
@@ -691,17 +694,21 @@ impl ResponseContext {
                     return Err(anyhow::anyhow!("Response contains illegal characters"));
                 }
                 log_response_success(params.dialect.dialect, &parsed_response);
-                match self.attach_learning_items(params, parsed_response).await {
-                    Ok((final_response, learning_usage)) => {
-                        Ok((final_response, initial_usage, learning_usage))
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            dialect = %params.dialect.dialect.name(),
-                            error = %e,
-                            "Failed to attach learning items to parsed response"
-                        );
-                        Err(e)
+                if skip_learning {
+                    Ok((parsed_response, initial_usage, Vec::new()))
+                } else {
+                    match self.attach_learning_items(params, parsed_response).await {
+                        Ok((final_response, learning_usage)) => {
+                            Ok((final_response, initial_usage, learning_usage))
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                dialect = %params.dialect.dialect.name(),
+                                error = %e,
+                                "Failed to attach learning items to parsed response"
+                            );
+                            Err(e)
+                        }
                     }
                 }
             }
@@ -745,11 +752,15 @@ impl ResponseContext {
                     Ok((parsed_response, retry_usage)) => {
                         let mut all_response_usage = initial_usage;
                         all_response_usage.extend(retry_usage);
-                        match self.attach_learning_items(params, parsed_response).await {
-                            Ok((final_response, learning_usage)) => {
-                                Ok((final_response, all_response_usage, learning_usage))
+                        if skip_learning {
+                            Ok((parsed_response, all_response_usage, Vec::new()))
+                        } else {
+                            match self.attach_learning_items(params, parsed_response).await {
+                                Ok((final_response, learning_usage)) => {
+                                    Ok((final_response, all_response_usage, learning_usage))
+                                }
+                                Err(e) => Err(e),
                             }
-                            Err(e) => Err(e),
                         }
                     }
                     Err(e) => Err(e),
@@ -761,6 +772,7 @@ impl ResponseContext {
     pub async fn generate_response(
         &self,
         params: &GenerateResponseParams<'_>,
+        skip_learning: bool,
     ) -> (
         Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
         Vec<AgentUsage>,
@@ -839,6 +851,7 @@ impl ResponseContext {
                     params,
                     &system_content,
                     history_with_prefill,
+                    skip_learning,
                 )
                 .await
             }

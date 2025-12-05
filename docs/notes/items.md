@@ -21,7 +21,6 @@
 - Show that highlighting text will let it be translated
 - Hide Debug, other admin features
 - Re-check rate limits
-- restrict learning items if too many already (slow down once some present, hard stop at ~10)
 - translated text SHOULD correct for selection without introducing other words
 - flashcards for old learning items (?), or other method for persistant practice
 - check AI cache, especially for translations
