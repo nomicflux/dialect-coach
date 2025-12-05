@@ -1,9 +1,10 @@
 use super::app_state::OptionalUserState;
-use dialect_coach_shared::{Explained, Exploratory, LearningItemType, Mistake, Translated};
+use dialect_coach_shared::{Dialect, Explained, Exploratory, LearningItemType, Mistake, Translated};
 use yew::prelude::*;
 
 pub fn extract_learning_items(
     user_state: &OptionalUserState,
+    dialect: &Dialect,
 ) -> (
     Vec<Mistake>,
     Vec<Explained>,
@@ -16,7 +17,8 @@ pub fn extract_learning_items(
     let mut exploratory = Vec::new();
 
     if let Some(state) = &user_state.state {
-        for item in &state.learning_items {
+        // Filter learning items by dialect to only send relevant items to agents
+        for item in state.get_learning_items_for_dialect(dialect) {
             match &item.item {
                 LearningItemType::Mistake(m) => mistakes.push(m.clone()),
                 LearningItemType::Explanation(e) => explained.push(e.clone()),

@@ -28,9 +28,9 @@ pub fn on_send_message(
         let msg = state.create_user_msg(session_id, &content);
         user_state.dispatch(UserStateAction::AddMessage(msg.clone()));
 
-        // Extract learning items from user state
+        // Extract learning items from user state, filtered by current dialect
         let (past_mistakes, past_explained, past_translated, past_exploratory) =
-            extract_learning_items(&user_state);
+            extract_learning_items(&user_state, &state.selected_dialect);
 
         // Get active branch context
         let active_branch_id = state.active_branch_id;
