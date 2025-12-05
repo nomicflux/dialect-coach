@@ -13,8 +13,6 @@
 - Handle larger translation message sizes
 - Better UX
 - In Style Of
-- Continuing conversation should use current settings
-- SHow experimental dialects (or hide them)
 - Language item deletion conflicts with tooltip
 - Change source language away from English
 - Undo branch deletion

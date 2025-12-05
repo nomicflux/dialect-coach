@@ -45,7 +45,10 @@ pub fn format_translated_for_analysis(translated: &[dialect_coach_shared::Transl
         "PAST TRANSLATIONS TO ANALYZE:\n{}\n{}\n\n",
         translated
             .iter()
-            .map(|t| serde_json::to_string(t).unwrap())
+            .map(|t| format!(
+                r#"{{"id": "{}", "translated_word": "{}", "translated_to": "{}"}}"#,
+                t.id, t.translated_word, t.translated_to
+            ))
             .collect::<Vec<_>>()
             .join(", "),
         r#"TRANSLATED (-10 to 10): -10=reverted to untranslated, 0=not used, 10=correctly used. Give full points for different conjugations, declensions, etc. as the translated item."#
@@ -301,10 +304,14 @@ pub async fn generate_analysis(
         exploratory,
         language_option,
     );
-    tracing::debug!("Analysis preamble sent to Claude:\n{}", preamble);
 
     let prompt = format_analysis_prompt(msg);
-    tracing::debug!("Analysis prompt sent to Claude:\n{}", prompt);
+
+    tracing::info!(
+        "Analysis request:\n=== SYSTEM PREAMBLE ===\n{}\n=== USER MESSAGE ===\n{}",
+        preamble,
+        prompt
+    );
 
     tracing::info!("Calling Claude API for analysis...");
     let (result, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await;
