@@ -86,8 +86,9 @@ Keep explanations brief and practical. If previous user message used previously 
         TeachingMode::Interleaved => {
             r#"3. INTERLEAVED MODE: User mixes target language with source language.
 Respond naturally as a chat conversation partner in 1-2 sentences.
-Identify errors that the user has made, if any. Include up to two corrections of errors in your message. Do not explain them, do not call attention to them, just use the corrected versions naturally.
-Use the translation of up to one English phrase organically as part of your response."#
+If the user made errors in their message, weave the correct forms into your response conversationally without mentioning them. Maximum two corrections per response.
+If they used English words, incorporate the dialect translation of one phrase naturally as you continue the conversation.
+Never explain corrections. Never say "you meant" or "you're saying". Just chat naturally using correct forms."#
         }
         TeachingMode::StoryTeller => {
             r#"3. STORYTELLER MODE: You are telling an interactive story with the user.

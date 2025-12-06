@@ -223,13 +223,13 @@ fn build_learning_system_content(
         params.dialect.name(),
         params.formality.name(),
         lang_section,
-        learning_mode_context(&params.teaching_mode),
+        learning_mode_context(&params.teaching_mode, &params.dialect, &params.formality),
         JSON_OUTPUT_INSTRUCTION,
         learning_output_format_spec(&params.teaching_mode, limits)
     )
 }
 
-fn learning_mode_context(teaching_mode: &TeachingMode) -> &'static str {
+fn learning_mode_context(teaching_mode: &TeachingMode, dialect: &Dialect, formality: &Formality) -> String {
     match teaching_mode {
         TeachingMode::Corrective => {
             "# COMMUNICATION ERROR DETECTION\n\
@@ -248,26 +248,30 @@ fn learning_mode_context(teaching_mode: &TeachingMode) -> &'static str {
             - In general, missing or incorrect punctuation marks are not errors (common to leave out in casual typing)\n\
             - Capitalization differences - casual chat norm\n\
             - Valid dialectal spellings and forms\n\n\
-            Returning {\"mistakes\": []} is normal and expected for most messages.\n\n"
+            Returning {\"mistakes\": []} is normal and expected for most messages.\n\n".to_string()
         }
         TeachingMode::Explanatory => {
             "# WHAT TO LOG\n\
             - New vocabulary, idioms, or cultural context introduced in the previous assistanjt message\n\
-            - Only noteworthy items worth remembering\n\n"
+            - Only noteworthy items worth remembering\n\n".to_string()
         }
         TeachingMode::Interleaved => {
-            "# WHAT TO LOG\n\
-            - Words/phrases user needed translated from source language to target dialect in the previous user message\n\
-            - Focus on translations, not errors\n\n"
+            format!(
+                "# WHAT TO LOG\n\
+                - English words/phrases from the user's message that needed translation\n\
+                - Translations must be in {} at {} formality\n\n",
+                dialect.name(),
+                formality.name()
+            )
         }
         TeachingMode::StoryTeller => {
             r#"# WHAT TO LOG\n\
             - New language patterns or linguistic features user should practice from the previous assistant message\n\
             - Linguistic points that naturally fit the story context\n\
             - All points MUST be SPECIFIC LINGUSTIC FEATURES.
-            "#
+            "#.to_string()
         }
-        TeachingMode::Immersive | TeachingMode::Debug => "",
+        TeachingMode::Immersive | TeachingMode::Debug => String::new(),
     }
 }
 
