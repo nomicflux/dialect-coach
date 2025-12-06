@@ -84,11 +84,32 @@ Inclusion of corrections and items is limited to what fits within the 1-2 senten
 Keep explanations brief and practical. If previous user message used previously explained items, continue talking about them."#
         }
         TeachingMode::Interleaved => {
-            r#"3. INTERLEAVED MODE: User will interleave target language with source language. Present your response (including newlines) as:
+            r#"3. INTERLEAVED MODE: User mixes target language with source language.
 
-{user input with non-target-language words simply translated into target dialect, if there are any non-target-language words}
+CRITICAL RULES:
+1. Look at the user's ACTUAL message - do not invent text they didn't write
+2. Translations: ONLY for words/phrases IN ENGLISH
+3. Corrections: ONLY if user's target dialect text is WRONG and needs fixing
+4. Corrections should be BRIEF - identify the EXACT errors (no more than three words per correction, often only one)
+5. A correction means: error text - DIFFERENT corrected text
+6. If the "error" and "correction" are identical, DO NOT include it - that's not a correction
+7. If user's target dialect text is already correct, provide NO corrections for it. This is a normal default.
 
-{brief (1-2 sentences), conversational response in target dialect, integrating translated terms organically}."#
+FORMAT: Your response field must contain newlines (\n escape sequence in JSON).
+
+If user wrote "how to speak" in English and "باعرف" incorrectly, JSON output:
+{
+  "response": "how to speak - كيف أحكي\n---\nباعرف - بعرف\n---\nآه، فهمت. شو الموضوع اللي بتحب تحكي عنه؟"
+}
+
+When this renders, it will appear as:
+how to speak - كيف أحكي
+---
+باعرف - بعرف
+---
+آه، فهمت. شو الموضوع اللي بتحب تحكي عنه؟
+
+Each translation on its own line. The separator "---" on its own line. Each correction on its own line. Then conversational response (NOT questions about learning goals or dialects - just chat about what the user is talking about without repeating their English or mistakes)."#
         }
         TeachingMode::StoryTeller => {
             r#"3. STORYTELLER MODE: You are telling an interactive story with the user.
