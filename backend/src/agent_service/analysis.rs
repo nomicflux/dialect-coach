@@ -348,6 +348,40 @@ async fn call_analysis_api(
     }
 }
 
+async fn call_and_parse_category<F>(
+    retry_ctx: &RetryContext,
+    preamble: &str,
+    prompt: &str,
+    category: &str,
+    parse_fn: F,
+) -> (Result<HashMap<String, i32>, anyhow::Error>, Vec<AgentUsage>)
+where
+    F: Fn(&str) -> Result<HashMap<String, i32>>,
+{
+    let (result, mut usage) = call_analysis_api(retry_ctx, preamble, prompt).await;
+
+    match result {
+        Ok(response) => match parse_fn(&response) {
+            Ok(scores) => (Ok(scores), usage),
+            Err(_) => {
+                tracing::warn!("{} parse failed, retrying with error feedback", category);
+                let retry_preamble = format!("{}\n\nPREVIOUS ATTEMPT FAILED TO PARSE. Your response must be valid JSON matching the exact format specified above.", preamble);
+                let (retry_result, retry_usage) = call_analysis_api(retry_ctx, &retry_preamble, prompt).await;
+                usage.extend(retry_usage);
+
+                match retry_result {
+                    Ok(retry_response) => match parse_fn(&retry_response) {
+                        Ok(scores) => (Ok(scores), usage),
+                        Err(e) => (Err(e), usage),
+                    },
+                    Err(e) => (Err(e), usage),
+                }
+            }
+        },
+        Err(e) => (Err(e), usage),
+    }
+}
+
 pub struct AnalysisRequestParams<'a> {
     pub dialect: Dialect,
     pub msg: &'a String,
@@ -383,14 +417,13 @@ async fn analyze_mistakes(
     let preamble = mistakes_analysis_preamble(&dialect, mistakes, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    let (result, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await;
-    match result {
-        Ok(response) => match try_parse_category_scores(&response, "Mistakes") {
-            Ok(scores) => (Ok(scores), usage),
-            Err(e) => (Err(e), usage),
-        },
-        Err(e) => (Err(e), usage),
-    }
+    call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Mistakes",
+        |response| try_parse_category_scores(response, "Mistakes"),
+    ).await
 }
 
 async fn analyze_explained(
@@ -407,14 +440,13 @@ async fn analyze_explained(
     let preamble = explained_analysis_preamble(&dialect, explained, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    let (result, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await;
-    match result {
-        Ok(response) => match try_parse_category_scores(&response, "Explained") {
-            Ok(scores) => (Ok(scores), usage),
-            Err(e) => (Err(e), usage),
-        },
-        Err(e) => (Err(e), usage),
-    }
+    call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Explained",
+        |response| try_parse_category_scores(response, "Explained"),
+    ).await
 }
 
 async fn analyze_translated(
@@ -431,14 +463,13 @@ async fn analyze_translated(
     let preamble = translated_analysis_preamble(&dialect, translated, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    let (result, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await;
-    match result {
-        Ok(response) => match try_parse_category_scores(&response, "Translated") {
-            Ok(scores) => (Ok(scores), usage),
-            Err(e) => (Err(e), usage),
-        },
-        Err(e) => (Err(e), usage),
-    }
+    call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Translated",
+        |response| try_parse_category_scores(response, "Translated"),
+    ).await
 }
 
 async fn analyze_exploratory(
@@ -455,14 +486,13 @@ async fn analyze_exploratory(
     let preamble = exploratory_analysis_preamble(&dialect, exploratory, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    let (result, usage) = call_analysis_api(retry_ctx, &preamble, &prompt).await;
-    match result {
-        Ok(response) => match try_parse_category_scores(&response, "Exploratory") {
-            Ok(scores) => (Ok(scores), usage),
-            Err(e) => (Err(e), usage),
-        },
-        Err(e) => (Err(e), usage),
-    }
+    call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Exploratory",
+        |response| try_parse_category_scores(response, "Exploratory"),
+    ).await
 }
 
 fn collect_usage(results: &[(Result<HashMap<String, i32>, anyhow::Error>, Vec<AgentUsage>)]) -> Vec<AgentUsage> {
