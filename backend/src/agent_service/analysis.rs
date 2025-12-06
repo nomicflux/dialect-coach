@@ -518,7 +518,9 @@ async fn analyze_exploratory(
     ).await
 }
 
-fn collect_usage(results: &[(Result<HashMap<String, i32>, anyhow::Error>, Vec<AgentUsage>)]) -> Vec<AgentUsage> {
+type AnalysisResult = (Result<HashMap<String, i32>, anyhow::Error>, Vec<AgentUsage>);
+
+fn collect_usage(results: &[AnalysisResult]) -> Vec<AgentUsage> {
     results.iter().flat_map(|(_, usage)| usage.clone()).collect()
 }
 
@@ -532,7 +534,7 @@ fn convert_scores(scores: &HashMap<String, i32>) -> Result<HashMap<Uuid, Learnin
         .collect()
 }
 
-fn extract_scores(results: Vec<(Result<HashMap<String, i32>, anyhow::Error>, Vec<AgentUsage>)>) -> Result<dialect_coach_shared::AgentAnalysis> {
+fn extract_scores(results: Vec<AnalysisResult>) -> Result<dialect_coach_shared::AgentAnalysis> {
     Ok(dialect_coach_shared::AgentAnalysis {
         mistake_scores: convert_scores(results[0].0.as_ref().map_err(|e| anyhow::anyhow!("{}", e))?)?,
         explained_scores: convert_scores(results[1].0.as_ref().map_err(|e| anyhow::anyhow!("{}", e))?)?,

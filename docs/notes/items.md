@@ -18,9 +18,10 @@
 - Undo branch deletion
 - Show that highlighting text will let it be translated
 - Re-check rate limits
-    - in particular, do ALL agent calls get counted?
+    - in particuljr, do ALL agent calls get counted?
 - translated text SHOULD correct for selection without introducing other words
 - flashcards for old learning items (?), or other method for persistant practice
+    - or review of some sort
 - check AI cache, especially for translations
 - signup page (including initial gender, explanations, additional user data)
 - return channels separately
@@ -35,16 +36,16 @@
 - admin flag on users / ability to set & remove
     - admin dashboard revamp
     - Hide Debug, other admin features
-- make it easier to translate words into target language (provide options)
 - teaching mode & formality per language
 - multiple learning modes at once?
+    - or at least make it easier to translate words into target language (provide options)
 - show that learning items have maxed out / make configurable
 - fix learning item displays ("Correct spelling is.")
 - include AI Use statement
 - "explaining" button does not finish loading
 - "same" learning items (show separately, delete together - should do one or the other)
-- interleaved: use JSON, format better
 - have "language level" as a standard field instead of language goal
+- reorder branches
 
 Longer Term
 ---

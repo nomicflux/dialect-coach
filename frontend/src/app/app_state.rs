@@ -553,7 +553,7 @@ fn prepare_state_for_action(state: &UserState) -> UserState {
 }
 
 fn create_new_branch_for_language(state: &mut UserState) {
-    let new_branch = ConversationBranch::new(None, None, None, None);
+    let new_branch = ConversationBranch::new(None, None, None, None, vec![]);
     let new_branch_id = new_branch.id;
     state.branches.push(new_branch);
     state.active_branch_id = new_branch_id;
@@ -676,7 +676,11 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
                 .iter()
                 .find(|m| m.id == message_id)
                 .map(|m| m.metadata.dialect);
-            let new_branch = ConversationBranch::new(Some(message_id), None, Some(message_id), dialect);
+            let message_ids = next.get_path_to_message(Some(message_id))
+                .into_iter()
+                .map(|m| m.id)
+                .collect();
+            let new_branch = ConversationBranch::new(Some(message_id), None, Some(message_id), dialect, message_ids);
             let new_branch_id = new_branch.id;
             next.branches.push(new_branch);
             next.active_branch_id = new_branch_id;
@@ -838,6 +842,7 @@ mod tests {
             Some("ToDelete".to_string()),
             Some(msg.id),
             Some(Dialect::SpanishMexican),
+            vec![msg.id],
         ));
         let branch = state.branches.last().unwrap();
         let branch_id = branch.id;
@@ -855,7 +860,7 @@ mod tests {
         let mut state = UserState::new(Uuid::new_v4());
         let first_branch_id = state.branches.first().unwrap().id;
 
-        let new_branch = ConversationBranch::new(None, Some("NewBranch".to_string()), None, Some(Dialect::SpanishMexican));
+        let new_branch = ConversationBranch::new(None, Some("NewBranch".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
         let new_branch_id = new_branch.id;
         state.branches.push(new_branch);
         state.active_branch_id = new_branch_id;
@@ -929,7 +934,7 @@ mod tests {
         state.branches[0].leaf_message_id = Some(msg_b.id);
 
         // Create branch C→D from B
-        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("C+D".to_string()), None, Some(Dialect::SpanishMexican));
+        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("C+D".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
         let branch_cd_id = branch_cd.id;
         state.branches.push(branch_cd);
 
@@ -946,7 +951,7 @@ mod tests {
             .leaf_message_id = Some(msg_d.id);
 
         // Create branch X→Y from B (make active)
-        let branch_xy = ConversationBranch::new(Some(msg_b.id), Some("X+Y".to_string()), None, Some(Dialect::SpanishMexican));
+        let branch_xy = ConversationBranch::new(Some(msg_b.id), Some("X+Y".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
         let branch_xy_id = branch_xy.id;
         state.branches.push(branch_xy);
         state.active_branch_id = branch_xy_id;
@@ -996,7 +1001,7 @@ mod tests {
         state.branches[0].leaf_message_id = Some(msg_w.id);
 
         // Create branch C→D from B
-        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("C+D".to_string()), None, Some(Dialect::SpanishMexican));
+        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("C+D".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
         let branch_cd_id = branch_cd.id;
         state.branches.push(branch_cd);
 
@@ -1013,7 +1018,7 @@ mod tests {
             .leaf_message_id = Some(msg_d.id);
 
         // Create branch Y from X
-        let branch_y = ConversationBranch::new(Some(msg_x.id), Some("Y".to_string()), None, Some(Dialect::SpanishMexican));
+        let branch_y = ConversationBranch::new(Some(msg_x.id), Some("Y".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
         let branch_y_id = branch_y.id;
         state.branches.push(branch_y);
 
@@ -1074,7 +1079,7 @@ mod tests {
         state.branches[0].leaf_message_id = Some(msg_c.id);
 
         // Create branch D→E→F from C
-        let branch_def = ConversationBranch::new(Some(msg_c.id), Some("D+E+F".to_string()), None, Some(Dialect::SpanishMexican));
+        let branch_def = ConversationBranch::new(Some(msg_c.id), Some("D+E+F".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
         let branch_def_id = branch_def.id;
         state.branches.push(branch_def);
 
@@ -1121,7 +1126,7 @@ mod tests {
         state.branches[0].leaf_message_id = Some(msg_b.id);
 
         // Create branch C→D from B (inactive)
-        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("Inactive".to_string()), None, Some(Dialect::SpanishMexican));
+        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("Inactive".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
         let branch_cd_id = branch_cd.id;
         state.branches.push(branch_cd);
 
@@ -1138,7 +1143,7 @@ mod tests {
             .leaf_message_id = Some(msg_d.id);
 
         // Create branch X→Y from B (make active)
-        let branch_xy = ConversationBranch::new(Some(msg_b.id), Some("Active".to_string()), None, Some(Dialect::SpanishMexican));
+        let branch_xy = ConversationBranch::new(Some(msg_b.id), Some("Active".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
         let branch_xy_id = branch_xy.id;
         state.branches.push(branch_xy);
         state.active_branch_id = branch_xy_id;

@@ -52,13 +52,6 @@ pub fn build_retry_response_preamble(original_preamble: &str, failed_response: &
     )
 }
 
-pub fn build_retry_analysis_preamble(original_preamble: &str, failed_response: &str) -> String {
-    build_retry_preamble(
-        original_preamble,
-        failed_response,
-        "You MUST return valid JSON with numeric scores only.",
-    )
-}
 
 pub fn build_retry_learning_preamble(original_preamble: &str, failed_response: &str) -> String {
     build_retry_preamble(

@@ -453,7 +453,7 @@ fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<TTSVoice>
             build_voice_map(Some(("4wf10lgibMnboGJGCLrP", F)), Some(("ar-LB-LaylaNeural", F)))
         }
         Dialect::ArabicGulf => {
-            build_voice_map(Some(("DANw8bnAVbjDEHwZIoYa", M)), Some(("ar-SA-ZariyahNeural", F)))
+            build_voice_map(None, Some(("ar-SA-ZariyahNeural", F)))
         }
         Dialect::ArabicMSA => build_voice_map(None, None),
         Dialect::FrenchQuebecois => {
@@ -470,8 +470,12 @@ fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<TTSVoice>
         Dialect::EnglishIrish => build_voice_map(None, None),
         Dialect::EnglishScottish => build_voice_map(None, None),
         Dialect::EnglishSouthAfrican => build_voice_map(None, None),
-        Dialect::JapaneseTokyo => build_voice_map(None, None),
-        Dialect::JapaneseKansai => build_voice_map(None, None),
+        Dialect::JapaneseTokyo => build_voice_map(
+            Some(("Mv8AjrYZCBkdsmDHNwcB", M)), None
+        ),
+        Dialect::JapaneseKansai => build_voice_map(
+            Some(("nHEVPT3LS1V37bXZNr82", M)), None
+        ),
         Dialect::JapaneseTohoku => build_voice_map(None, None),
         Dialect::JapaneseKyushu => build_voice_map(None, None),
         Dialect::JapaneseHokkaido => build_voice_map(None, None),
