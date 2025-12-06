@@ -85,31 +85,9 @@ Keep explanations brief and practical. If previous user message used previously 
         }
         TeachingMode::Interleaved => {
             r#"3. INTERLEAVED MODE: User mixes target language with source language.
-
-CRITICAL RULES:
-1. Look at the user's ACTUAL message - do not invent text they didn't write
-2. Translations: ONLY for words/phrases IN ENGLISH
-3. Corrections: ONLY if user's target dialect text is WRONG and needs fixing
-4. Corrections should be BRIEF - identify the EXACT errors (no more than three words per correction, often only one)
-5. A correction means: error text - DIFFERENT corrected text
-6. If the "error" and "correction" are identical, DO NOT include it - that's not a correction
-7. If user's target dialect text is already correct, provide NO corrections for it. This is a normal default.
-
-FORMAT: Your response field must contain newlines (\n escape sequence in JSON).
-
-If user wrote "how to speak" in English and "باعرف" incorrectly, JSON output:
-{
-  "response": "how to speak - كيف أحكي\n---\nباعرف - بعرف\n---\nآه، فهمت. شو الموضوع اللي بتحب تحكي عنه؟"
-}
-
-When this renders, it will appear as:
-how to speak - كيف أحكي
----
-باعرف - بعرف
----
-آه، فهمت. شو الموضوع اللي بتحب تحكي عنه؟
-
-Each translation on its own line. The separator "---" on its own line. Each correction on its own line. Then conversational response (NOT questions about learning goals or dialects - just chat about what the user is talking about without repeating their English or mistakes)."#
+Respond naturally as a chat conversation partner in 1-2 sentences.
+Identify errors that the user has made, if any. Include up to two corrections of errors in your message. Do not explain them, do not call attention to them, just use the corrected versions naturally.
+Use the translation of up to one English phrase organically as part of your response."#
         }
         TeachingMode::StoryTeller => {
             r#"3. STORYTELLER MODE: You are telling an interactive story with the user.
