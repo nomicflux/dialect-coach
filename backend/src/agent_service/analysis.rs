@@ -14,13 +14,12 @@ pub fn format_mistakes_for_analysis(mistakes: &[Mistake]) -> String {
         return "".to_string();
     }
     format!(
-        "PAST MISTAKES TO ANALYZE:\n{}\n{}\n\n",
+        "PAST MISTAKES TO ANALYZE:\n{}\n\n",
         mistakes
             .iter()
             .map(|m| serde_json::to_string(m).unwrap())
             .collect::<Vec<_>>()
-            .join(", "),
-        r#"SCORING MISTAKES (-10 to 10): -10=still occurring, 0=no usage/different error, 10=fixed. Give partial points for similar cases to the mistake. Make sure you give positive points for the "correction" being used, negative for "specific_mistake" being used."#
+            .join(", ")
     )
 }
 
@@ -29,13 +28,12 @@ pub fn format_explained_for_analysis(explained: &[Explained]) -> String {
         return "".to_string();
     }
     format!(
-        "PAST EXPLAINED FEATURES TO ANALYZE:\n{}\n{}\n\n",
+        "PAST EXPLAINED FEATURES TO ANALYZE:\n{}\n\n",
         explained
             .iter()
             .map(|e| serde_json::to_string(e).unwrap())
             .collect::<Vec<_>>()
             .join(", "),
-        r#"SCORING EXPLAINED (0 to 10): 0=not used, 5=attempted incorrectly, 10=used correctly. Give partial points for similar cases to the explained item."#
     )
 }
 
@@ -103,6 +101,7 @@ HOW TO SCORE:
 - For each mistake, check if they used the "specific_mistake" (error) or "correction" (fixed version)
 - Score -10: Still making the error (used "specific_mistake")
 - Score 0: Neither the error nor correction appears
+- Score 5: Attempting "correction" imperfectly, but without using "specific_mistake"
 - Score 10: Using the correction (used "correction")
 - Morphological variants count: same root word with different affixes
 
@@ -322,6 +321,9 @@ async fn call_analysis_api(
     preamble: &str,
     prompt: &str,
 ) -> (Result<String, anyhow::Error>, Vec<AgentUsage>) {
+    tracing::info!("Analysis API call preamble:\n{}", preamble);
+    tracing::info!("Analysis API call prompt: {}", prompt);
+
     let mut history_with_prefill = Vec::new();
     if retry_ctx.agent.provider() == super::provider::ANTHROPIC_PROVIDER {
         history_with_prefill.push(super::util::create_prefilled_assistant_message());
@@ -336,7 +338,10 @@ async fn call_analysis_api(
     };
     let (result, usage) = retry_completion_call(retry_ctx.agent.as_ref(), &request, 3).await;
     match result {
-        Ok(response) => (Ok(response), usage),
+        Ok(response) => {
+            tracing::info!("Analysis API response: {}", response);
+            (Ok(response), usage)
+        },
         Err(e) => (
             Err(e.context(format!(
                 "Failed to get analysis from provider {} model {}",
@@ -358,11 +363,16 @@ async fn call_and_parse_category<F>(
 where
     F: Fn(&str) -> Result<HashMap<String, i32>>,
 {
+    tracing::info!("=== {} ANALYSIS START ===", category.to_uppercase());
     let (result, mut usage) = call_analysis_api(retry_ctx, preamble, prompt).await;
 
     match result {
         Ok(response) => match parse_fn(&response) {
-            Ok(scores) => (Ok(scores), usage),
+            Ok(scores) => {
+                tracing::info!("{} parsed scores: {:?}", category, scores);
+                tracing::info!("=== {} ANALYSIS END ===", category.to_uppercase());
+                (Ok(scores), usage)
+            },
             Err(_) => {
                 tracing::warn!("{} parse failed, retrying with error feedback", category);
                 let retry_preamble = format!("{}\n\nPREVIOUS ATTEMPT FAILED TO PARSE. Your response must be valid JSON matching the exact format specified above.", preamble);
@@ -371,14 +381,27 @@ where
 
                 match retry_result {
                     Ok(retry_response) => match parse_fn(&retry_response) {
-                        Ok(scores) => (Ok(scores), usage),
-                        Err(e) => (Err(e), usage),
+                        Ok(scores) => {
+                            tracing::info!("{} parsed scores (retry): {:?}", category, scores);
+                            tracing::info!("=== {} ANALYSIS END ===", category.to_uppercase());
+                            (Ok(scores), usage)
+                        },
+                        Err(e) => {
+                            tracing::error!("=== {} ANALYSIS FAILED ===", category.to_uppercase());
+                            (Err(e), usage)
+                        },
                     },
-                    Err(e) => (Err(e), usage),
+                    Err(e) => {
+                        tracing::error!("=== {} ANALYSIS FAILED ===", category.to_uppercase());
+                        (Err(e), usage)
+                    },
                 }
             }
         },
-        Err(e) => (Err(e), usage),
+        Err(e) => {
+            tracing::error!("=== {} ANALYSIS FAILED ===", category.to_uppercase());
+            (Err(e), usage)
+        },
     }
 }
 
