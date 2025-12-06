@@ -725,10 +725,10 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             next.teaching_mode = cycle_teaching_mode(next.teaching_mode);
         }
         UserStateAction::SetArabicScript(script) => {
-            next.language_options.arabic_script = Some(script);
+            next.language_options.arabic_script = script;
         }
         UserStateAction::SetJapaneseScript(script) => {
-            next.language_options.japanese_script = Some(script);
+            next.language_options.japanese_script = script;
         }
         UserStateAction::ClearUserState => {
             // This should never be called - ClearUserState is handled at OptionalUserState level

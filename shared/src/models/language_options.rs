@@ -57,16 +57,16 @@ pub enum LanguageOption {
 /// Options container for all language-specific settings
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LanguageOptions {
-    pub arabic_script: Option<ArabicScript>,
-    pub japanese_script: Option<JapaneseScript>,
+    pub arabic_script: ArabicScript,
+    pub japanese_script: JapaneseScript,
 }
 
 impl LanguageOptions {
     /// Get the language option for a specific language
     pub fn for_language(&self, language: Language) -> Option<LanguageOption> {
         match language {
-            Language::Arabic => self.arabic_script.map(LanguageOption::Arabic),
-            Language::Japanese => self.japanese_script.map(LanguageOption::Japanese),
+            Language::Arabic => Some(LanguageOption::Arabic(self.arabic_script)),
+            Language::Japanese => Some(LanguageOption::Japanese(self.japanese_script)),
             _ => None,
         }
     }
@@ -107,15 +107,15 @@ mod tests {
     #[test]
     fn test_language_options_default() {
         let opts = LanguageOptions::default();
-        assert_eq!(opts.arabic_script, None);
-        assert_eq!(opts.japanese_script, None);
+        assert_eq!(opts.arabic_script, ArabicScript::default());
+        assert_eq!(opts.japanese_script, JapaneseScript::default());
     }
 
     #[test]
     fn test_for_language_arabic() {
         let opts = LanguageOptions {
-            arabic_script: Some(ArabicScript::Latin),
-            japanese_script: None,
+            arabic_script: ArabicScript::Latin,
+            japanese_script: JapaneseScript::default(),
         };
         assert_eq!(
             opts.for_language(Language::Arabic),
@@ -126,8 +126,8 @@ mod tests {
     #[test]
     fn test_for_language_japanese() {
         let opts = LanguageOptions {
-            arabic_script: None,
-            japanese_script: Some(JapaneseScript::Romaji),
+            arabic_script: ArabicScript::default(),
+            japanese_script: JapaneseScript::Romaji,
         };
         assert_eq!(
             opts.for_language(Language::Japanese),
@@ -136,10 +136,16 @@ mod tests {
     }
 
     #[test]
-    fn test_for_language_none() {
+    fn test_for_language_defaults() {
         let opts = LanguageOptions::default();
-        assert_eq!(opts.for_language(Language::Arabic), None);
-        assert_eq!(opts.for_language(Language::Japanese), None);
+        assert_eq!(
+            opts.for_language(Language::Arabic),
+            Some(LanguageOption::Arabic(ArabicScript::default()))
+        );
+        assert_eq!(
+            opts.for_language(Language::Japanese),
+            Some(LanguageOption::Japanese(JapaneseScript::default()))
+        );
         assert_eq!(opts.for_language(Language::Spanish), None);
         assert_eq!(opts.for_language(Language::French), None);
         assert_eq!(opts.for_language(Language::English), None);
@@ -148,8 +154,8 @@ mod tests {
     #[test]
     fn test_for_language_unsupported_languages() {
         let opts = LanguageOptions {
-            arabic_script: Some(ArabicScript::Naskh),
-            japanese_script: Some(JapaneseScript::Kanji),
+            arabic_script: ArabicScript::Naskh,
+            japanese_script: JapaneseScript::Kanji,
         };
         assert_eq!(opts.for_language(Language::Spanish), None);
         assert_eq!(opts.for_language(Language::French), None);

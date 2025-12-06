@@ -164,11 +164,11 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
                                             <select
                                                 id="arabic-script-select"
                                                 onchange={on_arabic_script_change(user_state.clone())}
-                                                value={us.language_options.arabic_script.unwrap_or_default().to_string()}
+                                                value={us.language_options.arabic_script.to_string()}
                                             >
-                                                <option value="naskh" selected={matches!(us.language_options.arabic_script, Some(ArabicScript::Naskh)) || us.language_options.arabic_script.is_none()}>{"Naskh"}</option>
-                                                <option value="ruqa" selected={matches!(us.language_options.arabic_script, Some(ArabicScript::Ruqa))}>{"Ruq'a"}</option>
-                                                <option value="latin" selected={matches!(us.language_options.arabic_script, Some(ArabicScript::Latin))}>{"Latin (Romanized)"}</option>
+                                                <option value="naskh" selected={us.language_options.arabic_script == ArabicScript::Naskh}>{"Naskh"}</option>
+                                                <option value="ruqa" selected={us.language_options.arabic_script == ArabicScript::Ruqa}>{"Ruq'a"}</option>
+                                                <option value="latin" selected={us.language_options.arabic_script == ArabicScript::Latin}>{"Latin (Romanized)"}</option>
                                             </select>
                                         </div>
                                     </div>
@@ -185,12 +185,12 @@ pub fn settings_panel(props: &SettingsPanelProps) -> Html {
                                             <select
                                                 id="japanese-script-select"
                                                 onchange={on_japanese_script_change(user_state.clone())}
-                                                value={us.language_options.japanese_script.unwrap_or_default().to_string()}
+                                                value={us.language_options.japanese_script.to_string()}
                                             >
-                                                <option value="romaji" selected={matches!(us.language_options.japanese_script, Some(JapaneseScript::Romaji))}>{"Romaji"}</option>
-                                                <option value="only_kana" selected={matches!(us.language_options.japanese_script, Some(JapaneseScript::OnlyKana))}>{"Kana Only"}</option>
-                                                <option value="kanji_with_ruby" selected={matches!(us.language_options.japanese_script, Some(JapaneseScript::KanjiWithRuby)) || us.language_options.japanese_script.is_none()}>{"Kanji with Furigana"}</option>
-                                                <option value="kanji" selected={matches!(us.language_options.japanese_script, Some(JapaneseScript::Kanji))}>{"Kanji"}</option>
+                                                <option value="romaji" selected={us.language_options.japanese_script == JapaneseScript::Romaji}>{"Romaji"}</option>
+                                                <option value="only_kana" selected={us.language_options.japanese_script == JapaneseScript::OnlyKana}>{"Kana Only"}</option>
+                                                <option value="kanji_with_ruby" selected={us.language_options.japanese_script == JapaneseScript::KanjiWithRuby}>{"Kanji with Furigana"}</option>
+                                                <option value="kanji" selected={us.language_options.japanese_script == JapaneseScript::Kanji}>{"Kanji"}</option>
                                             </select>
                                         </div>
                                     </div>

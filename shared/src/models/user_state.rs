@@ -618,7 +618,7 @@ mod tests {
 
         let mut state = create_test_user_state();
         state.selected_language = Language::Arabic;
-        state.language_options.arabic_script = Some(ArabicScript::Ruqa);
+        state.language_options.arabic_script = ArabicScript::Ruqa;
 
         let option = state.current_language_option();
         assert_eq!(option, Some(LanguageOption::Arabic(ArabicScript::Ruqa)));
@@ -630,7 +630,7 @@ mod tests {
 
         let mut state = create_test_user_state();
         state.selected_language = Language::Japanese;
-        state.language_options.japanese_script = Some(JapaneseScript::Romaji);
+        state.language_options.japanese_script = JapaneseScript::Romaji;
 
         let option = state.current_language_option();
         assert_eq!(option, Some(LanguageOption::Japanese(JapaneseScript::Romaji)));
