@@ -18,7 +18,7 @@ pub fn learning_goals_section(goals: &[dialect_coach_shared::LearningGoal]) -> S
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        "\n\n# LEARNING GOALS\n## Your responses MUST align with these goals. Guide the conversation toward topics and situations that naturally create opportunities to practice these goals. Do NOT explicitly tell the user to practice them - instead, speak naturally in a way that embodies the goals and invites natural usage.\n{}\n",
+        "\n\n# LEARNING GOALS\n## Your responses MUST embody these goals in how you speak. Have a genuine, natural conversation as a friend would - do NOT engineer situations, ask artificial questions, or try to elicit specific language from the user. Simply speak naturally in a way that aligns with these goals.\n{}\n",
         goals_list
     )
 }

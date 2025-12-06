@@ -76,8 +76,8 @@ fn response_teaching_desc(teaching_mode: &TeachingMode) -> String {
         TeachingMode::Corrective => {
             r#"3. CORRECTIVE MODE: Respond naturally, warmly but concisely (hard limit of 1-2 short sentences).
 If and only if the user made mistakes in their previous message, include some corrected versions as a gentle guide.
-Otherwise, proceed to get the user to continue using some learning items and learning goals.
-Inclusion of corrections, items, and goals is limited to what fits within the 1-2 sentence limit."#
+Otherwise, continue the conversation naturally while naturally incorporating learning items.
+Inclusion of corrections and items is limited to what fits within the 1-2 sentence limit."#
         }
         TeachingMode::Explanatory => {
             r#"3. EXPLANATORY MODE: Respond naturally and curiously (2-3 sentences). Introduce new vocabulary, idioms, or culturally interesting expressions.
