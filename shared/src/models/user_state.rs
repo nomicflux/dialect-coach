@@ -178,13 +178,16 @@ impl UserState {
             self.select_active_branch(&self.branches)
         };
 
-        let leaf_id = self
-            .branches
-            .iter()
-            .find(|branch| branch.id == branch_id)
-            .and_then(|branch| branch.leaf_message_id);
+        let branch = match self.branches.iter().find(|b| b.id == branch_id) {
+            Some(b) => b,
+            None => return Vec::new(),
+        };
 
-        self.get_path_to_message(leaf_id)
+        branch
+            .message_ids
+            .iter()
+            .filter_map(|msg_id| self.conversation_history.iter().find(|m| m.id == *msg_id))
+            .collect()
     }
 
     pub fn get_path_to_message(&self, leaf_id: Option<Uuid>) -> Vec<&Message> {

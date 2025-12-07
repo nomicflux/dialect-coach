@@ -1,6 +1,6 @@
 # Branch Explicit Message Tracking - Status
 
-## Current Status: Phase 4 complete - Bug Fix Implemented!
+## Current Status: Phase 5 complete - Using explicit message tracking!
 
 ## Phases
 
@@ -8,7 +8,7 @@
 - [x] Phase 2: Update branch creation to initialize message_ids
 - [x] Phase 3: Update AddMessage to append to branch message_ids
 - [x] Phase 4: Update DeleteMessage to remove from branch message_ids
-- [ ] Phase 5: Update get_active_branch_messages to use message_ids
+- [x] Phase 5: Update get_active_branch_messages to use message_ids
 - [ ] Phase 6: Migration for existing saved data
 - [ ] Phase 7: End-to-end testing and validation
 
@@ -49,3 +49,10 @@
 - Test scenario: Branch1: A→B, Branch2: A→C; delete C, delete B → both branches keep A
 - All tests pass (394 tests), clippy clean (0 warnings)
 - **Critical bug is now fixed: deleting a message only affects branches that contain it**
+
+### 2025-12-06 - Phase 5 Complete - Using Explicit Message Tracking!
+- Replaced get_active_branch_messages() parent-link walking with direct message_ids lookup at shared/src/models/user_state.rs:166-191
+- Now uses branch.message_ids.iter().filter_map() to look up messages in conversation_history
+- Kept get_path_to_message() for branch initialization (CreateBranch) and migration (build_branches_from_leaves)
+- All existing tests pass with new implementation (394 tests), clippy clean (0 warnings)
+- **Architecture now fully uses explicit message tracking - no more parent-link walking for display**
