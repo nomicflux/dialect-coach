@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,12 +23,15 @@
     <link data-trunk rel="css" href="styles/components/learning_goals.css">
     <link data-trunk rel="css" href="styles/components/usage_footer.css">
     <link data-trunk rel="css" href="styles/components/translation_modal.css">
+    <link data-trunk rel="css" href="styles/components/vocab_hud.css">
+    <link data-trunk rel="css" href="styles/components/branch_switcher_pill.css">
     <link data-trunk rel="css" href="styles/utilities.css">
 </head>
+
 <body>
     <!-- Skip link for accessibility -->
     <a href="#main-chat" class="skip-link visually-hidden">Skip to chat</a>
-    
+
     <div id="app">
         <div class="loading active">
             <div class="loading-spinner">🌟</div>
@@ -38,4 +42,5 @@
     <!-- Trunk will automatically inject the WASM bundle here -->
     <link data-trunk rel="rust" data-bin="dialect-coach-frontend" data-wasm-opt="z" />
 </body>
+
 </html>

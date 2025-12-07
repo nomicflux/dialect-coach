@@ -1,84 +1,132 @@
 :root {
   /* Brand colors - bright, cheerful, friendly */
-  --coral: #FF6B6B;          /* primary - warm and inviting */
-  --teal: #4ECDC4;           /* secondary - calming and supportive */
-  --yellow: #FFE66D;         /* accent - energetic and fun */
-  --green: #51CF66;          /* success - fresh and encouraging */
-  --bg: #FFFFFF;             /* clean background */
-  --ink: #111827;            /* primary text - high contrast and readable */
-  --ink-soft: #374151;       /* secondary text - darker for better readability */
+  --coral: #FF6B6B;
+  /* primary - warm and inviting */
+  --teal: #4ECDC4;
+  /* secondary - calming and supportive */
+  --yellow: #FFE66D;
+  /* accent - energetic and fun */
+  --green: #51CF66;
+  /* success - fresh and encouraging */
+  --bg: #FFFFFF;
+  /* clean background */
+  --ink: #111827;
+  /* primary text - high contrast and readable */
+  --ink-soft: #374151;
+  /* secondary text - darker for better readability */
 
   /* Tinted surfaces for gentle bubble backgrounds */
-  --teal-tint: rgba(78, 205, 196, 0.12);    /* user messages, explained items */
-  --coral-tint: rgba(255, 107, 107, 0.12);  /* bot messages, mistake items */
-  --yellow-tint: rgba(255, 230, 109, 0.15); /* highlights/accents, translated items */
-  --green-tint: rgba(81, 207, 102, 0.12);   /* exploratory items */
-  
+  --teal-tint: rgba(78, 205, 196, 0.12);
+  /* user messages, explained items */
+  --coral-tint: rgba(255, 107, 107, 0.12);
+  /* bot messages, mistake items */
+  --yellow-tint: rgba(255, 230, 109, 0.15);
+  /* highlights/accents, translated items */
+  --green-tint: rgba(81, 207, 102, 0.12);
+  /* exploratory items */
+
   /* Surface colors */
   --surface: #FFFFFF;
-  --surface-muted: #FAFCFC;   /* slightly tinted for input fields */
-  --surface-raised: #FFFFFF;  /* for cards with shadows */
-  
+  --surface-muted: #FAFCFC;
+  /* slightly tinted for input fields */
+  --surface-raised: #FFFFFF;
+  /* for cards with shadows */
+
   /* Connection status colors */
-  --status-connected: #48BB78;    /* green */
+  --status-connected: #48BB78;
+  /* green */
   --status-connecting: var(--yellow);
-  --status-disconnected: #A0AEC0; /* gray */
-  --status-error: #F56565;        /* red */
-  
+  --status-disconnected: #A0AEC0;
+  /* gray */
+  --status-error: #F56565;
+  /* red */
+
   /* Spacing scale - mobile-first, generous */
-  --s-1: 4px;    /* 0.25rem */
-  --s-2: 8px;    /* 0.5rem */
-  --s-3: 12px;   /* 0.75rem */
-  --s-4: 16px;   /* 1rem */
-  --s-5: 20px;   /* 1.25rem */
-  --s-6: 24px;   /* 1.5rem */
-  --s-7: 32px;   /* 2rem */
-  --s-8: 40px;   /* 2.5rem */
-  --s-9: 48px;   /* 3rem */
-  --s-10: 64px;  /* 4rem */
-  
+  --s-1: 4px;
+  /* 0.25rem */
+  --s-2: 8px;
+  /* 0.5rem */
+  --s-3: 12px;
+  /* 0.75rem */
+  --s-4: 16px;
+  /* 1rem */
+  --s-5: 20px;
+  /* 1.25rem */
+  --s-6: 24px;
+  /* 1.5rem */
+  --s-7: 32px;
+  /* 2rem */
+  --s-8: 40px;
+  /* 2.5rem */
+  --s-9: 48px;
+  /* 3rem */
+  --s-10: 64px;
+  /* 4rem */
+
   /* Border radii - organic, friendly feel */
-  --r-s: 10px;    /* small elements */
-  --r-m: 16px;    /* medium elements, inputs */
-  --r-l: 22px;    /* large cards, panels */
-  --r-xl: 28px;   /* extra large surfaces */
-  --r-pill: 999px; /* buttons, badges */
-  
+  --r-s: 10px;
+  /* small elements */
+  --r-m: 16px;
+  /* medium elements, inputs */
+  --r-l: 22px;
+  /* large cards, panels */
+  --r-xl: 28px;
+  /* extra large surfaces */
+  --r-pill: 999px;
+  /* buttons, badges */
+
   /* Box shadows - soft and welcoming */
-  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.06);     /* subtle elevation */
-  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.08);    /* floating panels */
-  --shadow-button: 0 2px 8px rgba(0, 0, 0, 0.08);    /* interactive elements */
-  --shadow-inner: inset 0 1px 3px rgba(0, 0, 0, 0.1); /* recessed elements */
-  
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.06);
+  /* subtle elevation */
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.08);
+  /* floating panels */
+  --shadow-button: 0 2px 8px rgba(0, 0, 0, 0.08);
+  /* interactive elements */
+  --shadow-inner: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  /* recessed elements */
+
   /* Typography scale */
-  --text-xs: 0.75rem;   /* 12px - timestamps, labels */
-  --text-sm: 0.875rem;  /* 14px - secondary text */
-  --text-base: 1rem;    /* 16px - body text */
-  --text-lg: 1.125rem;  /* 18px - message text */
-  --text-xl: 1.25rem;   /* 20px - headings */
-  --text-2xl: 1.5rem;   /* 24px - page titles */
-  
+  --text-xs: 0.75rem;
+  /* 12px - timestamps, labels */
+  --text-sm: 0.875rem;
+  /* 14px - secondary text */
+  --text-base: 1rem;
+  /* 16px - body text */
+  --text-lg: 1.125rem;
+  /* 18px - message text */
+  --text-xl: 1.25rem;
+  /* 20px - headings */
+  --text-2xl: 1.5rem;
+  /* 24px - page titles */
+
   /* Motion and timing */
-  --ease-out: cubic-bezier(0.2, 0, 0, 1);     /* snappy exits */
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);      /* gentle entrances */
-  --ease-emph: cubic-bezier(0.2, 0, 0, 1);    /* emphasis motions */
-  --dur-fast: 150ms;     /* quick interactions */
-  --dur-med: 240ms;      /* standard transitions */
-  --dur-slow: 360ms;     /* panel animations */
-  
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  /* snappy exits */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  /* gentle entrances */
+  --ease-emph: cubic-bezier(0.2, 0, 0, 1);
+  /* emphasis motions */
+  --dur-fast: 150ms;
+  /* quick interactions */
+  --dur-med: 240ms;
+  /* standard transitions */
+  --dur-slow: 360ms;
+  /* panel animations */
+
   /* Focus and interaction states */
   --focus-ring: 3px solid var(--teal);
   --focus-offset: 2px;
-  
+
   /* Chat-specific tokens */
-  --bubble-max-width: 75%;
+  --bubble-max-width: 85%;
   --avatar-size: 36px;
   --message-spacing: var(--s-4);
-  
+
   /* Layout constraints */
   --container-max: 1040px;
   --panel-width: 380px;
-  --input-min-height: 44px;  /* touch-friendly */
+  --input-min-height: 44px;
+  /* touch-friendly */
 }
 
 /* Dark mode support (future enhancement) */
@@ -89,7 +137,7 @@
     --surface-muted: #353535;
     --ink: #E2E8F0;
     --ink-soft: #A0AEC0;
-    
+
     /* Adjust shadows for dark mode */
     --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.3);
     --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -99,7 +147,8 @@
 /* Responsive token adjustments */
 @media (min-width: 768px) {
   :root {
-    --s-7: 40px;   /* increase spacing on larger screens */
+    --s-7: 40px;
+    /* increase spacing on larger screens */
     --s-8: 48px;
     --s-9: 56px;
     --s-10: 72px;
@@ -108,8 +157,10 @@
 
 @media (min-width: 1024px) {
   :root {
-    --container-max: 1120px;  /* wider on desktop */
-    --text-base: 1.0625rem;   /* slightly larger text */
+    --container-max: 1120px;
+    /* wider on desktop */
+    --text-base: 1.0625rem;
+    /* slightly larger text */
     --text-lg: 1.1875rem;
   }
 }

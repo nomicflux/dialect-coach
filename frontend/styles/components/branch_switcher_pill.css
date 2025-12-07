@@ -1,0 +1,76 @@
+/* Branch Switcher Pill */
+
+.branch-switcher-pill {
+    position: absolute;
+    top: var(--s-3);
+    left: var(--s-4);
+    z-index: 50;
+    /* Above chat content */
+
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-3);
+
+    /* Glassmorphism */
+    background: rgba(255, 255, 255, 0.85);
+    /* fallback */
+    background: var(--surface-glass);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: var(--r-pill);
+    box-shadow: var(--shadow-button);
+
+    color: var(--ink);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+
+    transition: all var(--dur-fast) var(--ease-out);
+}
+
+.branch-switcher-pill:hover {
+    background: var(--surface);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-float);
+    border-color: rgba(78, 205, 196, 0.3);
+}
+
+.branch-switcher-pill:active {
+    transform: translateY(0);
+}
+
+.branch-icon {
+    font-size: 1.2em;
+    opacity: 0.8;
+}
+
+.branch-name {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chevron {
+    opacity: 0.5;
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+.branch-switcher-pill:hover .chevron {
+    opacity: 1;
+    transform: translateX(2px);
+    color: var(--teal);
+}
+
+/* Dark mode adjustment */
+@media (prefers-color-scheme: dark) {
+    .branch-switcher-pill {
+        background: rgba(45, 45, 45, 0.85);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: var(--ink);
+    }
+}

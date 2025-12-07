@@ -16,16 +16,7 @@
     overflow: visible;
 }
 
-/* Adjust main content to make room for learning panel on desktop */
-@media (min-width: 769px) {
-    .app-main {
-        padding-right: 300px; /* learning panel width (300px panel + 0px margin) */
-    }
 
-    .app-main[data-learning-panel-collapsed="true"] {
-        padding-right: 50px; /* collapsed learning panel width (50px panel + 0px margin) */
-    }
-}
 
 .learning-panel--collapsed {
     width: 50px;

@@ -1,0 +1,192 @@
+use crate::app::app_state::{OptionalUserState, UIState, UserStateAction};
+use crate::app::user_state_callbacks::{
+    on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
+    on_language_change, on_teaching_mode_change, on_user_gender_change,
+};
+use dialect_coach_shared::models::{ArabicScript, JapaneseScript, Language, UserGender};
+use yew::prelude::*;
+
+#[derive(Properties)]
+pub struct SettingsProps {
+    pub user_state: UseReducerHandle<OptionalUserState>,
+    pub ui_state: UseReducerHandle<UIState>,
+}
+
+impl PartialEq for SettingsProps {
+    fn eq(&self, _other: &Self) -> bool {
+        // Simple comparison for now since handles are comparable
+        self.user_state == _other.user_state && self.ui_state == _other.ui_state
+    }
+}
+
+fn render_experimental_dialects_toggle(
+    show_experimental: bool,
+    user_state: &UseReducerHandle<OptionalUserState>,
+) -> Html {
+    html! {
+        <div class="panel-field">
+            <label class="checkbox-label">
+                <input
+                    type="checkbox"
+                    checked={show_experimental}
+                    onchange={{
+                        let user_state = user_state.clone();
+                        Callback::from(move |_| {
+                            user_state.dispatch(UserStateAction::ToggleShowExperimentalDialects);
+                        })
+                    }}
+                />
+                {" Show experimental dialects"}
+            </label>
+            <div class="field-help field-help--info">
+                {"Experimental dialects may have limited features or incomplete voice support"}
+            </div>
+        </div>
+    }
+}
+
+#[function_component(Settings)]
+pub fn settings(props: &SettingsProps) -> Html {
+    let SettingsProps {
+        user_state,
+        ui_state: _, // Unused in this view as we don't control panel visibility here
+    } = props;
+
+    let us = match user_state.state.as_ref() {
+        Some(s) => s,
+        None => return html! {},
+    };
+
+    html! {
+        <div class="settings-content" style="padding: var(--s-5);">
+            <div class="panel-section">
+                <h4 class="panel-section-title">{"Language & Dialect"}</h4>
+                <div class="panel-section-description">{"Choose your target language and regional variety"}</div>
+
+                <div class="field-group">
+                    <div class="panel-field">
+                        <label for="language-select">{"Language"}</label>
+                        <select id="language-select" onchange={on_language_change(user_state.clone())}>
+                            <option value="spanish" selected={us.selected_language == Language::Spanish}>{"Spanish"}</option>
+                            <option value="arabic" selected={us.selected_language == Language::Arabic}>{"Arabic"}</option>
+                            <option value="french" selected={us.selected_language == Language::French}>{"French"}</option>
+                            <option value="english" selected={us.selected_language == Language::English}>{"English"}</option>
+                            <option value="japanese" selected={us.selected_language == Language::Japanese}>{"Japanese"}</option>
+                        </select>
+                    </div>
+
+                    <div class="panel-field">
+                        <label for="dialect-select">{"Dialect"}</label>
+                        <select id="dialect-select" onchange={on_dialect_change(user_state.clone())}>
+                            {{
+                                let dialects = us.current_dialects();
+                                let current = us.current_dialect();
+                                dialects.iter().map(|dialect_features| {
+                                    let is_selected = dialect_features.dialect == current;
+                                    let tts_indicator = if dialect_features.has_tts() { "🔊" } else { "" };
+                                    let corpus_indicator = if dialect_features.has_corpus { "📚" } else { "" };
+                                    html! {
+                                        <option value={dialect_features.dialect.id()} selected={is_selected}>
+                                            {format!("{} {} {}", dialect_features.dialect.name(), tts_indicator, corpus_indicator)}
+                                        </option>
+                                    }
+                                }).collect::<Html>()
+                            }}
+                        </select>
+                        <div class="field-help field-help--info">
+                            {"Regional variety affects accent, vocabulary, and expressions"}
+                        </div>
+                    </div>
+
+                    {render_experimental_dialects_toggle(us.show_experimental_dialects, user_state)}
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h4 class="panel-section-title">{"Conversation Style"}</h4>
+
+                <div class="field-group">
+                    <div class="panel-field">
+                        <label for="formality-select">{"Formality Level"}</label>
+                        <select id="formality-select" onchange={on_formality_change(user_state.clone())}>
+                            <option value="formal">{"Formal"}</option>
+                            <option value="casual" selected=true>{"Casual"}</option>
+                            <option value="dialect_rich">{"Dialect-Rich"}</option>
+                            <option value="slang">{"Slang"}</option>
+                        </select>
+                    </div>
+
+                    <div class="panel-field">
+                        <label for="teaching-mode-select">{"Teaching Mode"}</label>
+                        <select id="teaching-mode-select" onchange={on_teaching_mode_change(user_state.clone())}>
+                            <option value="immersive" selected=true>{"Immersive"}</option>
+                            <option value="corrective">{"Corrective"}</option>
+                            <option value="explanatory">{"Explanatory"}</option>
+                            <option value="interleaved">{"Interleaved"}</option>
+                            <option value="storyteller">{"Story Teller"}</option>
+                            <option value="debug">{"Debug"}</option>
+                        </select>
+                    </div>
+
+                    <div class="panel-field">
+                        <label for="user-gender-select">{"Your Gender"}</label>
+                        <select id="user-gender-select" onchange={on_user_gender_change(user_state.clone())}>
+                            <option value="male" selected={us.user_gender == UserGender::Male}>{"Male"}</option>
+                            <option value="female" selected={us.user_gender == UserGender::Female}>{"Female"}</option>
+                            <option value="nonbinary" selected={us.user_gender == UserGender::NonBinary}>{"Non-binary"}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {match us.selected_language {
+                Language::Arabic => {
+                    html! {
+                        <div class="panel-section">
+                            <h4 class="panel-section-title">{"Display Options"}</h4>
+                            <div class="field-group">
+                                <div class="panel-field">
+                                    <label for="arabic-script-select">{"Script:"}</label>
+                                    <select
+                                        id="arabic-script-select"
+                                        onchange={on_arabic_script_change(user_state.clone())}
+                                        value={us.language_options.arabic_script.to_string()}
+                                    >
+                                        <option value="naskh" selected={us.language_options.arabic_script == ArabicScript::Naskh}>{"Naskh"}</option>
+                                        <option value="ruqa" selected={us.language_options.arabic_script == ArabicScript::Ruqa}>{"Ruq'a"}</option>
+                                        <option value="latin" selected={us.language_options.arabic_script == ArabicScript::Latin}>{"Latin (Romanized)"}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+                Language::Japanese => {
+                    html! {
+                        <div class="panel-section">
+                            <h4 class="panel-section-title">{"Display Options"}</h4>
+                            <div class="field-group">
+                                <div class="panel-field">
+                                    <label for="japanese-script-select">{"Script:"}</label>
+                                    <select
+                                        id="japanese-script-select"
+                                        onchange={on_japanese_script_change(user_state.clone())}
+                                        value={us.language_options.japanese_script.to_string()}
+                                    >
+                                        <option value="romaji" selected={us.language_options.japanese_script == JapaneseScript::Romaji}>{"Romaji"}</option>
+                                        <option value="only_kana" selected={us.language_options.japanese_script == JapaneseScript::OnlyKana}>{"Kana Only"}</option>
+                                        <option value="kanji_with_ruby" selected={us.language_options.japanese_script == JapaneseScript::KanjiWithRuby}>{"Kanji with Furigana"}</option>
+                                        <option value="kanji" selected={us.language_options.japanese_script == JapaneseScript::Kanji}>{"Kanji"}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+                _ => {
+                    html! {}
+                }
+            }}
+        </div>
+    }
+}

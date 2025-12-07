@@ -3,7 +3,8 @@
 .branch-sidebar {
   position: fixed;
   left: 0;
-  top: 80px; /* below header */
+  top: 80px;
+  /* below header */
   bottom: 0;
   width: 260px;
   background: var(--surface);
@@ -245,16 +246,4 @@
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--ink);
-}
-
-/* Adjust main content to make room for sidebar on desktop */
-@media (min-width: 769px) {
-  .app-main {
-    padding-left: 280px; /* sidebar width + margin */
-    transition: padding-left var(--dur-fast) var(--ease-out);
-  }
-
-  .app-main[data-sidebar-collapsed="true"] {
-    padding-left: 60px; /* collapsed sidebar width + margin */
-  }
 }

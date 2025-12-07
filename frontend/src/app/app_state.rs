@@ -212,6 +212,7 @@ pub enum UIStateAction {
     OpenLearningPanel,
     CloseLearningPanel,
     ToggleSidebar,
+    SetSidebarCollapsed(bool),
     ToggleLearningPanel,
     ToggleUsageFooter,
     SetCreateUsernameInput(String),
@@ -240,7 +241,7 @@ pub enum UIStateAction {
     ClearTranslateLoading { message_id: Uuid },
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct UIState {
     pub panel_open: bool,
     pub input_prompt_value: Option<String>,
@@ -302,6 +303,7 @@ impl UIState {
             UIStateAction::OpenLearningPanel => next.learning_panel_open = true,
             UIStateAction::CloseLearningPanel => next.learning_panel_open = false,
             UIStateAction::ToggleSidebar => next.sidebar_collapsed = !next.sidebar_collapsed,
+            UIStateAction::SetSidebarCollapsed(collapsed) => next.sidebar_collapsed = collapsed,
             UIStateAction::ToggleLearningPanel => {
                 next.learning_panel_collapsed = !next.learning_panel_collapsed
             }
