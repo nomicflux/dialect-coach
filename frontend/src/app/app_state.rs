@@ -806,17 +806,53 @@ mod tests {
     #[test]
     fn test_create_branch_reducer() {
         let mut state = UserState::new(Uuid::new_v4());
-        let message_id = Uuid::new_v4();
+
+        // Create message A and add to conversation
+        let session_id = Uuid::new_v4();
+        let msg_a = create_test_message(session_id, None);
+        state.conversation_history.push(msg_a.clone());
+
         let initial_branch_count = state.branches.len();
 
-        let action = UserStateAction::CreateBranch(message_id);
+        let action = UserStateAction::CreateBranch(msg_a.id);
         state = apply_user_state_action(&state, action);
 
         assert_eq!(state.branches.len(), initial_branch_count + 1);
         let new_branch = state.branches.last().unwrap();
-        assert_eq!(new_branch.parent_message_id, Some(message_id));
-        assert_eq!(new_branch.leaf_message_id, Some(message_id));
+        assert_eq!(new_branch.parent_message_id, Some(msg_a.id));
+        assert_eq!(new_branch.leaf_message_id, Some(msg_a.id));
         assert_eq!(state.active_branch_id, new_branch.id);
+        // Phase 2: Verify message_ids is populated with path to fork point
+        assert_eq!(new_branch.message_ids, vec![msg_a.id]);
+    }
+
+    #[test]
+    fn test_create_branch_copies_full_message_path() {
+        let mut state = UserState::new(Uuid::new_v4());
+        let session_id = Uuid::new_v4();
+
+        // Create conversation chain: A -> B -> C
+        let msg_a = create_test_message(session_id, None);
+        let msg_b = create_test_message(session_id, Some(msg_a.id));
+        let msg_c = create_test_message(session_id, Some(msg_b.id));
+
+        state.conversation_history.push(msg_a.clone());
+        state.conversation_history.push(msg_b.clone());
+        state.conversation_history.push(msg_c.clone());
+
+        // Update initial branch to point to C
+        state.branches[0].leaf_message_id = Some(msg_c.id);
+        state.branches[0].message_ids = vec![msg_a.id, msg_b.id, msg_c.id];
+
+        // Branch from B
+        let action = UserStateAction::CreateBranch(msg_b.id);
+        state = apply_user_state_action(&state, action);
+
+        // New branch should have message_ids = [A, B]
+        let new_branch = state.branches.last().unwrap();
+        assert_eq!(new_branch.message_ids, vec![msg_a.id, msg_b.id]);
+        assert_eq!(new_branch.parent_message_id, Some(msg_b.id));
+        assert_eq!(new_branch.leaf_message_id, Some(msg_b.id));
     }
 
     #[test]
