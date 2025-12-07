@@ -46,6 +46,8 @@
 - "same" learning items (show separately, delete together - should do one or the other)
 - have "language level" as a standard field instead of language goal
 - reorder branches
+- does Arabic REQUIRE full vocalization for TTS? Also, should that be added as a language option?
+- ensure state keeps trying to save, show clear error when it does not
 
 Longer Term
 ---

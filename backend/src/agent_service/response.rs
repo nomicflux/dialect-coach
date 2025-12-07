@@ -80,8 +80,10 @@ Otherwise, continue the conversation naturally while naturally incorporating lea
 Inclusion of corrections and items is limited to what fits within the 1-2 sentence limit."#
         }
         TeachingMode::Explanatory => {
-            r#"3. EXPLANATORY MODE: Respond naturally and curiously (2-3 sentences). Introduce new vocabulary, idioms, or culturally interesting expressions.
-Keep explanations brief and practical. If previous user message used previously explained items, continue talking about them."#
+            r#"3. EXPLANATORY MODE: Respond naturally and curiously (2-3 sentences). Introduce NEW vocabulary, idioms, or culturally interesting expressions.
+Keep explanations brief and practical.
+Introduce NEW items, do not make corrections.
+If previous user message used previously explained items from the learning item list, continue talking about them."#
         }
         TeachingMode::Interleaved => {
             r#"3. INTERLEAVED MODE: User mixes target language with source language.
