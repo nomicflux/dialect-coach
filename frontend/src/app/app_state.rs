@@ -588,6 +588,7 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
                 .iter_mut()
                 .find(|b| b.id == next.active_branch_id)
             {
+                branch.message_ids.push(new_msg_id);
                 branch.leaf_message_id = Some(new_msg_id);
                 // Set branch dialect from first message if dialect is None
                 if branch.dialect.is_none() {
@@ -864,6 +865,42 @@ mod tests {
         state = apply_user_state_action(&state, action);
 
         assert_eq!(state.active_branch_id, new_branch_id);
+    }
+
+    #[test]
+    fn test_add_message_appends_to_message_ids() {
+        let mut state = UserState::new(Uuid::new_v4());
+        let session_id = Uuid::new_v4();
+
+        // Initial branch should have empty message_ids
+        assert_eq!(state.branches[0].message_ids, Vec::<Uuid>::new());
+
+        // Add first message
+        let msg_a = create_test_message(session_id, None);
+        let action = UserStateAction::AddMessage(msg_a.clone());
+        state = apply_user_state_action(&state, action);
+
+        // Branch should now have [A]
+        assert_eq!(state.branches[0].message_ids, vec![msg_a.id]);
+        assert_eq!(state.branches[0].leaf_message_id, Some(msg_a.id));
+
+        // Add second message
+        let msg_b = create_test_message(session_id, Some(msg_a.id));
+        let action = UserStateAction::AddMessage(msg_b.clone());
+        state = apply_user_state_action(&state, action);
+
+        // Branch should now have [A, B]
+        assert_eq!(state.branches[0].message_ids, vec![msg_a.id, msg_b.id]);
+        assert_eq!(state.branches[0].leaf_message_id, Some(msg_b.id));
+
+        // Add third message
+        let msg_c = create_test_message(session_id, Some(msg_b.id));
+        let action = UserStateAction::AddMessage(msg_c.clone());
+        state = apply_user_state_action(&state, action);
+
+        // Branch should now have [A, B, C]
+        assert_eq!(state.branches[0].message_ids, vec![msg_a.id, msg_b.id, msg_c.id]);
+        assert_eq!(state.branches[0].leaf_message_id, Some(msg_c.id));
     }
 
     #[test]

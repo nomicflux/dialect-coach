@@ -1,12 +1,12 @@
 # Branch Explicit Message Tracking - Status
 
-## Current Status: Phase 2 complete
+## Current Status: Phase 3 complete
 
 ## Phases
 
 - [x] Phase 1: Add message_ids field to ConversationBranch
 - [x] Phase 2: Update branch creation to initialize message_ids
-- [ ] Phase 3: Update AddMessage to append to branch message_ids
+- [x] Phase 3: Update AddMessage to append to branch message_ids
 - [ ] Phase 4: Update DeleteMessage to remove from branch message_ids
 - [ ] Phase 5: Update get_active_branch_messages to use message_ids
 - [ ] Phase 6: Migration for existing saved data
@@ -35,3 +35,9 @@
 - Added test_create_branch_reducer verification that message_ids = [fork_point]
 - Added test_create_branch_copies_full_message_path to verify full path is copied (A→B→C, branch from B = [A,B])
 - All tests pass (392 tests), clippy clean (0 warnings)
+
+### 2025-12-06 - Phase 3 Complete
+- Updated AddMessage action to push new message ID to branch.message_ids at frontend/src/app/app_state.rs:591
+- Added test_add_message_appends_to_message_ids to verify sequential message addition
+- Test verifies: empty → [A] → [A,B] → [A,B,C]
+- All tests pass (393 tests), clippy clean (0 warnings)
