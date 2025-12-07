@@ -531,6 +531,16 @@ fn delete_message(mut history: Vec<Message>, id: Uuid) -> Vec<Message> {
     history
 }
 
+fn remove_message_from_branches(mut branches: Vec<ConversationBranch>, msg_id: Uuid) -> Vec<ConversationBranch> {
+    for branch in &mut branches {
+        if let Some(pos) = branch.message_ids.iter().position(|&id| id == msg_id) {
+            branch.message_ids.remove(pos);
+            branch.leaf_message_id = branch.message_ids.last().copied();
+        }
+    }
+    branches
+}
+
 fn undo_delete_message(mut history: Vec<Message>, msg: Message) -> Vec<Message> {
     history.push(msg);
     history
@@ -656,6 +666,7 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::DeleteMessage(id) => {
             next.conversation_history = delete_message(next.conversation_history, id);
+            next.branches = remove_message_from_branches(next.branches, id);
         }
         UserStateAction::UndoDeleteMessage(msg) => {
             next.conversation_history = undo_delete_message(next.conversation_history, msg);
@@ -901,6 +912,60 @@ mod tests {
         // Branch should now have [A, B, C]
         assert_eq!(state.branches[0].message_ids, vec![msg_a.id, msg_b.id, msg_c.id]);
         assert_eq!(state.branches[0].leaf_message_id, Some(msg_c.id));
+    }
+
+    #[test]
+    fn test_delete_message_preserves_other_branches() {
+        // This test verifies the fix for the original bug:
+        // Branch 1: A→B, Branch 2: A→C
+        // Delete C from Branch 2, switch to Branch 1, delete B
+        // Both branches should still show A
+        let mut state = UserState::new(Uuid::new_v4());
+        let session_id = Uuid::new_v4();
+
+        // Create message A in initial branch
+        let msg_a = create_test_message(session_id, None);
+        state = apply_user_state_action(&state, UserStateAction::AddMessage(msg_a.clone()));
+
+        // Create message B in initial branch (now A→B)
+        let msg_b = create_test_message(session_id, Some(msg_a.id));
+        state = apply_user_state_action(&state, UserStateAction::AddMessage(msg_b.clone()));
+        let branch1_id = state.active_branch_id;
+
+        // Branch after A to create Branch 2
+        state = apply_user_state_action(&state, UserStateAction::CreateBranch(msg_a.id));
+        let branch2_id = state.active_branch_id;
+
+        // Create message C in Branch 2 (now A→C)
+        let msg_c = create_test_message(session_id, Some(msg_a.id));
+        state = apply_user_state_action(&state, UserStateAction::AddMessage(msg_c.clone()));
+
+        // Delete C from Branch 2
+        state = apply_user_state_action(&state, UserStateAction::DeleteMessage(msg_c.id));
+
+        // Branch 2 should have [A]
+        let branch2 = state.branches.iter().find(|b| b.id == branch2_id).unwrap();
+        assert_eq!(branch2.message_ids, vec![msg_a.id]);
+        assert_eq!(branch2.leaf_message_id, Some(msg_a.id));
+
+        // Switch to Branch 1 (A→B)
+        state = apply_user_state_action(&state, UserStateAction::SwitchBranch(branch1_id));
+
+        // Delete B from Branch 1
+        state = apply_user_state_action(&state, UserStateAction::DeleteMessage(msg_b.id));
+
+        // Branch 1 should still have [A]
+        let branch1 = state.branches.iter().find(|b| b.id == branch1_id).unwrap();
+        assert_eq!(branch1.message_ids, vec![msg_a.id]);
+        assert_eq!(branch1.leaf_message_id, Some(msg_a.id));
+
+        // Branch 2 should still have [A]
+        let branch2 = state.branches.iter().find(|b| b.id == branch2_id).unwrap();
+        assert_eq!(branch2.message_ids, vec![msg_a.id]);
+        assert_eq!(branch2.leaf_message_id, Some(msg_a.id));
+
+        // Verify they are distinct branches
+        assert_ne!(branch1_id, branch2_id);
     }
 
     #[test]

@@ -1,13 +1,13 @@
 # Branch Explicit Message Tracking - Status
 
-## Current Status: Phase 3 complete
+## Current Status: Phase 4 complete - Bug Fix Implemented!
 
 ## Phases
 
 - [x] Phase 1: Add message_ids field to ConversationBranch
 - [x] Phase 2: Update branch creation to initialize message_ids
 - [x] Phase 3: Update AddMessage to append to branch message_ids
-- [ ] Phase 4: Update DeleteMessage to remove from branch message_ids
+- [x] Phase 4: Update DeleteMessage to remove from branch message_ids
 - [ ] Phase 5: Update get_active_branch_messages to use message_ids
 - [ ] Phase 6: Migration for existing saved data
 - [ ] Phase 7: End-to-end testing and validation
@@ -41,3 +41,11 @@
 - Added test_add_message_appends_to_message_ids to verify sequential message addition
 - Test verifies: empty → [A] → [A,B] → [A,B,C]
 - All tests pass (393 tests), clippy clean (0 warnings)
+
+### 2025-12-06 - Phase 4 Complete - BUG FIX IMPLEMENTED!
+- Added remove_message_from_branches() helper function at frontend/src/app/app_state.rs:534-542
+- Updated DeleteMessage action to call remove_message_from_branches() at frontend/src/app/app_state.rs:669
+- Added test_delete_message_preserves_other_branches to verify the original bug is fixed
+- Test scenario: Branch1: A→B, Branch2: A→C; delete C, delete B → both branches keep A
+- All tests pass (394 tests), clippy clean (0 warnings)
+- **Critical bug is now fixed: deleting a message only affects branches that contain it**
