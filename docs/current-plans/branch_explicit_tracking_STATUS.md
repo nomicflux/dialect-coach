@@ -1,6 +1,6 @@
 # Branch Explicit Message Tracking - Status
 
-## Current Status: Phase 5 complete - Using explicit message tracking!
+## Current Status: Phase 6 complete - Migration implemented!
 
 ## Phases
 
@@ -9,7 +9,7 @@
 - [x] Phase 3: Update AddMessage to append to branch message_ids
 - [x] Phase 4: Update DeleteMessage to remove from branch message_ids
 - [x] Phase 5: Update get_active_branch_messages to use message_ids
-- [ ] Phase 6: Migration for existing saved data
+- [x] Phase 6: Migration for existing saved data
 - [ ] Phase 7: End-to-end testing and validation
 
 ## Progress Log
@@ -56,3 +56,13 @@
 - Kept get_path_to_message() for branch initialization (CreateBranch) and migration (build_branches_from_leaves)
 - All existing tests pass with new implementation (394 tests), clippy clean (0 warnings)
 - **Architecture now fully uses explicit message tracking - no more parent-link walking for display**
+
+### 2025-12-06 - Phase 6 Complete - Migration Implemented!
+- Added migrate_branch_message_ids() function at shared/src/models/user_state.rs:224-248
+- Migration populates empty message_ids from get_path_to_message() for existing branches
+- Called migration on load in backend/src/websocket/user_state.rs:438
+- Called migration before save in backend/src/websocket/user_state.rs:453
+- Added test_migrate_branch_message_ids to verify migration is idempotent
+- Updated 4 existing tests to set message_ids (they were only setting leaf_message_id)
+- All tests pass (396 tests), clippy clean (0 warnings)
+- **Existing saved user sessions will automatically migrate on first load**

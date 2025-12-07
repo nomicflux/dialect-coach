@@ -221,6 +221,32 @@ impl UserState {
             .and_then(|branch| branch.parent_message_id)
     }
 
+    pub fn migrate_branch_message_ids(&mut self) -> bool {
+        let migrations: Vec<(usize, Vec<Uuid>)> = self
+            .branches
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, branch)| {
+                if branch.message_ids.is_empty() && branch.leaf_message_id.is_some() {
+                    let message_ids = self
+                        .get_path_to_message(branch.leaf_message_id)
+                        .into_iter()
+                        .map(|m| m.id)
+                        .collect();
+                    Some((idx, message_ids))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let migrated = !migrations.is_empty();
+        for (idx, message_ids) in migrations {
+            self.branches[idx].message_ids = message_ids;
+        }
+        migrated
+    }
+
     pub fn rebuild_branches_from_history(&mut self) -> bool {
         if !self.branches.is_empty() {
             return false;
@@ -444,6 +470,7 @@ mod tests {
             .iter_mut()
             .find(|b| b.id == state.active_branch_id)
         {
+            branch.message_ids = vec![msg.id];
             branch.leaf_message_id = Some(msg.id);
         }
 
@@ -480,6 +507,7 @@ mod tests {
             .iter_mut()
             .find(|b| b.id == state.active_branch_id)
         {
+            branch.message_ids = vec![msg_a.id, msg_b.id, msg_c.id];
             branch.leaf_message_id = Some(msg_c.id);
         }
 
@@ -523,6 +551,7 @@ mod tests {
             .iter_mut()
             .find(|b| b.id == state.active_branch_id)
         {
+            branch.message_ids = vec![msg_a.id, msg_b.id];
             branch.leaf_message_id = Some(msg_b.id);
         }
 
@@ -532,6 +561,35 @@ mod tests {
         assert_eq!(messages[1].id, msg_b.id);
         // msg_x should NOT be in the result
         assert!(!messages.iter().any(|m| m.id == msg_x.id));
+    }
+
+    #[test]
+    fn test_migrate_branch_message_ids() {
+        let mut state = create_test_user_state();
+
+        // Create a conversation chain A → B → C
+        let msg_a = Message::user_message("A".to_string(), test_metadata(Uuid::new_v4()), None);
+        let msg_b = Message::user_message("B".to_string(), test_metadata(Uuid::new_v4()), Some(msg_a.id));
+        let msg_c = Message::user_message("C".to_string(), test_metadata(Uuid::new_v4()), Some(msg_b.id));
+
+        state.conversation_history.push(msg_a.clone());
+        state.conversation_history.push(msg_b.clone());
+        state.conversation_history.push(msg_c.clone());
+
+        // Simulate old data: branch has leaf_message_id but empty message_ids
+        state.branches[0].leaf_message_id = Some(msg_c.id);
+        state.branches[0].message_ids = vec![]; // Simulate old data format
+
+        // Run migration
+        let migrated = state.migrate_branch_message_ids();
+        assert!(migrated, "Migration should have occurred");
+
+        // Verify message_ids was populated
+        assert_eq!(state.branches[0].message_ids, vec![msg_a.id, msg_b.id, msg_c.id]);
+
+        // Running migration again should return false (idempotent)
+        let migrated_again = state.migrate_branch_message_ids();
+        assert!(!migrated_again, "Migration should be idempotent");
     }
 
     #[test]
@@ -599,6 +657,7 @@ mod tests {
         state.conversation_history.push(msg.clone());
 
         if let Some(branch) = state.branches.first_mut() {
+            branch.message_ids = vec![msg.id];
             branch.leaf_message_id = Some(msg.id);
         }
         state.active_branch_id = Uuid::new_v4();

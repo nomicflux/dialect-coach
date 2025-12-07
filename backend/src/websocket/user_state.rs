@@ -435,6 +435,9 @@ pub async fn check_rate_limits(
 pub fn create_load_response(user_id: Uuid, user_state: Option<UserState>) -> UserStateMessage {
     match user_state {
         Some(mut state) => {
+            if state.migrate_branch_message_ids() {
+                tracing::warn!(user_id = %user_id, "Migrated branch message_ids from tree structure");
+            }
             if state.rebuild_branches_from_history() {
                 tracing::warn!(user_id = %user_id, "Rebuilt branch metadata from conversation history");
             }
@@ -447,6 +450,9 @@ pub fn create_load_response(user_id: Uuid, user_state: Option<UserState>) -> Use
 }
 
 pub fn prepare_user_state_for_save(user_state: &mut UserState) {
+    if user_state.migrate_branch_message_ids() {
+        tracing::warn!(user_id = %user_state.user_id, "Migrated branch message_ids before save");
+    }
     if user_state.rebuild_branches_from_history() {
         tracing::warn!(user_id = %user_state.user_id, "Rebuilt branch metadata before save");
     }
