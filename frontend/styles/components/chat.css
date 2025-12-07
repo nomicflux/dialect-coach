@@ -11,6 +11,8 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--s-2);
+  padding-left: 280px;
+  /* Safe zone for HUD */
   padding-bottom: 140px;
   /* Floating Input buffer */
   scroll-behavior: smooth;
@@ -189,17 +191,24 @@
   line-height: 1.5;
   word-wrap: break-word;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  /* Glassmorphism */
+  backdrop-filter: blur(12px);
+  /* Slightly less blur than HUD/Input to keep text sharp */
+  -webkit-backdrop-filter: blur(12px);
+  border: var(--glass-border);
 }
 
 .bubble--bot {
-  background: var(--coral-tint);
-  color: #4A2A2A;
+  background: rgba(255, 107, 107, 0.15);
+  /* Coral Glass */
+  color: var(--ink);
   border-bottom-left-radius: var(--r-s);
 }
 
 .bubble--user {
-  background: var(--teal-tint);
-  color: #1A3B37;
+  background: rgba(78, 205, 196, 0.15);
+  /* Teal Glass */
+  color: var(--ink);
   border-bottom-right-radius: var(--r-s);
 }
 

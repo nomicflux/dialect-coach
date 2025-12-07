@@ -11,7 +11,7 @@ fn get_item_label(item: &LearningItem) -> String {
     match &item.item {
         LearningItemType::Mistake(m) => m.specific_mistake.clone(),
         LearningItemType::Explanation(e) => e.new_phrase.clone(),
-        LearningItemType::Translation(t) => t.translated_word.clone(),
+        LearningItemType::Translation(t) => format!("{} → {}", t.translated_word, t.translated_to),
         LearningItemType::Exploration(e) => e.point_to_try.clone(),
     }
 }

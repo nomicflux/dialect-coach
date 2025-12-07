@@ -9,6 +9,10 @@
   --green: #51CF66;
   /* success - fresh and encouraging */
   --bg: #FFFFFF;
+
+  /* RGB variants for mixing/gradients */
+  --teal-rgb: 78, 205, 196;
+  --coral-rgb: 255, 107, 107;
   /* clean background */
   --ink: #111827;
   /* primary text - high contrast and readable */
@@ -127,20 +131,38 @@
   --panel-width: 380px;
   --input-min-height: 44px;
   /* touch-friendly */
+
+  /* Glassmorphism 2.0 - Aurora Compatible */
+  --glass-opacity: 0.4;
+  --glass-blur: 24px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+  --surface-glass: rgba(255, 255, 255, 0.4);
 }
 
-/* Dark mode support (future enhancement) */
+/* Dark mode support */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1A1A1A;
-    --surface: #2D2D2D;
-    --surface-muted: #353535;
-    --ink: #E2E8F0;
-    --ink-soft: #A0AEC0;
+    --bg: #121212;
+    --surface: #1E1E1E;
+    --surface-muted: #252525;
+    --ink: #F0F4F8;
+    /* Brighter text for better contrast */
+    --ink-soft: #9BAEC8;
+
+    /* Dark Mode Glass */
+    --surface-glass: rgba(20, 20, 20, 0.4);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+
+    /* Adjust tints for dark mode to be visible but legible */
+    /* using lower opacity to keep bg dark enough for light text */
+    --teal-tint: rgba(78, 205, 196, 0.2);
+    --coral-tint: rgba(255, 107, 107, 0.2);
+    --yellow-tint: rgba(255, 230, 109, 0.2);
+    --green-tint: rgba(81, 207, 102, 0.2);
 
     /* Adjust shadows for dark mode */
-    --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.3);
-    --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
 }
 

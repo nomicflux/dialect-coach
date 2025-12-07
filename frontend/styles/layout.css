@@ -142,24 +142,39 @@
   font-weight: 500;
 }
 
-.status-connected { color: var(--status-connected); }
-.status-connecting { color: var(--status-connecting); }
-.status-reconnecting { color: var(--status-connecting); }
-.status-disconnected { color: var(--status-disconnected); }
-.status-failed { color: var(--status-error); }
+.status-connected {
+  color: var(--status-connected);
+}
+
+.status-connecting {
+  color: var(--status-connecting);
+}
+
+.status-reconnecting {
+  color: var(--status-connecting);
+}
+
+.status-disconnected {
+  color: var(--status-disconnected);
+}
+
+.status-failed {
+  color: var(--status-error);
+}
 
 /* Main content area */
-/* Main content area - New Hybrid Layout */
 .app-main {
   flex: 1;
   display: flex;
   flex-direction: row;
-  height: calc(100vh - 60px); /* Adjust based on header height */
+  height: calc(100vh - 60px);
+  /* Adjust based on header height */
   overflow: hidden;
   position: relative;
   width: 100%;
   max-width: 100%;
-  padding: 0; /* Removing container padding to allow full width */
+  padding: 0;
+  /* Removing container padding to allow full width */
 }
 
 /* Chat Canvas - The main immersion area */
@@ -171,7 +186,15 @@
   height: 100%;
   width: 100%;
   padding: var(--s-4);
-  background: var(--background);
+
+  /* Aurora Glass Background */
+  background-color: #0f1115;
+  /* Deep dark base */
+  background-image:
+    radial-gradient(at 0% 0%, rgba(78, 205, 196, 0.2) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(255, 107, 107, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(100, 200, 255, 0.15) 0px, transparent 50%);
+  background-attachment: fixed;
   transition: margin-right var(--dur-med) var(--ease-out);
 }
 
@@ -186,8 +209,8 @@
   flex-shrink: 0;
   position: relative;
   transition: transform var(--dur-med) var(--ease-out),
-              width var(--dur-med) var(--ease-out),
-              opacity var(--dur-med) var(--ease-out);
+    width var(--dur-med) var(--ease-out),
+    opacity var(--dur-med) var(--ease-out);
   z-index: 50;
 }
 

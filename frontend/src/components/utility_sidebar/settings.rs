@@ -3,7 +3,7 @@ use crate::app::user_state_callbacks::{
     on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
     on_language_change, on_teaching_mode_change, on_user_gender_change,
 };
-use dialect_coach_shared::models::{ArabicScript, JapaneseScript, Language, UserGender};
+use dialect_coach_shared::models::{ArabicScript, Formality, JapaneseScript, Language, TeachingMode, UserGender};
 use yew::prelude::*;
 
 #[derive(Properties)]
@@ -109,22 +109,22 @@ pub fn settings(props: &SettingsProps) -> Html {
                     <div class="panel-field">
                         <label for="formality-select">{"Formality Level"}</label>
                         <select id="formality-select" onchange={on_formality_change(user_state.clone())}>
-                            <option value="formal">{"Formal"}</option>
-                            <option value="casual" selected=true>{"Casual"}</option>
-                            <option value="dialect_rich">{"Dialect-Rich"}</option>
-                            <option value="slang">{"Slang"}</option>
+                            <option value="formal" selected={us.formality == Formality::Formal}>{"Formal"}</option>
+                            <option value="professional_casual" selected={us.formality == Formality::ProfessionalCasual}>{"Professional Casual"}</option>
+                            <option value="informal" selected={us.formality == Formality::Informal}>{"Informal"}</option>
+                            <option value="slang" selected={us.formality == Formality::Slang}>{"Slang"}</option>
                         </select>
                     </div>
 
                     <div class="panel-field">
                         <label for="teaching-mode-select">{"Teaching Mode"}</label>
                         <select id="teaching-mode-select" onchange={on_teaching_mode_change(user_state.clone())}>
-                            <option value="immersive" selected=true>{"Immersive"}</option>
-                            <option value="corrective">{"Corrective"}</option>
-                            <option value="explanatory">{"Explanatory"}</option>
-                            <option value="interleaved">{"Interleaved"}</option>
-                            <option value="storyteller">{"Story Teller"}</option>
-                            <option value="debug">{"Debug"}</option>
+                            <option value="immersive" selected={us.teaching_mode == TeachingMode::Immersive}>{"Immersive"}</option>
+                            <option value="corrective" selected={us.teaching_mode == TeachingMode::Corrective}>{"Corrective"}</option>
+                            <option value="explanatory" selected={us.teaching_mode == TeachingMode::Explanatory}>{"Explanatory"}</option>
+                            <option value="interleaved" selected={us.teaching_mode == TeachingMode::Interleaved}>{"Interleaved"}</option>
+                            <option value="storyteller" selected={us.teaching_mode == TeachingMode::StoryTeller}>{"Story Teller"}</option>
+                            <option value="debug" selected={us.teaching_mode == TeachingMode::Debug}>{"Debug"}</option>
                         </select>
                     </div>
 

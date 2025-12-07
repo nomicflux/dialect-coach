@@ -9,19 +9,18 @@
   bottom: var(--s-6);
   left: 50%;
   transform: translateX(-50%);
-  width: 95%;
-  max-width: 1200px;
+  width: 90%;
+  max-width: 800px;
+  /* Prevent HUD overlap overlap */
   z-index: 100;
 
   /* Glassmorphism */
-  background: rgba(255, 255, 255, 0.85);
-  /* fallback */
   background: var(--surface-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
 
   border-radius: var(--r-xl);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: var(--glass-border);
   box-shadow:
     0 10px 30px -5px rgba(0, 0, 0, 0.1),
     0 4px 10px -2px rgba(0, 0, 0, 0.05),
@@ -37,7 +36,8 @@
   outline: none;
   padding: var(--s-3) var(--s-4);
   border-radius: var(--r-m);
-  background: var(--surface-muted);
+  background: transparent;
+  /* KEY FIX: Remove solid opacity to reveal glass */
   font-size: var(--text-base);
   line-height: 1.5;
   color: var(--ink);

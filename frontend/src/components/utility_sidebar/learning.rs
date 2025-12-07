@@ -29,29 +29,6 @@ pub struct LearningProps {
     pub enrichment_service: Rc<EnrichmentService>,
 }
 
-fn calculate_color_from_score(score: u8, item_type: &LearningItemType) -> String {
-    let intensity = 0.5 + (score as f32 / 100.0) * 0.5;
-    match item_type {
-        LearningItemType::Mistake(_) => format!("rgba(255, 107, 107, {})", intensity), // coral
-        LearningItemType::Explanation(_) => format!("rgba(78, 205, 196, {})", intensity), // teal
-        LearningItemType::Translation(_) => format!("rgba(255, 230, 109, {})", intensity), // yellow
-        LearningItemType::Exploration(_) => format!("rgba(81, 207, 102, {})", intensity), // green
-    }
-}
-
-fn calculate_bar_width(score: u8) -> String {
-    format!("{}%", score)
-}
-
-fn get_item_content(item: &LearningItem) -> String {
-    match &item.item {
-        LearningItemType::Mistake(m) => m.get_content().to_string(),
-        LearningItemType::Explanation(e) => e.get_content().to_string(),
-        LearningItemType::Translation(t) => t.get_content().to_string(),
-        LearningItemType::Exploration(e) => e.get_content().to_string(),
-    }
-}
-
 fn get_tooltip(item: &LearningItem) -> Option<String> {
     match &item.item {
         LearningItemType::Mistake(m) => Some(m.mistake_category.to_string()),
@@ -67,14 +44,7 @@ fn get_tooltip(item: &LearningItem) -> Option<String> {
     }
 }
 
-fn get_item_class(item: &LearningItem) -> &'static str {
-    match &item.item {
-        LearningItemType::Mistake(_) => "learning-item mistake",
-        LearningItemType::Explanation(_) => "learning-item explanation",
-        LearningItemType::Translation(_) => "learning-item translation",
-        LearningItemType::Exploration(_) => "learning-item exploration",
-    }
-}
+
 
 fn has_active_dialect(dialect: Option<Dialect>) -> bool {
     dialect.is_some()
@@ -564,32 +534,69 @@ fn populate_fields(enriched_item: serde_json::Value, states: &FieldStates) {
     }
 }
 
-fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> Html {
-    let content = get_item_content(item);
-    let tooltip = get_tooltip(item);
-    let color = calculate_color_from_score(item.score, &item.item);
-    let bar_width = calculate_bar_width(item.score);
-    let item_class = get_item_class(item);
-    let item_id = get_learning_item_id(item);
+fn get_item_parts(item: &LearningItem) -> (String, String, &'static str) {
+    match &item.item {
+        LearningItemType::Mistake(m) => (
+            m.correction.clone(), 
+            format!("Instead of: {}", m.specific_mistake),
+            "🛠️"
+        ),
+        LearningItemType::Explanation(e) => (
+            e.new_phrase.clone(),
+            e.explanation.clone(),
+            "💡"
+        ),
+        LearningItemType::Translation(t) => (
+            t.translated_to.clone(),
+            t.translated_word.clone(),
+            "🌐"
+        ),
+        LearningItemType::Exploration(e) => (
+            e.point_to_try.clone(),
+            e.instructions_for_use.clone(),
+            "🎯"
+        ),
+    }
+}
 
+fn get_accent_color(item: &LearningItemType) -> &'static str {
+    match item {
+        LearningItemType::Mistake(_) => "var(--coral)",
+        LearningItemType::Explanation(_) => "var(--teal)",
+        LearningItemType::Translation(_) => "var(--yellow)",
+        LearningItemType::Exploration(_) => "var(--green)",
+    }
+}
+
+fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> Html {
+    let (title, subtitle, icon) = get_item_parts(item);
+    let tooltip = get_tooltip(item);
+    let accent_color = get_accent_color(&item.item);
+    let item_id = get_learning_item_id(item);
+    let score_pct = item.score;
+
+    // Subtle glass card style
     html! {
-        <li class={item_class}>
-            <button
-                class="delete-button"
-                onclick={on_delete.reform(move |_| item_id)}
-            >
-                {"×"}
-            </button>
-            <div class="item-with-tooltip">
-                <span class="item-content" style={format!("color: {}", color)}>
-                    {content}
-                </span>
-                if let Some(tip) = tooltip {
-                    <span class="tooltip-text">{tip}</span>
-                }
+        <li class="learning-card" style={format!("--accent-color: {}", accent_color)} title={tooltip}>
+            <div class="card-icon">{icon}</div>
+            <div class="card-content">
+                <div class="card-title">{title}</div>
+                <div class="card-subtitle">{subtitle}</div>
             </div>
-            <div class="progress-bar">
-                <div class="progress-fill" style={format!("width: {}", bar_width)}></div>
+            <div class="card-meta">
+                <div class="score-ring" style={format!("--score: {}%", score_pct)}>
+                     // Visual ring or text handled by CSS/SVG, or just simple text for now
+                    <span class="score-text">{format!("{}%", score_pct)}</span>
+                </div>
+                <button
+                    class="card-delete-button"
+                    onclick={on_delete.reform(move |_| item_id)}
+                >
+                    {"×"}
+                </button>
+            </div>
+            <div class="card-progress-line">
+                <div class="progress-fill" style={format!("width: {}%; background: {}", score_pct, accent_color)}></div>
             </div>
         </li>
     }

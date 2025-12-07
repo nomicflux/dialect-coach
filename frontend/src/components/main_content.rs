@@ -1,5 +1,5 @@
 use crate::app::app_callbacks::{
-    on_auto_start, on_continue_branch, on_explain_message, on_send_message, on_tts_toggle,
+    on_auto_start, on_continue_branch, on_explain_message, on_send_message,
 };
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
@@ -7,12 +7,12 @@ use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction,
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
 
-    on_delete_learning_item_callback, on_delete_message_callback, on_dialect_cycle,
-    on_formality_cycle, on_switch_branch, on_teaching_mode_cycle, on_undo_message_callback,
+    on_delete_learning_item_callback, on_delete_message_callback,
+    on_switch_branch, on_undo_message_callback,
 };
 use crate::components::utility_sidebar::SidebarTab;
 use crate::components::{
-    BranchSwitcherPill, ChatWindow, InputBox, SpeechControls, TranslationModal, UtilitySidebar, VocabHud,
+    ChatWindow, InputBox, TranslationModal, UtilitySidebar, VocabHud,
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
@@ -220,21 +220,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
         <>
                 // Chat Canvas: The immersive center
                 <div class="chat-canvas">
-                    <BranchSwitcherPill
-                        branch_name={AttrValue::from(
-                            us.branches.iter().find(|b| b.id == us.active_branch_id)
-                                .and_then(|b| b.name.clone())
-                                .unwrap_or_else(|| "All Branches".to_string())
-                        )}
-                        on_click={{
-                            let sidebar_active_tab = sidebar_active_tab.clone();
-                            let ui_state = ui_state.clone();
-                            Callback::from(move |_| {
-                                sidebar_active_tab.set(SidebarTab::Branches);
-                                ui_state.dispatch(UIStateAction::SetSidebarCollapsed(false));
-                            })
-                        }}
-                    />
+
                     <ChatWindow
                         user_state={us.clone()}
                         is_loading={app_state.is_loading}
@@ -248,17 +234,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         translate_loading={ui_state.translate_loading.clone()}
                         on_selection_translate={Some(on_selection_translate_click.clone())}
                     />
-                    <SpeechControls
-                        on_speech={on_send_message(app_state.clone(), user_state.clone())}
-                        dialect={us.selected_dialect}
-                        teaching_mode={us.teaching_mode_display().to_string()}
-                        formality={us.formality_display().to_string()}
-                        tts_enabled={us.tts_enabled}
-                        on_dialect_cycle={Some(on_dialect_cycle(user_state.clone()))}
-                        on_teaching_mode_cycle={Some(on_teaching_mode_cycle(user_state.clone()))}
-                        on_formality_cycle={Some(on_formality_cycle(user_state.clone()))}
-                        on_tts_toggle={Some(on_tts_toggle(app_state.clone(), user_state.clone()))}
-                    />
+
                     <VocabHud
                         items={get_filtered_items(us).into_iter().filter(|i| i.score < 100).collect::<Vec<_>>()}
                     />

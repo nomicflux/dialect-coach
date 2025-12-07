@@ -82,20 +82,20 @@ All code written in this plan must adhere to:
 
 ### Subphase 3.1: Legacy Removal
 *   **Action Items:**
-    *   Delete `src/components/branch_sidebar.rs`.
-    *   Delete `src/components/learning_panel.rs`.
-    *   Delete `src/components/settings_panel.rs`.
+    - [x] Delete `src/components/branch_sidebar.rs`.
+    - [x] Delete `src/components/learning_panel.rs`.
+    - [x] Delete `src/components/settings_panel.rs`.
 *   **Files:**
-    *   [DELETE] `src/components/branch_sidebar.rs`
-    *   [DELETE] `src/components/learning_panel.rs`
-    *   [DELETE] `src/components/settings_panel.rs`
+    - [x] `src/components/branch_sidebar.rs`
+    - [x] `src/components/learning_panel.rs`
+    - [x] `src/components/settings_panel.rs`
 
 ### Subphase 3.2: Visual Polish
 *   **Action Items:**
-    *   Apply glassmorphism effects (backdrop-filter: blur) to the HUD and Pill.
-    *   Add transition animations for the Sidebar collapsing/expanding.
+    - [x] Apply glassmorphism effects (backdrop-filter: blur) to the HUD and Pill.
+    - [x] Add transition animations for the Sidebar collapsing/expanding.
 *   **Files:**
-    *   [MODIFY] `src/styles/index.css`
+    - [x] `src/styles/layout.css` and component styles
 
 **Verification:**
 > Run `cargo test --all` and `cargo clippy --all` until clean.
