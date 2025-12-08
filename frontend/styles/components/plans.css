@@ -1,0 +1,103 @@
+/* Language Plan Styles */
+.plans-section {
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.plan-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.plan-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.plan-item.active {
+    border-left: 3px solid var(--accent-primary);
+    background: rgba(var(--accent-primary-rgb), 0.1);
+}
+
+.plan-info {
+    flex: 1;
+}
+
+.plan-title {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.plan-status {
+    font-size: 0.8em;
+    color: var(--text-secondary);
+}
+
+.delete-plan-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.delete-plan-btn:hover {
+    opacity: 1;
+    color: var(--error-color);
+}
+
+.create-plan-button {
+    width: 100%;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.create-plan-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: var(--text-primary);
+}
+
+.plan-create-form {
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.plan-create-form input,
+.plan-create-form textarea {
+    width: 100%;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: var(--text-primary);
+}
+
+.plan-create-form .form-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.learning-divider {
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 1rem 0;
+}

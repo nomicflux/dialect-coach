@@ -2,7 +2,7 @@ pub mod callbacks;
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{
-    ConversationBranch, Dialect, Formality, Language, Message, TeachingMode, UserGender,
+    ConversationBranch, Dialect, Formality, Language, LanguagePlan, Message, TeachingMode, UserGender,
     ArabicScript, JapaneseScript,
 };
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
@@ -415,6 +415,10 @@ pub enum UserStateAction {
     CycleTeachingMode,
     SetArabicScript(ArabicScript),
     SetJapaneseScript(JapaneseScript),
+    AddLanguagePlan(LanguagePlan),
+    DeleteLanguagePlan(Uuid),
+    SetActivePlan(Option<Uuid>),
+    AdvancePlanStep(Uuid),
 }
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
@@ -747,6 +751,28 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::SetJapaneseScript(script) => {
             next.language_options.japanese_script = script;
+        }
+        UserStateAction::AddLanguagePlan(plan) => {
+            next.language_plans.push(plan);
+        }
+        UserStateAction::DeleteLanguagePlan(plan_id) => {
+            next.language_plans.retain(|p| p.id != plan_id);
+            if next.active_plan_id == Some(plan_id) {
+                next.active_plan_id = None;
+            }
+        }
+        UserStateAction::SetActivePlan(plan_id) => {
+            next.active_plan_id = plan_id;
+            if let Some(pid) = plan_id
+                && let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == pid)
+            {
+                plan.start();
+            }
+        }
+        UserStateAction::AdvancePlanStep(plan_id) => {
+            if let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == plan_id) {
+                plan.advance_step();
+            }
         }
         UserStateAction::ClearUserState => {
             // This should never be called - ClearUserState is handled at OptionalUserState level
@@ -1473,5 +1499,48 @@ mod tests {
         state = apply_user_state_action(&state, action);
 
         assert_eq!(state.teaching_mode, TeachingMode::Corrective);
+    }
+    #[test]
+    fn test_language_plan_reducers() {
+        use dialect_coach_shared::models::{LanguagePlan, PlanStep, StepType, CompletionCriteria, PlanStatus, StepStatus};
+
+        let mut state = UserState::new(Uuid::new_v4());
+        let plan_id = Uuid::new_v4();
+        let plan = LanguagePlan {
+            id: plan_id,
+            title: "Test Plan".to_string(),
+            dialect: Dialect::SpanishMexican,
+            description: None,
+            steps: vec![
+                PlanStep::new(1, "Step 1".to_string(), StepType::Learning { focus: "Basics".to_string() }, "Msg".to_string(), CompletionCriteria::Manual),
+                PlanStep::new(2, "Step 2".to_string(), StepType::Learning { focus: "Advanced".to_string() }, "Msg".to_string(), CompletionCriteria::Manual),
+            ],
+            current_step_index: 0,
+            status: PlanStatus::NotStarted,
+            created_at: 0,
+        };
+
+        // Test AddLanguagePlan
+        state = apply_user_state_action(&state, UserStateAction::AddLanguagePlan(plan.clone()));
+        assert_eq!(state.language_plans.len(), 1);
+        assert_eq!(state.language_plans[0].id, plan_id);
+
+        // Test SetActivePlan
+        state = apply_user_state_action(&state, UserStateAction::SetActivePlan(Some(plan_id)));
+        assert_eq!(state.active_plan_id, Some(plan_id));
+        // Should auto-start
+        assert_eq!(state.language_plans[0].status, PlanStatus::InProgress);
+        assert_eq!(state.language_plans[0].current_step().unwrap().status, StepStatus::InProgress);
+
+        // Test AdvancePlanStep
+        state = apply_user_state_action(&state, UserStateAction::AdvancePlanStep(plan_id));
+        assert_eq!(state.language_plans[0].current_step_index, 1);
+        assert_eq!(state.language_plans[0].steps[0].status, StepStatus::Completed);
+        assert_eq!(state.language_plans[0].steps[1].status, StepStatus::InProgress);
+
+        // Test DeleteLanguagePlan
+        state = apply_user_state_action(&state, UserStateAction::DeleteLanguagePlan(plan_id));
+        assert!(state.language_plans.is_empty());
+        assert_eq!(state.active_plan_id, None);
     }
 }

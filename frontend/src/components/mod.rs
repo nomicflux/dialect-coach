@@ -7,6 +7,7 @@ pub mod learning_goals_panel;
 
 pub mod main_content;
 pub mod message_bubble;
+pub mod plan;
 
 pub mod speech_controls;
 pub mod translate_selection_button;

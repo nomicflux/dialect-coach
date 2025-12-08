@@ -13,20 +13,20 @@
 ## Implementation Phases
 
 ### Phase 1: Core Data Structures & Persistence
-- [ ] Subphase 1.1: Shared Types (LanguagePlan struct, UserState update)
-- [ ] Subphase 1.2: Logic & Helpers (Methods & Utility functions)
-- [ ] Subphase 1.3: Verification (Tests & Clippy)
+- [x] Subphase 1.1: Shared Types (LanguagePlan struct, UserState update)
+- [x] Subphase 1.2: Logic & Helpers (Methods & Utility functions)
+- [x] Subphase 1.3: Verification (Tests & Clippy)
 
 ### Phase 2: Reactivity & State Management
-- [ ] Subphase 2.1: App State Actions
-- [ ] Subphase 2.2: Reducer Implementation
-- [ ] Subphase 2.3: Verification
+- [x] Subphase 2.1: App State Actions
+- [x] Subphase 2.2: Reducer Implementation
+- [x] Subphase 2.3: Verification
 
 ### Phase 3: UI - Plan List & Creation
-- [ ] Subphase 3.1: Plan Components Structure
-- [ ] Subphase 3.2: Integration into Utility Sidebar
-- [ ] Subphase 3.3: Plan Creation UI (Simplified)
-- [ ] Subphase 3.4: Verification
+- [x] Subphase 3.1: Plan Components Structure
+- [x] Subphase 3.2: Integration into Utility Sidebar
+- [x] Subphase 3.3: Plan Creation UI (Simplified)
+- [x] Subphase 3.4: Verification (Styles Linked)
 
 ### Phase 4: UI - Active Plan Execution
 - [ ] Subphase 4.1: Active Plan Display Component
@@ -40,9 +40,10 @@
 - [ ] Subphase 5.4: Final Verification
 
 ## Issues Encountered
-*(None yet)*
+- Clippy warning about collapsible if in Phase 2 (Fixed).
+- CLI tool `echo` failed to update CSS properly (user intervention); fixed by using `index.html` `data-trunk` link.
 
 ## Status Summary
 
-**Current Phase:** Not Started.
-**Latest Action:** Created Implementation Plan and Status Doc.
+**Current Phase:** Phase 3 Complete.
+**Latest Action:** Built UI components for listing and creating plans, integrated them into the sidebar, and linked styles to `index.html`.

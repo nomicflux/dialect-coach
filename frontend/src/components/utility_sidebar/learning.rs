@@ -1,4 +1,5 @@
 use crate::app::app_state::{OptionalUserState, UserStateAction};
+use crate::components::plan::{PlanList, PlanCreate};
 use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::{
     Dialect, EnrichRequest, Explained, Exploratory, LearningItem, LearningItemType, Mistake,
@@ -618,6 +619,7 @@ pub fn learning(props: &LearningProps) -> Html {
     let instructions = use_state(String::new);
     let enriching = use_state(|| false);
     let enrich_error = use_state(|| None::<String>);
+    let show_create_plan = use_state(|| false);
 
     let fields = FormFields {
         mistake: specific_mistake.clone(),
@@ -762,6 +764,59 @@ pub fn learning(props: &LearningProps) -> Html {
 
             if accomplishments.is_empty() && still_learning.is_empty() {
                 <p class="empty-message">{"No learning items yet. Start chatting to build your learning progress!"}</p>
+            }
+
+            if let Some(user_state_val) = &props.user_state.state {
+                <div class="plans-section">
+                    if *show_create_plan {
+                        if let Some(dialect) = props.active_branch_dialect {
+                            <PlanCreate 
+                                dialect={dialect}
+                                on_create={
+                                    let user_state = props.user_state.clone();
+                                    let show_create_plan = show_create_plan.clone();
+                                    Callback::from(move |plan| {
+                                        user_state.dispatch(UserStateAction::AddLanguagePlan(plan));
+                                        show_create_plan.set(false);
+                                    })
+                                }
+                                on_cancel={
+                                    let show_create_plan = show_create_plan.clone();
+                                    Callback::from(move |_| show_create_plan.set(false))
+                                }
+                            />
+                        }
+                    } else {
+                        <PlanList 
+                            plans={user_state_val.language_plans.clone()}
+                            active_plan_id={user_state_val.active_plan_id}
+                            on_select_plan={
+                                let user_state = props.user_state.clone();
+                                Callback::from(move |id| {
+                                    user_state.dispatch(UserStateAction::SetActivePlan(id));
+                                })
+                            }
+                            on_delete_plan={
+                                let user_state = props.user_state.clone();
+                                Callback::from(move |id| {
+                                    user_state.dispatch(UserStateAction::DeleteLanguagePlan(id));
+                                })
+                            }
+                        />
+                        if has_active_dialect(props.active_branch_dialect) {
+                            <button 
+                                class="create-plan-button"
+                                onclick={
+                                    let show_create_plan = show_create_plan.clone();
+                                    Callback::from(move |_| show_create_plan.set(true))
+                                }
+                            >
+                                {"+ Create New Plan"}
+                            </button>
+                        }
+                    }
+                </div>
+                <hr class="learning-divider" />
             }
 
             {render_add_item_form(FormRenderProps {

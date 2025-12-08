@@ -5,8 +5,8 @@ use uuid::Uuid;
 use super::dialect::dialect_features;
 use super::{
     ConversationBranch, Dialect, DialectWithFeatures, Explained, Exploratory, Formality, Language,
-    LanguageOption, LanguageOptions, Message, MessageMetadata, Mistake, TeachingMode, Translated,
-    UsageStats,
+    LanguageOption, LanguageOptions, LanguagePlan, Message, MessageMetadata, Mistake, TeachingMode,
+    Translated, UsageStats,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +30,8 @@ pub struct UserState {
     pub active_branch_id: Uuid,
     pub branches: Vec<ConversationBranch>,
     pub learning_goals: Vec<LearningGoal>,
+    pub language_plans: Vec<LanguagePlan>,
+    pub active_plan_id: Option<Uuid>,
     pub usage_stats: UsageStats,
     pub language_options: LanguageOptions,
     pub show_experimental_dialects: bool,
@@ -107,6 +109,8 @@ impl UserState {
             active_branch_id: initial_branch_id,
             branches: vec![initial_branch],
             learning_goals: Vec::new(),
+            language_plans: Vec::new(),
+            active_plan_id: None,
             usage_stats: UsageStats::default(),
             language_options: LanguageOptions::default(),
             show_experimental_dialects,
