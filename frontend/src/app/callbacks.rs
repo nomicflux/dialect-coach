@@ -55,6 +55,7 @@ pub fn on_send_message(
                 exploratory: past_exploratory,
             })
             .active_branch_id(active_branch_id)
+            .active_plan(state.active_plan())
             .context_messages(context_messages)
             .learning_goals(filtered_goals)
             .user_gender(state.user_gender)

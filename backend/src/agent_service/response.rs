@@ -321,6 +321,21 @@ fn extract_gender_from_dialect(dialect_with_features: &DialectWithFeatures) -> G
         .unwrap_or(Gender::FemalePresenting)
 }
 
+fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>) -> String {
+    if let Some(plan) = plan {
+        if let Some(step) = plan.steps.get(plan.current_step_index) {
+            return format!(
+                "\n\n# ACTIVE LANGUAGE PLAN\nYou are guiding the user through the plan: \"{}\".\n\
+                Current Task: {}\n\
+                Task Description: {}\n\
+                Your Goal: Help the user complete this task. If they seem stuck, provide hints related to this specific task.",
+                plan.title, step.title, step.instructions
+            );
+        }
+    }
+    String::new()
+}
+
 fn build_system_content(
     dialect: DialectWithFeatures,
     formality: Formality,
@@ -329,6 +344,7 @@ fn build_system_content(
     past_learning_items: &PastLearningItems,
     user_gender: UserGender,
     language_option: &Option<LanguageOption>,
+    active_plan: &Option<&dialect_coach_shared::LanguagePlan>,
 ) -> String {
     let formality_label = match formality {
         Formality::Formal => "FORMAL",
@@ -355,6 +371,7 @@ fn build_system_content(
     };
 
     let language_instr = build_language_instruction(language_option);
+    let plan_instr = build_plan_system_content(active_plan);
 
     if teaching_mode == TeachingMode::Debug {
         let lang_section = if !language_instr.is_empty() {
@@ -372,12 +389,14 @@ fn build_system_content(
             {}\n\
             {}\n\
             {}\n\
+            {}\n\
             Now respond to the user's message technically."#,
             role_desc,
             user_gender_str,
             lang_section,
             goals_section,
             learning_items_context,
+            plan_instr,
             JSON_OUTPUT_INSTRUCTION
         )
     } else {
@@ -397,6 +416,7 @@ fn build_system_content(
             {}\n\
             {}\n\
             {}\n\
+            {}\n\
             # OUTPUT FORMAT REQUIRED\n\
             {}\n\
             {}\n\n\
@@ -410,6 +430,7 @@ fn build_system_content(
             teaching_rules,
             goals_section,
             learning_items_context,
+            plan_instr,
             JSON_OUTPUT_INSTRUCTION,
             RESPONSE_JSON_OUTPUT_FORMAT,
             dialect.dialect.name()
@@ -456,6 +477,7 @@ pub struct GenerateResponseParams<'a> {
     pub past_exploratory: &'a [Exploratory],
     pub user_gender: UserGender,
     pub language_option: &'a Option<LanguageOption>,
+    pub active_plan: Option<&'a dialect_coach_shared::LanguagePlan>,
 }
 
 pub struct ResponseContext {
@@ -827,6 +849,7 @@ impl ResponseContext {
             &past_learning_items,
             params.user_gender,
             params.language_option,
+            &params.active_plan,
         );
         tracing::debug!("System content sent to Claude:\n{}", system_content);
         let history_with_prefill = build_conversation_history_with_examples(
@@ -1069,6 +1092,7 @@ mod tests {
             &past_learning_items,
             UserGender::NonBinary,
             &None,
+            &None,
         );
 
         assert!(content.contains("# YOUR ROLE"));
@@ -1095,6 +1119,7 @@ mod tests {
             &learning_goals,
             &past_learning_items,
             UserGender::NonBinary,
+            &None,
             &None,
         );
 
@@ -1185,5 +1210,47 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
         assert_eq!(value["response"], "hola");
         assert!(!sanitized.contains("```"));
+    }
+
+    #[test]
+    fn test_build_system_content_with_active_plan() {
+        let dialect = Dialect::SpanishMexican;
+        let formality = Formality::Informal;
+        let teaching_mode = TeachingMode::Immersive;
+        let learning_goals = vec![];
+        let past_learning_items = PastLearningItems::default();
+
+        let step = dialect_coach_shared::PlanStep::new(
+            1,
+            "Step 1".to_string(),
+            dialect_coach_shared::StepType::Learning {
+                focus: "Basics".to_string(),
+            },
+            "Learn basic greetings".to_string(), // Instructions
+            dialect_coach_shared::CompletionCriteria::Manual,
+        );
+
+        let plan = dialect_coach_shared::LanguagePlan::new(
+            "My Plan".to_string(),
+            dialect,
+            Some("Description".to_string()),
+            vec![step],
+        );
+
+        let content = build_system_content(
+            dialect_features(dialect),
+            formality,
+            teaching_mode,
+            &learning_goals,
+            &past_learning_items,
+            UserGender::NonBinary,
+            &None,
+            &Some(&plan),
+        );
+
+        assert!(content.contains("# ACTIVE LANGUAGE PLAN"));
+        assert!(content.contains("My Plan"));
+        assert!(content.contains("Step 1"));
+        assert!(content.contains("Learn basic greetings"));
     }
 }

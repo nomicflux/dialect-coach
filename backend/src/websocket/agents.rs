@@ -143,6 +143,7 @@ fn build_response_params<'a>(
         past_exploratory: &msg_with_context.past_exploratory,
         user_gender: msg_with_context.user_gender,
         language_option: &msg_with_context.language_option,
+        active_plan: msg_with_context.active_plan.as_ref(),
     }
 }
 
@@ -499,6 +500,7 @@ async fn call_agent_for_conversation_action(
     let dialect = user_state.current_dialect();
     let rag_config = RAGConfig::new(20, 5);
     let language_option = user_state.current_language_option();
+    let active_plan = user_state.active_plan();
 
     let params = GenerateResponseParams {
         user_message: &instruction,
@@ -514,6 +516,7 @@ async fn call_agent_for_conversation_action(
         past_exploratory: &[],
         user_gender: user_state.user_gender,
         language_option: &language_option,
+        active_plan: active_plan.as_ref(),
     };
 
     let (result, response_usage) = state.agent.generate_response_for_action(&params).await;

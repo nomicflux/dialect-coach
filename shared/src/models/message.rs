@@ -166,6 +166,8 @@ pub struct PastLearningItems {
     pub exploratory: Vec<crate::models::agent::Exploratory>,
 }
 
+use super::LanguagePlan;
+
 /// User message with past learning items for context
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserMessageWithContext {
@@ -176,6 +178,7 @@ pub struct UserMessageWithContext {
     pub past_translated: Vec<crate::models::agent::Translated>,
     pub past_exploratory: Vec<crate::models::agent::Exploratory>,
     pub active_branch_id: Uuid,
+    pub active_plan: Option<LanguagePlan>,
     pub context_messages: Vec<Message>,
     pub learning_goals: Vec<LearningGoal>,
     pub user_gender: UserGender,
@@ -187,6 +190,7 @@ pub struct UserMessageWithContextBuilder {
     message: Message,
     past_learning_items: PastLearningItems,
     active_branch_id: Uuid,
+    active_plan: Option<LanguagePlan>,
     context_messages: Vec<Message>,
     learning_goals: Vec<LearningGoal>,
     user_gender: UserGender,
@@ -200,6 +204,7 @@ impl UserMessageWithContextBuilder {
             message,
             past_learning_items: PastLearningItems::default(),
             active_branch_id: Uuid::nil(),
+            active_plan: None,
             context_messages: Vec::new(),
             learning_goals: Vec::new(),
             user_gender: UserGender::NonBinary,
@@ -214,6 +219,11 @@ impl UserMessageWithContextBuilder {
 
     pub fn active_branch_id(mut self, id: Uuid) -> Self {
         self.active_branch_id = id;
+        self
+    }
+
+    pub fn active_plan(mut self, plan: Option<LanguagePlan>) -> Self {
+        self.active_plan = plan;
         self
     }
 
@@ -246,6 +256,7 @@ impl UserMessageWithContextBuilder {
             past_translated: self.past_learning_items.translated,
             past_exploratory: self.past_learning_items.exploratory,
             active_branch_id: self.active_branch_id,
+            active_plan: self.active_plan,
             context_messages: self.context_messages,
             learning_goals: self.learning_goals,
             user_gender: self.user_gender,

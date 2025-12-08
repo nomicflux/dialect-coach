@@ -62,6 +62,7 @@ pub async fn run_self_chat_test(
             past_exploratory: &[],
             user_gender: dialect_coach_shared::UserGender::NonBinary,
             language_option: &None,
+            active_plan: None,
         };
         let (result, _response_usage, _learning_usage) = agent.generate_response(&params).await;
         let response = result?;

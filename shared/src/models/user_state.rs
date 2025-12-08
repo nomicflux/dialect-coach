@@ -56,6 +56,12 @@ impl UserState {
             .filter(|goal| &goal.dialect == dialect)
             .collect()
     }
+
+    pub fn active_plan(&self) -> Option<LanguagePlan> {
+        self.active_plan_id.and_then(|id| {
+            self.language_plans.iter().find(|plan| plan.id == id).cloned()
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
