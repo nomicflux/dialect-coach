@@ -1,5 +1,5 @@
 use crate::app::app_state::{OptionalUserState, UserStateAction};
-use crate::components::plan::{PlanList, PlanCreate};
+use crate::components::plan::{PlanList, PlanCreate, ActivePlan};
 use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::{
     Dialect, EnrichRequest, Explained, Exploratory, LearningItem, LearningItemType, Mistake,
@@ -768,7 +768,30 @@ pub fn learning(props: &LearningProps) -> Html {
 
             if let Some(user_state_val) = &props.user_state.state {
                 <div class="plans-section">
-                    if *show_create_plan {
+                    if let Some(active_plan_id) = user_state_val.active_plan_id
+                        && let Some(active_plan) = user_state_val.language_plans.iter().find(|p| p.id == active_plan_id)
+                    {
+                        <ActivePlan 
+                            plan={active_plan.clone()}
+                            on_advance={
+                                let user_state = props.user_state.clone();
+                                Callback::from(move |id| {
+                                    user_state.dispatch(UserStateAction::AdvancePlanStep(id));
+                                })
+                            }
+                        />
+                        <button 
+                            class="view-all-plans-btn"
+                            onclick={
+                                let user_state = props.user_state.clone();
+                                Callback::from(move |_| {
+                                    user_state.dispatch(UserStateAction::SetActivePlan(None));
+                                })
+                            }
+                        >
+                            {"← Back to All Plans"}
+                        </button>
+                    } else if *show_create_plan {
                         if let Some(dialect) = props.active_branch_dialect {
                             <PlanCreate 
                                 dialect={dialect}

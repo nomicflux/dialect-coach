@@ -101,3 +101,122 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     margin: 1rem 0;
 }
+
+/* Active Plan Card */
+.active-plan-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid var(--accent-primary);
+}
+
+.active-plan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.active-plan-title {
+    font-weight: 600;
+    color: var(--accent-primary);
+    margin: 0;
+}
+
+.step-counter {
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.plan-progress-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.plan-progress-fill {
+    height: 100%;
+    background: var(--accent-primary);
+    transition: width 0.3s ease;
+}
+
+.current-step-content {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 0.75rem;
+}
+
+.step-title {
+    font-size: 0.95em;
+    font-weight: 500;
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.step-instructions {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 0.75rem;
+}
+
+.step-icon {
+    font-size: 1.1em;
+}
+
+.advance-step-btn {
+    width: 100%;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.advance-step-btn:hover {
+    background: var(--accent-primary-hover);
+}
+
+.step-completed-badge {
+    text-align: center;
+    color: var(--success-color);
+    font-weight: 500;
+    font-size: 0.9em;
+    padding: 0.5rem;
+    background: rgba(var(--success-color-rgb), 0.1);
+    border-radius: 4px;
+}
+
+.plan-completed-message {
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--accent-primary);
+    font-weight: bold;
+}
+
+.view-all-plans-btn {
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.view-all-plans-btn:hover {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
