@@ -175,6 +175,11 @@
   max-width: 100%;
   padding: 0;
   /* Removing container padding to allow full width */
+  transition: padding-right var(--dur-med) var(--ease-out);
+}
+
+.app-main[data-sidebar-collapsed="false"] {
+  padding-right: 350px;
 }
 
 /* Chat Canvas - The main immersion area */
@@ -201,13 +206,15 @@
 /* Utility Sidebar - The unified right panel */
 .utility-sidebar {
   width: 350px;
-  height: 100%;
   background: var(--surface);
   border-left: 1px solid rgba(78, 205, 196, 0.08);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  position: relative;
+  position: fixed;
+  top: 90px;
+  right: 0;
+  bottom: 0;
   transition: transform var(--dur-med) var(--ease-out),
     width var(--dur-med) var(--ease-out),
     opacity var(--dur-med) var(--ease-out);
@@ -228,6 +235,8 @@
   width: 100%;
   border-bottom: 1px solid rgba(78, 205, 196, 0.08);
   background: var(--surface-raised);
+  flex-shrink: 0;
+  /* Prevent tabs from shrinking */
 }
 
 .sidebar-tab {
@@ -257,6 +266,8 @@
 
 .sidebar-content {
   flex: 1;
+  min-height: 0;
+  /* Crucial: allows flex child to shrink below content size to trigger scroll */
   overflow-y: auto;
   padding: 0;
 }
