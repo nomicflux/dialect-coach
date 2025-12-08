@@ -131,6 +131,15 @@ impl LearningAgent {
         &self,
         params: &LearningAgentParams<'_>,
     ) -> (Result<LearningAgentOutput>, Vec<AgentUsage>) {
+        tracing::info!(
+            "Learning agent called: teaching_mode={:?}, total_items={}",
+            params.teaching_mode,
+            params.past_mistakes.len()
+                + params.past_explained.len()
+                + params.past_translated.len()
+                + params.past_exploratory.len()
+        );
+
         if Self::skip_mode(&params.teaching_mode) {
             return (Ok(LearningAgentOutput::empty()), Vec::new());
         }
@@ -145,6 +154,7 @@ impl LearningAgent {
             );
             return (Ok(LearningAgentOutput::empty()), Vec::new());
         }
+
 
         let limits = calculate_learning_limits(params);
         let system_content = build_learning_system_content(params, &limits);

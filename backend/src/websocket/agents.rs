@@ -207,6 +207,15 @@ async fn run_agents_parallel(
 
     let has_learning_items = has_learning_items(msg_with_context);
     let teaching_mode = msg_with_context.message.metadata.teaching_mode;
+    tracing::info!(
+        "run_agents_parallel: has_learning_items={}, teaching_mode={:?}, past_mistakes={}, past_explained={}, past_translated={}, past_exploratory={}",
+        has_learning_items,
+        teaching_mode,
+        msg_with_context.past_mistakes.len(),
+        msg_with_context.past_explained.len(),
+        msg_with_context.past_translated.len(),
+        msg_with_context.past_exploratory.len()
+    );
     let user_state = user_state::check_rate_limits(
         state,
         msg_with_context.user_id,
@@ -226,8 +235,10 @@ async fn run_agents_parallel(
     );
 
     if !has_learning_items {
+        tracing::info!("Taking run_response_only path (no learning items)");
         run_response_only(state, &params, user_state, now).await
     } else {
+        tracing::info!("Taking run_agents_with_analysis path (has learning items)");
         run_agents_with_analysis(state, &params, msg_with_context, dialect, user_state, now).await
     }
 }
