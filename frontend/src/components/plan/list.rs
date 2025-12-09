@@ -7,6 +7,7 @@ pub struct PlanListProps {
     pub active_plan_id: Option<uuid::Uuid>,
     pub on_select_plan: Callback<Option<uuid::Uuid>>,
     pub on_delete_plan: Callback<uuid::Uuid>,
+    pub on_edit_plan: Callback<uuid::Uuid>,
 }
 
 #[function_component(PlanList)]
@@ -23,6 +24,7 @@ pub fn plan_list(props: &PlanListProps) -> Html {
                         let plan_id = plan.id;
                         let on_select = props.on_select_plan.clone();
                         let on_delete = props.on_delete_plan.clone();
+                        let on_edit = props.on_edit_plan.clone();
                         
                         html! {
                             <li class={classes!("plan-item", if is_active { "active" } else { "" })}>
@@ -30,10 +32,16 @@ pub fn plan_list(props: &PlanListProps) -> Html {
                                     <div class="plan-title">{&plan.title}</div>
                                     <div class="plan-status">{format!("{:?}", plan.status)}</div>
                                 </div>
-                                <button class="delete-plan-btn" onclick={Callback::from(move |e: MouseEvent| {
-                                    e.stop_propagation();
-                                    on_delete.emit(plan_id);
-                                })}>{"×"}</button>
+                                <div class="plan-actions">
+                                    <button class="edit-plan-btn" onclick={Callback::from(move |e: MouseEvent| {
+                                        e.stop_propagation();
+                                        on_edit.emit(plan_id);
+                                    })}>{"✎"}</button>
+                                    <button class="delete-plan-btn" onclick={Callback::from(move |e: MouseEvent| {
+                                        e.stop_propagation();
+                                        on_delete.emit(plan_id);
+                                    })}>{"×"}</button>
+                                </div>
                             </li>
                         }
                     })}

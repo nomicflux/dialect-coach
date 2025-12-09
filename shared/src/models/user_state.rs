@@ -4,9 +4,9 @@ use uuid::Uuid;
 
 use super::dialect::dialect_features;
 use super::{
-    ConversationBranch, Dialect, DialectWithFeatures, Explained, Exploratory, Formality, Language,
-    LanguageOption, LanguageOptions, LanguagePlan, Message, MessageMetadata, Mistake, TeachingMode,
-    Translated, UsageStats,
+    ConversationBranch, Dialect, DialectWithFeatures, Formality, Language,
+    LanguageOption, LanguageOptions, LanguagePlan, Message, MessageMetadata, TeachingMode,
+    UsageStats, LearningItem, LearningGoal,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,26 +64,7 @@ impl UserState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct LearningItem {
-    pub item: LearningItemType,
-    pub score: u8,
-    pub dialect: Dialect,
-}
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum LearningItemType {
-    Mistake(Mistake),
-    Explanation(Explained),
-    Translation(Translated),
-    Exploration(Exploratory),
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct LearningGoal {
-    pub goal: String,
-    pub dialect: Dialect,
-}
 
 impl UserState {
     pub fn default_dialect_for_language(language: Language, show_experimental: bool) -> Dialect {
@@ -354,17 +335,15 @@ impl UserState {
     }
 }
 
-impl LearningItem {
-    /// Create a new learning item with score 0
-    pub fn new(item: LearningItemType, dialect: Dialect) -> Self {
-        Self { item, score: 0, dialect }
-    }
-}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::*;
     use crate::models::agent::MistakeCategory;
+    use crate::models::learning_item::LearningItemType;
+    use crate::models::agent::Mistake;
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
         MessageMetadata::at_now(

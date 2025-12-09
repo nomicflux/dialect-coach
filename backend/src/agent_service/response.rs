@@ -322,20 +322,53 @@ fn extract_gender_from_dialect(dialect_with_features: &DialectWithFeatures) -> G
 }
 
 fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>) -> String {
-    if let Some(plan) = plan {
-        if let Some(step) = plan.steps.get(plan.current_step_index) {
+    if let Some(plan) = plan 
+        && let Some(step) = plan.steps.get(plan.current_step_index) {
+            let mut content = String::new(); // Use a new `content` variable for the plan details
+
+            // Add structured content to prompt
+            if !step.content.items.is_empty() {
+                content.push_str("\nRELEVANT LEARNING CONTENT:\n");
+
+                for item in &step.content.items {
+                    match &item.item {
+                        dialect_coach_shared::models::learning_item::LearningItemType::Translation(t) => {
+                            content.push_str(&format!("- Translation: {} -> {}\n", t.translated_word, t.translated_to));
+                            if let Some(ctx) = &t.context {
+                                 content.push_str(&format!("  Context: {}\n", ctx));
+                            }
+                        }
+                        dialect_coach_shared::models::learning_item::LearningItemType::Explanation(e) => {
+                            content.push_str(&format!("- Explanation ({}): {}\n", e.new_phrase, e.explanation));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            let goal_instruction = match &step.step_type {
+                dialect_coach_shared::models::plan::StepType::Learning { .. } => {
+                     "Your Goal: Help the user complete this step. Use the Provided Step Materials to create sentences and guide the conversation. If the user makes mistakes related to the Grammar Rule or Vocabulary, correct them gently."
+                }
+                dialect_coach_shared::models::plan::StepType::Review { .. } => {
+                    "Your Goal: This is a REVIEW step. Verify the user remembers the content. Do not spoon-feed answers. Challenge them."
+                }
+            };
+
             return format!(
                 "\n\n# ACTIVE LANGUAGE PLAN\nYou are guiding the user through the plan: \"{}\".\n\
-                Current Task: {}\n\
-                Task Description: {}\n\
-                Your Goal: Help the user complete this task. If they seem stuck, provide hints related to this specific task.",
-                plan.title, step.title, step.instructions
+                Current Step: {}\n\
+                Instructions: {}\n\
+                {}\
+                {}",
+                plan.title, step.title, step.instructions, content, goal_instruction
             );
         }
-    }
+
     String::new()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_system_content(
     dialect: DialectWithFeatures,
     formality: Formality,
@@ -1214,43 +1247,48 @@ mod tests {
 
     #[test]
     fn test_build_system_content_with_active_plan() {
-        let dialect = Dialect::SpanishMexican;
-        let formality = Formality::Informal;
-        let teaching_mode = TeachingMode::Immersive;
-        let learning_goals = vec![];
-        let past_learning_items = PastLearningItems::default();
+        use dialect_coach_shared::models::{LanguagePlan, PlanStep, StepType, CompletionCriteria, PlanContent, Translated};
+        use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
+        use dialect_coach_shared::models::Dialect;
+        use uuid::Uuid;
+        use dialect_coach_shared::models::UserState;
 
-        let step = dialect_coach_shared::PlanStep::new(
+        let mut content = PlanContent::default();
+        content.items.push(LearningItem::new(
+            LearningItemType::Translation(Translated::new(
+                "hola".to_string(),
+                "hello".to_string(),
+                None
+            )),
+            Dialect::SpanishMexican
+        ));
+
+        let current_step = PlanStep::new(
             1,
-            "Step 1".to_string(),
-            dialect_coach_shared::StepType::Learning {
-                focus: "Basics".to_string(),
-            },
-            "Learn basic greetings".to_string(), // Instructions
-            dialect_coach_shared::CompletionCriteria::Manual,
+            "Intro".to_string(),
+            StepType::Learning { focus: "Basics".to_string() },
+            "Learn basic greetings".to_string(),
+            content,
+            CompletionCriteria::Manual
         );
 
-        let plan = dialect_coach_shared::LanguagePlan::new(
-            "My Plan".to_string(),
-            dialect,
-            Some("Description".to_string()),
-            vec![step],
+        let plan = LanguagePlan::new(
+            "Test Plan".to_string(),
+            Dialect::SpanishMexican,
+            None,
+            vec![current_step]
         );
 
-        let content = build_system_content(
-            dialect_features(dialect),
-            formality,
-            teaching_mode,
-            &learning_goals,
-            &past_learning_items,
-            UserGender::NonBinary,
-            &None,
-            &Some(&plan),
-        );
-
-        assert!(content.contains("# ACTIVE LANGUAGE PLAN"));
-        assert!(content.contains("My Plan"));
-        assert!(content.contains("Step 1"));
-        assert!(content.contains("Learn basic greetings"));
+        let mut state = UserState::new(Uuid::new_v4());
+        state.language_plans.push(plan.clone());
+        state.active_plan_id = Some(plan.id);
+        
+        // Act
+        let system_content = build_plan_system_content(&Some(&plan));
+        
+        // Assert
+        assert!(system_content.contains("RELEVANT LEARNING CONTENT"));
+        assert!(system_content.contains("hola -> hello"));
+        assert!(system_content.contains("Your Goal: Help the user complete this step."));
     }
 }

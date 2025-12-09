@@ -620,6 +620,7 @@ pub fn learning(props: &LearningProps) -> Html {
     let enriching = use_state(|| false);
     let enrich_error = use_state(|| None::<String>);
     let show_create_plan = use_state(|| false);
+    let editing_plan_id = use_state(|| None::<Uuid>);
 
     let fields = FormFields {
         mistake: specific_mistake.clone(),
@@ -633,6 +634,11 @@ pub fn learning(props: &LearningProps) -> Html {
         point: point_to_try.clone(),
         instructions: instructions.clone(),
     };
+
+    let plan_to_edit = props.user_state.state.as_ref()
+        .and_then(|state| editing_plan_id.as_ref().and_then(|id| 
+            state.language_plans.iter().find(|p| p.id == *id).cloned()
+        ));
 
     let clear_fields = create_clear_fields_callback(ClearStates {
         mistake: specific_mistake.clone(),
@@ -791,21 +797,32 @@ pub fn learning(props: &LearningProps) -> Html {
                         >
                             {"← Back to All Plans"}
                         </button>
-                    } else if *show_create_plan {
+                    } else if *show_create_plan || editing_plan_id.is_some() {
                         if let Some(dialect) = props.active_branch_dialect {
                             <PlanCreate 
                                 dialect={dialect}
+                                plan_to_edit={plan_to_edit}
                                 on_create={
                                     let user_state = props.user_state.clone();
                                     let show_create_plan = show_create_plan.clone();
-                                    Callback::from(move |plan| {
-                                        user_state.dispatch(UserStateAction::AddLanguagePlan(plan));
+                                    let editing_plan_id = editing_plan_id.clone();
+                                    Callback::from(move |plan: dialect_coach_shared::models::LanguagePlan| {
+                                        if editing_plan_id.is_some() {
+                                            user_state.dispatch(UserStateAction::UpdateLanguagePlan(plan));
+                                        } else {
+                                            user_state.dispatch(UserStateAction::AddLanguagePlan(plan));
+                                        }
                                         show_create_plan.set(false);
+                                        editing_plan_id.set(None);
                                     })
                                 }
                                 on_cancel={
                                     let show_create_plan = show_create_plan.clone();
-                                    Callback::from(move |_| show_create_plan.set(false))
+                                    let editing_plan_id = editing_plan_id.clone();
+                                    Callback::from(move |_| {
+                                        show_create_plan.set(false);
+                                        editing_plan_id.set(None);
+                                    })
                                 }
                             />
                         }
@@ -825,13 +842,23 @@ pub fn learning(props: &LearningProps) -> Html {
                                     user_state.dispatch(UserStateAction::DeleteLanguagePlan(id));
                                 })
                             }
+                            on_edit_plan={
+                                let editing_plan_id = editing_plan_id.clone();
+                                Callback::from(move |id| {
+                                    editing_plan_id.set(Some(id));
+                                })
+                            }
                         />
                         if has_active_dialect(props.active_branch_dialect) {
                             <button 
                                 class="create-plan-button"
                                 onclick={
                                     let show_create_plan = show_create_plan.clone();
-                                    Callback::from(move |_| show_create_plan.set(true))
+                                    let editing_plan_id = editing_plan_id.clone();
+                                    Callback::from(move |_| {
+                                        editing_plan_id.set(None);
+                                        show_create_plan.set(true)
+                                    })
                                 }
                             >
                                 {"+ Create New Plan"}

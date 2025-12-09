@@ -419,6 +419,7 @@ pub enum UserStateAction {
     DeleteLanguagePlan(Uuid),
     SetActivePlan(Option<Uuid>),
     AdvancePlanStep(Uuid),
+    UpdateLanguagePlan(LanguagePlan),
 }
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
@@ -772,6 +773,11 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         UserStateAction::AdvancePlanStep(plan_id) => {
             if let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == plan_id) {
                 plan.advance_step();
+            }
+        }
+        UserStateAction::UpdateLanguagePlan(updated_plan) => {
+            if let Some(plan_idx) = next.language_plans.iter().position(|p| p.id == updated_plan.id) {
+                next.language_plans[plan_idx] = updated_plan;
             }
         }
         UserStateAction::ClearUserState => {
@@ -1502,7 +1508,7 @@ mod tests {
     }
     #[test]
     fn test_language_plan_reducers() {
-        use dialect_coach_shared::models::{LanguagePlan, PlanStep, StepType, CompletionCriteria, PlanStatus, StepStatus};
+        use dialect_coach_shared::models::{LanguagePlan, PlanStep, StepType, CompletionCriteria, PlanStatus, StepStatus, PlanContent};
 
         let mut state = UserState::new(Uuid::new_v4());
         let plan_id = Uuid::new_v4();
@@ -1512,8 +1518,8 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             description: None,
             steps: vec![
-                PlanStep::new(1, "Step 1".to_string(), StepType::Learning { focus: "Basics".to_string() }, "Msg".to_string(), CompletionCriteria::Manual),
-                PlanStep::new(2, "Step 2".to_string(), StepType::Learning { focus: "Advanced".to_string() }, "Msg".to_string(), CompletionCriteria::Manual),
+                PlanStep::new(1, "Step 1".to_string(), StepType::Learning { focus: "Basics".to_string() }, "Msg".to_string(), PlanContent::default(), CompletionCriteria::Manual),
+                PlanStep::new(2, "Step 2".to_string(), StepType::Learning { focus: "Advanced".to_string() }, "Msg".to_string(), PlanContent::default(), CompletionCriteria::Manual),
             ],
             current_step_index: 0,
             status: PlanStatus::NotStarted,

@@ -1,6 +1,7 @@
 use super::dialect::Dialect;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use super::learning_item::LearningItem;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LanguagePlan {
@@ -25,6 +26,13 @@ pub struct PlanStep {
     pub status: StepStatus,
     pub started_at: Option<i64>,
     pub completed_at: Option<i64>,
+    pub content: PlanContent,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct PlanContent {
+    pub items: Vec<LearningItem>,
+    pub agent_instructions: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -40,7 +48,6 @@ pub enum StepType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CompletionCriteria {
     Manual,
-    MessageCount(u32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -131,6 +138,7 @@ impl PlanStep {
         title: String,
         step_type: StepType,
         instructions: String,
+        content: PlanContent,
         completion_criteria: CompletionCriteria,
     ) -> Self {
         Self {
@@ -141,6 +149,7 @@ impl PlanStep {
             instructions,
             completion_criteria,
             status: StepStatus::NotStarted,
+            content,
             started_at: None,
             completed_at: None,
         }
@@ -158,6 +167,7 @@ mod tests {
             "Step 1".to_string(),
             StepType::Learning { focus: "Basics".to_string() },
             "Instructions".to_string(),
+            PlanContent::default(),
             CompletionCriteria::Manual,
         );
         let step2 = PlanStep::new(
@@ -165,7 +175,8 @@ mod tests {
             "Step 2".to_string(),
             StepType::Learning { focus: "Advanced".to_string() },
             "Instructions".to_string(),
-            CompletionCriteria::MessageCount(5),
+            PlanContent::default(),
+            CompletionCriteria::Manual,
         );
 
         let mut plan = LanguagePlan::new(

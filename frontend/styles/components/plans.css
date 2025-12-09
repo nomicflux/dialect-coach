@@ -28,7 +28,74 @@
 }
 
 .plan-info {
-    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.2em;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+/* Active Plan Content View */
+.active-step-content-blocks {
+    margin: 15px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.content-block-view {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 10px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.content-block-view.grammar {
+    border-left-color: #9b59b6;
+}
+
+.content-block-view.examples {
+    border-left-color: #e67e22;
+}
+
+.content-title {
+    margin: 0 0 5px 0;
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.content-list {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.95em;
+}
+
+.content-list li {
+    margin-bottom: 2px;
+}
+
+.content-desc {
+    margin: 0 0 10px 0;
+    font-size: 0.95em;
+}
+
+.rule-examples {
+    margin-top: 5px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.examples-label {
+    font-size: 0.8em;
+    font-weight: bold;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 3px;
 }
 
 .plan-title {
@@ -41,7 +108,13 @@
     color: var(--text-secondary);
 }
 
-.delete-plan-btn {
+.plan-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.delete-plan-btn,
+.edit-plan-btn {
     background: none;
     border: none;
     color: var(--text-secondary);
@@ -54,6 +127,11 @@
 .delete-plan-btn:hover {
     opacity: 1;
     color: var(--error-color);
+}
+
+.edit-plan-btn:hover {
+    opacity: 1;
+    color: var(--accent-primary);
 }
 
 .create-plan-button {
@@ -219,4 +297,138 @@
 .view-all-plans-btn:hover {
     color: var(--text-primary);
     text-decoration: underline;
+}
+
+/* Step Editor Buttons */
+.remove-step-btn {
+    background: rgba(255, 0, 0, 0.2);
+    border: 1px solid rgba(255, 0, 0, 0.3);
+    color: #ff6b6b;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.remove-step-btn:hover {
+    background: rgba(255, 0, 0, 0.3);
+    color: #ff8787;
+    border-color: rgba(255, 0, 0, 0.5);
+}
+
+.add-step-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px dashed rgba(255, 255, 255, 0.3);
+    color: var(--text-primary);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.add-step-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.save-button {
+    background: var(--accent-primary);
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1;
+    transition: background 0.2s;
+}
+
+.save-button:hover {
+    filter: brightness(1.1);
+}
+
+.cancel-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cancel-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.add-content-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+    border-radius: 15px;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.add-content-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.remove-content-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.remove-content-btn:hover {
+    color: var(--error-color);
+}
+
+.remove-block-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.remove-block-btn:hover {
+    color: var(--error-color);
+}
+
+/* Global Undo Button Style */
+.undo-button {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+    margin-left: 8px;
+    transition: all 0.2s;
+}
+
+.undo-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: var(--accent-primary);
 }

@@ -1,5 +1,8 @@
 use yew::prelude::*;
-use dialect_coach_shared::models::{LanguagePlan, StepStatus, StepType};
+use dialect_coach_shared::models::{
+    LanguagePlan, StepStatus, StepType, PlanContent,
+    learning_item::LearningItemType
+};
 
 #[derive(Properties, PartialEq)]
 pub struct ActivePlanProps {
@@ -39,6 +42,8 @@ pub fn active_plan(props: &ActivePlanProps) -> Html {
                         <p>{&step.instructions}</p>
                     </div>
                     
+                    {render_plan_content(&step.content)}
+                    
                     if step.status == StepStatus::InProgress {
                         <button class="advance-step-btn" onclick={on_advance}>
                             {"Mark Step Complete"}
@@ -60,5 +65,44 @@ fn render_step_icon(step_type: &StepType) -> Html {
     match step_type {
         StepType::Learning { .. } => html! { <span class="step-icon">{"📚"}</span> },
         StepType::Review { .. } => html! { <span class="step-icon">{"↺"}</span> },
+    }
+}
+
+fn render_plan_content(content: &PlanContent) -> Html {
+    if content.items.is_empty() && content.agent_instructions.is_empty() {
+        return html! {};
+    }
+    
+    html! {
+        <div class="active-step-content-blocks">
+            {if !content.agent_instructions.is_empty() {
+                 html! { <div class="agent-instructions-note"><strong>{"Note explicitly for Agent:"}</strong> {&content.agent_instructions}</div> }
+            } else { html!{} }}
+
+            {for content.items.iter().map(|item| {
+                match &item.item {
+                     LearningItemType::Translation(trans) => html! {
+                        <div class="content-block-view vocab">
+                            <h6 class="content-title">{"Translation"}</h6>
+                            <div class="translation-pair">
+                                <span class="word">{&trans.translated_word}</span>
+                                <span class="arrow">{" → "}</span>
+                                <span class="trans">{&trans.translated_to}</span>
+                            </div>
+                            if let Some(ctx) = &trans.context {
+                                <div class="context-note">{ctx}</div>
+                            }
+                        </div>
+                    },
+                    LearningItemType::Explanation(expl) => html! {
+                        <div class="content-block-view grammar">
+                            <h6 class="content-title">{format!("Explanation: {}", expl.new_phrase)}</h6>
+                            <p class="content-desc">{&expl.explanation}</p>
+                        </div>
+                    },
+                     _ => html! {}
+                }
+            })}
+        </div>
     }
 }
