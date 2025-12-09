@@ -3,7 +3,9 @@ use crate::app::user_state_callbacks::{
     on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
     on_language_change, on_teaching_mode_change, on_user_gender_change,
 };
-use dialect_coach_shared::models::{ArabicScript, Formality, JapaneseScript, Language, TeachingMode, UserGender};
+use dialect_coach_shared::models::{
+    ArabicScript, Formality, JapaneseScript, Language, TeachingMode, UserGender,
+};
 use yew::prelude::*;
 
 #[derive(Properties)]

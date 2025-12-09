@@ -1,5 +1,5 @@
 use wasm_bindgen::JsCast;
-use web_sys::{window, HtmlDocument};
+use web_sys::{HtmlDocument, window};
 
 const SESSION_COOKIE_NAME: &str = "dialect_coach_session";
 const MAX_AGE_SECONDS: i32 = 86400; // 24 hours

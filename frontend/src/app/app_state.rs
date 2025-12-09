@@ -2,11 +2,13 @@ pub mod callbacks;
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{
-    ConversationBranch, Dialect, Formality, Language, LanguagePlan, Message, TeachingMode, UserGender,
-    ArabicScript, JapaneseScript,
+    ArabicScript, ConversationBranch, Dialect, Formality, JapaneseScript, Language, LanguagePlan,
+    Message, TeachingMode, UserGender,
 };
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
-use dialect_coach_shared::{LearningGoal, LearningItem, LearningItemType, UsageStats, User, UserState};
+use dialect_coach_shared::{
+    LearningGoal, LearningItem, LearningItemType, UsageStats, User, UserState,
+};
 use log::error;
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
@@ -329,15 +331,11 @@ impl UIState {
             UIStateAction::ClearCreateInviteCodeInput => {
                 next.create_invite_code_input = String::new()
             }
-            UIStateAction::ClearCreatePasswordInput => {
-                next.create_password_input = String::new()
-            }
+            UIStateAction::ClearCreatePasswordInput => next.create_password_input = String::new(),
             UIStateAction::ClearSigninInviteCodeInput => {
                 next.signin_invite_code_input = String::new()
             }
-            UIStateAction::ClearSigninPasswordInput => {
-                next.signin_password_input = String::new()
-            }
+            UIStateAction::ClearSigninPasswordInput => next.signin_password_input = String::new(),
             UIStateAction::PushDeletedLearningItem(item) => {
                 next.deleted_learning_items.push_back(item);
                 if next.deleted_learning_items.len() > 10 {
@@ -446,16 +444,28 @@ fn add_learning_items_to_vec(
     dialect: Dialect,
 ) -> Vec<LearningItem> {
     for mistake in mistakes {
-        items.push(LearningItem::new(LearningItemType::Mistake(mistake), dialect));
+        items.push(LearningItem::new(
+            LearningItemType::Mistake(mistake),
+            dialect,
+        ));
     }
     for expl in explained {
-        items.push(LearningItem::new(LearningItemType::Explanation(expl), dialect));
+        items.push(LearningItem::new(
+            LearningItemType::Explanation(expl),
+            dialect,
+        ));
     }
     for trans in translated {
-        items.push(LearningItem::new(LearningItemType::Translation(trans), dialect));
+        items.push(LearningItem::new(
+            LearningItemType::Translation(trans),
+            dialect,
+        ));
     }
     for explor in exploratory {
-        items.push(LearningItem::new(LearningItemType::Exploration(explor), dialect));
+        items.push(LearningItem::new(
+            LearningItemType::Exploration(explor),
+            dialect,
+        ));
     }
     items
 }
@@ -544,7 +554,10 @@ fn delete_message(mut history: Vec<Message>, id: Uuid) -> Vec<Message> {
     history
 }
 
-fn remove_message_from_branches(mut branches: Vec<ConversationBranch>, msg_id: Uuid) -> Vec<ConversationBranch> {
+fn remove_message_from_branches(
+    mut branches: Vec<ConversationBranch>,
+    msg_id: Uuid,
+) -> Vec<ConversationBranch> {
     for branch in &mut branches {
         if let Some(pos) = branch.message_ids.iter().position(|&id| id == msg_id) {
             branch.message_ids.remove(pos);
@@ -583,7 +596,10 @@ fn create_new_branch_for_language(state: &mut UserState) {
 }
 
 fn sync_to_active_branch(state: &mut UserState) {
-    if let Some(branch) = state.branches.iter().find(|b| b.id == state.active_branch_id)
+    if let Some(branch) = state
+        .branches
+        .iter()
+        .find(|b| b.id == state.active_branch_id)
         && let Some(dialect) = branch.dialect
     {
         state.selected_dialect = dialect;
@@ -644,7 +660,8 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         UserStateAction::ChangeLanguage(language) => {
             let old_language = next.selected_language;
             next.selected_language = language;
-            next.selected_dialect = UserState::default_dialect_for_language(language, next.show_experimental_dialects);
+            next.selected_dialect =
+                UserState::default_dialect_for_language(language, next.show_experimental_dialects);
 
             if old_language != language {
                 create_new_branch_for_language(&mut next);
@@ -697,15 +714,23 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             }
 
             // Create new branch with dialect from the branching message
-            let dialect = next.conversation_history
+            let dialect = next
+                .conversation_history
                 .iter()
                 .find(|m| m.id == message_id)
                 .map(|m| m.metadata.dialect);
-            let message_ids = next.get_path_to_message(Some(message_id))
+            let message_ids = next
+                .get_path_to_message(Some(message_id))
                 .into_iter()
                 .map(|m| m.id)
                 .collect();
-            let new_branch = ConversationBranch::new(Some(message_id), None, Some(message_id), dialect, message_ids);
+            let new_branch = ConversationBranch::new(
+                Some(message_id),
+                None,
+                Some(message_id),
+                dialect,
+                message_ids,
+            );
             let new_branch_id = new_branch.id;
             next.branches.push(new_branch);
             next.active_branch_id = new_branch_id;
@@ -782,7 +807,11 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             }
         }
         UserStateAction::UpdateLanguagePlan(updated_plan) => {
-            if let Some(plan_idx) = next.language_plans.iter().position(|p| p.id == updated_plan.id) {
+            if let Some(plan_idx) = next
+                .language_plans
+                .iter()
+                .position(|p| p.id == updated_plan.id)
+            {
                 next.language_plans[plan_idx] = updated_plan;
             }
         }
@@ -950,7 +979,10 @@ mod tests {
         state = apply_user_state_action(&state, action);
 
         // Branch should now have [A, B, C]
-        assert_eq!(state.branches[0].message_ids, vec![msg_a.id, msg_b.id, msg_c.id]);
+        assert_eq!(
+            state.branches[0].message_ids,
+            vec![msg_a.id, msg_b.id, msg_c.id]
+        );
         assert_eq!(state.branches[0].leaf_message_id, Some(msg_c.id));
     }
 
@@ -1038,7 +1070,13 @@ mod tests {
         let mut state = UserState::new(Uuid::new_v4());
         let first_branch_id = state.branches.first().unwrap().id;
 
-        let new_branch = ConversationBranch::new(None, Some("NewBranch".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let new_branch = ConversationBranch::new(
+            None,
+            Some("NewBranch".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let new_branch_id = new_branch.id;
         state.branches.push(new_branch);
         state.active_branch_id = new_branch_id;
@@ -1112,7 +1150,13 @@ mod tests {
         state.branches[0].leaf_message_id = Some(msg_b.id);
 
         // Create branch C→D from B
-        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("C+D".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch_cd = ConversationBranch::new(
+            Some(msg_b.id),
+            Some("C+D".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_cd_id = branch_cd.id;
         state.branches.push(branch_cd);
 
@@ -1129,7 +1173,13 @@ mod tests {
             .leaf_message_id = Some(msg_d.id);
 
         // Create branch X→Y from B (make active)
-        let branch_xy = ConversationBranch::new(Some(msg_b.id), Some("X+Y".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch_xy = ConversationBranch::new(
+            Some(msg_b.id),
+            Some("X+Y".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_xy_id = branch_xy.id;
         state.branches.push(branch_xy);
         state.active_branch_id = branch_xy_id;
@@ -1179,7 +1229,13 @@ mod tests {
         state.branches[0].leaf_message_id = Some(msg_w.id);
 
         // Create branch C→D from B
-        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("C+D".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch_cd = ConversationBranch::new(
+            Some(msg_b.id),
+            Some("C+D".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_cd_id = branch_cd.id;
         state.branches.push(branch_cd);
 
@@ -1196,7 +1252,13 @@ mod tests {
             .leaf_message_id = Some(msg_d.id);
 
         // Create branch Y from X
-        let branch_y = ConversationBranch::new(Some(msg_x.id), Some("Y".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch_y = ConversationBranch::new(
+            Some(msg_x.id),
+            Some("Y".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_y_id = branch_y.id;
         state.branches.push(branch_y);
 
@@ -1257,7 +1319,13 @@ mod tests {
         state.branches[0].leaf_message_id = Some(msg_c.id);
 
         // Create branch D→E→F from C
-        let branch_def = ConversationBranch::new(Some(msg_c.id), Some("D+E+F".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch_def = ConversationBranch::new(
+            Some(msg_c.id),
+            Some("D+E+F".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_def_id = branch_def.id;
         state.branches.push(branch_def);
 
@@ -1304,7 +1372,13 @@ mod tests {
         state.branches[0].leaf_message_id = Some(msg_b.id);
 
         // Create branch C→D from B (inactive)
-        let branch_cd = ConversationBranch::new(Some(msg_b.id), Some("Inactive".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch_cd = ConversationBranch::new(
+            Some(msg_b.id),
+            Some("Inactive".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_cd_id = branch_cd.id;
         state.branches.push(branch_cd);
 
@@ -1321,7 +1395,13 @@ mod tests {
             .leaf_message_id = Some(msg_d.id);
 
         // Create branch X→Y from B (make active)
-        let branch_xy = ConversationBranch::new(Some(msg_b.id), Some("Active".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch_xy = ConversationBranch::new(
+            Some(msg_b.id),
+            Some("Active".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_xy_id = branch_xy.id;
         state.branches.push(branch_xy);
         state.active_branch_id = branch_xy_id;
@@ -1514,7 +1594,10 @@ mod tests {
     }
     #[test]
     fn test_language_plan_reducers() {
-        use dialect_coach_shared::models::{LanguagePlan, PlanStep, StepType, CompletionCriteria, PlanStatus, StepStatus, PlanContent};
+        use dialect_coach_shared::models::{
+            CompletionCriteria, LanguagePlan, PlanContent, PlanStatus, PlanStep, StepStatus,
+            StepType,
+        };
 
         let mut state = UserState::new(Uuid::new_v4());
         let plan_id = Uuid::new_v4();
@@ -1524,8 +1607,22 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             description: None,
             steps: vec![
-                PlanStep::new(1, "Step 1".to_string(), StepType::Learning { focus: "Basics".to_string() }, "Msg".to_string(), PlanContent::default(), CompletionCriteria::Manual),
-                PlanStep::new(2, "Step 2".to_string(), StepType::Learning { focus: "Advanced".to_string() }, "Msg".to_string(), PlanContent::default(), CompletionCriteria::Manual),
+                PlanStep::new(
+                    1,
+                    "Step 1".to_string(),
+                    StepType::Learning,
+                    "Msg".to_string(),
+                    PlanContent::default(),
+                    CompletionCriteria::Manual,
+                ),
+                PlanStep::new(
+                    2,
+                    "Step 2".to_string(),
+                    StepType::Learning,
+                    "Msg".to_string(),
+                    PlanContent::default(),
+                    CompletionCriteria::Manual,
+                ),
             ],
             current_step_index: 0,
             status: PlanStatus::NotStarted,
@@ -1542,13 +1639,22 @@ mod tests {
         assert_eq!(state.active_plan_id, Some(plan_id));
         // Should auto-start
         assert_eq!(state.language_plans[0].status, PlanStatus::InProgress);
-        assert_eq!(state.language_plans[0].current_step().unwrap().status, StepStatus::InProgress);
+        assert_eq!(
+            state.language_plans[0].current_step().unwrap().status,
+            StepStatus::InProgress
+        );
 
         // Test AdvancePlanStep
         state = apply_user_state_action(&state, UserStateAction::AdvancePlanStep(plan_id));
         assert_eq!(state.language_plans[0].current_step_index, 1);
-        assert_eq!(state.language_plans[0].steps[0].status, StepStatus::Completed);
-        assert_eq!(state.language_plans[0].steps[1].status, StepStatus::InProgress);
+        assert_eq!(
+            state.language_plans[0].steps[0].status,
+            StepStatus::Completed
+        );
+        assert_eq!(
+            state.language_plans[0].steps[1].status,
+            StepStatus::InProgress
+        );
 
         // Test DeleteLanguagePlan
         state = apply_user_state_action(&state, UserStateAction::DeleteLanguagePlan(plan_id));

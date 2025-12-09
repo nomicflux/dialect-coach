@@ -4,9 +4,9 @@ use uuid::Uuid;
 
 use super::dialect::dialect_features;
 use super::{
-    ConversationBranch, Dialect, DialectWithFeatures, Formality, Language,
-    LanguageOption, LanguageOptions, LanguagePlan, Message, MessageMetadata, TeachingMode,
-    UsageStats, LearningItem, LearningGoal,
+    ConversationBranch, Dialect, DialectWithFeatures, Formality, Language, LanguageOption,
+    LanguageOptions, LanguagePlan, LearningGoal, LearningItem, Message, MessageMetadata,
+    TeachingMode, UsageStats,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,25 +46,28 @@ impl UserState {
     }
 
     pub fn get_learning_items_for_dialect(&self, dialect: &Dialect) -> Vec<&LearningItem> {
-        self.learning_items.iter()
+        self.learning_items
+            .iter()
             .filter(|item| &item.dialect == dialect)
             .collect()
     }
 
     pub fn get_learning_goals_for_dialect(&self, dialect: &Dialect) -> Vec<&LearningGoal> {
-        self.learning_goals.iter()
+        self.learning_goals
+            .iter()
             .filter(|goal| &goal.dialect == dialect)
             .collect()
     }
 
     pub fn active_plan(&self) -> Option<LanguagePlan> {
         self.active_plan_id.and_then(|id| {
-            self.language_plans.iter().find(|plan| plan.id == id).cloned()
+            self.language_plans
+                .iter()
+                .find(|plan| plan.id == id)
+                .cloned()
         })
     }
 }
-
-
 
 impl UserState {
     pub fn default_dialect_for_language(language: Language, show_experimental: bool) -> Dialect {
@@ -81,7 +84,8 @@ impl UserState {
         let initial_branch_id = initial_branch.id;
         let show_experimental_dialects = false;
         let selected_language = Language::Spanish;
-        let selected_dialect = Self::default_dialect_for_language(selected_language, show_experimental_dialects);
+        let selected_dialect =
+            Self::default_dialect_for_language(selected_language, show_experimental_dialects);
 
         Self {
             user_id,
@@ -285,11 +289,18 @@ impl UserState {
         for leaf_id in leaves {
             let parent_id = self.find_message(leaf_id).and_then(|msg| msg.parent_id);
             let dialect = self.branch_dialect(leaf_id);
-            let message_ids = self.get_path_to_message(Some(leaf_id))
+            let message_ids = self
+                .get_path_to_message(Some(leaf_id))
                 .into_iter()
                 .map(|m| m.id)
                 .collect();
-            branches.push(ConversationBranch::new(parent_id, None, Some(leaf_id), Some(dialect), message_ids));
+            branches.push(ConversationBranch::new(
+                parent_id,
+                None,
+                Some(leaf_id),
+                Some(dialect),
+                message_ids,
+            ));
         }
         branches
     }
@@ -335,15 +346,17 @@ impl UserState {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::*;
+    use super::{
+        ConversationBranch, Dialect, Formality, Language, LearningItem, Message, MessageMetadata,
+        TeachingMode, UserGender, UserState,
+    };
+    use uuid::Uuid;
+
+    use crate::models::agent::Mistake;
     use crate::models::agent::MistakeCategory;
     use crate::models::learning_item::LearningItemType;
-    use crate::models::agent::Mistake;
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
         MessageMetadata::at_now(
@@ -408,7 +421,10 @@ mod tests {
     #[test]
     fn test_learning_item_new() {
         let mistake = create_test_mistake();
-        let item = LearningItem::new(LearningItemType::Mistake(mistake.clone()), Dialect::SpanishMexican);
+        let item = LearningItem::new(
+            LearningItemType::Mistake(mistake.clone()),
+            Dialect::SpanishMexican,
+        );
 
         assert_eq!(item.score, 0);
         assert_eq!(item.dialect, Dialect::SpanishMexican);
@@ -558,8 +574,16 @@ mod tests {
 
         // Create a conversation chain A → B → C
         let msg_a = Message::user_message("A".to_string(), test_metadata(Uuid::new_v4()), None);
-        let msg_b = Message::user_message("B".to_string(), test_metadata(Uuid::new_v4()), Some(msg_a.id));
-        let msg_c = Message::user_message("C".to_string(), test_metadata(Uuid::new_v4()), Some(msg_b.id));
+        let msg_b = Message::user_message(
+            "B".to_string(),
+            test_metadata(Uuid::new_v4()),
+            Some(msg_a.id),
+        );
+        let msg_c = Message::user_message(
+            "C".to_string(),
+            test_metadata(Uuid::new_v4()),
+            Some(msg_b.id),
+        );
 
         state.conversation_history.push(msg_a.clone());
         state.conversation_history.push(msg_b.clone());
@@ -574,7 +598,10 @@ mod tests {
         assert!(migrated, "Migration should have occurred");
 
         // Verify message_ids was populated
-        assert_eq!(state.branches[0].message_ids, vec![msg_a.id, msg_b.id, msg_c.id]);
+        assert_eq!(
+            state.branches[0].message_ids,
+            vec![msg_a.id, msg_b.id, msg_c.id]
+        );
 
         // Running migration again should return false (idempotent)
         let migrated_again = state.migrate_branch_message_ids();
@@ -593,7 +620,13 @@ mod tests {
     fn test_get_child_branches_one() {
         let mut state = create_test_user_state();
         let message_id = Uuid::new_v4();
-        let branch = ConversationBranch::new(Some(message_id), None, None, Some(Dialect::SpanishMexican), vec![]);
+        let branch = ConversationBranch::new(
+            Some(message_id),
+            None,
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_id = branch.id;
         state.branches.push(branch);
 
@@ -606,7 +639,13 @@ mod tests {
     fn test_find_branch_root_exists() {
         let mut state = create_test_user_state();
         let parent_msg_id = Uuid::new_v4();
-        let branch = ConversationBranch::new(Some(parent_msg_id), None, None, Some(Dialect::SpanishMexican), vec![]);
+        let branch = ConversationBranch::new(
+            Some(parent_msg_id),
+            None,
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
         let branch_id = branch.id;
         state.branches.push(branch);
 
@@ -688,7 +727,10 @@ mod tests {
         state.language_options.japanese_script = JapaneseScript::Romaji;
 
         let option = state.current_language_option();
-        assert_eq!(option, Some(LanguageOption::Japanese(JapaneseScript::Romaji)));
+        assert_eq!(
+            option,
+            Some(LanguageOption::Japanese(JapaneseScript::Romaji))
+        );
     }
 
     #[test]

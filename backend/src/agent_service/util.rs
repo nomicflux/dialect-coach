@@ -41,7 +41,10 @@ fn mistakes_section(mistakes: &[Mistake]) -> Option<String> {
             )
         })
         .collect::<Vec<_>>();
-    render_learning_section("Mistakes to watch - guide the user to correct usage, and demonstrate correct usage naturally of 1-2 items if any exist", lines)
+    render_learning_section(
+        "Mistakes to watch - guide the user to correct usage, and demonstrate correct usage naturally of 1-2 items if any exist",
+        lines,
+    )
 }
 
 fn explained_section(explained: &[Explained]) -> Option<String> {

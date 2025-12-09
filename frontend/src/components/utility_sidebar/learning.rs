@@ -1,5 +1,5 @@
 use crate::app::app_state::{OptionalUserState, UserStateAction};
-use crate::components::plan::{PlanList, PlanCreate, ActivePlan};
+use crate::components::plan::{ActivePlan, PlanCreate, PlanList};
 use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::{
     Dialect, EnrichRequest, Explained, Exploratory, LearningItem, LearningItemType, Mistake,
@@ -36,7 +36,10 @@ fn get_tooltip(item: &LearningItem) -> Option<String> {
         LearningItemType::Explanation(e) => Some(e.explanation.clone()),
         LearningItemType::Translation(t) => {
             if let Some(context) = &t.context {
-                Some(format!("Translation: {}\nContext: {}", t.translated_to, context))
+                Some(format!(
+                    "Translation: {}\nContext: {}",
+                    t.translated_to, context
+                ))
             } else {
                 Some(format!("Translation: {}", t.translated_to))
             }
@@ -45,15 +48,11 @@ fn get_tooltip(item: &LearningItem) -> Option<String> {
     }
 }
 
-
-
 fn has_active_dialect(dialect: Option<Dialect>) -> bool {
     dialect.is_some()
 }
 
-fn create_type_change_callback(
-    selected_type: UseStateHandle<Option<String>>,
-) -> Callback<Event> {
+fn create_type_change_callback(selected_type: UseStateHandle<Option<String>>) -> Callback<Event> {
     Callback::from(move |e: Event| {
         let target = e.target();
         let input = web_sys::HtmlSelectElement::from(wasm_bindgen::JsValue::from(target));
@@ -113,7 +112,11 @@ fn create_mistake_from_form(mistake: &str, corr: &str, cat: &str) -> Mistake {
         "DialectUsageError" => MistakeCategory::DialectUsageError { context: ctx },
         _ => MistakeCategory::Other { context: ctx },
     };
-    Mistake::new(mistake.trim().to_string(), corr.trim().to_string(), category)
+    Mistake::new(
+        mistake.trim().to_string(),
+        corr.trim().to_string(),
+        category,
+    )
 }
 
 fn create_explanation_from_form(phrase: &str, expl: &str) -> Explained {
@@ -191,23 +194,49 @@ fn is_form_partial(selected_type: Option<&String>, fields: &FormFields) -> bool 
     }
 }
 
-fn dispatch_learning_item(selected_type: Option<&String>, fields: &FormFields, user_state: &UseReducerHandle<OptionalUserState>) {
+fn dispatch_learning_item(
+    selected_type: Option<&String>,
+    fields: &FormFields,
+    user_state: &UseReducerHandle<OptionalUserState>,
+) {
     match selected_type.map(|s| s.as_str()) {
         Some("Mistake") => {
-            let item = create_mistake_from_form(&fields.mistake, &fields.correction, &fields.category);
-            user_state.dispatch(UserStateAction::AddLearningItems(vec![item], vec![], vec![], vec![]));
+            let item =
+                create_mistake_from_form(&fields.mistake, &fields.correction, &fields.category);
+            user_state.dispatch(UserStateAction::AddLearningItems(
+                vec![item],
+                vec![],
+                vec![],
+                vec![],
+            ));
         }
         Some("Explanation") => {
             let item = create_explanation_from_form(&fields.phrase, &fields.explanation);
-            user_state.dispatch(UserStateAction::AddLearningItems(vec![], vec![item], vec![], vec![]));
+            user_state.dispatch(UserStateAction::AddLearningItems(
+                vec![],
+                vec![item],
+                vec![],
+                vec![],
+            ));
         }
         Some("Translation") => {
-            let item = create_translation_from_form(&fields.word, &fields.translation, &fields.context);
-            user_state.dispatch(UserStateAction::AddLearningItems(vec![], vec![], vec![item], vec![]));
+            let item =
+                create_translation_from_form(&fields.word, &fields.translation, &fields.context);
+            user_state.dispatch(UserStateAction::AddLearningItems(
+                vec![],
+                vec![],
+                vec![item],
+                vec![],
+            ));
         }
         Some("Exploration") => {
             let item = create_exploration_from_form(&fields.point, &fields.instructions);
-            user_state.dispatch(UserStateAction::AddLearningItems(vec![], vec![], vec![], vec![item]));
+            user_state.dispatch(UserStateAction::AddLearningItems(
+                vec![],
+                vec![],
+                vec![],
+                vec![item],
+            ));
         }
         _ => {}
     }
@@ -265,9 +294,7 @@ struct FormFields {
     instructions: UseStateHandle<String>,
 }
 
-fn render_type_selector(
-    selected_type: UseStateHandle<Option<String>>,
-) -> Html {
+fn render_type_selector(selected_type: UseStateHandle<Option<String>>) -> Html {
     let current_value = selected_type.as_ref().cloned().unwrap_or_default();
     html! {
         <select
@@ -323,10 +350,7 @@ fn render_mistake_fields(
     }
 }
 
-fn render_explanation_fields(
-    phrase: UseStateHandle<String>,
-    expl: UseStateHandle<String>,
-) -> Html {
+fn render_explanation_fields(phrase: UseStateHandle<String>, expl: UseStateHandle<String>) -> Html {
     html! {
         <div class="explanation-fields">
             <input type="text" placeholder="Phrase *" value={(*phrase).clone()}
@@ -354,10 +378,7 @@ fn render_translation_fields(
     }
 }
 
-fn render_exploration_fields(
-    point: UseStateHandle<String>,
-    instr: UseStateHandle<String>,
-) -> Html {
+fn render_exploration_fields(point: UseStateHandle<String>, instr: UseStateHandle<String>) -> Html {
     html! {
         <div class="exploration-fields">
             <input type="text" placeholder="Item *" value={(*point).clone()}
@@ -443,21 +464,19 @@ fn render_add_item_form(p: FormRenderProps) -> Html {
         Some("Mistake") => render_mistake_fields(
             p.fields.mistake.clone(),
             p.fields.correction.clone(),
-            p.fields.category.clone()
+            p.fields.category.clone(),
         ),
-        Some("Explanation") => render_explanation_fields(
-            p.fields.phrase.clone(),
-            p.fields.explanation.clone()
-        ),
+        Some("Explanation") => {
+            render_explanation_fields(p.fields.phrase.clone(), p.fields.explanation.clone())
+        }
         Some("Translation") => render_translation_fields(
             p.fields.word.clone(),
             p.fields.translation.clone(),
-            p.fields.context.clone()
+            p.fields.context.clone(),
         ),
-        Some("Exploration") => render_exploration_fields(
-            p.fields.point.clone(),
-            p.fields.instructions.clone()
-        ),
+        Some("Exploration") => {
+            render_exploration_fields(p.fields.point.clone(), p.fields.instructions.clone())
+        }
         _ => html! {},
     };
     let save_enabled = is_form_valid(p.selected_type.as_ref(), p.fields);
@@ -483,11 +502,16 @@ fn render_add_item_form(p: FormRenderProps) -> Html {
     }
 }
 
-fn set_field_if_present(obj: &serde_json::Map<String, serde_json::Value>, key: &str, state: &UseStateHandle<String>) {
+fn set_field_if_present(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    state: &UseStateHandle<String>,
+) {
     if let Some(val) = obj.get(key)
-        && let Some(s) = val.as_str() {
-            state.set(s.to_string());
-        }
+        && let Some(s) = val.as_str()
+    {
+        state.set(s.to_string());
+    }
 }
 
 fn get_category_name(cat_obj: &serde_json::Map<String, serde_json::Value>) -> &'static str {
@@ -529,34 +553,27 @@ fn populate_fields(enriched_item: serde_json::Value, states: &FieldStates) {
         set_field_if_present(obj, "instructions_for_use", &states.instructions);
 
         if let Some(cat_val) = obj.get("mistake_category")
-            && let Some(cat_obj) = cat_val.as_object() {
-                states.category.set(get_category_name(cat_obj).to_string());
-            }
+            && let Some(cat_obj) = cat_val.as_object()
+        {
+            states.category.set(get_category_name(cat_obj).to_string());
+        }
     }
 }
 
 fn get_item_parts(item: &LearningItem) -> (String, String, &'static str) {
     match &item.item {
         LearningItemType::Mistake(m) => (
-            m.correction.clone(), 
+            m.correction.clone(),
             format!("Instead of: {}", m.specific_mistake),
-            "🛠️"
+            "🛠️",
         ),
-        LearningItemType::Explanation(e) => (
-            e.new_phrase.clone(),
-            e.explanation.clone(),
-            "💡"
-        ),
-        LearningItemType::Translation(t) => (
-            t.translated_to.clone(),
-            t.translated_word.clone(),
-            "🌐"
-        ),
-        LearningItemType::Exploration(e) => (
-            e.point_to_try.clone(),
-            e.instructions_for_use.clone(),
-            "🎯"
-        ),
+        LearningItemType::Explanation(e) => (e.new_phrase.clone(), e.explanation.clone(), "💡"),
+        LearningItemType::Translation(t) => {
+            (t.translated_to.clone(), t.translated_word.clone(), "🌐")
+        }
+        LearningItemType::Exploration(e) => {
+            (e.point_to_try.clone(), e.instructions_for_use.clone(), "🎯")
+        }
     }
 }
 
@@ -635,10 +652,11 @@ pub fn learning(props: &LearningProps) -> Html {
         instructions: instructions.clone(),
     };
 
-    let plan_to_edit = props.user_state.state.as_ref()
-        .and_then(|state| editing_plan_id.as_ref().and_then(|id| 
-            state.language_plans.iter().find(|p| p.id == *id).cloned()
-        ));
+    let plan_to_edit = props.user_state.state.as_ref().and_then(|state| {
+        editing_plan_id
+            .as_ref()
+            .and_then(|id| state.language_plans.iter().find(|p| p.id == *id).cloned())
+    });
 
     let clear_fields = create_clear_fields_callback(ClearStates {
         mistake: specific_mistake.clone(),
@@ -690,7 +708,9 @@ pub fn learning(props: &LearningProps) -> Html {
         };
 
         Callback::from(move |_| {
-            let Some(dialect) = dialect else { return; };
+            let Some(dialect) = dialect else {
+                return;
+            };
             if !is_form_partial(selected_type.as_ref(), &fields) {
                 return;
             }
@@ -700,7 +720,11 @@ pub fn learning(props: &LearningProps) -> Html {
 
             let partial_data = match selected_type.as_ref().map(|s| s.as_str()) {
                 Some("Mistake") => {
-                    let partial = create_partial_mistake(&fields.mistake, &fields.correction, &fields.category);
+                    let partial = create_partial_mistake(
+                        &fields.mistake,
+                        &fields.correction,
+                        &fields.category,
+                    );
                     PartialLearningItem::Mistake(partial)
                 }
                 Some("Explanation") => {
@@ -708,7 +732,11 @@ pub fn learning(props: &LearningProps) -> Html {
                     PartialLearningItem::Explained(partial)
                 }
                 Some("Translation") => {
-                    let partial = create_partial_translation(&fields.word, &fields.translation, &fields.context);
+                    let partial = create_partial_translation(
+                        &fields.word,
+                        &fields.translation,
+                        &fields.context,
+                    );
                     PartialLearningItem::Translated(partial)
                 }
                 Some("Exploration") => {
@@ -747,7 +775,9 @@ pub fn learning(props: &LearningProps) -> Html {
 
     let filtered_plans = if let Some(dialect) = props.active_branch_dialect {
         if let Some(state) = &props.user_state.state {
-            state.language_plans.iter()
+            state
+                .language_plans
+                .iter()
                 .filter(|p| p.dialect == dialect)
                 .cloned()
                 .collect()
@@ -790,7 +820,7 @@ pub fn learning(props: &LearningProps) -> Html {
                     if let Some(active_plan_id) = user_state_val.active_plan_id
                         && let Some(active_plan) = user_state_val.language_plans.iter().find(|p| p.id == active_plan_id)
                     {
-                        <ActivePlan 
+                        <ActivePlan
                             plan={active_plan.clone()}
                             on_advance={
                                 let user_state = props.user_state.clone();
@@ -799,7 +829,7 @@ pub fn learning(props: &LearningProps) -> Html {
                                 })
                             }
                         />
-                        <button 
+                        <button
                             class="view-all-plans-btn"
                             onclick={
                                 let user_state = props.user_state.clone();
@@ -812,7 +842,7 @@ pub fn learning(props: &LearningProps) -> Html {
                         </button>
                     } else if *show_create_plan || editing_plan_id.is_some() {
                         if let Some(dialect) = props.active_branch_dialect {
-                            <PlanCreate 
+                            <PlanCreate
                                 dialect={dialect}
                                 plan_to_edit={plan_to_edit}
                                 on_create={
@@ -841,7 +871,7 @@ pub fn learning(props: &LearningProps) -> Html {
                             />
                         }
                     } else {
-                        <PlanList 
+                        <PlanList
                             plans={filtered_plans} // Use the pre-calculated filtered list
                             active_plan_id={user_state_val.active_plan_id}
                             on_select_plan={
@@ -864,7 +894,7 @@ pub fn learning(props: &LearningProps) -> Html {
                             }
                         />
                         if has_active_dialect(props.active_branch_dialect) {
-                            <button 
+                            <button
                                 class="create-plan-button"
                                 onclick={
                                     let show_create_plan = show_create_plan.clone();

@@ -736,7 +736,10 @@ mod tests {
         );
         assert_eq!(translated.translated_word, "hello");
         assert_eq!(translated.translated_to, "hola");
-        assert_eq!(translated.context, Some("I said hello to my friend".to_string()));
+        assert_eq!(
+            translated.context,
+            Some("I said hello to my friend".to_string())
+        );
     }
 
     #[test]
@@ -755,7 +758,8 @@ mod tests {
 
     #[test]
     fn test_translated_deserialization_with_context() {
-        let json = r#"{"translated_word": "hello", "translated_to": "hola", "context": "I said hello"}"#;
+        let json =
+            r#"{"translated_word": "hello", "translated_to": "hola", "context": "I said hello"}"#;
         let translated: Translated = serde_json::from_str(json).unwrap();
         assert_eq!(translated.translated_word, "hello");
         assert_eq!(translated.translated_to, "hola");

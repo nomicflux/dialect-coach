@@ -430,38 +430,38 @@ fn build_voice_map(
 }
 
 fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<TTSVoice>> {
-    use Gender::MalePresenting as M;
     use Gender::FemalePresenting as F;
+    use Gender::MalePresenting as M;
 
     match dialect {
-        Dialect::SpanishMexican => {
-            build_voice_map(Some(("hHjbwzYZW17oh0p05AKv", F)), None)
-        }
-        Dialect::SpanishArgentinian => {
-            build_voice_map(Some(("XmoCtjPCefjeLDu0eMSl", M)), Some(("es-AR-ElenaNeural", F)))
-        }
-        Dialect::SpanishCuban => {
-            build_voice_map(Some(("1hB7zCGWj11SeMuBseeI", M)), Some(("es-CU-BelkysNeural", F)))
-        }
-        Dialect::SpanishColombian => {
-            build_voice_map(Some(("86V9x9hrQds83qf7zaGn", F)), Some(("es-CO-SalomeNeural", F)))
-        }
-        Dialect::ArabicEgyptian => {
-            build_voice_map(Some(("LXrTqFIgiubkrMkwvOUr", M)), Some(("ar-EG-SalmaNeural", F)))
-        }
-        Dialect::ArabicLevantine => {
-            build_voice_map(Some(("4wf10lgibMnboGJGCLrP", F)), Some(("ar-LB-LaylaNeural", F)))
-        }
-        Dialect::ArabicGulf => {
-            build_voice_map(None, Some(("ar-SA-ZariyahNeural", F)))
-        }
+        Dialect::SpanishMexican => build_voice_map(Some(("hHjbwzYZW17oh0p05AKv", F)), None),
+        Dialect::SpanishArgentinian => build_voice_map(
+            Some(("XmoCtjPCefjeLDu0eMSl", M)),
+            Some(("es-AR-ElenaNeural", F)),
+        ),
+        Dialect::SpanishCuban => build_voice_map(
+            Some(("1hB7zCGWj11SeMuBseeI", M)),
+            Some(("es-CU-BelkysNeural", F)),
+        ),
+        Dialect::SpanishColombian => build_voice_map(
+            Some(("86V9x9hrQds83qf7zaGn", F)),
+            Some(("es-CO-SalomeNeural", F)),
+        ),
+        Dialect::ArabicEgyptian => build_voice_map(
+            Some(("LXrTqFIgiubkrMkwvOUr", M)),
+            Some(("ar-EG-SalmaNeural", F)),
+        ),
+        Dialect::ArabicLevantine => build_voice_map(
+            Some(("4wf10lgibMnboGJGCLrP", F)),
+            Some(("ar-LB-LaylaNeural", F)),
+        ),
+        Dialect::ArabicGulf => build_voice_map(None, Some(("ar-SA-ZariyahNeural", F))),
         Dialect::ArabicMSA => build_voice_map(None, None),
-        Dialect::FrenchQuebecois => {
-            build_voice_map(Some(("j9RedbMRSNQ74PyikQwD", F)), Some(("fr-CA-SylvieNeural", F)))
-        }
-        Dialect::FrenchAfrican => {
-            build_voice_map(Some(("FgHDn7bpgpKqz7QttoyC", M)), None)
-        }
+        Dialect::FrenchQuebecois => build_voice_map(
+            Some(("j9RedbMRSNQ74PyikQwD", F)),
+            Some(("fr-CA-SylvieNeural", F)),
+        ),
+        Dialect::FrenchAfrican => build_voice_map(Some(("FgHDn7bpgpKqz7QttoyC", M)), None),
         Dialect::SpanishAndalusian => build_voice_map(None, None),
         Dialect::FrenchChti => build_voice_map(None, None),
         Dialect::EnglishGeneralAmerican => build_voice_map(None, None),
@@ -470,12 +470,8 @@ fn get_tts_voices(dialect: Dialect) -> HashMap<TTSProviderType, Option<TTSVoice>
         Dialect::EnglishIrish => build_voice_map(None, None),
         Dialect::EnglishScottish => build_voice_map(None, None),
         Dialect::EnglishSouthAfrican => build_voice_map(None, None),
-        Dialect::JapaneseTokyo => build_voice_map(
-            Some(("Mv8AjrYZCBkdsmDHNwcB", M)), None
-        ),
-        Dialect::JapaneseKansai => build_voice_map(
-            Some(("nHEVPT3LS1V37bXZNr82", M)), None
-        ),
+        Dialect::JapaneseTokyo => build_voice_map(Some(("Mv8AjrYZCBkdsmDHNwcB", M)), None),
+        Dialect::JapaneseKansai => build_voice_map(Some(("nHEVPT3LS1V37bXZNr82", M)), None),
         Dialect::JapaneseTohoku => build_voice_map(None, None),
         Dialect::JapaneseKyushu => build_voice_map(None, None),
         Dialect::JapaneseHokkaido => build_voice_map(None, None),

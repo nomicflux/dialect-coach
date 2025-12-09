@@ -1,5 +1,5 @@
-use yew::prelude::*;
 use dialect_coach_shared::models::LanguagePlan;
+use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct PlanListProps {
@@ -25,7 +25,7 @@ pub fn plan_list(props: &PlanListProps) -> Html {
                         let on_select = props.on_select_plan.clone();
                         let on_delete = props.on_delete_plan.clone();
                         let on_edit = props.on_edit_plan.clone();
-                        
+
                         html! {
                             <li class={classes!("plan-item", if is_active { "active" } else { "" })}>
                                 <div class="plan-info" onclick={Callback::from(move |_| on_select.emit(Some(plan_id)))}>

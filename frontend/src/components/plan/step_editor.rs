@@ -1,21 +1,42 @@
-use yew::prelude::*;
-use dialect_coach_shared::models::{
-    PlanStep, StepType,
-    Translated, Explained,
-    learning_item::{LearningItem, LearningItemType},
-    EnrichRequest, PartialLearningItem, PartialTranslated, Dialect
-};
-use web_sys::{HtmlInputElement, HtmlTextAreaElement};
 use crate::services::enrichment_service::EnrichmentService;
+use dialect_coach_shared::models::{
+    Dialect, EnrichRequest, Explained, PartialLearningItem, PartialTranslated, PlanStep, StepType,
+    Translated,
+    learning_item::{LearningItem, LearningItemType},
+};
 use std::rc::Rc;
+use web_sys::{HtmlInputElement, HtmlTextAreaElement};
+use yew::prelude::*;
+
+#[derive(Clone, PartialEq)]
+pub struct EditableStep {
+    pub step: PlanStep,
+    pub is_bulk_open: bool,
+    pub bulk_text: String,
+    pub bulk_delimiter: String,
+    pub is_enriching_bulk: bool,
+}
+
+impl EditableStep {
+    pub fn new(step: PlanStep) -> Self {
+        Self {
+            step,
+            is_bulk_open: false,
+            bulk_text: String::new(),
+            bulk_delimiter: "auto".to_string(),
+            is_enriching_bulk: false,
+        }
+    }
+}
 
 #[derive(Properties, PartialEq, Clone)]
 pub struct StepEditorProps {
-    pub step: PlanStep,
+    pub step: EditableStep,
     pub index: usize,
-    pub on_update: Callback<PlanStep>,
+    pub on_update: Callback<EditableStep>,
     pub on_remove: Callback<()>,
     pub enrichment_service: Rc<EnrichmentService>,
+    pub target_dialect: Dialect,
 }
 
 #[function_component(StepEditor)]
@@ -24,9 +45,9 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
         let props = props.clone();
         Callback::from(move |e: Event| {
             let target: web_sys::HtmlInputElement = e.target_unchecked_into();
-            let mut new_step = props.step.clone();
-            new_step.title = target.value();
-            props.on_update.emit(new_step);
+            let mut new_state = props.step.clone();
+            new_state.step.title = target.value();
+            props.on_update.emit(new_state);
         })
     };
 
@@ -34,9 +55,9 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
         let props = props.clone();
         Callback::from(move |e: Event| {
             let target: web_sys::HtmlTextAreaElement = e.target_unchecked_into();
-            let mut new_step = props.step.clone();
-            new_step.instructions = target.value();
-            props.on_update.emit(new_step);
+            let mut new_state = props.step.clone();
+            new_state.step.instructions = target.value();
+            props.on_update.emit(new_state);
         })
     };
 
@@ -44,219 +65,217 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
         let props = props.clone();
         Callback::from(move |e: Event| {
             let target: web_sys::HtmlSelectElement = e.target_unchecked_into();
-            let mut new_step = props.step.clone();
+            let mut new_state = props.step.clone();
             let value = target.value();
             match value.as_str() {
-                "Learning" => new_step.step_type = StepType::Learning { focus: "".to_string() },
-                "Review" => new_step.step_type = StepType::Review { review_step_ids: vec![] },
+                "Learning" => new_state.step.step_type = StepType::Learning,
+                "Review" => {
+                    new_state.step.step_type = StepType::Review {
+                        review_step_ids: vec![],
+                    }
+                }
                 _ => {}
             }
-            props.on_update.emit(new_step);
-        })
-    };
-
-    let on_focus_change = {
-        let props = props.clone();
-        Callback::from(move |e: Event| {
-            let target: web_sys::HtmlInputElement = e.target_unchecked_into();
-            let mut new_step = props.step.clone();
-            if let StepType::Learning { .. } = new_step.step_type {
-                new_step.step_type = StepType::Learning { focus: target.value() };
-                props.on_update.emit(new_step);
-            }
+            props.on_update.emit(new_state);
         })
     };
 
     let add_vocab = {
         let props = props.clone();
         Callback::from(move |_| {
-            let mut new_step = props.step.clone();
-            // Start with an empty Translation item
+            let mut new_state = props.step.clone();
             let item = LearningItem::new(
                 LearningItemType::Translation(Translated::new(
                     "".to_string(),
                     "".to_string(),
-                    None
+                    None,
                 )),
-                dialect_coach_shared::models::Dialect::SpanishMexican // TODO: Get from plan?
+                props.target_dialect,
             );
-            new_step.content.items.push(item);
-            props.on_update.emit(new_step);
+            new_state.step.content.items.push(item);
+            props.on_update.emit(new_state);
         })
     };
 
     let add_grammar = {
         let props = props.clone();
         Callback::from(move |_| {
-            let mut new_step = props.step.clone();
-            // Start with an empty Explanation item
+            let mut new_state = props.step.clone();
             let item = LearningItem::new(
-                LearningItemType::Explanation(Explained::new(
-                    "".to_string(),
-                    "".to_string()
-                )),
-                dialect_coach_shared::models::Dialect::SpanishMexican
+                LearningItemType::Explanation(Explained::new("".to_string(), "".to_string())),
+                props.target_dialect,
             );
-            new_step.content.items.push(item);
-            props.on_update.emit(new_step);
+            new_state.step.content.items.push(item);
+            props.on_update.emit(new_state);
         })
     };
 
     let add_examples = {
         let props = props.clone();
         Callback::from(move |_| {
-            let mut new_step = props.step.clone();
-            // Examples are also translations, maybe with context
+            let mut new_state = props.step.clone();
             let item = LearningItem::new(
                 LearningItemType::Translation(Translated::new(
                     "".to_string(),
                     "".to_string(),
-                    Some("Reference Example".to_string())
+                    Some("Reference Example".to_string()),
                 )),
-                dialect_coach_shared::models::Dialect::SpanishMexican
+                props.target_dialect,
             );
-            new_step.content.items.push(item);
-            props.on_update.emit(new_step);
+            new_state.step.content.items.push(item);
+            props.on_update.emit(new_state);
         })
     };
 
     let remove_content = {
         let props = props.clone();
         Callback::from(move |index: usize| {
-            let mut new_step = props.step.clone();
-            if index < new_step.content.items.len() {
-                new_step.content.items.remove(index);
-                props.on_update.emit(new_step);
+            let mut new_state = props.step.clone();
+            if index < new_state.step.content.items.len() {
+                new_state.step.content.items.remove(index);
+                props.on_update.emit(new_state);
             }
         })
     };
 
-    // Helper for updating items
     let update_item_at = {
         let props = props.clone();
         Callback::from(move |(index, item): (usize, LearningItem)| {
-             let mut new_step = props.step.clone();
-             if index < new_step.content.items.len() {
-                 new_step.content.items[index] = item;
-                 props.on_update.emit(new_step);
-             }
+            let mut new_state = props.step.clone();
+            if index < new_state.step.content.items.len() {
+                new_state.step.content.items[index] = item;
+                props.on_update.emit(new_state);
+            }
         })
     };
 
-    let bulk_text = use_state(String::new);
-    let show_bulk = use_state(|| false);
-    let is_enriching_bulk = use_state(|| false);
-    let bulk_delimiter = use_state(|| "auto".to_string());
+    let toggle_bulk = {
+        let props = props.clone();
+        Callback::from(move |_| {
+            let mut new_state = props.step.clone();
+            new_state.is_bulk_open = !new_state.is_bulk_open;
+            props.on_update.emit(new_state);
+        })
+    };
+
+    let update_bulk_text = {
+        let props = props.clone();
+        Callback::from(move |e: Event| {
+            let target: web_sys::HtmlTextAreaElement = e.target_unchecked_into();
+            let mut new_state = props.step.clone();
+            new_state.bulk_text = target.value();
+            props.on_update.emit(new_state);
+        })
+    };
+
+    let update_bulk_delimiter = {
+        let props = props.clone();
+        Callback::from(move |e: Event| {
+            let target: web_sys::HtmlSelectElement = e.target_unchecked_into();
+            let mut new_state = props.step.clone();
+            new_state.bulk_delimiter = target.value();
+            props.on_update.emit(new_state);
+        })
+    };
 
     let add_bulk_items = {
         let props = props.clone();
-        let bulk_text = bulk_text.clone();
-        let is_enriching_bulk = is_enriching_bulk.clone();
-        let show_bulk = show_bulk.clone();
-        let bulk_delimiter = bulk_delimiter.clone();
         let enrichment_service = props.enrichment_service.clone();
 
         Callback::from(move |_| {
-            let text = (*bulk_text).clone();
-            let delimiter = (*bulk_delimiter).clone();
+            let text = props.step.bulk_text.clone();
+            let delimiter = props.step.bulk_delimiter.clone();
             let props = props.clone();
-            let is_enriching_bulk = is_enriching_bulk.clone();
-            let show_bulk = show_bulk.clone();
             let enrichment_service = enrichment_service.clone();
-            
+
             // 1. Split text
             let raw_items: Vec<String> = match delimiter.as_str() {
                 "newline" => text.split('\n').map(|s| s.trim().to_string()).collect(),
                 "comma" => text.split(',').map(|s| s.trim().to_string()).collect(),
                 "semicolon" => text.split(';').map(|s| s.trim().to_string()).collect(),
-                _ => { // Auto
+                _ => {
+                    // Auto
                     if text.contains('\n') {
-                         text.split('\n').map(|s| s.trim().to_string()).collect()
+                        text.split('\n').map(|s| s.trim().to_string()).collect()
                     } else if text.contains(';') {
-                         text.split(';').map(|s| s.trim().to_string()).collect()
+                        text.split(';').map(|s| s.trim().to_string()).collect()
                     } else {
-                         text.split(',').map(|s| s.trim().to_string()).collect() // Fallback to comma if single line
+                        text.split(',').map(|s| s.trim().to_string()).collect()
                     }
                 }
             };
-            
-            let items_to_process: Vec<String> = raw_items.into_iter()
-                .filter(|s| !s.is_empty())
-                .collect();
+
+            let items_to_process: Vec<String> =
+                raw_items.into_iter().filter(|s| !s.is_empty()).collect();
 
             if items_to_process.is_empty() {
                 return;
             }
 
-            let props_for_async = props.clone();
-            let is_enriching_bulk_for_async = is_enriching_bulk.clone();
-            let show_bulk_for_async = show_bulk.clone();
-            let bulk_text_for_async = bulk_text.clone();
+            // Set enriching state
+            let mut enriching_state = props.step.clone();
+            enriching_state.is_enriching_bulk = true;
+            props.on_update.emit(enriching_state);
 
-            is_enriching_bulk.set(true);
+            let props_for_async = props.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
                 let mut new_items: Vec<LearningItem> = Vec::new();
-                
-                // Process in parallel (batches of 5 to avoid overwhelming?)
-                // For now, let's just spawn all. Browser limit is like 6.
-                // We'll trust the browser scheduler.
-                
+
                 let futures = items_to_process.iter().map(|phrase| {
-                     let service = enrichment_service.clone();
-                     let phrase = phrase.clone();
-                     async move {
-                         // Create partial item
-                         let partial = PartialLearningItem::Translated(PartialTranslated {
-                             translated_word: Some(phrase),
-                             translated_to: None,
-                             context: None
-                         });
-                         
-                         let request = EnrichRequest {
-                             dialect: Dialect::SpanishMexican, // TODO: Get from plan? Props don't have dialect, need to add if critical.
-                                                              // For now default to Mexican Spanish as it's the main detailed dialect.
-                             partial_data: partial,
-                         };
-                         
-                         service.enrich_learning_item(request).await
-                     }
+                    let service = enrichment_service.clone();
+                    let phrase = phrase.clone();
+                    async move {
+                        let partial = PartialLearningItem::Translated(PartialTranslated {
+                            translated_word: Some(phrase),
+                            translated_to: None,
+                            context: None,
+                        });
+
+                        let request = EnrichRequest {
+                            dialect: props.target_dialect,
+                            partial_data: partial,
+                        };
+
+                        service.enrich_learning_item(request).await
+                    }
                 });
 
                 let results = futures_util::future::join_all(futures).await;
 
-                for res in results {
-                    if let Ok(response) = res {
-                         // Convert JSON value to LearningItem
-                         // Note: The response.enriched_item is a serde_json::Value.
-                         // We need to parse it back to a LearningItemType or manually construct it.
-                         // Since LearningItemType::Translated(Translated) matches the struct
-                         // Let's assume enrichment service returns valid fields.
-                         
-                         if let Some(obj) = response.enriched_item.as_object() {
-                             // Manual extraction because we don't have direct deserialization helper here
-                             let word = obj.get("translated_word").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                             let trans = obj.get("translated_to").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                             let ctx = obj.get("context").and_then(|v| v.as_str()).map(|s| s.to_string());
-                             
-                             let item = LearningItem::new(
-                                 LearningItemType::Translation(Translated::new(word, trans, ctx)),
-                                 Dialect::SpanishMexican
-                             );
-                             new_items.push(item);
-                         }
+                for response in results.into_iter().flatten() {
+                    if let Some(obj) = response.enriched_item.as_object() {
+                        let word = obj
+                            .get("translated_word")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let trans = obj
+                            .get("translated_to")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let ctx = obj
+                            .get("context")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+
+                        let item = LearningItem::new(
+                            LearningItemType::Translation(Translated::new(word, trans, ctx)),
+                            props.target_dialect,
+                        );
+                        new_items.push(item);
                     }
                 }
 
-                // Add all new items to the step
-                let mut new_step = props_for_async.step.clone();
-                new_step.content.items.extend(new_items);
-                props_for_async.on_update.emit(new_step);
-                
-                // Reset state
-                is_enriching_bulk_for_async.set(false);
-                show_bulk_for_async.set(false);
-                bulk_text_for_async.set(String::new());
+                // Update state with new items and reset UI
+                let mut final_state = props_for_async.step.clone();
+                final_state.step.content.items.extend(new_items);
+                final_state.is_enriching_bulk = false;
+                final_state.is_bulk_open = false;
+                final_state.bulk_text = String::new();
+
+                props_for_async.on_update.emit(final_state);
             });
         })
     };
@@ -273,31 +292,21 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                     type="text"
                     class="step-title-input"
                     placeholder="Step Title (e.g. 'Verbs with con')"
-                    value={props.step.title.clone()}
+                    value={props.step.step.title.clone()}
                     onchange={on_title_change}
                 />
 
                 <div class="step-meta-controls">
                      <select class="step-type-select" onchange={on_step_type_change}>
-                        <option value="Learning" selected={matches!(props.step.step_type, StepType::Learning{..})}>{"Learning"}</option>
-                        <option value="Review" selected={matches!(props.step.step_type, StepType::Review{..})}>{"Review"}</option>
+                        <option value="Learning" selected={matches!(props.step.step.step_type, StepType::Learning)}>{"Learning"}</option>
+                        <option value="Review" selected={matches!(props.step.step.step_type, StepType::Review{..})}>{"Review"}</option>
                     </select>
-
-                    if let StepType::Learning { focus } = &props.step.step_type {
-                        <input
-                            type="text"
-                            class="step-focus-input"
-                            placeholder="Focus (e.g. 'Grammar')"
-                            value={focus.clone()}
-                            onchange={on_focus_change}
-                        />
-                    }
                 </div>
 
                 <textarea
                     class="step-instructions-input"
                     placeholder="Instructions for this step..."
-                    value={props.step.instructions.clone()}
+                    value={props.step.step.instructions.clone()}
                     onchange={on_instructions_change}
                 />
             </div>
@@ -317,33 +326,24 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                         <span class="btn-icon">{"+"}</span>
                         {"Example"}
                     </button>
-                    
-                    <button 
-                        type="button" 
-                        class={classes!("add-content-btn", "bulk-btn", (*show_bulk).then_some("active"))}
-                        onclick={
-                            let show_bulk = show_bulk.clone();
-                            Callback::from(move |_| show_bulk.set(!*show_bulk))
-                        }
+
+                    <button
+                        type="button"
+                        class={classes!("add-content-btn", "bulk-btn", props.step.is_bulk_open.then_some("active"))}
+                        onclick={toggle_bulk}
                     >
                          <span class="btn-icon">{"📥"}</span>
                          {"Bulk Add"}
                     </button>
                 </div>
 
-                if *show_bulk {
+                if props.step.is_bulk_open {
                     <div class="bulk-add-panel">
                         <div class="bulk-controls">
                              <label>{"Delimiter:"}</label>
-                             <select 
-                                value={(*bulk_delimiter).clone()} 
-                                onchange={
-                                    let bulk_delimiter = bulk_delimiter.clone();
-                                    Callback::from(move |e: Event| {
-                                        let target: web_sys::HtmlSelectElement = e.target_unchecked_into();
-                                        bulk_delimiter.set(target.value());
-                                    })
-                                }
+                             <select
+                                value={props.step.bulk_delimiter.clone()}
+                                onchange={update_bulk_delimiter}
                              >
                                  <option value="auto">{"Auto"}</option>
                                  <option value="newline">{"Newline"}</option>
@@ -354,28 +354,22 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                         <textarea
                             class="bulk-textarea"
                             placeholder="Paste multiple items here..."
-                            value={(*bulk_text).clone()}
-                            onchange={
-                                let bulk_text = bulk_text.clone();
-                                Callback::from(move |e: Event| {
-                                    let target: web_sys::HtmlTextAreaElement = e.target_unchecked_into();
-                                    bulk_text.set(target.value());
-                                })
-                            }
+                            value={props.step.bulk_text.clone()}
+                            onchange={update_bulk_text}
                         />
-                         <button 
-                             type="button" 
-                             class="bulk-process-btn" 
+                         <button
+                             type="button"
+                             class="bulk-process-btn"
                              onclick={add_bulk_items}
-                             disabled={*is_enriching_bulk || (*bulk_text).trim().is_empty()}
+                             disabled={props.step.is_enriching_bulk || props.step.bulk_text.trim().is_empty()}
                          >
-                            {if *is_enriching_bulk { "Enriching Items..." } else { "Add & Enrich Items" }}
+                            {if props.step.is_enriching_bulk { "Enriching Items..." } else { "Add & Enrich Items" }}
                          </button>
                     </div>
                 }
 
                 <div class="content-blocks-list">
-                    {for props.step.content.items.iter().enumerate().map(|(idx, item)| {
+                    {for props.step.step.content.items.iter().enumerate().map(|(idx, item)| {
                          render_content_editor(idx, item, update_item_at.clone(), remove_content.clone())
                     })}
                 </div>
@@ -385,10 +379,10 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
 }
 
 fn render_content_editor(
-    index: usize, 
+    index: usize,
     item: &LearningItem,
     on_update: Callback<(usize, LearningItem)>,
-    on_remove: Callback<usize>
+    on_remove: Callback<usize>,
 ) -> Html {
     let on_delete = {
         let on_remove = on_remove.clone();
@@ -399,7 +393,7 @@ fn render_content_editor(
         LearningItemType::Translation(trans) => {
             let item_clone = item.clone();
             let on_word_change = {
-                let on_update = on_update.clone(); 
+                let on_update = on_update.clone();
                 let item_base = item_clone.clone();
                 Callback::from(move |e: Event| {
                     let mut new_item = item_base.clone();
@@ -437,10 +431,10 @@ fn render_content_editor(
                     </div>
                 </div>
             }
-        },
+        }
         LearningItemType::Explanation(expl) => {
             let item_clone = item.clone();
-             let on_phrase_change = {
+            let on_phrase_change = {
                 let on_update = on_update.clone();
                 let item_base = item_clone.clone();
                 Callback::from(move |e: Event| {
@@ -452,7 +446,7 @@ fn render_content_editor(
                     }
                 })
             };
-             let item_clone2 = item.clone();
+            let item_clone2 = item.clone();
             let on_expl_change = {
                 let on_update = on_update.clone();
                 let item_base = item_clone2.clone();
@@ -476,9 +470,7 @@ fn render_content_editor(
                     <textarea class="rule-desc-input" placeholder="Explanation..." value={expl.explanation.clone()} onchange={on_expl_change}></textarea>
                 </div>
             }
-        },
-        _ => html! { <div>{"Unsupported Item Type"}</div> }
+        }
+        _ => html! { <div>{"Unsupported Item Type"}</div> },
     }
 }
-
-

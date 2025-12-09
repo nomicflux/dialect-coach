@@ -1,8 +1,7 @@
-use yew::prelude::*;
 use dialect_coach_shared::models::{
-    LanguagePlan, StepStatus, StepType, PlanContent,
-    learning_item::LearningItemType
+    LanguagePlan, PlanContent, StepStatus, StepType, learning_item::LearningItemType,
 };
+use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct ActivePlanProps {
@@ -29,7 +28,7 @@ pub fn active_plan(props: &ActivePlanProps) -> Html {
                 <h4 class="active-plan-title">{&props.plan.title}</h4>
                 <span class="step-counter">{format!("Step {}/{}", current_step_num, total_steps)}</span>
             </div>
-            
+
             <div class="plan-progress-bar">
                 <div class="plan-progress-fill" style={format!("width: {}%", progress_pct)}></div>
             </div>
@@ -41,9 +40,9 @@ pub fn active_plan(props: &ActivePlanProps) -> Html {
                         {render_step_icon(&step.step_type)}
                         <p>{&step.instructions}</p>
                     </div>
-                    
+
                     {render_plan_content(&step.content)}
-                    
+
                     if step.status == StepStatus::InProgress {
                         <button class="advance-step-btn" onclick={on_advance}>
                             {"Mark Step Complete"}
@@ -63,7 +62,7 @@ pub fn active_plan(props: &ActivePlanProps) -> Html {
 
 fn render_step_icon(step_type: &StepType) -> Html {
     match step_type {
-        StepType::Learning { .. } => html! { <span class="step-icon">{"📚"}</span> },
+        StepType::Learning => html! { <span class="step-icon">{"📚"}</span> },
         StepType::Review { .. } => html! { <span class="step-icon">{"↺"}</span> },
     }
 }
@@ -72,7 +71,7 @@ fn render_plan_content(content: &PlanContent) -> Html {
     if content.items.is_empty() && content.agent_instructions.is_empty() {
         return html! {};
     }
-    
+
     html! {
         <div class="active-step-content-blocks">
             {if !content.agent_instructions.is_empty() {

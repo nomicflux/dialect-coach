@@ -3,20 +3,21 @@ use crate::app::app_callbacks::{
 };
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
-use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction};
+use crate::app::app_state::{
+    AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
+};
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
-
-    on_delete_learning_item_callback, on_delete_message_callback,
-    on_switch_branch, on_undo_message_callback,
+    on_delete_learning_item_callback, on_delete_message_callback, on_switch_branch,
+    on_undo_message_callback,
 };
 use crate::components::utility_sidebar::SidebarTab;
-use crate::components::{
-    ChatWindow, InputBox, TranslationModal, UtilitySidebar, VocabHud,
-};
+use crate::components::{ChatWindow, InputBox, TranslationModal, UtilitySidebar, VocabHud};
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
-use dialect_coach_shared::models::{LearningGoal, LearningItem, PhraseTranslation, Translated, UserState};
+use dialect_coach_shared::models::{
+    LearningGoal, LearningItem, PhraseTranslation, Translated, UserState,
+};
 use gloo::events::EventListener;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
@@ -24,8 +25,13 @@ use yew::prelude::*;
 
 #[derive(Clone, PartialEq)]
 pub enum TranslationModalState {
-    Loading { original_sentence: String },
-    Loaded { original_sentence: String, phrases: Vec<PhraseTranslation> },
+    Loading {
+        original_sentence: String,
+    },
+    Loaded {
+        original_sentence: String,
+        phrases: Vec<PhraseTranslation>,
+    },
 }
 
 #[derive(Properties)]
@@ -70,16 +76,18 @@ pub fn main_content(props: &MainContentProps) -> Html {
     let on_save_phrase = {
         let user_state = user_state.clone();
         let modal_state = modal_state.clone();
-        Callback::from(move |(target, english, context): (String, String, String)| {
-            let translated = Translated::new(english, target, Some(context));
-            user_state.dispatch(UserStateAction::AddLearningItems(
-                vec![],
-                vec![],
-                vec![translated],
-                vec![],
-            ));
-            modal_state.set(None);
-        })
+        Callback::from(
+            move |(target, english, context): (String, String, String)| {
+                let translated = Translated::new(english, target, Some(context));
+                user_state.dispatch(UserStateAction::AddLearningItems(
+                    vec![],
+                    vec![],
+                    vec![translated],
+                    vec![],
+                ));
+                modal_state.set(None);
+            },
+        )
     };
 
     let on_selection_translate_click = {
@@ -88,44 +96,48 @@ pub fn main_content(props: &MainContentProps) -> Html {
         let modal_state = modal_state.clone();
         let ui_dispatch = ui_state.clone();
 
-        Callback::from(move |(message_id, selected_text, context): (Uuid, String, String)| {
-            let translation_service = translation_service.clone();
-            let user_state_handle = user_state_handle.clone();
-            let modal_state = modal_state.clone();
-            let ui_dispatch = ui_dispatch.clone();
+        Callback::from(
+            move |(message_id, selected_text, context): (Uuid, String, String)| {
+                let translation_service = translation_service.clone();
+                let user_state_handle = user_state_handle.clone();
+                let modal_state = modal_state.clone();
+                let ui_dispatch = ui_dispatch.clone();
 
-            // Open modal immediately with loading state
-            modal_state.set(Some(TranslationModalState::Loading {
-                original_sentence: context.clone(),
-            }));
+                // Open modal immediately with loading state
+                modal_state.set(Some(TranslationModalState::Loading {
+                    original_sentence: context.clone(),
+                }));
 
-            ui_dispatch.dispatch(UIStateAction::SetTranslateLoading { message_id });
+                ui_dispatch.dispatch(UIStateAction::SetTranslateLoading { message_id });
 
-            wasm_bindgen_futures::spawn_local(async move {
-                if let Some(user_state) = user_state_handle.state.as_ref() {
-                    let dialect = user_state.current_dialect();
-                    let formality = Some(user_state.formality);
+                wasm_bindgen_futures::spawn_local(async move {
+                    if let Some(user_state) = user_state_handle.state.as_ref() {
+                        let dialect = user_state.current_dialect();
+                        let formality = Some(user_state.formality);
 
-                    match translation_service
-                        .translate_phrase(&selected_text, context.clone(), dialect, formality)
-                        .await
-                    {
-                        Ok(response) => {
-                            modal_state.set(Some(TranslationModalState::Loaded {
-                                original_sentence: context,
-                                phrases: response.segmented_phrases,
-                            }));
-                        }
-                        Err(e) => {
-                            web_sys::console::error_1(&format!("Translation failed: {}", e).into());
-                            modal_state.set(None); // Close modal on error
+                        match translation_service
+                            .translate_phrase(&selected_text, context.clone(), dialect, formality)
+                            .await
+                        {
+                            Ok(response) => {
+                                modal_state.set(Some(TranslationModalState::Loaded {
+                                    original_sentence: context,
+                                    phrases: response.segmented_phrases,
+                                }));
+                            }
+                            Err(e) => {
+                                web_sys::console::error_1(
+                                    &format!("Translation failed: {}", e).into(),
+                                );
+                                modal_state.set(None); // Close modal on error
+                            }
                         }
                     }
-                }
 
-                ui_dispatch.dispatch(UIStateAction::ClearTranslateLoading { message_id });
-            });
-        })
+                    ui_dispatch.dispatch(UIStateAction::ClearTranslateLoading { message_id });
+                });
+            },
+        )
     };
 
     {
@@ -323,7 +335,10 @@ fn render_modal(
                 on_save_phrase={on_save.clone()}
             />
         },
-        Some(TranslationModalState::Loaded { original_sentence, phrases }) => html! {
+        Some(TranslationModalState::Loaded {
+            original_sentence,
+            phrases,
+        }) => html! {
             <TranslationModal
                 original_sentence={original_sentence.clone()}
                 phrases={Some(phrases.clone())}
@@ -335,16 +350,17 @@ fn render_modal(
     }
 }
 
-
 fn get_filtered_items(user_state: &UserState) -> Vec<LearningItem> {
-    user_state.get_learning_items_for_dialect(&user_state.selected_dialect)
+    user_state
+        .get_learning_items_for_dialect(&user_state.selected_dialect)
         .into_iter()
         .cloned()
         .collect()
 }
 
 fn get_filtered_goals(user_state: &UserState) -> Vec<LearningGoal> {
-    user_state.get_learning_goals_for_dialect(&user_state.selected_dialect)
+    user_state
+        .get_learning_goals_for_dialect(&user_state.selected_dialect)
         .into_iter()
         .cloned()
         .collect()

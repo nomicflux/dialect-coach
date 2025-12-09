@@ -1,5 +1,7 @@
 use anyhow::Result;
-use dialect_coach_shared::{AgentUsage, Dialect, Explained, LanguageOption, Mistake, LearningItemScore};
+use dialect_coach_shared::{
+    AgentUsage, Dialect, Explained, LanguageOption, LearningItemScore, Mistake,
+};
 use serde::Deserialize;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -341,7 +343,7 @@ async fn call_analysis_api(
         Ok(response) => {
             tracing::info!("Analysis API response: {}", response);
             (Ok(response), usage)
-        },
+        }
         Err(e) => (
             Err(e.context(format!(
                 "Failed to get analysis from provider {} model {}",
@@ -372,11 +374,15 @@ where
                 tracing::info!("{} parsed scores: {:?}", category, scores);
                 tracing::info!("=== {} ANALYSIS END ===", category.to_uppercase());
                 (Ok(scores), usage)
-            },
+            }
             Err(_) => {
                 tracing::warn!("{} parse failed, retrying with error feedback", category);
-                let retry_preamble = format!("{}\n\nPREVIOUS ATTEMPT FAILED TO PARSE. Your response must be valid JSON matching the exact format specified above.", preamble);
-                let (retry_result, retry_usage) = call_analysis_api(retry_ctx, &retry_preamble, prompt).await;
+                let retry_preamble = format!(
+                    "{}\n\nPREVIOUS ATTEMPT FAILED TO PARSE. Your response must be valid JSON matching the exact format specified above.",
+                    preamble
+                );
+                let (retry_result, retry_usage) =
+                    call_analysis_api(retry_ctx, &retry_preamble, prompt).await;
                 usage.extend(retry_usage);
 
                 match retry_result {
@@ -385,23 +391,23 @@ where
                             tracing::info!("{} parsed scores (retry): {:?}", category, scores);
                             tracing::info!("=== {} ANALYSIS END ===", category.to_uppercase());
                             (Ok(scores), usage)
-                        },
+                        }
                         Err(e) => {
                             tracing::error!("=== {} ANALYSIS FAILED ===", category.to_uppercase());
                             (Err(e), usage)
-                        },
+                        }
                     },
                     Err(e) => {
                         tracing::error!("=== {} ANALYSIS FAILED ===", category.to_uppercase());
                         (Err(e), usage)
-                    },
+                    }
                 }
             }
         },
         Err(e) => {
             tracing::error!("=== {} ANALYSIS FAILED ===", category.to_uppercase());
             (Err(e), usage)
-        },
+        }
     }
 }
 
@@ -440,13 +446,10 @@ async fn analyze_mistakes(
     let preamble = mistakes_analysis_preamble(&dialect, mistakes, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    call_and_parse_category(
-        retry_ctx,
-        &preamble,
-        &prompt,
-        "Mistakes",
-        |response| try_parse_category_scores(response, "Mistakes"),
-    ).await
+    call_and_parse_category(retry_ctx, &preamble, &prompt, "Mistakes", |response| {
+        try_parse_category_scores(response, "Mistakes")
+    })
+    .await
 }
 
 async fn analyze_explained(
@@ -463,13 +466,10 @@ async fn analyze_explained(
     let preamble = explained_analysis_preamble(&dialect, explained, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    call_and_parse_category(
-        retry_ctx,
-        &preamble,
-        &prompt,
-        "Explained",
-        |response| try_parse_category_scores(response, "Explained"),
-    ).await
+    call_and_parse_category(retry_ctx, &preamble, &prompt, "Explained", |response| {
+        try_parse_category_scores(response, "Explained")
+    })
+    .await
 }
 
 async fn analyze_translated(
@@ -486,13 +486,10 @@ async fn analyze_translated(
     let preamble = translated_analysis_preamble(&dialect, translated, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    call_and_parse_category(
-        retry_ctx,
-        &preamble,
-        &prompt,
-        "Translated",
-        |response| try_parse_category_scores(response, "Translated"),
-    ).await
+    call_and_parse_category(retry_ctx, &preamble, &prompt, "Translated", |response| {
+        try_parse_category_scores(response, "Translated")
+    })
+    .await
 }
 
 async fn analyze_exploratory(
@@ -509,19 +506,19 @@ async fn analyze_exploratory(
     let preamble = exploratory_analysis_preamble(&dialect, exploratory, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    call_and_parse_category(
-        retry_ctx,
-        &preamble,
-        &prompt,
-        "Exploratory",
-        |response| try_parse_category_scores(response, "Exploratory"),
-    ).await
+    call_and_parse_category(retry_ctx, &preamble, &prompt, "Exploratory", |response| {
+        try_parse_category_scores(response, "Exploratory")
+    })
+    .await
 }
 
 type AnalysisResult = (Result<HashMap<String, i32>, anyhow::Error>, Vec<AgentUsage>);
 
 fn collect_usage(results: &[AnalysisResult]) -> Vec<AgentUsage> {
-    results.iter().flat_map(|(_, usage)| usage.clone()).collect()
+    results
+        .iter()
+        .flat_map(|(_, usage)| usage.clone())
+        .collect()
 }
 
 fn convert_scores(scores: &HashMap<String, i32>) -> Result<HashMap<Uuid, LearningItemScore>> {
@@ -536,17 +533,49 @@ fn convert_scores(scores: &HashMap<String, i32>) -> Result<HashMap<Uuid, Learnin
 
 fn extract_scores(results: Vec<AnalysisResult>) -> Result<dialect_coach_shared::AgentAnalysis> {
     Ok(dialect_coach_shared::AgentAnalysis {
-        mistake_scores: convert_scores(results[0].0.as_ref().map_err(|e| anyhow::anyhow!("{}", e))?)?,
-        explained_scores: convert_scores(results[1].0.as_ref().map_err(|e| anyhow::anyhow!("{}", e))?)?,
-        translated_scores: convert_scores(results[2].0.as_ref().map_err(|e| anyhow::anyhow!("{}", e))?)?,
-        exploratory_scores: convert_scores(results[3].0.as_ref().map_err(|e| anyhow::anyhow!("{}", e))?)?,
+        mistake_scores: convert_scores(
+            results[0]
+                .0
+                .as_ref()
+                .map_err(|e| anyhow::anyhow!("{}", e))?,
+        )?,
+        explained_scores: convert_scores(
+            results[1]
+                .0
+                .as_ref()
+                .map_err(|e| anyhow::anyhow!("{}", e))?,
+        )?,
+        translated_scores: convert_scores(
+            results[2]
+                .0
+                .as_ref()
+                .map_err(|e| anyhow::anyhow!("{}", e))?,
+        )?,
+        exploratory_scores: convert_scores(
+            results[3]
+                .0
+                .as_ref()
+                .map_err(|e| anyhow::anyhow!("{}", e))?,
+        )?,
     })
 }
 
 pub async fn generate_analysis(
     params: AnalysisParams<'_>,
-) -> (Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>, Vec<AgentUsage>) {
-    let AnalysisParams { retry_ctx, dialect, msg, mistakes, explained, translated, exploratory, language_option } = params;
+) -> (
+    Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
+    Vec<AgentUsage>,
+) {
+    let AnalysisParams {
+        retry_ctx,
+        dialect,
+        msg,
+        mistakes,
+        explained,
+        translated,
+        exploratory,
+        language_option,
+    } = params;
 
     if check_empty_learning_items(mistakes, explained, translated, exploratory) {
         return (Ok(dialect_coach_shared::AgentAnalysis::new()), Vec::new());
@@ -572,4 +601,3 @@ pub async fn generate_analysis(
         Err(e) => (Err(e), usage),
     }
 }
-

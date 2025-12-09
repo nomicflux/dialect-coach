@@ -457,7 +457,10 @@ async fn run_response_only(
 }
 
 fn clone_messages_up_to_index(messages: &[&Message], end_idx: usize) -> Vec<Message> {
-    messages[..=end_idx].iter().map(|&msg| msg.clone()).collect()
+    messages[..=end_idx]
+        .iter()
+        .map(|&msg| msg.clone())
+        .collect()
 }
 
 fn get_branch_messages_up_to(user_state: &UserState, parent_message_id: Uuid) -> Vec<Message> {

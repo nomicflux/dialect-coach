@@ -155,7 +155,6 @@ impl LearningAgent {
             return (Ok(LearningAgentOutput::empty()), Vec::new());
         }
 
-
         let limits = calculate_learning_limits(params);
         let system_content = build_learning_system_content(params, &limits);
         tracing::debug!(
@@ -239,7 +238,11 @@ fn build_learning_system_content(
     )
 }
 
-fn learning_mode_context(teaching_mode: &TeachingMode, dialect: &Dialect, formality: &Formality) -> String {
+fn learning_mode_context(
+    teaching_mode: &TeachingMode,
+    dialect: &Dialect,
+    formality: &Formality,
+) -> String {
     match teaching_mode {
         TeachingMode::Corrective => {
             "# COMMUNICATION ERROR DETECTION\n\
@@ -285,10 +288,14 @@ fn learning_mode_context(teaching_mode: &TeachingMode, dialect: &Dialect, formal
     }
 }
 
-fn learning_output_format_spec(teaching_mode: &TeachingMode, limits: &LearningItemLimits) -> String {
+fn learning_output_format_spec(
+    teaching_mode: &TeachingMode,
+    limits: &LearningItemLimits,
+) -> String {
     match teaching_mode {
         TeachingMode::Corrective => {
-            format!(r#"{{
+            format!(
+                r#"{{
   "mistakes": [{{
     "specific_mistake": "<exact erroneous token/phrase>",
     "correction": "<replacement>",
@@ -299,32 +306,38 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
 - Prefer single-token fixes; multi-token only for phrase-level errors
 - Context: brief clarification or empty string
 - Maximum {} item(s)
-- Return {{"mistakes": []}} if no communication errors"#, limits.max_mistakes)
+- Return {{"mistakes": []}} if no communication errors"#,
+                limits.max_mistakes
+            )
         }
         TeachingMode::Explanatory => {
-            format!(r#"{{
+            format!(
+                r#"{{
   "explained": [{{"new_phrase": "<word/phrase>", "explanation": "<brief usage note>"}}]
 }}
 - Maximum {} item(s)
-- Return {{"explained": []}} if nothing new worth cataloging"#, limits.max_explained)
+- Return {{"explained": []}} if nothing new worth cataloging"#,
+                limits.max_explained
+            )
         }
-        TeachingMode::Interleaved => {
-            r#"{
+        TeachingMode::Interleaved => r#"{
   "translated": [{"translated_word": "<source word>", "translated_to": "<dialect translation>"}]
 }
-- Return {"translated": []} when nothing required translating"#.to_string()
-        }
+- Return {"translated": []} when nothing required translating"#
+            .to_string(),
         TeachingMode::StoryTeller => {
-            format!(r#"{{
+            format!(
+                r#"{{
   "exploratory": [{{"point_to_try": "<specific linguistic feature>", "instructions_for_use": "<how to use>"}}]
 }}
 - Maximum {} item(s)
-- Return {{"exploratory": []}} if nothing new introduced"#, limits.max_exploratory)
+- Return {{"exploratory": []}} if nothing new introduced"#,
+                limits.max_exploratory
+            )
         }
-        TeachingMode::Immersive | TeachingMode::Debug => {
-            r#"{}
-No learning items for this mode."#.to_string()
-        }
+        TeachingMode::Immersive | TeachingMode::Debug => r#"{}
+No learning items for this mode."#
+            .to_string(),
     }
 }
 

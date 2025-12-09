@@ -37,15 +37,28 @@
 - [x] Subphase 5.1: Shared Model Updates
 - [x] Subphase 5.2: Frontend Context Injection
 - [x] Subphase 5.3: Backend Prompt Engineering
-- [x] Subphase 5.4: Final Verification
+### Phase 6: Plan Content & Builder
+- [x] Subphase 6.1: Unified Information Model (PlanContent refactor)
+- [x] Subphase 6.2: Frontend Step Editor with Structured Content
+- [x] Subphase 6.3: Backend Content Integration
+- [x] Subphase 6.4: Verification
+
+### Phase 7 & 8: Usability & bug fixes
+- [x] Phase 7.1: Resizable Sidebar
+- [x] Phase 7.2: Bulk Item Entry
+- [x] Phase 7.3: Dialect Specificity
+- [x] Phase 8: Agent Integration Fix (Prompt Injection)
 
 ## Issues Encountered
 - Clippy warning about collapsible if in Phase 2 (Fixed).
 - CLI tool `echo` failed to update CSS properly (user intervention); fixed by using `index.html` `data-trunk` link.
 - Clippy `explicit_auto_deref` in Phase 3 verification (Fixed).
 - Minor test compilation issues in Phase 5 due to signature mismatches (Fixed).
+- Circular dependency in Phase 6 between `user_state` and `plan` (Fixed by creating `learning_item.rs`).
+- `FnOnce` / Borrow Checker issues in Phase 7.2 async callbacks (Fixed by cloning handles).
+- Agent failed to receive plan instructions in non-debug modes (Fixed in Phase 8).
 
 ## Status Summary
 
-**Current Phase:** Phase 5 Complete.
-**Latest Action:** Implemented agent context integration. The agent now receives active language plan instructions in its system prompt. All tests passed.
+**Current Phase:** Phase 8 Complete.
+**Latest Action:** Implemented major usability improvements (Resizable Sidebar, Bulk Entry, Dialect Filtering) and fixed critical agent integration bug. All tests passed.

@@ -9,15 +9,14 @@ pub mod main_content;
 pub mod message_bubble;
 pub mod plan;
 
+pub mod branch_switcher_pill;
 pub mod speech_controls;
 pub mod translate_selection_button;
 pub mod translation_modal;
 pub mod usage_footer;
-pub mod branch_switcher_pill;
 pub mod user_creation;
 pub mod vocab_hud;
 pub mod welcome_screen;
-
 
 pub use branch_switcher_pill::BranchSwitcherPill;
 pub use chat_window::ChatWindow;

@@ -1,5 +1,7 @@
 use super::app_state::OptionalUserState;
-use dialect_coach_shared::{Dialect, Explained, Exploratory, LearningItemType, Mistake, Translated};
+use dialect_coach_shared::{
+    Dialect, Explained, Exploratory, LearningItemType, Mistake, Translated,
+};
 use yew::prelude::*;
 
 pub fn extract_learning_items(

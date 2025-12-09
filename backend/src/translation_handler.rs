@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use dialect_coach_shared::models::{Dialect, Formality, PhraseTranslation, TranslateRequest, TranslateResponse};
+use dialect_coach_shared::models::{
+    Dialect, Formality, PhraseTranslation, TranslateRequest, TranslateResponse,
+};
 
 use crate::AppState;
 

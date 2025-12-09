@@ -1,18 +1,18 @@
 pub mod branches;
 pub mod learning;
 pub mod settings;
-use branches::Branches;
-use learning::Learning;
-use settings::Settings;
 use crate::app::app_state::{OptionalUserState, UIState};
 use crate::services::enrichment_service::EnrichmentService;
-use dialect_coach_shared::models::{ConversationBranch, LearningGoal, Message, LearningItem};
+use branches::Branches;
 use dialect_coach_shared::Dialect;
-use uuid::Uuid;
-use std::rc::Rc;
-use yew::prelude::*;
-use wasm_bindgen::JsCast;
+use dialect_coach_shared::models::{ConversationBranch, LearningGoal, LearningItem, Message};
 use gloo::events::EventListener;
+use learning::Learning;
+use settings::Settings;
+use std::rc::Rc;
+use uuid::Uuid;
+use wasm_bindgen::JsCast;
+use yew::prelude::*;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum SidebarTab {
@@ -79,7 +79,7 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
         let is_resizing = is_resizing.clone();
         let resizing_ref = resizing_ref.clone();
         let on_set_sidebar_width = props.on_set_sidebar_width.clone();
-        
+
         use_effect(move || {
             let window = web_sys::window().expect("no global `window` exists");
 
@@ -87,7 +87,7 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
                 let resizing_ref = resizing_ref.clone();
                 let on_set_sidebar_width = on_set_sidebar_width.clone();
                 let window = window.clone();
-                
+
                 move |event: &Event| {
                     if *resizing_ref {
                         let e = event.dyn_ref::<MouseEvent>().unwrap();
@@ -95,9 +95,9 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
                         // (Since sidebar is on the right)
                         let window_width = window.inner_width().unwrap().as_f64().unwrap() as i32;
                         let new_width = window_width - e.client_x();
-                        
+
                         // Constrain width (min 200px, max 800px or 80% of screen)
-                        let constrained_width = new_width.max(250).min(800);
+                        let constrained_width = new_width.clamp(250, 800);
                         on_set_sidebar_width.emit(constrained_width);
                     }
                 }
@@ -106,7 +106,7 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
             let mouse_up_handler = {
                 let is_resizing = is_resizing.clone();
                 let resizing_ref = resizing_ref.clone();
-                
+
                 move |_event: &Event| {
                     if *resizing_ref {
                         is_resizing.set(false);
@@ -125,17 +125,14 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
         });
     }
 
-    let sidebar_class = classes!(
-        "utility-sidebar",
-        props.is_collapsed.then_some("collapsed"),
-    );
-    
+    let sidebar_class = classes!("utility-sidebar", props.is_collapsed.then_some("collapsed"),);
+
     // Apply width via style attribute
     let style = format!("--sidebar-width: {}px;", props.sidebar_width);
 
     html! {
         <div class={sidebar_class} style={style}>
-            <div 
+            <div
                 class={classes!("sidebar-resize-handle", (*is_resizing).then_some("resizing"))}
                 onmousedown={on_resize_start}
             />

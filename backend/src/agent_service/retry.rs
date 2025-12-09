@@ -52,7 +52,6 @@ pub fn build_retry_response_preamble(original_preamble: &str, failed_response: &
     )
 }
 
-
 pub fn build_retry_learning_preamble(original_preamble: &str, failed_response: &str) -> String {
     build_retry_preamble(
         original_preamble,

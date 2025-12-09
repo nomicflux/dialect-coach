@@ -293,10 +293,7 @@ pub enum UserMessage {
     /// Returns (User, JWT token) on success
     CreateUserResponse(Result<(User, String), String>),
     /// Request to sign in with username and password (Client → Server)
-    SignIn {
-        username: String,
-        password: String,
-    },
+    SignIn { username: String, password: String },
     /// Response to sign in request (Server → Client)
     /// Returns (User, JWT token) on success
     SignInResponse(Result<(User, String), String>),

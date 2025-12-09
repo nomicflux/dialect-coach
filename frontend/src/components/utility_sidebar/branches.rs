@@ -100,7 +100,10 @@ fn render_branch_item(
     };
     let branch_id = branch.id;
     let branch_name = get_branch_display_name(messages, branch);
-    let dialect_name = branch.dialect.map(|d| d.name()).unwrap_or("New conversation");
+    let dialect_name = branch
+        .dialect
+        .map(|d| d.name())
+        .unwrap_or("New conversation");
 
     html! {
         <div class={branch_class}>
@@ -148,7 +151,7 @@ pub fn branches(props: &BranchesProps) -> Html {
     html! {
         <div class="branch-list-container">
             // Removed header and toggle button as they are now handled by parent container
-            
+
             <div class="branch-list">
                 {for props.branches.iter().map(|branch| {
                     let is_active = branch.id == props.active_branch_id;
@@ -156,14 +159,14 @@ pub fn branches(props: &BranchesProps) -> Html {
                     render_branch_item(branch, &props.messages, is_active, msg_count, &props.on_switch_branch, &props.on_delete_branch)
                 })}
             </div>
-            
-            // Learning Goals Section (inline for now, or could be its own tab later if desired, but user plan says "Branches" tab includes goals usually? No, design says "Learning" is separate tab. 
-            // Wait, previous BranchSidebar included LearningGoalsPanel. 
-            // The new design has a "Learning" tab. 
+
+            // Learning Goals Section (inline for now, or could be its own tab later if desired, but user plan says "Branches" tab includes goals usually? No, design says "Learning" is separate tab.
+            // Wait, previous BranchSidebar included LearningGoalsPanel.
+            // The new design has a "Learning" tab.
             // However, the "Learning" tab is usually for "Vocabulary/Phrases" (LearningPanel.rs).
             // "LearningGoalsPanel" (Goals) was inside BranchSidebar.
             // Let's check the Plan.
-            // Plan says: "Right Utility Panel ... Learning Goals and Progress (from LearningPanel.rs)". 
+            // Plan says: "Right Utility Panel ... Learning Goals and Progress (from LearningPanel.rs)".
             // Wait, LearningPanel.rs is for saved items. BranchSidebar.rs had "LearningGoalsPanel".
             // Use Case: User wants to see "Goals" for the current conversation.
             // Option 2 Design says: "Tabs: Goals, Branches, Progress".
@@ -176,9 +179,9 @@ pub fn branches(props: &BranchesProps) -> Html {
             // Or put Goals in "Learning"?
             // Let's check "LearningPanel.rs". It has "LearningItem" (vocabulary).
             // "BranchSidebar.rs" has "LearningGoal" (high level goals).
-            // I will keep Goals here in the Branches tab for now to preserve functionality, 
-            // or I could add a 4th tab "Goals". 
-            // The mockups show "Branches, Learning, Settings". 
+            // I will keep Goals here in the Branches tab for now to preserve functionality,
+            // or I could add a 4th tab "Goals".
+            // The mockups show "Branches, Learning, Settings".
             // Let's keep Goals at the bottom of Branches for now, or move them to Learning.
             // "Learning" tab is probably best for both Goals + Vocab.
             // BUT, for Phase 1.3, let's just Stick to strict porting.

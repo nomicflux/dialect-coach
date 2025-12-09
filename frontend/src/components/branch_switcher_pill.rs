@@ -9,9 +9,9 @@ pub struct BranchSwitcherPillProps {
 #[function_component(BranchSwitcherPill)]
 pub fn branch_switcher_pill(props: &BranchSwitcherPillProps) -> Html {
     let onclick = props.on_click.clone();
-    
+
     html! {
-        <button 
+        <button
             class="branch-switcher-pill"
             onclick={move |_| onclick.emit(())}
             title="Switch Branch"

@@ -1,5 +1,7 @@
 use crate::app::app_state::{OptionalUserState, UIState, UIStateAction, UserStateAction};
-use dialect_coach_shared::models::{ArabicScript, Formality, JapaneseScript, Language, LearningGoal, TeachingMode, UserGender};
+use dialect_coach_shared::models::{
+    ArabicScript, Formality, JapaneseScript, Language, LearningGoal, TeachingMode, UserGender,
+};
 use log::info;
 use uuid::Uuid;
 use yew::prelude::*;
@@ -279,9 +281,7 @@ pub fn on_delete_learning_item_callback(
     })
 }
 
-pub fn on_arabic_script_change(
-    user_state: UseReducerHandle<OptionalUserState>,
-) -> Callback<Event> {
+pub fn on_arabic_script_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
     let user_state = user_state.clone();
     Callback::from(move |e: Event| {
         if user_state.state.is_none() {

@@ -1,10 +1,208 @@
 /* Language Plan Styles */
+
+/* Step Editor Container */
+.step-editor {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.step-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.step-header h5 {
+    margin: 0;
+    font-weight: 600;
+    color: var(--accent-primary);
+}
+
+.step-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.step-title-input {
+    font-size: 1em;
+    font-weight: 500;
+}
+
+.step-meta-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.step-type-select,
+.step-focus-input {
+    flex: 1;
+    padding: 0.4rem;
+    font-size: 0.9em;
+}
+
+.step-instructions-input {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.step-content-section {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.step-content-section h5 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.content-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.content-blocks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.content-block-editor {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 0.75rem;
+}
+
+.content-block-editor .block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.content-block-editor .block-type {
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.vocab-block {
+    border-left: 3px solid var(--accent-primary);
+}
+
+.grammar-block {
+    border-left: 3px solid #9b59b6;
+}
+
+.vocab-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.vocab-inputs input {
+    flex: 1;
+    padding: 0.4rem;
+}
+
+.vocab-inputs .arrow {
+    color: var(--text-secondary);
+    font-weight: bold;
+}
+
+.rule-title-input {
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.rule-desc-input {
+    width: 100%;
+    min-height: 50px;
+    resize: vertical;
+}
+
+/* Bulk Add Panel */
+.bulk-add-panel {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.bulk-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.bulk-controls label {
+    font-size: 0.85em;
+    color: var(--text-secondary);
+}
+
+.bulk-textarea {
+    width: 100%;
+    min-height: 80px;
+    margin-bottom: 0.5rem;
+    resize: vertical;
+}
+
+.bulk-process-btn {
+    width: 100%;
+    padding: 0.5rem;
+    background: var(--accent-primary);
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.bulk-process-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.bulk-btn.active {
+    background: var(--accent-primary);
+    color: #000;
+}
+
+.steps-section {
+    margin-top: 1rem;
+}
+
+.steps-section>label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
 .plans-section {
     padding: 1rem;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 8px;
     margin-bottom: 1rem;
 }
+
 
 .plan-item {
     display: flex;

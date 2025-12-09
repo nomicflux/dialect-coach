@@ -219,7 +219,8 @@ mod tests {
 
     #[test]
     fn test_partial_mistake_deserialization() {
-        let json = r#"{"specific_mistake": "Cómo andes", "correction": null, "mistake_category": null}"#;
+        let json =
+            r#"{"specific_mistake": "Cómo andes", "correction": null, "mistake_category": null}"#;
         let mistake: PartialMistake = serde_json::from_str(json).unwrap();
         assert_eq!(mistake.specific_mistake, Some("Cómo andes".to_string()));
     }
@@ -274,7 +275,10 @@ mod tests {
     fn test_partial_exploratory_deserialization() {
         let json = r#"{"point_to_try": "Use subjunctive", "instructions_for_use": null}"#;
         let exploratory: PartialExploratory = serde_json::from_str(json).unwrap();
-        assert_eq!(exploratory.point_to_try, Some("Use subjunctive".to_string()));
+        assert_eq!(
+            exploratory.point_to_try,
+            Some("Use subjunctive".to_string())
+        );
     }
 
     #[test]

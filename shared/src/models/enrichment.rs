@@ -18,13 +18,11 @@ mod tests {
 
     #[test]
     fn test_enrich_request_serialization() {
-        let partial = PartialLearningItem::Mistake(
-            super::super::PartialMistake {
-                specific_mistake: Some("error".to_string()),
-                correction: None,
-                mistake_category: None,
-            },
-        );
+        let partial = PartialLearningItem::Mistake(super::super::PartialMistake {
+            specific_mistake: Some("error".to_string()),
+            correction: None,
+            mistake_category: None,
+        });
         let request = EnrichRequest {
             dialect: Dialect::SpanishMexican,
             partial_data: partial,

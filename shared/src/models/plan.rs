@@ -1,7 +1,7 @@
 use super::dialect::Dialect;
+use super::learning_item::LearningItem;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::learning_item::LearningItem;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LanguagePlan {
@@ -37,12 +37,8 @@ pub struct PlanContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StepType {
-    Learning {
-        focus: String,
-    },
-    Review {
-        review_step_ids: Vec<Uuid>,
-    },
+    Learning,
+    Review { review_step_ids: Vec<Uuid> },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -66,7 +62,12 @@ pub enum StepStatus {
 }
 
 impl LanguagePlan {
-    pub fn new(title: String, dialect: Dialect, description: Option<String>, steps: Vec<PlanStep>) -> Self {
+    pub fn new(
+        title: String,
+        dialect: Dialect,
+        description: Option<String>,
+        steps: Vec<PlanStep>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             title,
@@ -97,7 +98,7 @@ impl LanguagePlan {
         }
 
         let total_steps = self.steps.len();
-        
+
         // Mark current step as completed
         if let Some(step) = self.current_step_mut() {
             step.status = StepStatus::Completed;
@@ -107,7 +108,7 @@ impl LanguagePlan {
         // Advance index
         if self.current_step_index + 1 < total_steps {
             self.current_step_index += 1;
-            
+
             // Start next step
             if let Some(step) = self.current_step_mut() {
                 step.status = StepStatus::InProgress;
@@ -165,7 +166,7 @@ mod tests {
         let step1 = PlanStep::new(
             1,
             "Step 1".to_string(),
-            StepType::Learning { focus: "Basics".to_string() },
+            StepType::Learning,
             "Instructions".to_string(),
             PlanContent::default(),
             CompletionCriteria::Manual,
@@ -173,7 +174,7 @@ mod tests {
         let step2 = PlanStep::new(
             2,
             "Step 2".to_string(),
-            StepType::Learning { focus: "Advanced".to_string() },
+            StepType::Learning,
             "Instructions".to_string(),
             PlanContent::default(),
             CompletionCriteria::Manual,

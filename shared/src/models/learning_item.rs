@@ -1,8 +1,6 @@
-use serde::{Deserialize, Serialize};
 use super::dialect::Dialect;
-use super::{
-    Explained, Exploratory, Mistake, Translated,
-};
+use super::{Explained, Exploratory, Mistake, Translated};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LearningItem {
@@ -14,7 +12,11 @@ pub struct LearningItem {
 impl LearningItem {
     /// Create a new learning item with score 0
     pub fn new(item: LearningItemType, dialect: Dialect) -> Self {
-        Self { item, score: 0, dialect }
+        Self {
+            item,
+            score: 0,
+            dialect,
+        }
     }
 }
 

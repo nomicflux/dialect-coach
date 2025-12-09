@@ -41,7 +41,8 @@ pub fn on_send_message(
             .collect();
 
         // Filter learning goals by selected dialect
-        let filtered_goals = state.get_learning_goals_for_dialect(&state.selected_dialect)
+        let filtered_goals = state
+            .get_learning_goals_for_dialect(&state.selected_dialect)
             .into_iter()
             .cloned()
             .collect();
@@ -108,10 +109,11 @@ pub fn on_create_user_click(
         let password = ui_state.create_password_input.clone();
         let credentials = AuthCredentials::InviteCode(invite_code);
 
-        if let Err(e) = app_state
-            .user_ws_service
-            .borrow()
-            .create_user(username, email, credentials, password)
+        if let Err(e) =
+            app_state
+                .user_ws_service
+                .borrow()
+                .create_user(username, email, credentials, password)
         {
             error!("Failed to create user: {}", e);
             app_state.dispatch(AppStateAction::SetError(format!(
@@ -130,7 +132,11 @@ pub fn on_signin_click(
         let username = ui_state.signin_username_input.clone();
         let password = ui_state.signin_password_input.clone();
 
-        if let Err(e) = app_state.user_ws_service.borrow().sign_in(username, password) {
+        if let Err(e) = app_state
+            .user_ws_service
+            .borrow()
+            .sign_in(username, password)
+        {
             error!("Failed to sign in: {}", e);
             app_state.dispatch(AppStateAction::SetError(format!(
                 "Failed to sign in: {}",
@@ -216,17 +222,19 @@ pub fn on_validate_session_response(
     app_state: UseReducerHandle<AppState>,
     _user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<dialect_coach_shared::User, String>> {
-    Callback::from(move |result: Result<dialect_coach_shared::User, String>| match result {
-        Ok(user) => {
-            info!("Session validated successfully for user: {}", user.username);
-            app_state.dispatch(AppStateAction::SetUser(user.clone()));
-            app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
-        }
-        Err(e) => {
-            error!("Session validation failed: {}", e);
-            crate::utils::cookies::clear_session_token();
-        }
-    })
+    Callback::from(
+        move |result: Result<dialect_coach_shared::User, String>| match result {
+            Ok(user) => {
+                info!("Session validated successfully for user: {}", user.username);
+                app_state.dispatch(AppStateAction::SetUser(user.clone()));
+                app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
+            }
+            Err(e) => {
+                error!("Session validation failed: {}", e);
+                crate::utils::cookies::clear_session_token();
+            }
+        },
+    )
 }
 
 pub fn on_signout_click(

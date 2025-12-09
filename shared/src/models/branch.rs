@@ -50,7 +50,13 @@ mod tests {
     #[test]
     fn test_new_branch_with_parent() {
         let parent_id = Uuid::new_v4();
-        let branch = ConversationBranch::new(Some(parent_id), None, None, Some(Dialect::SpanishMexican), vec![]);
+        let branch = ConversationBranch::new(
+            Some(parent_id),
+            None,
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
 
         assert_eq!(branch.parent_message_id, Some(parent_id));
         assert_eq!(branch.name, None);
@@ -62,7 +68,13 @@ mod tests {
     #[test]
     fn test_new_branch_with_name() {
         let name = "Alternative discussion".to_string();
-        let branch = ConversationBranch::new(None, Some(name.clone()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch = ConversationBranch::new(
+            None,
+            Some(name.clone()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
 
         assert_eq!(branch.parent_message_id, None);
         assert_eq!(branch.name, Some(name));
@@ -85,8 +97,13 @@ mod tests {
     #[test]
     fn test_branch_serialization() {
         let parent_id = Uuid::new_v4();
-        let branch =
-            ConversationBranch::new(Some(parent_id), Some("Test Branch".to_string()), None, Some(Dialect::SpanishMexican), vec![]);
+        let branch = ConversationBranch::new(
+            Some(parent_id),
+            Some("Test Branch".to_string()),
+            None,
+            Some(Dialect::SpanishMexican),
+            vec![],
+        );
 
         let json = serde_json::to_string(&branch).unwrap();
         assert!(json.contains(&branch.id.to_string()));
@@ -109,7 +126,8 @@ mod tests {
 
     #[test]
     fn test_set_dialect_if_none_does_not_override() {
-        let mut branch = ConversationBranch::new(None, None, None, Some(Dialect::SpanishCuban), vec![]);
+        let mut branch =
+            ConversationBranch::new(None, None, None, Some(Dialect::SpanishCuban), vec![]);
         assert_eq!(branch.dialect, Some(Dialect::SpanishCuban));
 
         branch.set_dialect_if_none(Dialect::SpanishMexican);

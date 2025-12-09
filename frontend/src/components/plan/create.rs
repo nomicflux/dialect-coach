@@ -1,9 +1,11 @@
-use yew::prelude::*;
-use dialect_coach_shared::models::{LanguagePlan, Dialect, PlanStep, StepType, CompletionCriteria, PlanContent};
-use super::step_editor::StepEditor;
-use uuid::Uuid;
+use super::step_editor::{EditableStep, StepEditor};
 use crate::services::enrichment_service::EnrichmentService;
+use dialect_coach_shared::models::{
+    CompletionCriteria, Dialect, LanguagePlan, PlanContent, PlanStep, StepType,
+};
 use std::rc::Rc;
+use uuid::Uuid;
+use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct PlanCreateProps {
@@ -14,6 +16,8 @@ pub struct PlanCreateProps {
     pub plan_to_edit: Option<LanguagePlan>,
     pub enrichment_service: Rc<EnrichmentService>,
 }
+
+// EditableStep imported from step_editor.rs
 
 #[function_component(PlanCreate)]
 pub fn plan_create(props: &PlanCreateProps) -> Html {
@@ -34,18 +38,19 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
 
     let steps = use_state(|| {
         if let Some(plan) = &props.plan_to_edit {
-            plan.steps.clone()
+            plan.steps
+                .iter()
+                .map(|s| EditableStep::new(s.clone()))
+                .collect::<Vec<_>>()
         } else {
-            vec![
-                PlanStep::new(
-                    1,
-                    "".to_string(), // Empty title to start
-                    StepType::Learning { focus: "".to_string() },
-                    "".to_string(), // Empty instructions
-                    PlanContent::default(), 
-                    CompletionCriteria::Manual
-                )
-            ]
+            vec![EditableStep::new(PlanStep::new(
+                1,
+                "".to_string(), // Empty title to start
+                StepType::Learning,
+                "".to_string(), // Empty instructions
+                PlanContent::default(),
+                CompletionCriteria::Manual,
+            ))]
         }
     });
 
@@ -56,24 +61,34 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
         let dialect = props.dialect;
         let on_create = props.on_create.clone();
         let plan_to_edit = props.plan_to_edit.clone();
-        
+
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
-            
+
             // Renumber steps before submitting
-            let final_steps: Vec<PlanStep> = steps.iter().enumerate().map(|(i, s)| {
-                let mut s = s.clone();
-                s.step_number = i + 1;
-                // Ensure ID is unique if not already
-                if s.id == Uuid::nil() { s.id = Uuid::new_v4(); }
-                s
-            }).collect();
+            let final_steps: Vec<PlanStep> = steps
+                .iter()
+                .enumerate()
+                .map(|(i, s)| {
+                    let mut s = s.step.clone();
+                    s.step_number = i + 1;
+                    // Ensure ID is unique if not already
+                    if s.id == Uuid::nil() {
+                        s.id = Uuid::new_v4();
+                    }
+                    s
+                })
+                .collect();
 
             let mut plan = LanguagePlan::new(
                 (*title).clone(),
                 dialect,
-                if description.is_empty() { None } else { Some((*description).clone()) },
-                final_steps
+                if description.is_empty() {
+                    None
+                } else {
+                    Some((*description).clone())
+                },
+                final_steps,
             );
 
             // If editing, preserve the original ID and created status
@@ -92,14 +107,14 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
         let steps = steps.clone();
         Callback::from(move |_| {
             let mut new_steps = (*steps).clone();
-            new_steps.push(PlanStep::new(
+            new_steps.push(EditableStep::new(PlanStep::new(
                 new_steps.len() + 1,
                 "".to_string(),
-                    StepType::Learning { focus: "Basics".to_string() },
-                    "Start your journey".to_string(),
-                    PlanContent::default(),
-                    CompletionCriteria::Manual
-            ));
+                StepType::Learning,
+                "Start your journey".to_string(),
+                PlanContent::default(),
+                CompletionCriteria::Manual,
+            )));
             steps.set(new_steps);
         })
     };
@@ -110,8 +125,8 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
         <div class="plan-create-form">
             <h4 class="section-title">{if is_editing { "Edit Plan" } else { "Create New Plan" }}</h4>
             <form onsubmit={on_submit}>
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     placeholder="Plan Title *"
                     value={(*title).clone()}
                     onchange={Callback::from(move |e: Event| {
@@ -120,7 +135,7 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                     })}
                     required=true
                 />
-                <textarea 
+                <textarea
                     placeholder="Description (optional)"
                     value={(*description).clone()}
                     onchange={Callback::from(move |e: Event| {
@@ -133,10 +148,16 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                     <label>{"Plan Steps"}</label>
                     {for steps.iter().enumerate().map(|(i, step)| {
                         let steps_handle = steps.clone();
-                        let on_update = Callback::from(move |updated: PlanStep| {
+                        // ID-based update: find step by ID to update correct item
+                        let step_id = step.step.id;
+                        let on_update = Callback::from(move |updated: EditableStep| {
                             let mut new_steps = (*steps_handle).clone();
-                            new_steps[i] = updated;
-                            steps_handle.set(new_steps);
+                            // Find index by ID to ensure we update the correct step regardless of loop variable 'i'
+                            // In this component 'i' is stable during render but finding by ID is safer for robustness
+                            if let Some(idx) = new_steps.iter().position(|s| s.step.id == step_id) {
+                                new_steps[idx] = updated;
+                                steps_handle.set(new_steps);
+                            }
                         });
                         let steps_handle = steps.clone();
                         let on_remove = Callback::from(move |_| {
@@ -146,16 +167,19 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                         });
 
                         html! {
-                            <StepEditor 
-                                index={i} 
-                                step={step.clone()} 
+                            <StepEditor
+                                key={step.step.id.to_string()}
+                                index={i}
+                                step={step.clone()}
                                 on_update={on_update}
                                 on_remove={on_remove}
                                 enrichment_service={props.enrichment_service.clone()}
+                                target_dialect={props.dialect}
                             />
                         }
+
                     })}
-                    
+
                     <button type="button" class="add-step-btn" onclick={add_step}>
                         {"+ Add Step"}
                     </button>

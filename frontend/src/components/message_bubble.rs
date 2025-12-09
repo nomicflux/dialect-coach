@@ -3,7 +3,7 @@ use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Language, LanguageOption, Message};
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
-use web_sys::{window, MouseEvent};
+use web_sys::{MouseEvent, window};
 use yew::prelude::*;
 
 #[derive(Clone, PartialEq)]
@@ -312,11 +312,19 @@ fn render_action_buttons(
     }
 }
 
-fn render_explain_button(on_explain: &Option<Callback<Uuid>>, msg_id: Uuid, is_loading: bool) -> Html {
+fn render_explain_button(
+    on_explain: &Option<Callback<Uuid>>,
+    msg_id: Uuid,
+    is_loading: bool,
+) -> Html {
     if let Some(callback) = on_explain {
         let cb = callback.clone();
         let onclick = Callback::from(move |_| cb.emit(msg_id));
-        let button_text = if is_loading { "Explaining..." } else { "Explain" };
+        let button_text = if is_loading {
+            "Explaining..."
+        } else {
+            "Explain"
+        };
         html! {
             <button class="action-button explain-button" {onclick} disabled={is_loading}>{button_text}</button>
         }

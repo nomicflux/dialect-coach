@@ -14,10 +14,7 @@ impl EnrichmentService {
         }
     }
 
-    pub async fn enrich_learning_item(
-        &self,
-        request: EnrichRequest,
-    ) -> Result<EnrichResponse> {
+    pub async fn enrich_learning_item(&self, request: EnrichRequest) -> Result<EnrichResponse> {
         let url = format!("{}/api/learning/enrich", self.base_url);
 
         let response = Request::post(&url)
@@ -30,10 +27,7 @@ impl EnrichmentService {
             let error_msg = match response.status() {
                 400 => "Invalid learning item data".to_string(),
                 500 => "Server error while enriching item".to_string(),
-                _ => format!(
-                    "Server error ({})",
-                    response.status_text()
-                ),
+                _ => format!("Server error ({})", response.status_text()),
             };
             return Err(anyhow::anyhow!(error_msg));
         }
@@ -50,9 +44,7 @@ impl EnrichmentService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::models::{
-        Dialect, PartialLearningItem, PartialMistake,
-    };
+    use dialect_coach_shared::models::{Dialect, PartialLearningItem, PartialMistake};
 
     #[test]
     fn test_service_creation() {
