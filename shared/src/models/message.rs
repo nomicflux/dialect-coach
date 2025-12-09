@@ -34,6 +34,7 @@ pub struct ConversationContext {
     pub dialect: Dialect,
     pub formality: Formality,
     pub teaching_mode: TeachingMode,
+    pub language_level: super::LanguageLevel,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -205,6 +206,7 @@ pub struct UserMessageWithContext {
     pub learning_goals: Vec<LearningGoal>,
     pub user_gender: UserGender,
     pub language_option: Option<LanguageOption>,
+    pub language_level: super::LanguageLevel,
 }
 
 pub struct UserMessageWithContextBuilder {
@@ -217,6 +219,7 @@ pub struct UserMessageWithContextBuilder {
     learning_goals: Vec<LearningGoal>,
     user_gender: UserGender,
     language_option: Option<LanguageOption>,
+    language_level: super::LanguageLevel,
 }
 
 impl UserMessageWithContextBuilder {
@@ -231,6 +234,7 @@ impl UserMessageWithContextBuilder {
             learning_goals: Vec::new(),
             user_gender: UserGender::NonBinary,
             language_option: None,
+            language_level: super::LanguageLevel::default(),
         }
     }
 
@@ -269,6 +273,11 @@ impl UserMessageWithContextBuilder {
         self
     }
 
+    pub fn language_level(mut self, level: super::LanguageLevel) -> Self {
+        self.language_level = level;
+        self
+    }
+
     pub fn build(self) -> UserMessageWithContext {
         UserMessageWithContext {
             user_id: self.user_id,
@@ -283,6 +292,7 @@ impl UserMessageWithContextBuilder {
             learning_goals: self.learning_goals,
             user_gender: self.user_gender,
             language_option: self.language_option,
+            language_level: self.language_level,
         }
     }
 }

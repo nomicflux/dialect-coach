@@ -210,6 +210,7 @@ impl UserState {
             dialect: self.selected_dialect,
             formality: self.formality,
             teaching_mode: self.teaching_mode,
+            language_level: self.current_language_level(),
         }
     }
 

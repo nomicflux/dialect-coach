@@ -52,6 +52,7 @@ pub fn on_send_message(
             .learning_goals(filtered_goals)
             .user_gender(state.user_gender)
             .language_option(state.current_language_option())
+            .language_level(state.current_language_level())
             .build();
 
         // Send through WebSocket
