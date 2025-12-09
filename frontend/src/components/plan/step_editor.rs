@@ -2,9 +2,12 @@ use yew::prelude::*;
 use dialect_coach_shared::models::{
     PlanStep, StepType,
     Translated, Explained,
-    learning_item::{LearningItem, LearningItemType}
+    learning_item::{LearningItem, LearningItemType},
+    EnrichRequest, PartialLearningItem, PartialTranslated, Dialect
 };
 use web_sys::{HtmlInputElement, HtmlTextAreaElement};
+use crate::services::enrichment_service::EnrichmentService;
+use std::rc::Rc;
 
 #[derive(Properties, PartialEq, Clone)]
 pub struct StepEditorProps {
@@ -12,6 +15,7 @@ pub struct StepEditorProps {
     pub index: usize,
     pub on_update: Callback<PlanStep>,
     pub on_remove: Callback<()>,
+    pub enrichment_service: Rc<EnrichmentService>,
 }
 
 #[function_component(StepEditor)]
@@ -139,6 +143,124 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
         })
     };
 
+    let bulk_text = use_state(String::new);
+    let show_bulk = use_state(|| false);
+    let is_enriching_bulk = use_state(|| false);
+    let bulk_delimiter = use_state(|| "auto".to_string());
+
+    let add_bulk_items = {
+        let props = props.clone();
+        let bulk_text = bulk_text.clone();
+        let is_enriching_bulk = is_enriching_bulk.clone();
+        let show_bulk = show_bulk.clone();
+        let bulk_delimiter = bulk_delimiter.clone();
+        let enrichment_service = props.enrichment_service.clone();
+
+        Callback::from(move |_| {
+            let text = (*bulk_text).clone();
+            let delimiter = (*bulk_delimiter).clone();
+            let props = props.clone();
+            let is_enriching_bulk = is_enriching_bulk.clone();
+            let show_bulk = show_bulk.clone();
+            let enrichment_service = enrichment_service.clone();
+            
+            // 1. Split text
+            let raw_items: Vec<String> = match delimiter.as_str() {
+                "newline" => text.split('\n').map(|s| s.trim().to_string()).collect(),
+                "comma" => text.split(',').map(|s| s.trim().to_string()).collect(),
+                "semicolon" => text.split(';').map(|s| s.trim().to_string()).collect(),
+                _ => { // Auto
+                    if text.contains('\n') {
+                         text.split('\n').map(|s| s.trim().to_string()).collect()
+                    } else if text.contains(';') {
+                         text.split(';').map(|s| s.trim().to_string()).collect()
+                    } else {
+                         text.split(',').map(|s| s.trim().to_string()).collect() // Fallback to comma if single line
+                    }
+                }
+            };
+            
+            let items_to_process: Vec<String> = raw_items.into_iter()
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            if items_to_process.is_empty() {
+                return;
+            }
+
+            let props_for_async = props.clone();
+            let is_enriching_bulk_for_async = is_enriching_bulk.clone();
+            let show_bulk_for_async = show_bulk.clone();
+            let bulk_text_for_async = bulk_text.clone();
+
+            is_enriching_bulk.set(true);
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let mut new_items: Vec<LearningItem> = Vec::new();
+                
+                // Process in parallel (batches of 5 to avoid overwhelming?)
+                // For now, let's just spawn all. Browser limit is like 6.
+                // We'll trust the browser scheduler.
+                
+                let futures = items_to_process.iter().map(|phrase| {
+                     let service = enrichment_service.clone();
+                     let phrase = phrase.clone();
+                     async move {
+                         // Create partial item
+                         let partial = PartialLearningItem::Translated(PartialTranslated {
+                             translated_word: Some(phrase),
+                             translated_to: None,
+                             context: None
+                         });
+                         
+                         let request = EnrichRequest {
+                             dialect: Dialect::SpanishMexican, // TODO: Get from plan? Props don't have dialect, need to add if critical.
+                                                              // For now default to Mexican Spanish as it's the main detailed dialect.
+                             partial_data: partial,
+                         };
+                         
+                         service.enrich_learning_item(request).await
+                     }
+                });
+
+                let results = futures_util::future::join_all(futures).await;
+
+                for res in results {
+                    if let Ok(response) = res {
+                         // Convert JSON value to LearningItem
+                         // Note: The response.enriched_item is a serde_json::Value.
+                         // We need to parse it back to a LearningItemType or manually construct it.
+                         // Since LearningItemType::Translated(Translated) matches the struct
+                         // Let's assume enrichment service returns valid fields.
+                         
+                         if let Some(obj) = response.enriched_item.as_object() {
+                             // Manual extraction because we don't have direct deserialization helper here
+                             let word = obj.get("translated_word").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                             let trans = obj.get("translated_to").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                             let ctx = obj.get("context").and_then(|v| v.as_str()).map(|s| s.to_string());
+                             
+                             let item = LearningItem::new(
+                                 LearningItemType::Translation(Translated::new(word, trans, ctx)),
+                                 Dialect::SpanishMexican
+                             );
+                             new_items.push(item);
+                         }
+                    }
+                }
+
+                // Add all new items to the step
+                let mut new_step = props_for_async.step.clone();
+                new_step.content.items.extend(new_items);
+                props_for_async.on_update.emit(new_step);
+                
+                // Reset state
+                is_enriching_bulk_for_async.set(false);
+                show_bulk_for_async.set(false);
+                bulk_text_for_async.set(String::new());
+            });
+        })
+    };
+
     html! {
         <div class="step-editor">
             <div class="step-header">
@@ -185,17 +307,72 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                 <div class="content-actions">
                     <button type="button" onclick={add_vocab} class="add-content-btn">
                         <span class="btn-icon">{"+"}</span>
-                        {"Vocabulary"}
+                        {"Vocab"}
                     </button>
                     <button type="button" onclick={add_grammar} class="add-content-btn">
                         <span class="btn-icon">{"+"}</span>
-                        {"Grammar Rule"}
+                        {"Grammar"}
                     </button>
                     <button type="button" onclick={add_examples} class="add-content-btn">
                         <span class="btn-icon">{"+"}</span>
-                        {"Example Sentences"}
+                        {"Example"}
+                    </button>
+                    
+                    <button 
+                        type="button" 
+                        class={classes!("add-content-btn", "bulk-btn", (*show_bulk).then_some("active"))}
+                        onclick={
+                            let show_bulk = show_bulk.clone();
+                            Callback::from(move |_| show_bulk.set(!*show_bulk))
+                        }
+                    >
+                         <span class="btn-icon">{"📥"}</span>
+                         {"Bulk Add"}
                     </button>
                 </div>
+
+                if *show_bulk {
+                    <div class="bulk-add-panel">
+                        <div class="bulk-controls">
+                             <label>{"Delimiter:"}</label>
+                             <select 
+                                value={(*bulk_delimiter).clone()} 
+                                onchange={
+                                    let bulk_delimiter = bulk_delimiter.clone();
+                                    Callback::from(move |e: Event| {
+                                        let target: web_sys::HtmlSelectElement = e.target_unchecked_into();
+                                        bulk_delimiter.set(target.value());
+                                    })
+                                }
+                             >
+                                 <option value="auto">{"Auto"}</option>
+                                 <option value="newline">{"Newline"}</option>
+                                 <option value="comma">{"Comma"}</option>
+                                 <option value="semicolon">{"Semicolon"}</option>
+                             </select>
+                        </div>
+                        <textarea
+                            class="bulk-textarea"
+                            placeholder="Paste multiple items here..."
+                            value={(*bulk_text).clone()}
+                            onchange={
+                                let bulk_text = bulk_text.clone();
+                                Callback::from(move |e: Event| {
+                                    let target: web_sys::HtmlTextAreaElement = e.target_unchecked_into();
+                                    bulk_text.set(target.value());
+                                })
+                            }
+                        />
+                         <button 
+                             type="button" 
+                             class="bulk-process-btn" 
+                             onclick={add_bulk_items}
+                             disabled={*is_enriching_bulk || (*bulk_text).trim().is_empty()}
+                         >
+                            {if *is_enriching_bulk { "Enriching Items..." } else { "Add & Enrich Items" }}
+                         </button>
+                    </div>
+                }
 
                 <div class="content-blocks-list">
                     {for props.step.content.items.iter().enumerate().map(|(idx, item)| {

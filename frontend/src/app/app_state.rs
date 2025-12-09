@@ -41,6 +41,7 @@ pub enum AppStateAction {
     SetResponseRateLimited(bool),
     SetAnalysisRateLimited(bool),
     SetTtsRateLimited(bool),
+    SetSidebarWidth(i32),
 }
 
 #[derive(Clone, Default)]
@@ -66,6 +67,7 @@ pub struct AppState {
     pub save_queue: Rc<PendingSaveQueue>,
     pub autoplay_enabled: bool,
     pub rate_limit_state: RateLimitState,
+    pub sidebar_width: i32,
 }
 
 impl Default for AppState {
@@ -91,6 +93,7 @@ impl Default for AppState {
             save_queue: Rc::new(PendingSaveQueue::new()),
             autoplay_enabled: false,
             rate_limit_state: RateLimitState::default(),
+            sidebar_width: 350,
         }
     }
 }
@@ -188,6 +191,9 @@ impl AppState {
             }
             AppStateAction::SetTtsRateLimited(limited) => {
                 next.rate_limit_state.tts_limited = limited;
+            }
+            AppStateAction::SetSidebarWidth(width) => {
+                next.sidebar_width = width;
             }
         }
         next

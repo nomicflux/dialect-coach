@@ -745,6 +745,19 @@ pub fn learning(props: &LearningProps) -> Html {
 
     let on_cancel = clear_all;
 
+    let filtered_plans = if let Some(dialect) = props.active_branch_dialect {
+        if let Some(state) = &props.user_state.state {
+            state.language_plans.iter()
+                .filter(|p| p.dialect == dialect)
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+
     let (accomplishments, still_learning): (Vec<_>, Vec<_>) =
         props.items.iter().partition(|item| item.score == 100);
 
@@ -824,11 +837,12 @@ pub fn learning(props: &LearningProps) -> Html {
                                         editing_plan_id.set(None);
                                     })
                                 }
+                                enrichment_service={props.enrichment_service.clone()}
                             />
                         }
                     } else {
                         <PlanList 
-                            plans={user_state_val.language_plans.clone()}
+                            plans={filtered_plans} // Use the pre-calculated filtered list
                             active_plan_id={user_state_val.active_plan_id}
                             on_select_plan={
                                 let user_state = props.user_state.clone();

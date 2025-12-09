@@ -422,14 +422,12 @@ fn build_system_content(
             {}\n\
             {}\n\
             {}\n\
-            {}\n\
             Now respond to the user's message technically."#,
             role_desc,
             user_gender_str,
             lang_section,
             goals_section,
             learning_items_context,
-            plan_instr,
             JSON_OUTPUT_INSTRUCTION
         )
     } else {
@@ -446,6 +444,7 @@ fn build_system_content(
             # CRITICAL RULES\n\
             {}\n\
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
+            {}\n\
             {}\n\
             {}\n\
             {}\n\

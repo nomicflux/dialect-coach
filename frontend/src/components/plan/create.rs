@@ -2,6 +2,8 @@ use yew::prelude::*;
 use dialect_coach_shared::models::{LanguagePlan, Dialect, PlanStep, StepType, CompletionCriteria, PlanContent};
 use super::step_editor::StepEditor;
 use uuid::Uuid;
+use crate::services::enrichment_service::EnrichmentService;
+use std::rc::Rc;
 
 #[derive(Properties, PartialEq)]
 pub struct PlanCreateProps {
@@ -10,6 +12,7 @@ pub struct PlanCreateProps {
     pub on_cancel: Callback<()>,
     #[prop_or_default]
     pub plan_to_edit: Option<LanguagePlan>,
+    pub enrichment_service: Rc<EnrichmentService>,
 }
 
 #[function_component(PlanCreate)]
@@ -148,6 +151,7 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                                 step={step.clone()} 
                                 on_update={on_update}
                                 on_remove={on_remove}
+                                enrichment_service={props.enrichment_service.clone()}
                             />
                         }
                     })}

@@ -3,7 +3,7 @@ use crate::app::app_callbacks::{
 };
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
-use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction, UserStateAction};
+use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction};
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
 
@@ -295,6 +295,13 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             })
                         }}
                         deleted_learning_items_count={ui_state.deleted_learning_items.len()}
+                        sidebar_width={app_state.sidebar_width}
+                        on_set_sidebar_width={{
+                            let app_state = app_state.clone();
+                            Callback::from(move |width| {
+                                app_state.dispatch(AppStateAction::SetSidebarWidth(width));
+                            })
+                        }}
                     />
 
             {render_modal(&modal_state, &on_close_modal, &on_save_phrase)}

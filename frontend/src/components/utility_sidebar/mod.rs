@@ -11,6 +11,8 @@ use dialect_coach_shared::Dialect;
 use uuid::Uuid;
 use std::rc::Rc;
 use yew::prelude::*;
+use wasm_bindgen::JsCast;
+use gloo::events::EventListener;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum SidebarTab {
@@ -46,23 +48,97 @@ pub struct UtilitySidebarProps {
     pub on_delete_learning_item: Callback<Uuid>,
     pub on_undo_delete_learning_item: Callback<()>,
     pub deleted_learning_items_count: usize,
+    pub sidebar_width: i32,
+    pub on_set_sidebar_width: Callback<i32>,
 }
 
 #[function_component(UtilitySidebar)]
 pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
+    let is_resizing = use_state(|| false);
+    let resizing_ref = use_state(|| false); // Ref-like state to track resizing in closures
+
     let on_tab_click = |tab: SidebarTab| {
         let on_tab_change = props.on_tab_change.clone();
         Callback::from(move |_| on_tab_change.emit(tab))
     };
 
-    let sidebar_class = if props.is_collapsed {
-        "utility-sidebar collapsed"
-    } else {
-        "utility-sidebar"
+    // Handle mouse down on resize handle
+    let on_resize_start = {
+        let is_resizing = is_resizing.clone();
+        let resizing_ref = resizing_ref.clone();
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
+            is_resizing.set(true);
+            resizing_ref.set(true);
+        })
     };
 
+    // Setup window event listeners for dragging
+    // Setup window event listeners for dragging using gloo's EventListener
+    {
+        let is_resizing = is_resizing.clone();
+        let resizing_ref = resizing_ref.clone();
+        let on_set_sidebar_width = props.on_set_sidebar_width.clone();
+        
+        use_effect(move || {
+            let window = web_sys::window().expect("no global `window` exists");
+
+            let mouse_move_handler = {
+                let resizing_ref = resizing_ref.clone();
+                let on_set_sidebar_width = on_set_sidebar_width.clone();
+                let window = window.clone();
+                
+                move |event: &Event| {
+                    if *resizing_ref {
+                        let e = event.dyn_ref::<MouseEvent>().unwrap();
+                        // Calculate new width: Window Width - Mouse X
+                        // (Since sidebar is on the right)
+                        let window_width = window.inner_width().unwrap().as_f64().unwrap() as i32;
+                        let new_width = window_width - e.client_x();
+                        
+                        // Constrain width (min 200px, max 800px or 80% of screen)
+                        let constrained_width = new_width.max(250).min(800);
+                        on_set_sidebar_width.emit(constrained_width);
+                    }
+                }
+            };
+
+            let mouse_up_handler = {
+                let is_resizing = is_resizing.clone();
+                let resizing_ref = resizing_ref.clone();
+                
+                move |_event: &Event| {
+                    if *resizing_ref {
+                        is_resizing.set(false);
+                        resizing_ref.set(false);
+                    }
+                }
+            };
+
+            let move_listener = EventListener::new(&window, "mousemove", mouse_move_handler);
+            let up_listener = EventListener::new(&window, "mouseup", mouse_up_handler);
+
+            move || {
+                drop(move_listener);
+                drop(up_listener);
+            }
+        });
+    }
+
+    let sidebar_class = classes!(
+        "utility-sidebar",
+        props.is_collapsed.then_some("collapsed"),
+    );
+    
+    // Apply width via style attribute
+    let style = format!("--sidebar-width: {}px;", props.sidebar_width);
+
     html! {
-        <div class={sidebar_class}>
+        <div class={sidebar_class} style={style}>
+            <div 
+                class={classes!("sidebar-resize-handle", (*is_resizing).then_some("resizing"))}
+                onmousedown={on_resize_start}
+            />
             <div class="sidebar-tabs">
                 <button
                     class={classes!("sidebar-tab", (props.active_tab == SidebarTab::Branches).then_some("active"))}
