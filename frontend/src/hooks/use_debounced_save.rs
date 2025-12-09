@@ -5,7 +5,7 @@ use log::info;
 use std::rc::Rc;
 use yew::prelude::*;
 
-const DEBOUNCE_MS: u32 = 2000;
+const DEBOUNCE_MS: u32 = 500;
 
 #[hook]
 pub fn use_debounced_save<F>(
