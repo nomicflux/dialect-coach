@@ -9,6 +9,7 @@ use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Trans
 use dialect_coach_shared::{
     LearningGoal, LearningItem, LearningItemType, UsageStats, User, UserState,
 };
+use dialect_coach_shared::models::gamification::{derive_gamification_stats, GamificationStats};
 use log::error;
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
@@ -97,6 +98,16 @@ impl Default for AppState {
             rate_limit_state: RateLimitState::default(),
             sidebar_width: 350,
         }
+    }
+}
+
+pub trait UserStateGamificationExt {
+    fn gamification_stats(&self) -> GamificationStats;
+}
+
+impl UserStateGamificationExt for UserState {
+    fn gamification_stats(&self) -> GamificationStats {
+        derive_gamification_stats(self)
     }
 }
 

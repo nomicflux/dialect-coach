@@ -1,6 +1,6 @@
-use chrono::{DateTime, Duration, Utc, NaiveDate};
+use chrono::{DateTime, Utc, NaiveDate};
 use serde::{Deserialize, Serialize};
-use crate::models::{UserState, MessageContent};
+use crate::models::UserState;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct GamificationStats {
@@ -130,6 +130,7 @@ fn get_last_active_timestamp(dates: &[NaiveDate]) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Duration;
     use uuid::Uuid;
     use crate::models::{Message, MessageMetadata, Formality, TeachingMode, Language, Dialect};
 
