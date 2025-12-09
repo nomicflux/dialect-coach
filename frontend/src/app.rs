@@ -49,7 +49,7 @@ pub fn app() -> Html {
             }
             Err(e) => {
                 error!("Failed to send UserState save: {}", e);
-                app_state_for_save.dispatch(AppStateAction::QueuePendingSave(state.clone()));
+                app_state_for_save.dispatch(AppStateAction::QueuePendingSave(Box::new(state.clone())));
             }
         }
     });

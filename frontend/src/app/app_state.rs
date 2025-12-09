@@ -2,8 +2,8 @@ pub mod callbacks;
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{
-    ArabicScript, ConversationBranch, Dialect, Formality, JapaneseScript, Language, LanguagePlan,
-    Message, TeachingMode, UserGender,
+    ArabicScript, ConversationBranch, Dialect, Formality, JapaneseScript, Language, LanguageLevel,
+    LanguagePlan, Message, TeachingMode, UserGender,
 };
 use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Translated};
 use dialect_coach_shared::{
@@ -31,7 +31,7 @@ pub enum AppStateAction {
     ClearError,
     SetConnectionState(ConnectionState),
     Speak(Message),
-    QueuePendingSave(UserState),
+    QueuePendingSave(Box<UserState>),
     RetryPendingSaves,
     SetUser(User),
     ClearUser,
@@ -138,7 +138,7 @@ impl AppState {
                 });
             }
             AppStateAction::QueuePendingSave(state) => {
-                next.save_queue.enqueue(state);
+                next.save_queue.enqueue(*state);
             }
             AppStateAction::RetryPendingSaves => {
                 let ws_service = next.user_state_ws_service.borrow();
@@ -424,6 +424,7 @@ pub enum UserStateAction {
     SetActivePlan(Option<Uuid>),
     AdvancePlanStep(Uuid),
     UpdateLanguagePlan(LanguagePlan),
+    UpdateLanguageLevel(Dialect, LanguageLevel),
 }
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
@@ -675,6 +676,9 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
         }
         UserStateAction::UpdateUserGender(gender) => {
             next.user_gender = gender;
+        }
+        UserStateAction::UpdateLanguageLevel(dialect, level) => {
+            next.set_level_for_dialect(dialect, level);
         }
         UserStateAction::ToggleTTS => {
             next.tts_enabled = !next.tts_enabled;
@@ -1660,5 +1664,16 @@ mod tests {
         state = apply_user_state_action(&state, UserStateAction::DeleteLanguagePlan(plan_id));
         assert!(state.language_plans.is_empty());
         assert_eq!(state.active_plan_id, None);
+    }
+
+    #[test]
+    fn test_update_language_level_action() {
+        let mut state = UserState::new(Uuid::new_v4());
+        state.selected_dialect = Dialect::SpanishMexican;
+
+        let action = UserStateAction::UpdateLanguageLevel(Dialect::SpanishMexican, LanguageLevel::C1);
+        let updated = apply_user_state_action(&state, action);
+
+        assert_eq!(updated.get_level_for_dialect(&Dialect::SpanishMexican), LanguageLevel::C1);
     }
 }
