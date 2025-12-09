@@ -144,6 +144,7 @@ fn build_response_params<'a>(
         user_gender: msg_with_context.user_gender,
         language_option: &msg_with_context.language_option,
         active_plan: msg_with_context.active_plan.as_ref(),
+        language_level: msg_with_context.language_level,
     }
 }
 
@@ -574,6 +575,7 @@ async fn call_agent_for_conversation_action(
         learning_goals,
         active_plan,
         language_option,
+        language_level,
     ) = match action {
         AIActionRequest::ContinueBranch { context, .. } => (
             context.past_mistakes.clone(),
@@ -583,6 +585,7 @@ async fn call_agent_for_conversation_action(
             context.learning_goals.clone(),
             context.active_plan.clone(),
             context.language_option,
+            context.language_level,
         ),
         _ => {
             let (m, e, t, x) = extract_learning_items(&user_state.learning_items, dialect);
@@ -600,6 +603,7 @@ async fn call_agent_for_conversation_action(
                 goals,
                 user_state.active_plan(),
                 user_state.current_language_option(),
+                user_state.current_language_level(),
             )
         }
     };
@@ -619,6 +623,7 @@ async fn call_agent_for_conversation_action(
         user_gender,
         language_option: &language_option,
         active_plan: active_plan.as_ref(),
+        language_level,
     };
 
     let (result, response_usage) = state.agent.generate_response_for_action(&params).await;

@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use dialect_coach_shared::{
     AgentUsage, Dialect, DialectDocument, DialectWithFeatures, Explained, Exploratory, Formality,
-    Gender, LanguageOption, LearningGoal, Mistake, PastLearningItems, TeachingMode, Translated,
-    UserGender,
+    Gender, LanguageLevel, LanguageOption, LearningGoal, Mistake, PastLearningItems, TeachingMode,
+    Translated, UserGender,
 };
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
@@ -379,6 +379,17 @@ fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>)
     String::new()
 }
 
+fn language_level_instruction(level: LanguageLevel) -> &'static str {
+    match level {
+        LanguageLevel::A1 => "LANGUAGE LEVEL A1 (Beginner): Use very basic vocabulary and simple present tense. Short sentences only. Repeat key words. Speak slowly and clearly.",
+        LanguageLevel::A2 => "LANGUAGE LEVEL A2 (Elementary): Use simple sentences and common vocabulary. Basic past and future tenses okay. Keep explanations brief and concrete.",
+        LanguageLevel::B1 => "LANGUAGE LEVEL B1 (Intermediate): Use standard vocabulary and grammar. Can introduce idioms with explanation. Normal conversational pace.",
+        LanguageLevel::B2 => "LANGUAGE LEVEL B2 (Upper Intermediate): Use varied vocabulary including some abstract concepts. Complex sentences okay. Can use idioms naturally.",
+        LanguageLevel::C1 => "LANGUAGE LEVEL C1 (Advanced): Use sophisticated vocabulary and nuanced expressions. Can discuss abstract topics. Full range of tenses and moods.",
+        LanguageLevel::C2 => "LANGUAGE LEVEL C2 (Proficient): Speak as you would to a native speaker. Full complexity, subtlety, and cultural references are appropriate.",
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_system_content(
     dialect: DialectWithFeatures,
@@ -389,6 +400,7 @@ fn build_system_content(
     user_gender: UserGender,
     language_option: &Option<LanguageOption>,
     active_plan: &Option<&dialect_coach_shared::LanguagePlan>,
+    language_level: LanguageLevel,
 ) -> String {
     let formality_label = match formality {
         Formality::Formal => "FORMAL",
@@ -414,6 +426,7 @@ fn build_system_content(
         UserGender::NonBinary => "non-binary",
     };
 
+    let level_instruction = language_level_instruction(language_level);
     let language_instr = build_language_instruction(language_option);
     let plan_instr = build_plan_system_content(active_plan);
 
@@ -427,6 +440,7 @@ fn build_system_content(
             r#"# YOUR ROLE\n\
             {}.\n\n\
             USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.{}\n\n\
+            {}\n\
             # CRITICAL RULES\n\
             1. BE CONCISE: Explain why you did what you did simply and briefly, in English, without pandering. This will be within the "response" field of the required JSON format.\n\
             2. ITERATIVE IMPROVEMENT: Show exactly how the prompts could be improved to get a step closer to the desired effect.\n\
@@ -437,6 +451,7 @@ fn build_system_content(
             role_desc,
             user_gender_str,
             lang_section,
+            level_instruction,
             goals_section,
             learning_items_context,
             JSON_OUTPUT_INSTRUCTION
@@ -452,6 +467,7 @@ fn build_system_content(
             # YOUR ROLE\n\
             {}.\n\n\
             USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.{}\n\n\
+            {}\n\
             # CRITICAL RULES\n\
             {}\n\
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
@@ -467,6 +483,7 @@ fn build_system_content(
             role_desc,
             user_gender_str,
             lang_section,
+            level_instruction,
             mimic_instruction(dialect.has_corpus),
             formality_label.to_lowercase(),
             teaching_rules,
@@ -520,6 +537,7 @@ pub struct GenerateResponseParams<'a> {
     pub user_gender: UserGender,
     pub language_option: &'a Option<LanguageOption>,
     pub active_plan: Option<&'a dialect_coach_shared::LanguagePlan>,
+    pub language_level: LanguageLevel,
 }
 
 pub struct ResponseContext {
@@ -892,6 +910,7 @@ impl ResponseContext {
             params.user_gender,
             params.language_option,
             &params.active_plan,
+            params.language_level,
         );
         tracing::debug!("System content sent to Claude:\n{}", system_content);
         let history_with_prefill = build_conversation_history_with_examples(
@@ -1135,11 +1154,13 @@ mod tests {
             UserGender::NonBinary,
             &None,
             &None,
+            LanguageLevel::B1,
         );
 
         assert!(content.contains("# YOUR ROLE"));
         assert!(content.contains("BE CONCISE"));
         assert!(content.contains("ITERATIVE IMPROVEMENT"));
+        assert!(content.contains("LANGUAGE LEVEL"));
         assert!(content.contains("technically"));
     }
 
@@ -1163,6 +1184,7 @@ mod tests {
             UserGender::NonBinary,
             &None,
             &None,
+            LanguageLevel::A2,
         );
 
         assert!(content.contains("# YOUR ROLE"));
@@ -1171,6 +1193,7 @@ mod tests {
         assert!(content.contains("informal"));
         assert!(content.contains("# LEARNING GOALS"));
         assert!(content.contains("Goal 1"));
+        assert!(content.contains("LANGUAGE LEVEL"));
     }
 
     #[test]
@@ -1377,5 +1400,22 @@ mod tests {
             !prompt.contains("correct them gently"),
             "Should NOT contain old goal instruction"
         );
+    }
+
+    #[test]
+    fn test_language_level_instruction_covers_all_levels() {
+        let levels = [
+            LanguageLevel::A1,
+            LanguageLevel::A2,
+            LanguageLevel::B1,
+            LanguageLevel::B2,
+            LanguageLevel::C1,
+            LanguageLevel::C2,
+        ];
+        for level in levels {
+            let instruction = language_level_instruction(level);
+            assert!(!instruction.is_empty());
+            assert!(instruction.contains("LANGUAGE LEVEL"));
+        }
     }
 }
