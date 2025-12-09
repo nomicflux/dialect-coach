@@ -16,6 +16,65 @@ pub enum UserGender {
     NonBinary,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum LanguageLevel {
+    A1,
+    A2,
+    #[default]
+    B1,
+    B2,
+    C1,
+    C2,
+}
+
+impl LanguageLevel {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::A1 => "A1 - Beginner",
+            Self::A2 => "A2 - Elementary",
+            Self::B1 => "B1 - Intermediate",
+            Self::B2 => "B2 - Upper Intermediate",
+            Self::C1 => "C1 - Advanced",
+            Self::C2 => "C2 - Proficient",
+        }
+    }
+
+    pub fn id(&self) -> &'static str {
+        match self {
+            Self::A1 => "a1",
+            Self::A2 => "a2",
+            Self::B1 => "b1",
+            Self::B2 => "b2",
+            Self::C1 => "c1",
+            Self::C2 => "c2",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "a1" => Some(Self::A1),
+            "a2" => Some(Self::A2),
+            "b1" => Some(Self::B1),
+            "b2" => Some(Self::B2),
+            "c1" => Some(Self::C1),
+            "c2" => Some(Self::C2),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DialectLevel {
+    pub dialect: Dialect,
+    pub level: LanguageLevel,
+}
+
+impl DialectLevel {
+    pub fn new(dialect: Dialect, level: LanguageLevel) -> Self {
+        Self { dialect, level }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserState {
     pub user_id: Uuid,
@@ -35,6 +94,7 @@ pub struct UserState {
     pub usage_stats: UsageStats,
     pub language_options: LanguageOptions,
     pub show_experimental_dialects: bool,
+    pub dialect_levels: Vec<DialectLevel>,
 }
 
 impl UserState {
@@ -105,6 +165,7 @@ impl UserState {
             usage_stats: UsageStats::default(),
             language_options: LanguageOptions::default(),
             show_experimental_dialects,
+            dialect_levels: Vec::new(),
         }
     }
 
@@ -162,6 +223,26 @@ impl UserState {
 
     pub fn current_language_option(&self) -> Option<LanguageOption> {
         self.language_options.for_language(self.selected_language)
+    }
+
+    pub fn get_level_for_dialect(&self, dialect: &Dialect) -> LanguageLevel {
+        self.dialect_levels
+            .iter()
+            .find(|dl| &dl.dialect == dialect)
+            .map(|dl| dl.level)
+            .unwrap_or_default()
+    }
+
+    pub fn set_level_for_dialect(&mut self, dialect: Dialect, level: LanguageLevel) {
+        if let Some(dl) = self.dialect_levels.iter_mut().find(|dl| dl.dialect == dialect) {
+            dl.level = level;
+        } else {
+            self.dialect_levels.push(DialectLevel::new(dialect, level));
+        }
+    }
+
+    pub fn current_language_level(&self) -> LanguageLevel {
+        self.get_level_for_dialect(&self.selected_dialect)
     }
 
     pub fn current_dialects(&self) -> Vec<DialectWithFeatures> {
@@ -772,5 +853,61 @@ mod tests {
         let state = create_test_user_state();
         let option = state.current_language_option();
         assert_eq!(option, None);
+    }
+
+    #[test]
+    fn test_language_level_default_is_b1() {
+        use super::LanguageLevel;
+        assert_eq!(LanguageLevel::default(), LanguageLevel::B1);
+    }
+
+    #[test]
+    fn test_get_level_for_dialect_returns_default_when_not_set() {
+        use super::LanguageLevel;
+        let state = create_test_user_state();
+        let level = state.get_level_for_dialect(&Dialect::SpanishMexican);
+        assert_eq!(level, LanguageLevel::B1);
+    }
+
+    #[test]
+    fn test_set_and_get_level_for_dialect() {
+        use super::LanguageLevel;
+        let mut state = create_test_user_state();
+        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::C1);
+        assert_eq!(
+            state.get_level_for_dialect(&Dialect::SpanishMexican),
+            LanguageLevel::C1
+        );
+    }
+
+    #[test]
+    fn test_set_level_updates_existing() {
+        use super::LanguageLevel;
+        let mut state = create_test_user_state();
+        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::A1);
+        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::C2);
+        assert_eq!(
+            state.get_level_for_dialect(&Dialect::SpanishMexican),
+            LanguageLevel::C2
+        );
+        assert_eq!(state.dialect_levels.len(), 1);
+    }
+
+    #[test]
+    fn test_language_level_serialization() {
+        use super::LanguageLevel;
+        let levels = vec![
+            LanguageLevel::A1,
+            LanguageLevel::A2,
+            LanguageLevel::B1,
+            LanguageLevel::B2,
+            LanguageLevel::C1,
+            LanguageLevel::C2,
+        ];
+        for level in levels {
+            let json = serde_json::to_string(&level).unwrap();
+            let deserialized: LanguageLevel = serde_json::from_str(&json).unwrap();
+            assert_eq!(level, deserialized);
+        }
     }
 }
