@@ -77,13 +77,13 @@ Gamification stats (XP, Streak) are **derived on-the-fly** from `UserState` (`co
 2.  **Calculate in UI**: In `frontend/src/app/mod.rs` (or where State is held), use the function to calculate stats from the local `UserState` replica.
     
 ### Phase End Procedure
-- [ ] **Run Full Test Suite**: `cargo test --all`.
-- [ ] **Fix All Errors**: If tests fail, fix them immediately.
-- [ ] **Run Clippy**: `cargo clippy --all`.
-- [ ] **Clean Dead Code**: Remove any code flagged as unused.
-- [ ] **Update Status**: Update `docs/status.md`.
-- [ ] **Commit**: `git commit -m "Phase 2 (Frontend Integration) complete"`.
-- [ ] **WAIT**: Stop and wait for user approval before proceeding.
+- [x] **Run Full Test Suite**: `cargo test --all`.
+- [x] **Fix All Errors**: If tests fail, fix them immediately.
+- [x] **Run Clippy**: `cargo clippy --all`.
+- [x] **Clean Dead Code**: Remove any code flagged as unused.
+- [x] **Update Status**: Update `docs/status.md`.
+- [x] **Commit**: `git commit -m "Phase 2 (Frontend Integration) complete"`.
+- [x] **WAIT**: Stop and wait for user approval before proceeding.
 
 ---
 

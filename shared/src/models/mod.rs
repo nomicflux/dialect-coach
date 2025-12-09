@@ -18,6 +18,7 @@ pub mod tts;
 pub mod usage_stats;
 pub mod user;
 pub mod user_state;
+pub mod gamification;
 
 pub use admin::*;
 pub use agent::*;
@@ -39,3 +40,4 @@ pub use tts::*;
 pub use usage_stats::*;
 pub use user::*;
 pub use user_state::*;
+pub use gamification::*;

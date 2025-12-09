@@ -1,0 +1,127 @@
+/* Fluency Bar */
+.gamification-fluency-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-2);
+    background: var(--surface-muted);
+    border-radius: var(--r-m);
+}
+
+.gamification-fluency-bar .level-badge {
+    background: var(--teal);
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--r-s);
+    font-weight: bold;
+    font-size: var(--text-xs);
+    box-shadow: var(--shadow-button);
+}
+
+.gamification-fluency-bar .progress-track {
+    flex: 1;
+    height: 8px;
+    background: var(--bg);
+    border-radius: var(--r-pill);
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.gamification-fluency-bar .progress-fill {
+    height: 100%;
+    background: var(--teal);
+    transition: width var(--dur-slow) var(--ease-out);
+}
+
+/* Streak Display */
+.gamification-streak {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+    padding: var(--s-2) var(--s-3);
+    background: var(--surface-muted);
+    border-radius: var(--r-m);
+    color: var(--ink-soft);
+}
+
+.gamification-streak.active {
+    background: var(--coral-tint);
+    border: 1px solid var(--coral-tint);
+    color: var(--coral);
+}
+
+.gamification-streak .streak-icon {
+    font-size: var(--text-lg);
+}
+
+.gamification-streak .streak-count {
+    font-weight: bold;
+    font-size: var(--text-lg);
+}
+
+.gamification-streak .streak-label {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: var(--s-1);
+}
+
+/* Quest List */
+.gamification-quest-list {
+    margin-top: var(--s-4);
+    padding: var(--s-3);
+    background: var(--surface-glass);
+    border-radius: var(--r-l);
+    border: var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+}
+
+.gamification-quest-list h3 {
+    margin-bottom: var(--s-2);
+    font-size: var(--text-sm);
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
+}
+
+.gamification-quest-list .quest-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-2);
+    padding: var(--s-2);
+    border-bottom: 1px solid var(--glass-border);
+    transition: background-color var(--dur-fast) var(--ease-out);
+    border-radius: var(--r-s);
+}
+
+.gamification-quest-list .quest-item:last-child {
+    border-bottom: none;
+}
+
+.gamification-quest-list .quest-item:hover {
+    background: var(--surface-muted);
+}
+
+.gamification-quest-list .quest-checkbox {
+    min-width: 1.2rem;
+    font-size: 1.2rem;
+    color: var(--ink-soft);
+    cursor: default;
+}
+
+.gamification-quest-list .quest-item.completed .quest-checkbox {
+    color: var(--green);
+}
+
+.gamification-quest-list .quest-item.completed .quest-desc {
+    text-decoration: line-through;
+    color: var(--ink-soft);
+    opacity: 0.7;
+}
+
+.gamification-quest-list .quest-desc {
+    font-size: var(--text-sm);
+    color: var(--ink);
+    line-height: 1.4;
+}
