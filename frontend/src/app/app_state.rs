@@ -1671,9 +1671,13 @@ mod tests {
         let mut state = UserState::new(Uuid::new_v4());
         state.selected_dialect = Dialect::SpanishMexican;
 
-        let action = UserStateAction::UpdateLanguageLevel(Dialect::SpanishMexican, LanguageLevel::C1);
+        let action =
+            UserStateAction::UpdateLanguageLevel(Dialect::SpanishMexican, LanguageLevel::C1);
         let updated = apply_user_state_action(&state, action);
 
-        assert_eq!(updated.get_level_for_dialect(&Dialect::SpanishMexican), LanguageLevel::C1);
+        assert_eq!(
+            updated.get_level_for_dialect(&Dialect::SpanishMexican),
+            LanguageLevel::C1
+        );
     }
 }

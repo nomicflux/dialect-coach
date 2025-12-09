@@ -235,7 +235,11 @@ impl UserState {
     }
 
     pub fn set_level_for_dialect(&mut self, dialect: Dialect, level: LanguageLevel) {
-        if let Some(dl) = self.dialect_levels.iter_mut().find(|dl| dl.dialect == dialect) {
+        if let Some(dl) = self
+            .dialect_levels
+            .iter_mut()
+            .find(|dl| dl.dialect == dialect)
+        {
             dl.level = level;
         } else {
             self.dialect_levels.push(DialectLevel::new(dialect, level));

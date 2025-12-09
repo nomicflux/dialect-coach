@@ -1,9 +1,7 @@
 use crate::app::app_state::{
     AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
 };
-use dialect_coach_shared::{
-    AIActionRequest, AuthCredentials, UserMessageWithContext,
-};
+use dialect_coach_shared::{AIActionRequest, AuthCredentials, UserMessageWithContext};
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;

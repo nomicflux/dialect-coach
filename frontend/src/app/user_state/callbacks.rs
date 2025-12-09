@@ -1,6 +1,6 @@
 use crate::app::app_state::{OptionalUserState, UIState, UIStateAction, UserStateAction};
 use dialect_coach_shared::models::{
-    ArabicScript, Formality, JapaneseScript, Language, LearningGoal, LanguageLevel, TeachingMode,
+    ArabicScript, Formality, JapaneseScript, Language, LanguageLevel, LearningGoal, TeachingMode,
     UserGender,
 };
 use log::info;
@@ -110,7 +110,9 @@ pub fn on_user_gender_change(user_state: UseReducerHandle<OptionalUserState>) ->
     })
 }
 
-pub fn on_language_level_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
+pub fn on_language_level_change(
+    user_state: UseReducerHandle<OptionalUserState>,
+) -> Callback<Event> {
     let user_state = user_state.clone();
     Callback::from(move |e: Event| {
         let state = match user_state.state.as_ref() {

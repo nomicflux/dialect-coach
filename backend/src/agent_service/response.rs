@@ -381,12 +381,24 @@ fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>)
 
 fn language_level_instruction(level: LanguageLevel) -> &'static str {
     match level {
-        LanguageLevel::A1 => "LANGUAGE LEVEL A1 (Beginner): Use very basic vocabulary and simple present tense. Short sentences only. Repeat key words. Speak slowly and clearly.",
-        LanguageLevel::A2 => "LANGUAGE LEVEL A2 (Elementary): Use simple sentences and common vocabulary. Basic past and future tenses okay. Keep explanations brief and concrete.",
-        LanguageLevel::B1 => "LANGUAGE LEVEL B1 (Intermediate): Use standard vocabulary and grammar. Can introduce idioms with explanation. Normal conversational pace.",
-        LanguageLevel::B2 => "LANGUAGE LEVEL B2 (Upper Intermediate): Use varied vocabulary including some abstract concepts. Complex sentences okay. Can use idioms naturally.",
-        LanguageLevel::C1 => "LANGUAGE LEVEL C1 (Advanced): Use sophisticated vocabulary and nuanced expressions. Can discuss abstract topics. Full range of tenses and moods.",
-        LanguageLevel::C2 => "LANGUAGE LEVEL C2 (Proficient): Speak as you would to a native speaker. Full complexity, subtlety, and cultural references are appropriate.",
+        LanguageLevel::A1 => {
+            "LANGUAGE LEVEL A1 (Beginner): Use very basic vocabulary and simple present tense. Short sentences only. Repeat key words. Speak slowly and clearly."
+        }
+        LanguageLevel::A2 => {
+            "LANGUAGE LEVEL A2 (Elementary): Use simple sentences and common vocabulary. Basic past and future tenses okay. Keep explanations brief and concrete."
+        }
+        LanguageLevel::B1 => {
+            "LANGUAGE LEVEL B1 (Intermediate): Use standard vocabulary and grammar. Can introduce idioms with explanation. Normal conversational pace."
+        }
+        LanguageLevel::B2 => {
+            "LANGUAGE LEVEL B2 (Upper Intermediate): Use varied vocabulary including some abstract concepts. Complex sentences okay. Can use idioms naturally."
+        }
+        LanguageLevel::C1 => {
+            "LANGUAGE LEVEL C1 (Advanced): Use sophisticated vocabulary and nuanced expressions. Can discuss abstract topics. Full range of tenses and moods."
+        }
+        LanguageLevel::C2 => {
+            "LANGUAGE LEVEL C2 (Proficient): Speak as you would to a native speaker. Full complexity, subtlety, and cultural references are appropriate."
+        }
     }
 }
 
