@@ -243,28 +243,39 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
 
                 let results = futures_util::future::join_all(futures).await;
 
-                for response in results.into_iter().flatten() {
-                    if let Some(obj) = response.enriched_item.as_object() {
-                        let word = obj
-                            .get("translated_word")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let trans = obj
-                            .get("translated_to")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let ctx = obj
-                            .get("context")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string());
+                for response in results {
+                    match response {
+                        Ok(resp) => {
+                            if let Some(obj) = resp.enriched_item.as_object() {
+                                let word = obj
+                                    .get("translated_word")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let trans = obj
+                                    .get("translated_to")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let ctx = obj
+                                    .get("context")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string());
 
-                        let item = LearningItem::new(
-                            LearningItemType::Translation(Translated::new(word, trans, ctx)),
-                            props.target_dialect,
-                        );
-                        new_items.push(item);
+                                let item = LearningItem::new(
+                                    LearningItemType::Translation(Translated::new(
+                                        word, trans, ctx,
+                                    )),
+                                    props.target_dialect,
+                                );
+                                new_items.push(item);
+                            } else {
+                                log::error!("Invalid enriched item format: {:?}", resp);
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Enrichment request failed: {}", e);
+                        }
                     }
                 }
 
@@ -363,7 +374,15 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                              onclick={add_bulk_items}
                              disabled={props.step.is_enriching_bulk || props.step.bulk_text.trim().is_empty()}
                          >
-                            {if props.step.is_enriching_bulk { "Enriching Items..." } else { "Add & Enrich Items" }}
+
+                            {if props.step.is_enriching_bulk {
+                                html! { <>
+                                    <span class="spinner"></span>
+                                    <span>{ "Enriching..." }</span>
+                                </> }
+                            } else {
+                                html! { "Add & Enrich Items" }
+                            }}
                          </button>
                     </div>
                 }

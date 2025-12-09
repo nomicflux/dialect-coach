@@ -300,8 +300,37 @@ pub fn on_continue_branch(
 
         info!("Sending continue branch request");
 
+        // Extract learning items from user state, filtered by current dialect
+        let (past_mistakes, past_explained, past_translated, past_exploratory) =
+            extract_learning_items(&user_state, &state.selected_dialect);
+
+        // Filter learning goals by selected dialect
+        let filtered_goals = state
+            .get_learning_goals_for_dialect(&state.selected_dialect)
+            .into_iter()
+            .cloned()
+            .collect();
+
+        // Build ConversationContext matching current frontend state
+        let context = dialect_coach_shared::ConversationContext {
+            active_plan: state.active_plan(),
+            learning_goals: filtered_goals,
+            past_mistakes,
+            past_explained,
+            past_translated,
+            past_exploratory,
+            user_gender: state.user_gender,
+            language_option: state.current_language_option(),
+            dialect: state.selected_dialect,
+            formality: state.formality,
+            teaching_mode: state.teaching_mode,
+        };
+
         match app_state.ws_service.borrow().send_ai_action(
-            AIActionRequest::ContinueBranch { parent_message_id },
+            AIActionRequest::ContinueBranch {
+                parent_message_id,
+                context: Box::new(context),
+            },
             session_id,
             user_id,
         ) {

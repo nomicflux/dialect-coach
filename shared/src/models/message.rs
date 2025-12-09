@@ -22,11 +22,33 @@ impl MessageContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConversationContext {
+    pub active_plan: Option<super::LanguagePlan>,
+    pub learning_goals: Vec<super::LearningGoal>,
+    pub past_mistakes: Vec<super::Mistake>,
+    pub past_explained: Vec<super::Explained>,
+    pub past_translated: Vec<crate::models::agent::Translated>,
+    pub past_exploratory: Vec<crate::models::agent::Exploratory>,
+    pub user_gender: UserGender,
+    pub language_option: Option<LanguageOption>,
+    pub dialect: Dialect,
+    pub formality: Formality,
+    pub teaching_mode: TeachingMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AIActionRequest {
     StartConversation,
-    ContinueBranch { parent_message_id: Uuid },
-    ExplainMessage { message_id: Uuid },
-    TranslateMessage { message_id: Uuid },
+    ContinueBranch {
+        parent_message_id: Uuid,
+        context: Box<ConversationContext>,
+    },
+    ExplainMessage {
+        message_id: Uuid,
+    },
+    TranslateMessage {
+        message_id: Uuid,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

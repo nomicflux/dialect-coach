@@ -359,7 +359,7 @@ fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>)
 
         let goal_instruction = match &step.step_type {
             dialect_coach_shared::models::plan::StepType::Learning => {
-                "Your Goal: Help the user complete this step. Use the Provided Step Materials to create sentences and guide the conversation. If the user makes mistakes related to the Grammar Rule or Vocabulary, correct them gently."
+                "Your Goal: Naturally incorporate the Provided Step Materials into your own speech to demonstrate them. Do NOT explicitly teach, list the items, or ask the user to use them. Just chat naturally using the target vocabulary/grammar."
             }
             dialect_coach_shared::models::plan::StepType::Review { .. } => {
                 "Your Goal: This is a REVIEW step. Verify the user remembers the content. Do not spoon-feed answers. Challenge them."
@@ -1300,6 +1300,82 @@ mod tests {
         // Assert
         assert!(system_content.contains("RELEVANT LEARNING CONTENT"));
         assert!(system_content.contains("hola -> hello"));
-        assert!(system_content.contains("Your Goal: Help the user complete this step."));
+        assert!(system_content.contains("Naturally incorporate"));
+    }
+
+    #[test]
+    fn test_build_plan_system_content() {
+        use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
+        use dialect_coach_shared::models::plan::{
+            CompletionCriteria, PlanContent, PlanStep, StepType,
+        };
+        use dialect_coach_shared::models::{Dialect, Explained, Translated};
+
+        let mut content = PlanContent::default();
+
+        content.items.push(LearningItem::new(
+            LearningItemType::Translation(Translated::new(
+                "hola".to_string(),
+                "hello".to_string(),
+                None,
+            )),
+            Dialect::SpanishMexican,
+        ));
+        content.items.push(LearningItem::new(
+            LearningItemType::Explanation(Explained::new(
+                "que onda".to_string(),
+                "what's up".to_string(),
+            )),
+            Dialect::SpanishMexican,
+        ));
+
+        let step = PlanStep::new(
+            1,
+            "Test Step".to_string(),
+            StepType::Learning,
+            "Use these words".to_string(),
+            content,
+            CompletionCriteria::Manual,
+        );
+
+        let plan = dialect_coach_shared::LanguagePlan::new(
+            "Test Plan".to_string(),
+            Dialect::SpanishMexican,
+            None,
+            vec![step],
+        );
+
+        let prompt = build_plan_system_content(&Some(&plan));
+
+        // Check for key prompt elements
+        assert!(
+            prompt.contains("ACTIVE LANGUAGE PLAN"),
+            "Should identify as active plan"
+        );
+        assert!(prompt.contains("Test Step"), "Should contain step title");
+        assert!(
+            prompt.contains("Use these words"),
+            "Should contain instructions"
+        );
+
+        // Check content rendering
+        assert!(
+            prompt.contains("hola -> hello"),
+            "Should contain translation"
+        );
+        assert!(
+            prompt.contains("que onda"),
+            "Should contain explanation phrase"
+        );
+
+        // Check new goal instruction
+        assert!(
+            prompt.contains("Naturally incorporate"),
+            "Should contain new goal instruction"
+        );
+        assert!(
+            !prompt.contains("correct them gently"),
+            "Should NOT contain old goal instruction"
+        );
     }
 }

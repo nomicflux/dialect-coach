@@ -853,7 +853,7 @@ impl Reducible for OptionalUserState {
                     let prepared = prepare_state_for_action(state);
                     OptionalUserState {
                         state: Some(apply_user_state_action(&prepared, action)),
-                        needs_save: false,
+                        needs_save: true,
                     }
                     .into()
                 }

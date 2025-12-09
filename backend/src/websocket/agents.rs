@@ -309,10 +309,9 @@ pub async fn call_agent_and_respond(
     }
 }
 
-fn extract_agent_gender(user_state: &UserState) -> Gender {
+fn extract_agent_gender(dialect: Dialect) -> Gender {
     use dialect_coach_shared::TTSProviderType;
 
-    let dialect = user_state.current_dialect();
     let dialect_features = dialect_features(dialect);
 
     dialect_features
@@ -340,11 +339,17 @@ fn format_gender_context(user_gender: UserGender, agent_gender: Gender) -> Strin
     )
 }
 
-fn build_action_context(action: &AIActionRequest, user_state: &UserState) -> String {
-    let dialect_name = user_state.current_dialect().name();
-    let formality_name = user_state.formality.name();
-    let agent_gender = extract_agent_gender(user_state);
-    let gender_context = format_gender_context(user_state.user_gender, agent_gender);
+fn build_action_context(
+    action: &AIActionRequest,
+    user_state: &UserState,
+    dialect: Dialect,
+    formality: dialect_coach_shared::Formality,
+    user_gender: UserGender,
+) -> String {
+    let dialect_name = dialect.name();
+    let formality_name = formality.name();
+    let agent_gender = extract_agent_gender(dialect);
+    let gender_context = format_gender_context(user_gender, agent_gender);
 
     match action {
         AIActionRequest::StartConversation => {
@@ -353,7 +358,9 @@ fn build_action_context(action: &AIActionRequest, user_state: &UserState) -> Str
                 dialect_name, formality_name, gender_context
             )
         }
-        AIActionRequest::ContinueBranch { parent_message_id } => {
+        AIActionRequest::ContinueBranch {
+            parent_message_id, ..
+        } => {
             let message: Option<Message> = user_state.msg_by_id(*parent_message_id);
             format!(
                 "[System: Continue the conversation in {} with {} formality level. {}] {}",
@@ -412,7 +419,22 @@ pub async fn process_ai_action_request(
         }
     };
 
-    let context = build_action_context(&action, &user_state);
+    let (dialect, formality, _teaching_mode, user_gender) = match &action {
+        AIActionRequest::ContinueBranch { context, .. } => (
+            context.dialect,
+            context.formality,
+            context.teaching_mode,
+            context.user_gender,
+        ),
+        _ => (
+            user_state.current_dialect(),
+            user_state.formality,
+            user_state.teaching_mode,
+            user_state.user_gender,
+        ),
+    };
+
+    let context = build_action_context(&action, &user_state, dialect, formality, user_gender);
     let metadata = user_state::create_metadata_from_user_state(&user_state, session_id);
     let prompt_message = Message::user_message(context, metadata.clone(), None);
 
@@ -481,43 +503,120 @@ fn get_branch_messages_up_to(user_state: &UserState, parent_message_id: Uuid) ->
     }
 }
 
+fn extract_learning_items(
+    items: &[dialect_coach_shared::LearningItem],
+    dialect: Dialect,
+) -> (
+    Vec<dialect_coach_shared::models::agent::Mistake>,
+    Vec<dialect_coach_shared::models::agent::Explained>,
+    Vec<dialect_coach_shared::models::agent::Translated>,
+    Vec<dialect_coach_shared::models::agent::Exploratory>,
+) {
+    use dialect_coach_shared::models::learning_item::LearningItemType;
+
+    let mut mistakes = Vec::new();
+    let mut explained = Vec::new();
+    let mut translated = Vec::new();
+    let mut exploratory = Vec::new();
+
+    for item in items.iter().filter(|i| i.dialect == dialect) {
+        match &item.item {
+            LearningItemType::Mistake(m) => mistakes.push(m.clone()),
+            LearningItemType::Explanation(e) => explained.push(e.clone()),
+            LearningItemType::Translation(t) => translated.push(t.clone()),
+            LearningItemType::Exploration(e) => exploratory.push(e.clone()),
+        }
+    }
+
+    (mistakes, explained, translated, exploratory)
+}
+
 async fn call_agent_for_conversation_action(
     state: &AppState,
     action: &AIActionRequest,
     user_state: &UserState,
     user_id: Uuid,
 ) -> Result<AgentResponse, anyhow::Error> {
-    let teaching_mode = user_state.teaching_mode;
+    let (dialect, formality, teaching_mode, user_gender) = match action {
+        AIActionRequest::ContinueBranch { context, .. } => (
+            context.dialect,
+            context.formality,
+            context.teaching_mode,
+            context.user_gender,
+        ),
+        _ => (
+            user_state.current_dialect(),
+            user_state.formality,
+            user_state.teaching_mode,
+            user_state.user_gender,
+        ),
+    };
+
     user_state::check_rate_limits(state, user_id, teaching_mode, false).await?;
 
-    let instruction = build_action_context(action, user_state);
+    let instruction = build_action_context(action, user_state, dialect, formality, user_gender);
     let context_messages = match action {
         AIActionRequest::StartConversation => Vec::new(),
-        AIActionRequest::ContinueBranch { parent_message_id } => {
-            get_branch_messages_up_to(user_state, *parent_message_id)
-        }
+        AIActionRequest::ContinueBranch {
+            parent_message_id, ..
+        } => get_branch_messages_up_to(user_state, *parent_message_id),
         _ => unreachable!("Only Start/Continue handled"),
     };
 
     let history_vec = build_context_from_messages(&context_messages);
-    let dialect = user_state.current_dialect();
     let rag_config = RAGConfig::new(20, 5);
-    let language_option = user_state.current_language_option();
-    let active_plan = user_state.active_plan();
+    // Extract context: use injected context for ContinueBranch, otherwise derive from user_state
+    let (
+        mistakes,
+        explained,
+        translated,
+        exploratory,
+        learning_goals,
+        active_plan,
+        language_option,
+    ) = match action {
+        AIActionRequest::ContinueBranch { context, .. } => (
+            context.past_mistakes.clone(),
+            context.past_explained.clone(),
+            context.past_translated.clone(),
+            context.past_exploratory.clone(),
+            context.learning_goals.clone(),
+            context.active_plan.clone(),
+            context.language_option,
+        ),
+        _ => {
+            let (m, e, t, x) = extract_learning_items(&user_state.learning_items, dialect);
+            let goals = user_state
+                .learning_goals
+                .iter()
+                .filter(|g| g.dialect == dialect)
+                .cloned()
+                .collect();
+            (
+                m,
+                e,
+                t,
+                x,
+                goals,
+                user_state.active_plan(),
+                user_state.current_language_option(),
+            )
+        }
+    };
 
     let params = GenerateResponseParams {
         user_message: &instruction,
         dialect: dialect_features(dialect),
-        formality: user_state.formality,
+        formality,
         teaching_mode,
         conversation_history: &history_vec,
-        learning_goals: &[],
+        learning_goals: &learning_goals,
         rag_config: &rag_config,
-        past_mistakes: &[],
-        past_explained: &[],
-        past_translated: &[],
-        past_exploratory: &[],
-        user_gender: user_state.user_gender,
+        past_mistakes: &mistakes,
+        past_explained: &explained,
+        past_translated: &translated,
+        past_exploratory: &exploratory,
+        user_gender,
         language_option: &language_option,
         active_plan: active_plan.as_ref(),
     };
@@ -625,5 +724,41 @@ mod tests {
 
         let dialect = msg.metadata.dialect;
         assert_eq!(dialect, Dialect::SpanishArgentinian);
+    }
+    #[test]
+    fn test_extract_learning_items() {
+        use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
+        use dialect_coach_shared::models::{Explained, Mistake, MistakeCategory};
+
+        let dialect = Dialect::SpanishMexican;
+        let other_dialect = Dialect::SpanishArgentinian;
+
+        let mistake = Mistake::new(
+            "bad".to_string(),
+            "good".to_string(),
+            MistakeCategory::Other {
+                context: "ctx".to_string(),
+            },
+        );
+        let explained = Explained::new("phrase".to_string(), "trans".to_string());
+
+        let items = vec![
+            // Match dialect, Mistake
+            LearningItem::new(LearningItemType::Mistake(mistake.clone()), dialect),
+            // Match dialect, Explanation
+            LearningItem::new(LearningItemType::Explanation(explained.clone()), dialect),
+            // Wrong dialect
+            LearningItem::new(LearningItemType::Mistake(mistake.clone()), other_dialect),
+        ];
+
+        let (m, e, t, x) = extract_learning_items(&items, dialect);
+
+        assert_eq!(m.len(), 1);
+        assert_eq!(e.len(), 1);
+        assert_eq!(t.len(), 0);
+        assert_eq!(x.len(), 0);
+
+        assert_eq!(m[0].specific_mistake, "bad");
+        assert_eq!(e[0].new_phrase, "phrase");
     }
 }
