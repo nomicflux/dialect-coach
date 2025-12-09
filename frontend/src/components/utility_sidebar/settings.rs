@@ -1,10 +1,10 @@
 use crate::app::app_state::{OptionalUserState, UIState, UserStateAction};
 use crate::app::user_state_callbacks::{
     on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
-    on_language_change, on_teaching_mode_change, on_user_gender_change,
+    on_language_change, on_language_level_change, on_teaching_mode_change, on_user_gender_change,
 };
 use dialect_coach_shared::models::{
-    ArabicScript, Formality, JapaneseScript, Language, TeachingMode, UserGender,
+    ArabicScript, Formality, JapaneseScript, Language, LanguageLevel, TeachingMode, UserGender,
 };
 use yew::prelude::*;
 
@@ -137,6 +137,21 @@ pub fn settings(props: &SettingsProps) -> Html {
                             <option value="female" selected={us.user_gender == UserGender::Female}>{"Female"}</option>
                             <option value="nonbinary" selected={us.user_gender == UserGender::NonBinary}>{"Non-binary"}</option>
                         </select>
+                    </div>
+
+                    <div class="panel-field">
+                        <label for="language-level-select">{"Your Level"}</label>
+                        <select id="language-level-select" onchange={on_language_level_change(user_state.clone())}>
+                            <option value="a1" selected={us.current_language_level() == LanguageLevel::A1}>{"A1 - Beginner"}</option>
+                            <option value="a2" selected={us.current_language_level() == LanguageLevel::A2}>{"A2 - Elementary"}</option>
+                            <option value="b1" selected={us.current_language_level() == LanguageLevel::B1}>{"B1 - Intermediate"}</option>
+                            <option value="b2" selected={us.current_language_level() == LanguageLevel::B2}>{"B2 - Upper Intermediate"}</option>
+                            <option value="c1" selected={us.current_language_level() == LanguageLevel::C1}>{"C1 - Advanced"}</option>
+                            <option value="c2" selected={us.current_language_level() == LanguageLevel::C2}>{"C2 - Proficient"}</option>
+                        </select>
+                        <div class="field-help field-help--info">
+                            {"Your proficiency level in the selected dialect (CEFR scale)"}
+                        </div>
                     </div>
                 </div>
             </div>

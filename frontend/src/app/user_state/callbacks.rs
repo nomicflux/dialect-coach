@@ -1,6 +1,7 @@
 use crate::app::app_state::{OptionalUserState, UIState, UIStateAction, UserStateAction};
 use dialect_coach_shared::models::{
-    ArabicScript, Formality, JapaneseScript, Language, LearningGoal, TeachingMode, UserGender,
+    ArabicScript, Formality, JapaneseScript, Language, LearningGoal, LanguageLevel, TeachingMode,
+    UserGender,
 };
 use log::info;
 use uuid::Uuid;
@@ -105,6 +106,29 @@ pub fn on_user_gender_change(user_state: UseReducerHandle<OptionalUserState>) ->
                 _ => UserGender::NonBinary,
             };
             user_state.dispatch(UserStateAction::UpdateUserGender(gender));
+        }
+    })
+}
+
+pub fn on_language_level_change(user_state: UseReducerHandle<OptionalUserState>) -> Callback<Event> {
+    let user_state = user_state.clone();
+    Callback::from(move |e: Event| {
+        let state = match user_state.state.as_ref() {
+            Some(s) => s,
+            None => return,
+        };
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
+            let level = match select.value().as_str() {
+                "a1" => LanguageLevel::A1,
+                "a2" => LanguageLevel::A2,
+                "b1" => LanguageLevel::B1,
+                "b2" => LanguageLevel::B2,
+                "c1" => LanguageLevel::C1,
+                "c2" => LanguageLevel::C2,
+                _ => LanguageLevel::B1,
+            };
+            let dialect = state.selected_dialect;
+            user_state.dispatch(UserStateAction::UpdateLanguageLevel(dialect, level));
         }
     })
 }
