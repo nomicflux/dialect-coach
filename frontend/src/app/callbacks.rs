@@ -1,9 +1,8 @@
-use crate::app::app_helpers::extract_learning_items;
 use crate::app::app_state::{
     AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
 };
 use dialect_coach_shared::{
-    AIActionRequest, AuthCredentials, PastLearningItems, UserMessageWithContext,
+    AIActionRequest, AuthCredentials, UserMessageWithContext,
 };
 use log::{error, info};
 use uuid::Uuid;
@@ -28,9 +27,13 @@ pub fn on_send_message(
         let msg = state.create_user_msg(session_id, &content);
         user_state.dispatch(UserStateAction::AddMessage(msg.clone()));
 
-        // Extract learning items from user state, filtered by current dialect
-        let (past_mistakes, past_explained, past_translated, past_exploratory) =
-            extract_learning_items(&user_state, &state.selected_dialect);
+        // Extract learning items and goals using shared model logic
+        let past_items = state.get_past_learning_items(&state.selected_dialect);
+        let filtered_goals = state
+            .get_learning_goals_for_dialect(&state.selected_dialect)
+            .into_iter()
+            .cloned()
+            .collect();
 
         // Get active branch context
         let active_branch_id = state.active_branch_id;
@@ -40,21 +43,9 @@ pub fn on_send_message(
             .cloned()
             .collect();
 
-        // Filter learning goals by selected dialect
-        let filtered_goals = state
-            .get_learning_goals_for_dialect(&state.selected_dialect)
-            .into_iter()
-            .cloned()
-            .collect();
-
         // Build UserMessageWithContext
         let msg_with_context = UserMessageWithContext::builder(state.user_id, msg)
-            .past_learning_items(PastLearningItems {
-                mistakes: past_mistakes,
-                explained: past_explained,
-                translated: past_translated,
-                exploratory: past_exploratory,
-            })
+            .past_learning_items(past_items)
             .active_branch_id(active_branch_id)
             .active_plan(state.active_plan())
             .context_messages(context_messages)
@@ -300,31 +291,8 @@ pub fn on_continue_branch(
 
         info!("Sending continue branch request");
 
-        // Extract learning items from user state, filtered by current dialect
-        let (past_mistakes, past_explained, past_translated, past_exploratory) =
-            extract_learning_items(&user_state, &state.selected_dialect);
-
-        // Filter learning goals by selected dialect
-        let filtered_goals = state
-            .get_learning_goals_for_dialect(&state.selected_dialect)
-            .into_iter()
-            .cloned()
-            .collect();
-
-        // Build ConversationContext matching current frontend state
-        let context = dialect_coach_shared::ConversationContext {
-            active_plan: state.active_plan(),
-            learning_goals: filtered_goals,
-            past_mistakes,
-            past_explained,
-            past_translated,
-            past_exploratory,
-            user_gender: state.user_gender,
-            language_option: state.current_language_option(),
-            dialect: state.selected_dialect,
-            formality: state.formality,
-            teaching_mode: state.teaching_mode,
-        };
+        // Use shared logic to build context
+        let context = state.build_action_context();
 
         match app_state.ws_service.borrow().send_ai_action(
             AIActionRequest::ContinueBranch {

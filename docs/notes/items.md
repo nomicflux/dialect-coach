@@ -18,7 +18,7 @@
 - Undo branch deletion
 - Show that highlighting text will let it be translated
 - Re-check rate limits
-    - in particuljr, do ALL agent calls get counted?
+    - in particular, do ALL agent calls get counted?
 - translated text SHOULD correct for selection without introducing other words
 - flashcards for old learning items (?), or other method for persistant practice
     - or review of some sort

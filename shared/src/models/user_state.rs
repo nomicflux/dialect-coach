@@ -4,9 +4,9 @@ use uuid::Uuid;
 
 use super::dialect::dialect_features;
 use super::{
-    ConversationBranch, Dialect, DialectWithFeatures, Formality, Language, LanguageOption,
-    LanguageOptions, LanguagePlan, LearningGoal, LearningItem, Message, MessageMetadata,
-    TeachingMode, UsageStats,
+    ConversationBranch, ConversationContext, Dialect, DialectWithFeatures, Formality, Language,
+    LanguageOption, LanguageOptions, LanguagePlan, LearningGoal, LearningItem, LearningItemType,
+    Message, MessageMetadata, PastLearningItems, TeachingMode, UsageStats,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,6 +116,40 @@ impl UserState {
             self.current_dialect(),
             session_id,
         )
+    }
+
+    pub fn get_past_learning_items(&self, dialect: &Dialect) -> PastLearningItems {
+        let mut items = PastLearningItems::default();
+        for item in self.get_learning_items_for_dialect(dialect) {
+            match &item.item {
+                LearningItemType::Mistake(m) => items.mistakes.push(m.clone()),
+                LearningItemType::Explanation(e) => items.explained.push(e.clone()),
+                LearningItemType::Translation(t) => items.translated.push(t.clone()),
+                LearningItemType::Exploration(e) => items.exploratory.push(e.clone()),
+            }
+        }
+        items
+    }
+
+    pub fn build_action_context(&self) -> ConversationContext {
+        let past_items = self.get_past_learning_items(&self.selected_dialect);
+        ConversationContext {
+            active_plan: self.active_plan(),
+            learning_goals: self
+                .get_learning_goals_for_dialect(&self.selected_dialect)
+                .into_iter()
+                .cloned()
+                .collect(),
+            past_mistakes: past_items.mistakes,
+            past_explained: past_items.explained,
+            past_translated: past_items.translated,
+            past_exploratory: past_items.exploratory,
+            user_gender: self.user_gender,
+            language_option: self.current_language_option(),
+            dialect: self.selected_dialect,
+            formality: self.formality,
+            teaching_mode: self.teaching_mode,
+        }
     }
 
     pub fn create_user_msg(&self, session_id: Uuid, content: &str) -> Message {

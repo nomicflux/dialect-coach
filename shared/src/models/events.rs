@@ -10,7 +10,7 @@ pub enum WsEvent {
     RequestAIAction {
         session_id: Uuid,
         user_id: Uuid,
-        action: AIActionRequest,
+        action: Box<AIActionRequest>,
     },
 
     UserMessage {

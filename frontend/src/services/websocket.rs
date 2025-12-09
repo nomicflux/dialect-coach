@@ -344,7 +344,7 @@ impl WebSocketService {
         let event = WsEvent::RequestAIAction {
             session_id,
             user_id,
-            action,
+            action: Box::new(action),
         };
         self.send_event(&event)
     }

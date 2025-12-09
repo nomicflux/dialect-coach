@@ -67,7 +67,7 @@ async fn try_parse_ws_event(
             session_id,
         }) => {
             tracing::info!(user_id = %user_id, "Received AI action request: {:?}", action);
-            agents::process_ai_action_request(state, user_id, session_id, action, tx).await
+            agents::process_ai_action_request(state, user_id, session_id, *action, tx).await
         }
         Ok(WsEvent::UserMessage { user_message }) => {
             if agents::process_user_message(state, *user_message, tx)

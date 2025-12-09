@@ -112,15 +112,8 @@ pub fn on_user_gender_change(user_state: UseReducerHandle<OptionalUserState>) ->
 pub fn on_dialect_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
     let user_state = user_state.clone();
     Callback::from(move |_| {
-        let state = match user_state.state.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        let dialects = state.current_dialects();
-        let current = state.current_dialect();
-        if let Some(idx) = dialects.iter().position(|df| df.dialect == current) {
-            let next_idx = (idx + 1) % dialects.len();
-            user_state.dispatch(UserStateAction::ChangeDialect(dialects[next_idx].dialect));
+        if user_state.state.is_some() {
+            user_state.dispatch(UserStateAction::CycleDialect);
         }
     })
 }
@@ -128,20 +121,8 @@ pub fn on_dialect_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Call
 pub fn on_formality_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
     let user_state = user_state.clone();
     Callback::from(move |_| {
-        let state = match user_state.state.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        let formalities = [
-            Formality::Formal,
-            Formality::ProfessionalCasual,
-            Formality::Informal,
-            Formality::Slang,
-        ];
-        let current = state.formality;
-        if let Some(idx) = formalities.iter().position(|f| f == &current) {
-            let next_idx = (idx + 1) % formalities.len();
-            user_state.dispatch(UserStateAction::ChangeFormality(formalities[next_idx]));
+        if user_state.state.is_some() {
+            user_state.dispatch(UserStateAction::CycleFormality);
         }
     })
 }
@@ -149,22 +130,8 @@ pub fn on_formality_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Ca
 pub fn on_teaching_mode_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Callback<()> {
     let user_state = user_state.clone();
     Callback::from(move |_| {
-        let state = match user_state.state.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        let modes = [
-            TeachingMode::Immersive,
-            TeachingMode::Corrective,
-            TeachingMode::Explanatory,
-            TeachingMode::Interleaved,
-            TeachingMode::StoryTeller,
-            TeachingMode::Debug,
-        ];
-        let current = state.teaching_mode;
-        if let Some(idx) = modes.iter().position(|m| m == &current) {
-            let next_idx = (idx + 1) % modes.len();
-            user_state.dispatch(UserStateAction::ChangeTeachingMode(modes[next_idx]));
+        if user_state.state.is_some() {
+            user_state.dispatch(UserStateAction::CycleTeachingMode);
         }
     })
 }
