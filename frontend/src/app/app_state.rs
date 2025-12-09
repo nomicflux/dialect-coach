@@ -1,6 +1,7 @@
 pub mod callbacks;
 
 use dialect_coach_shared::models::dialect::dialect_features;
+use dialect_coach_shared::models::gamification::{GamificationStats, derive_gamification_stats};
 use dialect_coach_shared::models::{
     ArabicScript, ConversationBranch, Dialect, Formality, JapaneseScript, Language, LanguageLevel,
     LanguagePlan, Message, TeachingMode, UserGender,
@@ -9,7 +10,6 @@ use dialect_coach_shared::{AgentAnalysis, Explained, Exploratory, Mistake, Trans
 use dialect_coach_shared::{
     LearningGoal, LearningItem, LearningItemType, UsageStats, User, UserState,
 };
-use dialect_coach_shared::models::gamification::{derive_gamification_stats, GamificationStats};
 use log::error;
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};

@@ -1,12 +1,5 @@
+use dialect_coach_shared::models::gamification::Quest;
 use yew::prelude::*;
-
-// Temporary Quest struct, will move to shared in Phase 4
-#[derive(Clone, PartialEq, Debug)]
-pub struct Quest {
-    pub id: String,
-    pub description: String,
-    pub completed: bool,
-}
 
 #[derive(Properties, PartialEq)]
 pub struct QuestListProps {
@@ -24,7 +17,11 @@ pub fn quest_list(props: &QuestListProps) -> Html {
 }
 
 fn render_quest_item(quest: &Quest) -> Html {
-    let status_class = if quest.completed { "completed" } else { "pending" };
+    let status_class = if quest.completed {
+        "completed"
+    } else {
+        "pending"
+    };
     html! {
         <div class={classes!("quest-item", status_class)}>
             <div class="quest-checkbox">{ if quest.completed { "☑" } else { "☐" } }</div>

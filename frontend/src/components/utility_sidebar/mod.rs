@@ -1,7 +1,8 @@
 pub mod branches;
 pub mod learning;
 pub mod settings;
-use crate::app::app_state::{OptionalUserState, UIState};
+use crate::app::app_state::{OptionalUserState, UIState, UserStateGamificationExt};
+use crate::components::gamification::QuestList;
 use crate::services::enrichment_service::EnrichmentService;
 use branches::Branches;
 use dialect_coach_shared::Dialect;
@@ -18,6 +19,7 @@ use yew::prelude::*;
 pub enum SidebarTab {
     Branches,
     Learning,
+    Quests,
     Settings,
 }
 
@@ -150,6 +152,12 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
                     {"Learning"}
                 </button>
                 <button
+                    class={classes!("sidebar-tab", (props.active_tab == SidebarTab::Quests).then_some("active"))}
+                    onclick={on_tab_click(SidebarTab::Quests)}
+                >
+                    {"Quests"}
+                </button>
+                <button
                     class={classes!("sidebar-tab", (props.active_tab == SidebarTab::Settings).then_some("active"))}
                     onclick={on_tab_click(SidebarTab::Settings)}
                 >
@@ -182,6 +190,23 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
                             user_state={props.user_state.clone()}
                             enrichment_service={props.enrichment_service.clone()}
                         />
+                    },
+                    SidebarTab::Quests => html! {
+                        <div class="sidebar-section">
+                            {if let Some(stats) = props.user_state.state.as_ref().map(|s| s.gamification_stats()) {
+                                let quests = stats.quests.iter()
+                                    .filter(|q| props.active_branch_dialect == Some(q.dialect))
+                                    .cloned()
+                                    .collect::<Vec<_>>();
+                                if !quests.is_empty() {
+                                    html! { <QuestList quests={quests} /> }
+                                } else {
+                                    html! { <div class="empty-state">{"No quests available for this dialect."}</div> }
+                                }
+                            } else {
+                                html! {}
+                            }}
+                        </div>
                     },
                     SidebarTab::Settings => html! {
                         <Settings

@@ -92,15 +92,15 @@ Gamification stats (XP, Streak) are **derived on-the-fly** from `UserState` (`co
 **Selected Subagent**: `kiss-code-generator`
 
 ### Code Style Checklist
-- [ ] **Planning Documentation**: Have you consulted/created/updated docs/current-plans/[FEATURE].md?
-- [ ] **Code Simplicity**: Are you following simplicity rules? (functions <20 lines, pure functions, no defensive coding)
-- [ ] **Code Modularity**: Are you following modularity rules? (helper functions, low cyclomatic complexity)
-- [ ] **Scope Control**: Are you accomplishing the user's instructions and NOTHING MORE?
-- [ ] **No Dead Code**: Did you leave dead code? (no future-proofing, no leaving just for tests, no creating fields for future phases)
-- [ ] **No Fake Constructions**: Are there any object instances that are purely for the sake of passing a type checker? (e.g. fake credentials, a blank user state)? This means the code should be rearchitected so that either the object doesn't need to be passed, or a real instance passed through instead.
-- [ ] **Code Purpose**: Do you changes accomplish the plan purpose and not just mechanical checklists?
-- [ ] **UI Consistency**: Are you using established UI styles? If you added new CSS, does it match appearance with the rest of the UI?
-- [ ] **Required Tests**: Have you added tests for any new functions?
+- [x] **Planning Documentation**: Have you consulted/created/updated docs/current-plans/[FEATURE].md?
+- [x] **Code Simplicity**: Are you following simplicity rules? (functions <20 lines, pure functions, no defensive coding)
+- [x] **Code Modularity**: Are you following modularity rules? (helper functions, low cyclomatic complexity)
+- [x] **Scope Control**: Are you accomplishing the user's instructions and NOTHING MORE?
+- [x] **No Dead Code**: Did you leave dead code? (no future-proofing, no leaving just for tests, no creating fields for future phases)
+- [x] **No Fake Constructions**: Are there any object instances that are purely for the sake of passing a type checker? (e.g. fake credentials, a blank user state)? This means the code should be rearchitected so that either the object doesn't need to be passed, or a real instance passed through instead.
+- [x] **Code Purpose**: Do you changes accomplish the plan purpose and not just mechanical checklists?
+- [x] **UI Consistency**: Are you using established UI styles? If you added new CSS, does it match appearance with the rest of the UI?
+- [x] **Required Tests**: Have you added tests for any new functions?
 
 ### Deliverables
 - `FluencyBar` component.
@@ -120,12 +120,12 @@ Gamification stats (XP, Streak) are **derived on-the-fly** from `UserState` (`co
 4.  **QuestList**: Implement component taking `Vec<Quest>`.
 
 ### Phase End Procedure
-- [ ] **Run Full Test Suite**: `cargo test --all`.
-- [ ] **Fix All Errors**: If tests fail, fix them immediately.
-- [ ] **Run Clippy**: `cargo clippy --all`.
-- [ ] **Clean Dead Code**: Remove any code flagged as unused.
-- [ ] **Update Status**: Update `docs/status.md`.
-- [ ] **Commit**: `git commit -m "Phase 3 (Frontend Components) complete"`.
+- [x] **Run Full Test Suite**: `cargo test --all`.
+- [x] **Fix All Errors**: If tests fail, fix them immediately.
+- [x] **Run Clippy**: `cargo clippy --all`.
+- [x] **Clean Dead Code**: Remove any code flagged as unused.
+- [x] **Update Status**: Update `docs/status.md`.
+- [x] **Commit**: `git commit -m "Phase 3 (Frontend Components) complete"`.
 - [ ] **WAIT**: Stop and wait for user approval before proceeding.
 
 ---
@@ -171,31 +171,36 @@ Gamification stats (XP, Streak) are **derived on-the-fly** from `UserState` (`co
 - [ ] **No Dead Code**: Did you leave dead code? (no future-proofing, no leaving just for tests, no creating fields for future phases)
 - [ ] **No Fake Constructions**: Are there any object instances that are purely for the sake of passing a type checker? (e.g. fake credentials, a blank user state)? This means the code should be rearchitected so that either the object doesn't need to be passed, or a real instance passed through instead.
 - [ ] **Code Purpose**: Do you changes accomplish the plan purpose and not just mechanical checklists?
-- [ ] **UI Consistency**: Are you using established UI styles? If you added new CSS, does it match appearance with the rest of the UI?
-- [ ] **Required Tests**: Have you added tests for any new functions?
+**Selected Subagent**: `modular-builder` (Tasks requiring creating new code or spanning files.)
+
+### Code Style Checklist
+- [x] **Planning Documentation**: Have you consulted/created/updated docs/current-plans/[FEATURE].md?
+- [x] **Code Simplicity**: Are you following simplicity rules? (functions <20 lines, pure functions, no defensive coding)
+- [x] **Code Modularity**: Are you following modularity rules? (helper functions, low cyclomatic complexity)
+- [x] **Scope Control**: Are you accomplishing the user's instructions and NOTHING MORE?
+- [x] **No Dead Code**: Did you leave dead code? (no future-proofing, no leaving just for tests, no creating fields for future phases)
+- [x] **No Fake Constructions**: Are there any object instances that are purely for the sake of passing a type checker? (e.g. fake credentials, a blank user state)? This means the code should be rearchitected so that either the object doesn't need to be passed, or a real instance passed through instead.
+- [x] **Code Purpose**: Do you changes accomplish the plan purpose and not just mechanical checklists?
+- [x] **UI Consistency**: Are you using established UI styles? If you added new CSS, does it match appearance with the rest of the UI?
+- [x] **Required Tests**: Have you added tests for any new functions?
 
 ### Concept
 "Daily Focus" quests are **dynamically derived** from the user's `LearningItems` (e.g., "Fix your mistake in 'Hello'"). They are not stored in the DB.
 
-### Deliverables
-- Logic to derive `Vec<Quest>` from `UserState` (in `shared/src/models/gamification.rs`).
-- `GamificationStats` updated to include `quests`.
-- UI Integration of Header and Sidebar.
-
-### Action Plan
-1.  **Derive Quests**:
-    -   Update `shared/src/models/gamification.rs`: Add `quests: Vec<Quest>` to `GamificationStats`.
-    -   Implement `derive_quests(state: &UserState) -> Vec<Quest>`: Select top 3 active mistakes or unmastered items.
-    -   Update `derive_gamification_stats` to call `derive_quests`.
-2.  **Header Integration**: Render `FluencyBar` and `StreakDisplay` using the derived stats from App State.
-3.  **Sidebar Integration**: Render `QuestList` using the derived `quests` from App State.
-4.  **Cleanup**: Ensure no persistent "quest" state remains anywhere.
-
-### Phase End Procedure
-- [ ] **Run Full Test Suite**: `cargo test --all`.
-- [ ] **Fix All Errors**: If tests fail, fix them immediately.
-- [ ] **Run Clippy**: `cargo clippy --all`.
-- [ ] **Clean Dead Code**: Remove any code flagged as unused.
-- [ ] **Update Status**: Update `docs/status.md`.
-- [ ] **Commit**: `git commit -m "Phase 4 (UI Integration & Derivation) complete"`.
+### Phase 4: UI Integration & Daily Focus Logic
+- [x] **Logic to derive `Vec<Quest>` from UserState** (in `shared/src/models/gamification.rs`)
+    - [x] Create `Quest` struct (id, description, completed status).
+    - [x] Implement function to suggest 3 quests based on `LearningItems` (prioritize mistakes, then explanations).
+- [x] **Update `shared/src/models/gamification.rs`**
+    - [x] Add `quests: Vec<Quest>` to `GamificationStats`.
+    - [x] Update `derive_gamification_stats` to call `derive_quests`.
+- [x] **UI Integration of Header and Sidebar**
+    - [x] `frontend/src/components/header.rs`: Add `FluencyBar` and `StreakDisplay`.
+    - [x] `frontend/src/components/utility_sidebar/mod.rs`: Add `QuestList` to a tab.
+- [x] **Daily Focus quests are derived** from existing Learning Items state, minimizing backend complexity.
+- [x] **Review code style** (functions < 20 lines).
+- [x] **Run tests**: `cargo test --all`.
+- [x] **Run clippy**: `cargo clippy --all`.
+- [x] **Update Status**: `docs/status.md`.
+- [x] **Commit**: "Phase 4 (UI Integration) complete".
 - [ ] **WAIT**: Stop and wait for user approval before proceeding.

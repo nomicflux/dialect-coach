@@ -7,8 +7,12 @@ pub struct StreakDisplayProps {
 
 #[function_component(StreakDisplay)]
 pub fn streak_display(props: &StreakDisplayProps) -> Html {
-    let active_class = if props.current_streak > 0 { "active" } else { "inactive" };
-    
+    let active_class = if props.current_streak > 0 {
+        "active"
+    } else {
+        "inactive"
+    };
+
     html! {
         <div class={classes!("gamification-streak", active_class)}>
             <span class="streak-icon">{"🔥"}</span>

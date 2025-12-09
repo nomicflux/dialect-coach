@@ -1,5 +1,3 @@
-// Component modules - to be implemented
-
 pub mod chat_window;
 pub mod header;
 pub mod input_box;
@@ -36,3 +34,4 @@ pub use vocab_hud::VocabHud;
 pub use welcome_screen::WelcomeScreen;
 pub mod utility_sidebar;
 pub use utility_sidebar::UtilitySidebar;
+pub mod gamification;

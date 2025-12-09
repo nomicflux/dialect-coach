@@ -1,5 +1,8 @@
 use crate::app::app_callbacks::{on_signin_click, on_signout_click};
-use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UIState, UIStateAction};
+use crate::app::app_state::{
+    AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateGamificationExt,
+};
+use crate::components::gamification::{FluencyBar, StreakDisplay};
 use crate::services::websocket::ConnectionState;
 use yew::prelude::*;
 
@@ -98,13 +101,26 @@ pub fn header(props: &HeaderProps) -> Html {
 
                 <div class="user-section">
                     {if let Some(user) = app_state.current_user.as_ref() {
-                        html! {
-                            <div class="user-signed-in">
-                                <span>{format!("Signed in as: {}", user.username)}</span>
-                                <button class="signout-button" onclick={on_signout_click(app_state.clone(), user_state.clone())}>
-                                    {"Sign Out"}
-                                </button>
-                            </div>
+                        if let Some(stats) = user_state.state.as_ref().map(|s| s.gamification_stats()) {
+                            html! {
+                                <div class="user-signed-in">
+                                    <FluencyBar xp={stats.xp} />
+                                    <StreakDisplay current_streak={stats.streak.current_streak} />
+                                    <span>{format!("Signed in as: {}", user.username)}</span>
+                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), user_state.clone())}>
+                                        {"Sign Out"}
+                                    </button>
+                                </div>
+                            }
+                        } else {
+                             html! {
+                                <div class="user-signed-in">
+                                    <span>{format!("Signed in as: {}", user.username)}</span>
+                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), user_state.clone())}>
+                                        {"Sign Out"}
+                                    </button>
+                                </div>
+                            }
                         }
                     } else {
                         html! {
