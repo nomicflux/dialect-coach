@@ -594,11 +594,8 @@ fn delete_learning_goal(mut goals: Vec<LearningGoal>, index: usize) -> Vec<Learn
     goals
 }
 
-fn prepare_state_for_action(state: &UserState) -> UserState {
-    let mut prepared = state.clone();
-    prepared.rebuild_branches_from_history();
-    prepared
-}
+// Removed prepare_state_for_action - was cloning state and running rebuild_branches_from_history()
+// before EVERY action, which is wasteful since rebuild only does anything when branches is empty.
 
 fn create_new_branch_for_language(state: &mut UserState) {
     let new_branch = ConversationBranch::new(None, None, None, None, vec![]);
@@ -850,8 +847,8 @@ impl Reducible for OptionalUserState {
 
     fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
         match action {
-            UserStateAction::ReplaceUserState(mut new_state) => {
-                new_state.rebuild_branches_from_history();
+            UserStateAction::ReplaceUserState(new_state) => {
+                // Removed rebuild_branches_from_history - perpetual migration with no version gating
                 OptionalUserState {
                     state: Some(new_state),
                     needs_save: false,
@@ -864,14 +861,11 @@ impl Reducible for OptionalUserState {
             }
             .into(),
             _ => match &self.state {
-                Some(state) => {
-                    let prepared = prepare_state_for_action(state);
-                    OptionalUserState {
-                        state: Some(apply_user_state_action(&prepared, action)),
-                        needs_save: true,
-                    }
-                    .into()
+                Some(state) => OptionalUserState {
+                    state: Some(apply_user_state_action(state, action)),
+                    needs_save: true,
                 }
+                .into(),
                 None => self,
             },
         }
@@ -1478,33 +1472,6 @@ mod tests {
         assert_eq!(updated.conversation_history.len(), history_len);
         let updated_ids: Vec<Uuid> = updated.branches.iter().map(|b| b.id).collect();
         assert_eq!(updated_ids, branch_ids);
-    }
-
-    #[test]
-    fn test_optional_user_state_rebuilds_missing_branches_before_update() {
-        let mut base = UserState::new(Uuid::new_v4());
-        let msg = create_test_message(Uuid::new_v4(), None);
-        base.conversation_history.push(msg.clone());
-        base.branches.clear();
-        base.active_branch_id = Uuid::new_v4();
-
-        let optional = Rc::new(OptionalUserState {
-            state: Some(base),
-            needs_save: false,
-        });
-        let updated = OptionalUserState::reduce(
-            optional,
-            UserStateAction::UpdateUsageStats(UsageStats::default()),
-        );
-        let updated_state = updated.state.as_ref().unwrap();
-
-        assert!(!updated_state.branches.is_empty());
-        assert!(
-            updated_state
-                .branches
-                .iter()
-                .any(|branch| branch.leaf_message_id == Some(msg.id))
-        );
     }
 
     #[test]

@@ -6,7 +6,6 @@
   - still need shortcuts to play sound
 - need to improve explanations
 - when script changes, use simple agent to re-transcribe
-- Streaks, points, gamification
 - Seperate "simple response" agent channel
 - Different screens with learning items 
     - Keep side panel as summary, but need fuller view
@@ -27,11 +26,6 @@
 - return channels separately
 - translated items include grammatical information
 - tooltips for collapsed learning items show better (they hide on side of screen)
-- better prompts for agent to use learning items
-  - decide prompts based on number of items (don't leave up to agent to calculate)
-- stronger push for learning goals
-  - learning items focused on learning goals
-- should be literally impossible for practice settings and bar to not show the same thing
 - clean up CSS
 - admin flag on users / ability to set & remove
     - admin dashboard revamp
@@ -49,6 +43,7 @@
 - does Arabic REQUIRE full vocalization for TTS? Also, should that be added as a language option?
 - ensure state keeps trying to save, show clear error when it does not
 - undo button not showing up
+- add version to users in persistence, then migration path
 
 Longer Term
 ---

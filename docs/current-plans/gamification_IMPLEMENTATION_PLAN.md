@@ -203,4 +203,4 @@ Gamification stats (XP, Streak) are **derived on-the-fly** from `UserState` (`co
 - [x] **Run clippy**: `cargo clippy --all`.
 - [x] **Update Status**: `docs/status.md`.
 - [x] **Commit**: "Phase 4 (UI Integration) complete".
-- [ ] **WAIT**: Stop and wait for user approval before proceeding.
+- [x] **WAIT**: Stop and wait for user approval before proceeding.

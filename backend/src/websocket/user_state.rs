@@ -434,13 +434,9 @@ pub async fn check_rate_limits(
 
 pub fn create_load_response(user_id: Uuid, user_state: Option<UserState>) -> UserStateMessage {
     match user_state {
-        Some(mut state) => {
-            if state.migrate_branch_message_ids() {
-                tracing::warn!(user_id = %user_id, "Migrated branch message_ids from tree structure");
-            }
-            if state.rebuild_branches_from_history() {
-                tracing::warn!(user_id = %user_id, "Rebuilt branch metadata from conversation history");
-            }
+        Some(state) => {
+            // Removed perpetual migrations - no version gating meant they ran forever
+            // If old data needs migration, frontend ReplaceUserState handles rebuild once
             log_branch_metadata("load_user_state", &state);
             log_usage_stats_snapshot(user_id, &state);
             UserStateMessage::LoadResponse(Some(state))
@@ -450,12 +446,9 @@ pub fn create_load_response(user_id: Uuid, user_state: Option<UserState>) -> Use
 }
 
 pub fn prepare_user_state_for_save(user_state: &mut UserState) {
-    if user_state.migrate_branch_message_ids() {
-        tracing::warn!(user_id = %user_state.user_id, "Migrated branch message_ids before save");
-    }
-    if user_state.rebuild_branches_from_history() {
-        tracing::warn!(user_id = %user_state.user_id, "Rebuilt branch metadata before save");
-    }
+    // Removed all migrations - no version gating meant they ran forever
+    // - migrate_branch_message_ids: Old tree format → message_ids list
+    // - rebuild_branches_from_history: Prevented legitimate deletion of all branches
     log_branch_metadata("save_user_state", user_state);
 }
 
