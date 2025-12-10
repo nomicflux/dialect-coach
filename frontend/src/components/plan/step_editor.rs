@@ -227,8 +227,8 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                     let phrase = phrase.clone();
                     async move {
                         let partial = PartialLearningItem::Translated(PartialTranslated {
-                            translated_word: Some(phrase),
-                            translated_to: None,
+                            translated_word: None,
+                            translated_to: Some(phrase),
                             context: None,
                         });
 

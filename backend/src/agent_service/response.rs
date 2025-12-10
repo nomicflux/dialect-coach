@@ -1295,7 +1295,7 @@ mod tests {
         use dialect_coach_shared::models::UserState;
         use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
         use dialect_coach_shared::models::{
-            CompletionCriteria, LanguagePlan, PlanContent, PlanStep, StepType, Translated,
+            LanguagePlan, PlanContent, PlanStep, StepType, Translated,
         };
         use uuid::Uuid;
 
@@ -1315,7 +1315,6 @@ mod tests {
             StepType::Learning,
             "Learn basic greetings".to_string(),
             content,
-            CompletionCriteria::Manual,
         );
 
         let plan = LanguagePlan::new(
@@ -1342,7 +1341,7 @@ mod tests {
     fn test_build_plan_system_content() {
         use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
         use dialect_coach_shared::models::plan::{
-            CompletionCriteria, PlanContent, PlanStep, StepType,
+            PlanContent, PlanStep, StepType,
         };
         use dialect_coach_shared::models::{Dialect, Explained, Translated};
 
@@ -1370,7 +1369,6 @@ mod tests {
             StepType::Learning,
             "Use these words".to_string(),
             content,
-            CompletionCriteria::Manual,
         );
 
         let plan = dialect_coach_shared::LanguagePlan::new(

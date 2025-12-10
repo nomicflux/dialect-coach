@@ -22,7 +22,6 @@ pub struct PlanStep {
     pub title: String,
     pub step_type: StepType,
     pub instructions: String,
-    pub completion_criteria: CompletionCriteria,
     pub status: StepStatus,
     pub started_at: Option<i64>,
     pub completed_at: Option<i64>,
@@ -32,18 +31,12 @@ pub struct PlanStep {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct PlanContent {
     pub items: Vec<LearningItem>,
-    pub agent_instructions: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StepType {
     Learning,
     Review { review_step_ids: Vec<Uuid> },
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum CompletionCriteria {
-    Manual,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,7 +133,6 @@ impl PlanStep {
         step_type: StepType,
         instructions: String,
         content: PlanContent,
-        completion_criteria: CompletionCriteria,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -148,7 +140,6 @@ impl PlanStep {
             title,
             step_type,
             instructions,
-            completion_criteria,
             status: StepStatus::NotStarted,
             content,
             started_at: None,
@@ -169,7 +160,6 @@ mod tests {
             StepType::Learning,
             "Instructions".to_string(),
             PlanContent::default(),
-            CompletionCriteria::Manual,
         );
         let step2 = PlanStep::new(
             2,
@@ -177,7 +167,6 @@ mod tests {
             StepType::Learning,
             "Instructions".to_string(),
             PlanContent::default(),
-            CompletionCriteria::Manual,
         );
 
         let mut plan = LanguagePlan::new(

@@ -1577,7 +1577,7 @@ mod tests {
     #[test]
     fn test_language_plan_reducers() {
         use dialect_coach_shared::models::{
-            CompletionCriteria, LanguagePlan, PlanContent, PlanStatus, PlanStep, StepStatus,
+            LanguagePlan, PlanContent, PlanStatus, PlanStep, StepStatus,
             StepType,
         };
 
@@ -1595,7 +1595,6 @@ mod tests {
                     StepType::Learning,
                     "Msg".to_string(),
                     PlanContent::default(),
-                    CompletionCriteria::Manual,
                 ),
                 PlanStep::new(
                     2,
@@ -1603,7 +1602,6 @@ mod tests {
                     StepType::Learning,
                     "Msg".to_string(),
                     PlanContent::default(),
-                    CompletionCriteria::Manual,
                 ),
             ],
             current_step_index: 0,

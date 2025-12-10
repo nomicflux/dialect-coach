@@ -1,7 +1,7 @@
 use super::step_editor::{EditableStep, StepEditor};
 use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::models::{
-    CompletionCriteria, Dialect, LanguagePlan, PlanContent, PlanStep, StepType,
+    Dialect, LanguagePlan, PlanContent, PlanStep, StepType,
 };
 use std::rc::Rc;
 use uuid::Uuid;
@@ -49,7 +49,6 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                 StepType::Learning,
                 "".to_string(), // Empty instructions
                 PlanContent::default(),
-                CompletionCriteria::Manual,
             ))]
         }
     });
@@ -113,7 +112,6 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                 StepType::Learning,
                 "Start your journey".to_string(),
                 PlanContent::default(),
-                CompletionCriteria::Manual,
             )));
             steps.set(new_steps);
         })

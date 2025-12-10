@@ -42,7 +42,6 @@
 - reorder branches
 - does Arabic REQUIRE full vocalization for TTS? Also, should that be added as a language option?
 - ensure state keeps trying to save, show clear error when it does not
-- undo button not showing up
 - add version to users in persistence, then migration path
 
 Longer Term

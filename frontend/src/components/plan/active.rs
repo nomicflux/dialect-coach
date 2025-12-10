@@ -68,15 +68,12 @@ fn render_step_icon(step_type: &StepType) -> Html {
 }
 
 fn render_plan_content(content: &PlanContent) -> Html {
-    if content.items.is_empty() && content.agent_instructions.is_empty() {
+    if content.items.is_empty() {
         return html! {};
     }
 
     html! {
         <div class="active-step-content-blocks">
-            {if !content.agent_instructions.is_empty() {
-                 html! { <div class="agent-instructions-note"><strong>{"Note explicitly for Agent:"}</strong> {&content.agent_instructions}</div> }
-            } else { html!{} }}
 
             {for content.items.iter().map(|item| {
                 match &item.item {
