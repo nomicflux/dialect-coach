@@ -61,6 +61,12 @@ impl UserPersistence for SledPersistence {
         let key = clean.user_id.to_string();
         let value = serialize_to_json(&clean)?;
         tree.insert(key.as_bytes(), value)?;
+
+        // DEBUG: Log plans written to disk
+        for plan in &clean.language_plans {
+            tracing::info!("Sled persisting plan: {} (id: {})", plan.title, plan.id);
+        }
+
         tracing::debug!("Saved user state to sled: {}", clean.user_id);
         Ok(())
     }

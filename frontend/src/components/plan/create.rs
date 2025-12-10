@@ -1,8 +1,6 @@
 use super::step_editor::{EditableStep, StepEditor};
 use crate::services::enrichment_service::EnrichmentService;
-use dialect_coach_shared::models::{
-    Dialect, LanguagePlan, PlanContent, PlanStep, StepType,
-};
+use dialect_coach_shared::models::{Dialect, LanguagePlan, PlanContent, PlanStep, StepType};
 use std::rc::Rc;
 use uuid::Uuid;
 use yew::prelude::*;
@@ -14,6 +12,8 @@ pub struct PlanCreateProps {
     pub on_cancel: Callback<()>,
     #[prop_or_default]
     pub plan_to_edit: Option<LanguagePlan>,
+    #[prop_or_default]
+    pub on_change: Callback<LanguagePlan>,
     pub enrichment_service: Rc<EnrichmentService>,
 }
 
@@ -46,9 +46,10 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
             vec![EditableStep::new(PlanStep::new(
                 1,
                 "".to_string(), // Empty title to start
-                StepType::Learning,
+                StepType::Learning {
+                    content: PlanContent::default(),
+                },
                 "".to_string(), // Empty instructions
-                PlanContent::default(),
             ))]
         }
     });
@@ -109,13 +110,64 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
             new_steps.push(EditableStep::new(PlanStep::new(
                 new_steps.len() + 1,
                 "".to_string(),
-                StepType::Learning,
+                StepType::Learning {
+                    content: PlanContent::default(),
+                },
                 "Start your journey".to_string(),
-                PlanContent::default(),
             )));
             steps.set(new_steps);
         })
     };
+
+    // Auto-save effect
+    {
+        let title = title.clone();
+        let description = description.clone();
+        let steps = steps.clone();
+        let dialect = props.dialect;
+        let plan_to_edit = props.plan_to_edit.clone();
+        let on_change = props.on_change.clone();
+
+        use_effect_with(
+            (title.clone(), description.clone(), steps.clone()),
+            move |(title, description, steps)| {
+                if let Some(original) = &plan_to_edit {
+                    // Only auto-save if we are editing an existing plan
+                    let final_steps: Vec<PlanStep> = steps
+                        .iter()
+                        .enumerate()
+                        .map(|(i, s)| {
+                            let mut s = s.step.clone();
+                            s.step_number = i + 1;
+                            if s.id == Uuid::nil() {
+                                s.id = Uuid::new_v4();
+                            }
+                            s
+                        })
+                        .collect();
+
+                    let mut plan = LanguagePlan::new(
+                        (title).to_string(),
+                        dialect,
+                        if description.is_empty() {
+                            None
+                        } else {
+                            Some((description).to_string())
+                        },
+                        final_steps,
+                    );
+
+                    plan.id = original.id;
+                    plan.created_at = original.created_at;
+                    plan.status = original.status;
+                    plan.current_step_index = original.current_step_index;
+
+                    on_change.emit(plan);
+                }
+                || ()
+            },
+        );
+    }
 
     let is_editing = props.plan_to_edit.is_some();
 
@@ -164,6 +216,12 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                             steps_handle.set(new_steps);
                         });
 
+                        // Calculate available steps (all steps strictly before this one)
+                        let available_steps = steps.iter()
+                            .take(i)
+                            .map(|s| (s.step.id, s.step.step_number, s.step.title.clone()))
+                            .collect::<Vec<_>>();
+
                         html! {
                             <StepEditor
                                 key={step.step.id.to_string()}
@@ -173,6 +231,7 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                                 on_remove={on_remove}
                                 enrichment_service={props.enrichment_service.clone()}
                                 target_dialect={props.dialect}
+                                available_steps={available_steps}
                             />
                         }
 
@@ -184,7 +243,7 @@ pub fn plan_create(props: &PlanCreateProps) -> Html {
                 </div>
 
                 <div class="form-buttons">
-                    <button type="submit" class="save-button">{if is_editing { "Save Changes" } else { "Create Plan" }}</button>
+                    <button type="submit" class="save-button">{if is_editing { "Done" } else { "Create Plan" }}</button>
                     <button type="button" class="cancel-button" onclick={props.on_cancel.reform(|_| ())}>{"Cancel"}</button>
                 </div>
             </form>

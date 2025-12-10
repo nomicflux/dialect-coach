@@ -45,6 +45,15 @@ async fn handle_save_user_state(
     user_state: UserState,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
+    // DEBUG: Log plans received for save
+    for plan in &user_state.language_plans {
+        tracing::info!(
+            "Backend received plan to save: {} (id: {})",
+            plan.title,
+            plan.id
+        );
+    }
+
     let mut user_state = user_state;
     prepare_user_state_for_save(&mut user_state);
     tracing::info!("Saving user state for user: {}", user_state.user_id);

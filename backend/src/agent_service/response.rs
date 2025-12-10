@@ -327,11 +327,44 @@ fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>)
     {
         let mut content = String::new(); // Use a new `content` variable for the plan details
 
-        // Add structured content to prompt
-        if !step.content.items.is_empty() {
-            content.push_str("\nRELEVANT LEARNING CONTENT:\n");
+        // Collect items to display
+        let items_to_display: Vec<&dialect_coach_shared::models::learning_item::LearningItem> =
+            match &step.step_type {
+                dialect_coach_shared::models::plan::StepType::Learning { content } => {
+                    content.items.iter().collect()
+                }
+                dialect_coach_shared::models::plan::StepType::Review { review_step_ids } => {
+                    // Collect items from all referenced steps
+                    review_step_ids
+                        .iter()
+                        .filter_map(|id| plan.steps.iter().find(|s| s.id == *id))
+                        .filter_map(|step| {
+                            if let dialect_coach_shared::models::plan::StepType::Learning {
+                                content,
+                            } = &step.step_type
+                            {
+                                Some(content)
+                            } else {
+                                None
+                            }
+                        })
+                        .flat_map(|content| content.items.iter())
+                        .collect()
+                }
+            };
 
-            for item in &step.content.items {
+        // Add structured content to prompt
+        if !items_to_display.is_empty() {
+            match step.step_type {
+                dialect_coach_shared::models::plan::StepType::Learning { .. } => {
+                    content.push_str("\nRELEVANT LEARNING CONTENT:\n");
+                }
+                dialect_coach_shared::models::plan::StepType::Review { .. } => {
+                    content.push_str("\nREVIEW MATERIALS (FROM PREVIOUS STEPS):\n");
+                }
+            }
+
+            for item in items_to_display {
                 match &item.item {
                     dialect_coach_shared::models::learning_item::LearningItemType::Translation(
                         t,
@@ -358,11 +391,11 @@ fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>)
         }
 
         let goal_instruction = match &step.step_type {
-            dialect_coach_shared::models::plan::StepType::Learning => {
+            dialect_coach_shared::models::plan::StepType::Learning { .. } => {
                 "Your Goal: Naturally incorporate the Provided Step Materials into your own speech to demonstrate them. Do NOT explicitly teach, list the items, or ask the user to use them. Just chat naturally using the target vocabulary/grammar."
             }
             dialect_coach_shared::models::plan::StepType::Review { .. } => {
-                "Your Goal: This is a REVIEW step. Verify the user remembers the content. Do not spoon-feed answers. Challenge them."
+                "Your Goal: This is a REVIEW step. The user has learned the listed materials in previous steps. Verify the user remembers them by using them in context or asking questions that require the user to use them. Do not spoon-feed answers. Challenge them."
             }
         };
 
@@ -1312,9 +1345,8 @@ mod tests {
         let current_step = PlanStep::new(
             1,
             "Intro".to_string(),
-            StepType::Learning,
+            StepType::Learning { content },
             "Learn basic greetings".to_string(),
-            content,
         );
 
         let plan = LanguagePlan::new(
@@ -1340,9 +1372,7 @@ mod tests {
     #[test]
     fn test_build_plan_system_content() {
         use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
-        use dialect_coach_shared::models::plan::{
-            PlanContent, PlanStep, StepType,
-        };
+        use dialect_coach_shared::models::plan::{PlanContent, PlanStep, StepType};
         use dialect_coach_shared::models::{Dialect, Explained, Translated};
 
         let mut content = PlanContent::default();
@@ -1366,9 +1396,8 @@ mod tests {
         let step = PlanStep::new(
             1,
             "Test Step".to_string(),
-            StepType::Learning,
+            StepType::Learning { content },
             "Use these words".to_string(),
-            content,
         );
 
         let plan = dialect_coach_shared::LanguagePlan::new(
@@ -1427,5 +1456,67 @@ mod tests {
             assert!(!instruction.is_empty());
             assert!(instruction.contains("LANGUAGE LEVEL"));
         }
+    }
+
+    #[test]
+    fn test_build_plan_system_content_review_step() {
+        use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
+        use dialect_coach_shared::models::plan::{PlanContent, PlanStep, StepType};
+        use dialect_coach_shared::models::{Dialect, Translated};
+
+        // Create a learning step with content
+        let mut content1 = PlanContent::default();
+        content1.items.push(LearningItem::new(
+            LearningItemType::Translation(Translated::new(
+                "gracias".to_string(),
+                "thanks".to_string(),
+                None,
+            )),
+            Dialect::SpanishMexican,
+        ));
+
+        let step1 = PlanStep::new(
+            1,
+            "Learning Step".to_string(),
+            StepType::Learning { content: content1 },
+            "Learn this".to_string(),
+        );
+
+        // Create a review step referencing step1
+        let step2 = PlanStep::new(
+            2,
+            "Review Step".to_string(),
+            StepType::Review {
+                review_step_ids: vec![step1.id],
+            },
+            "Review this".to_string(),
+        );
+
+        let plan = dialect_coach_shared::LanguagePlan {
+            id: uuid::Uuid::new_v4(),
+            title: "Test Plan".to_string(),
+            dialect: Dialect::SpanishMexican,
+            description: None,
+            steps: vec![step1, step2],
+            current_step_index: 1, // Set to Review step
+            status: dialect_coach_shared::models::plan::PlanStatus::InProgress,
+            created_at: 0,
+        };
+
+        let prompt = build_plan_system_content(&Some(&plan));
+
+        assert!(prompt.contains("Current Step: Review Step"));
+        assert!(
+            prompt.contains("REVIEW MATERIALS"),
+            "Should identify materials as review materials"
+        );
+        assert!(
+            prompt.contains("gracias -> thanks"),
+            "Should contain content from referenced step"
+        );
+        assert!(
+            prompt.contains("The user has learned the listed materials"),
+            "Should contain review-specific goal instruction"
+        );
     }
 }

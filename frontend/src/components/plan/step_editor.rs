@@ -5,6 +5,7 @@ use dialect_coach_shared::models::{
     learning_item::{LearningItem, LearningItemType},
 };
 use std::rc::Rc;
+use uuid::Uuid;
 use web_sys::{HtmlInputElement, HtmlTextAreaElement};
 use yew::prelude::*;
 
@@ -37,6 +38,8 @@ pub struct StepEditorProps {
     pub on_remove: Callback<()>,
     pub enrichment_service: Rc<EnrichmentService>,
     pub target_dialect: Dialect,
+    #[prop_or_default]
+    pub available_steps: Vec<(Uuid, usize, String)>,
 }
 
 #[function_component(StepEditor)]
@@ -68,7 +71,11 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
             let mut new_state = props.step.clone();
             let value = target.value();
             match value.as_str() {
-                "Learning" => new_state.step.step_type = StepType::Learning,
+                "Learning" => {
+                    new_state.step.step_type = StepType::Learning {
+                        content: Default::default(),
+                    }
+                }
                 "Review" => {
                     new_state.step.step_type = StepType::Review {
                         review_step_ids: vec![],
@@ -92,8 +99,10 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                 )),
                 props.target_dialect,
             );
-            new_state.step.content.items.push(item);
-            props.on_update.emit(new_state);
+            if let StepType::Learning { content } = &mut new_state.step.step_type {
+                content.items.push(item);
+                props.on_update.emit(new_state);
+            }
         })
     };
 
@@ -105,8 +114,10 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                 LearningItemType::Explanation(Explained::new("".to_string(), "".to_string())),
                 props.target_dialect,
             );
-            new_state.step.content.items.push(item);
-            props.on_update.emit(new_state);
+            if let StepType::Learning { content } = &mut new_state.step.step_type {
+                content.items.push(item);
+                props.on_update.emit(new_state);
+            }
         })
     };
 
@@ -122,8 +133,10 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
                 )),
                 props.target_dialect,
             );
-            new_state.step.content.items.push(item);
-            props.on_update.emit(new_state);
+            if let StepType::Learning { content } = &mut new_state.step.step_type {
+                content.items.push(item);
+                props.on_update.emit(new_state);
+            }
         })
     };
 
@@ -131,9 +144,12 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
         let props = props.clone();
         Callback::from(move |index: usize| {
             let mut new_state = props.step.clone();
-            if index < new_state.step.content.items.len() {
-                new_state.step.content.items.remove(index);
-                props.on_update.emit(new_state);
+            match &mut new_state.step.step_type {
+                StepType::Learning { content } if index < content.items.len() => {
+                    content.items.remove(index);
+                    props.on_update.emit(new_state);
+                }
+                _ => {}
             }
         })
     };
@@ -142,9 +158,12 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
         let props = props.clone();
         Callback::from(move |(index, item): (usize, LearningItem)| {
             let mut new_state = props.step.clone();
-            if index < new_state.step.content.items.len() {
-                new_state.step.content.items[index] = item;
-                props.on_update.emit(new_state);
+            match &mut new_state.step.step_type {
+                StepType::Learning { content } if index < content.items.len() => {
+                    content.items[index] = item;
+                    props.on_update.emit(new_state);
+                }
+                _ => {}
             }
         })
     };
@@ -281,13 +300,36 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
 
                 // Update state with new items and reset UI
                 let mut final_state = props_for_async.step.clone();
-                final_state.step.content.items.extend(new_items);
+                if let StepType::Learning { content } = &mut final_state.step.step_type {
+                    content.items.extend(new_items);
+                }
                 final_state.is_enriching_bulk = false;
                 final_state.is_bulk_open = false;
                 final_state.bulk_text = String::new();
 
                 props_for_async.on_update.emit(final_state);
             });
+        })
+    };
+
+    let on_review_steps_change = {
+        let props = props.clone();
+        Callback::from(move |e: Event| {
+            let target: web_sys::HtmlInputElement = e.target_unchecked_into();
+            let step_id_str = target.value();
+            if let Ok(step_id) = Uuid::parse_str(&step_id_str) {
+                let mut new_state = props.step.clone();
+                if let StepType::Review { review_step_ids } = &mut new_state.step.step_type {
+                    if target.checked() {
+                        if !review_step_ids.contains(&step_id) {
+                            review_step_ids.push(step_id);
+                        }
+                    } else {
+                        review_step_ids.retain(|&id| id != step_id);
+                    }
+                    props.on_update.emit(new_state);
+                }
+            }
         })
     };
 
@@ -309,7 +351,7 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
 
                 <div class="step-meta-controls">
                      <select class="step-type-select" onchange={on_step_type_change}>
-                        <option value="Learning" selected={matches!(props.step.step.step_type, StepType::Learning)}>{"Learning"}</option>
+                        <option value="Learning" selected={matches!(props.step.step.step_type, StepType::Learning{..})}>{"Learning"}</option>
                         <option value="Review" selected={matches!(props.step.step.step_type, StepType::Review{..})}>{"Review"}</option>
                     </select>
                 </div>
@@ -323,75 +365,102 @@ pub fn step_editor(props: &StepEditorProps) -> Html {
             </div>
 
             <div class="step-content-section">
-                <h5>{"Content"}</h5>
-                <div class="content-actions">
-                    <button type="button" onclick={add_vocab} class="add-content-btn">
-                        <span class="btn-icon">{"+"}</span>
-                        {"Vocab"}
-                    </button>
-                    <button type="button" onclick={add_grammar} class="add-content-btn">
-                        <span class="btn-icon">{"+"}</span>
-                        {"Grammar"}
-                    </button>
-                    <button type="button" onclick={add_examples} class="add-content-btn">
-                        <span class="btn-icon">{"+"}</span>
-                        {"Example"}
-                    </button>
+                if let StepType::Review { review_step_ids } = &props.step.step.step_type {
+                    <h5>{"Select Steps to Review"}</h5>
+                    <div class="review-step-selector">
+                        if props.available_steps.is_empty() {
+                            <div class="no-steps-message">{"No previous steps available to review."}</div>
+                        } else {
+                            <div class="steps-checklist">
+                                {for props.available_steps.iter().map(|(id, num, title)| {
+                                    let is_checked = review_step_ids.contains(id);
 
-                    <button
-                        type="button"
-                        class={classes!("add-content-btn", "bulk-btn", props.step.is_bulk_open.then_some("active"))}
-                        onclick={toggle_bulk}
-                    >
-                         <span class="btn-icon">{"📥"}</span>
-                         {"Bulk Add"}
-                    </button>
-                </div>
+                                    html! {
+                                        <label class="step-checkbox-item">
+                                            <input
+                                                type="checkbox"
+                                                value={id.to_string()}
+                                                checked={is_checked}
+                                                onchange={on_review_steps_change.clone()}
+                                            />
+                                            <span class="step-label">{format!("{}. {}", num, title)}</span>
+                                        </label>
+                                    }
+                                })}
+                            </div>
+                        }
+                    </div>
+                } else if let StepType::Learning { content } = &props.step.step.step_type {
+                    <h5>{"Content"}</h5>
+                    <div class="content-actions">
+                        <button type="button" onclick={add_vocab} class="add-content-btn">
+                            <span class="btn-icon">{"+"}</span>
+                            {"Vocab"}
+                        </button>
+                        <button type="button" onclick={add_grammar} class="add-content-btn">
+                            <span class="btn-icon">{"+"}</span>
+                            {"Grammar"}
+                        </button>
+                        <button type="button" onclick={add_examples} class="add-content-btn">
+                            <span class="btn-icon">{"+"}</span>
+                            {"Example"}
+                        </button>
 
-                if props.step.is_bulk_open {
-                    <div class="bulk-add-panel">
-                        <div class="bulk-controls">
-                             <label>{"Delimiter:"}</label>
-                             <select
-                                value={props.step.bulk_delimiter.clone()}
-                                onchange={update_bulk_delimiter}
+                        <button
+                            type="button"
+                            class={classes!("add-content-btn", "bulk-btn", props.step.is_bulk_open.then_some("active"))}
+                            onclick={toggle_bulk}
+                        >
+                             <span class="btn-icon">{"📥"}</span>
+                             {"Bulk Add"}
+                        </button>
+                    </div>
+
+                    if props.step.is_bulk_open {
+                        <div class="bulk-add-panel">
+                            <div class="bulk-controls">
+                                 <label>{"Delimiter:"}</label>
+                                 <select
+                                    value={props.step.bulk_delimiter.clone()}
+                                    onchange={update_bulk_delimiter}
+                                 >
+                                     <option value="auto">{"Auto"}</option>
+                                     <option value="newline">{"Newline"}</option>
+                                     <option value="comma">{"Comma"}</option>
+                                     <option value="semicolon">{"Semicolon"}</option>
+                                 </select>
+                            </div>
+                            <textarea
+                                class="bulk-textarea"
+                                placeholder="Paste multiple items here..."
+                                value={props.step.bulk_text.clone()}
+                                onchange={update_bulk_text}
+                            />
+                             <button
+                                 type="button"
+                                 class="bulk-process-btn"
+                                 onclick={add_bulk_items}
+                                 disabled={props.step.is_enriching_bulk || props.step.bulk_text.trim().is_empty()}
                              >
-                                 <option value="auto">{"Auto"}</option>
-                                 <option value="newline">{"Newline"}</option>
-                                 <option value="comma">{"Comma"}</option>
-                                 <option value="semicolon">{"Semicolon"}</option>
-                             </select>
-                        </div>
-                        <textarea
-                            class="bulk-textarea"
-                            placeholder="Paste multiple items here..."
-                            value={props.step.bulk_text.clone()}
-                            onchange={update_bulk_text}
-                        />
-                         <button
-                             type="button"
-                             class="bulk-process-btn"
-                             onclick={add_bulk_items}
-                             disabled={props.step.is_enriching_bulk || props.step.bulk_text.trim().is_empty()}
-                         >
 
-                            {if props.step.is_enriching_bulk {
-                                html! { <>
-                                    <span class="spinner"></span>
-                                    <span>{ "Enriching..." }</span>
-                                </> }
-                            } else {
-                                html! { "Add & Enrich Items" }
-                            }}
-                         </button>
+                                {if props.step.is_enriching_bulk {
+                                    html! { <>
+                                        <span class="spinner"></span>
+                                        <span>{ "Enriching..." }</span>
+                                    </> }
+                                } else {
+                                    html! { "Add & Enrich Items" }
+                                }}
+                             </button>
+                        </div>
+                    }
+
+                    <div class="content-blocks-list">
+                        {for content.items.iter().enumerate().map(|(idx, item)| {
+                             render_content_editor(idx, item, update_item_at.clone(), remove_content.clone())
+                        })}
                     </div>
                 }
-
-                <div class="content-blocks-list">
-                    {for props.step.step.content.items.iter().enumerate().map(|(idx, item)| {
-                         render_content_editor(idx, item, update_item_at.clone(), remove_content.clone())
-                    })}
-                </div>
             </div>
         </div>
     }

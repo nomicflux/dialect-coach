@@ -41,7 +41,9 @@ pub fn active_plan(props: &ActivePlanProps) -> Html {
                         <p>{&step.instructions}</p>
                     </div>
 
-                    {render_plan_content(&step.content)}
+                    if let StepType::Learning { content } = &step.step_type {
+                        {render_plan_content(content)}
+                    }
 
                     if step.status == StepStatus::InProgress {
                         <button class="advance-step-btn" onclick={on_advance}>
@@ -62,7 +64,7 @@ pub fn active_plan(props: &ActivePlanProps) -> Html {
 
 fn render_step_icon(step_type: &StepType) -> Html {
     match step_type {
-        StepType::Learning => html! { <span class="step-icon">{"📚"}</span> },
+        StepType::Learning { .. } => html! { <span class="step-icon">{"📚"}</span> },
         StepType::Review { .. } => html! { <span class="step-icon">{"↺"}</span> },
     }
 }

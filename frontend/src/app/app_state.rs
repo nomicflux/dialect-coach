@@ -824,7 +824,17 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
                 .iter()
                 .position(|p| p.id == updated_plan.id)
             {
+                log::info!(
+                    "Updating plan: {} ({})",
+                    updated_plan.title,
+                    updated_plan.id
+                );
                 next.language_plans[plan_idx] = updated_plan;
+            } else {
+                log::error!(
+                    "Failed to update plan: Plan not found with ID {}",
+                    updated_plan.id
+                );
             }
         }
         UserStateAction::ClearUserState => {
@@ -877,7 +887,6 @@ mod tests {
     use super::*;
     use dialect_coach_shared::models::MessageMetadata;
     use dialect_coach_shared::models::{Dialect, Formality, Language, TeachingMode};
-    use std::rc::Rc;
 
     fn create_test_message(session_id: Uuid, parent_id: Option<Uuid>) -> Message {
         Message::user_message(
@@ -1577,8 +1586,7 @@ mod tests {
     #[test]
     fn test_language_plan_reducers() {
         use dialect_coach_shared::models::{
-            LanguagePlan, PlanContent, PlanStatus, PlanStep, StepStatus,
-            StepType,
+            LanguagePlan, PlanContent, PlanStatus, PlanStep, StepStatus, StepType,
         };
 
         let mut state = UserState::new(Uuid::new_v4());
@@ -1591,17 +1599,19 @@ mod tests {
             steps: vec![
                 PlanStep::new(
                     1,
-                    "Step 1".to_string(),
-                    StepType::Learning,
+                    "Welcome!".to_string(),
+                    StepType::Learning {
+                        content: PlanContent::default(),
+                    },
                     "Msg".to_string(),
-                    PlanContent::default(),
                 ),
                 PlanStep::new(
                     2,
                     "Step 2".to_string(),
-                    StepType::Learning,
+                    StepType::Learning {
+                        content: PlanContent::default(),
+                    },
                     "Msg".to_string(),
-                    PlanContent::default(),
                 ),
             ],
             current_step_index: 0,

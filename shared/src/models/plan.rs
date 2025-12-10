@@ -25,7 +25,6 @@ pub struct PlanStep {
     pub status: StepStatus,
     pub started_at: Option<i64>,
     pub completed_at: Option<i64>,
-    pub content: PlanContent,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -35,7 +34,7 @@ pub struct PlanContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StepType {
-    Learning,
+    Learning { content: PlanContent },
     Review { review_step_ids: Vec<Uuid> },
 }
 
@@ -132,7 +131,6 @@ impl PlanStep {
         title: String,
         step_type: StepType,
         instructions: String,
-        content: PlanContent,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -141,7 +139,6 @@ impl PlanStep {
             step_type,
             instructions,
             status: StepStatus::NotStarted,
-            content,
             started_at: None,
             completed_at: None,
         }
@@ -157,16 +154,18 @@ mod tests {
         let step1 = PlanStep::new(
             1,
             "Step 1".to_string(),
-            StepType::Learning,
+            StepType::Learning {
+                content: PlanContent::default(),
+            },
             "Instructions".to_string(),
-            PlanContent::default(),
         );
         let step2 = PlanStep::new(
             2,
             "Step 2".to_string(),
-            StepType::Learning,
+            StepType::Learning {
+                content: PlanContent::default(),
+            },
             "Instructions".to_string(),
-            PlanContent::default(),
         );
 
         let mut plan = LanguagePlan::new(
