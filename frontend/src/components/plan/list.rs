@@ -8,6 +8,7 @@ pub struct PlanListProps {
     pub on_select_plan: Callback<Option<uuid::Uuid>>,
     pub on_delete_plan: Callback<uuid::Uuid>,
     pub on_edit_plan: Callback<uuid::Uuid>,
+    pub on_export_plan: Callback<uuid::Uuid>,
 }
 
 #[function_component(PlanList)]
@@ -25,6 +26,7 @@ pub fn plan_list(props: &PlanListProps) -> Html {
                         let on_select = props.on_select_plan.clone();
                         let on_delete = props.on_delete_plan.clone();
                         let on_edit = props.on_edit_plan.clone();
+                        let on_export = props.on_export_plan.clone();
 
                         html! {
                             <li class={classes!("plan-item", if is_active { "active" } else { "" })}>
@@ -36,11 +38,15 @@ pub fn plan_list(props: &PlanListProps) -> Html {
                                     <button class="edit-plan-btn" onclick={Callback::from(move |e: MouseEvent| {
                                         e.stop_propagation();
                                         on_edit.emit(plan_id);
-                                    })}>{"✎"}</button>
+                                    })} title="Edit Plan">{"✎"}</button>
+                                    <button class="export-plan-btn" onclick={Callback::from(move |e: MouseEvent| {
+                                        e.stop_propagation();
+                                        on_export.emit(plan_id);
+                                    })} title="Export Plan">{"⬇"}</button>
                                     <button class="delete-plan-btn" onclick={Callback::from(move |e: MouseEvent| {
                                         e.stop_propagation();
                                         on_delete.emit(plan_id);
-                                    })}>{"×"}</button>
+                                    })} title="Delete Plan">{"×"}</button>
                                 </div>
                             </li>
                         }

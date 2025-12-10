@@ -61,7 +61,14 @@ web-sys = { version = "0.3", features = [
     "Selection",
     "Range",
     "DomRect",
+    "Blob",
+    "Url",
+    "FileReader",
+    "HtmlAnchorElement",
+    "FileList",
+    "File",
 ] }
+serde_yaml = "0.9"
 js-sys = "0.3"
 
 # IndexedDB

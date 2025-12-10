@@ -8,6 +8,8 @@ use dialect_coach_shared::{
 };
 use std::rc::Rc;
 use uuid::Uuid;
+use wasm_bindgen::JsCast;
+use web_sys::{Blob, HtmlAnchorElement, HtmlInputElement, Url};
 use yew::prelude::*;
 
 fn get_learning_item_id(item: &LearningItem) -> Uuid {
@@ -638,6 +640,7 @@ pub fn learning(props: &LearningProps) -> Html {
     let enrich_error = use_state(|| None::<String>);
     let show_create_plan = use_state(|| false);
     let editing_plan_id = use_state(|| None::<Uuid>);
+    let file_input_ref = use_node_ref();
 
     let fields = FormFields {
         mistake: specific_mistake.clone(),
@@ -672,6 +675,89 @@ pub fn learning(props: &LearningProps) -> Html {
     });
 
     let clear_all = create_clear_all_callback(selected_type.clone(), clear_fields.clone());
+
+    let on_export_plan = {
+        let user_state = props.user_state.clone();
+        Callback::from(move |plan_id: Uuid| {
+            let Some(state) = &user_state.state else {
+                return;
+            };
+            let Some(plan) = state.language_plans.iter().find(|p| p.id == plan_id) else {
+                return;
+            };
+
+            match serde_yaml::to_string(plan) {
+                Ok(yaml) => {
+                    let parts = js_sys::Array::new();
+                    parts.push(&wasm_bindgen::JsValue::from_str(&yaml));
+                    let properties = web_sys::BlobPropertyBag::new();
+                    properties.set_type("application/x-yaml");
+
+                    if let Ok(blob) = Blob::new_with_str_sequence_and_options(&parts, &properties)
+                        && let Ok(url) = Url::create_object_url_with_blob(&blob)
+                        && let Some(window) = web_sys::window()
+                        && let Some(document) = window.document()
+                        && let Ok(anchor) = document.create_element("a")
+                        && let Ok(anchor) = anchor.dyn_into::<HtmlAnchorElement>()
+                    {
+                        anchor.set_href(&url);
+                        anchor.set_download(&format!("{}.yaml", plan.title));
+                        anchor.click();
+                        let _ = Url::revoke_object_url(&url);
+                    }
+                }
+                Err(e) => gloo::console::error!("Failed to serialize plan", e.to_string()),
+            }
+        })
+    };
+
+    let on_import_click = {
+        let file_input_ref = file_input_ref.clone();
+        Callback::from(move |_| {
+            if let Some(input) = file_input_ref.cast::<HtmlInputElement>() {
+                input.click();
+            }
+        })
+    };
+
+    let on_file_change = {
+        let file_input_ref = file_input_ref.clone();
+        let user_state = props.user_state.clone();
+        Callback::from(move |_e: Event| {
+            if let Some(input) = file_input_ref.cast::<HtmlInputElement>()
+                && let Some(files) = input.files()
+                && let Some(file) = files.get(0)
+            {
+                let user_state = user_state.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let promise = file.text();
+                    let future = wasm_bindgen_futures::JsFuture::from(promise);
+                    match future.await {
+                        Ok(text_val) => {
+                            if let Some(text) = text_val.as_string() {
+                                match serde_yaml::from_str::<
+                                    dialect_coach_shared::models::LanguagePlan,
+                                >(&text)
+                                {
+                                    Ok(mut plan) => {
+                                        plan.id = Uuid::new_v4();
+                                        user_state.dispatch(UserStateAction::AddLanguagePlan(plan));
+                                    }
+                                    Err(e) => gloo::console::error!(
+                                        "Failed to parse plan YAML",
+                                        e.to_string()
+                                    ),
+                                }
+                            }
+                        }
+                        Err(e) => gloo::console::error!("Failed to read file", e),
+                    }
+                });
+                // Reset input value so same file can be selected again if needed
+                input.set_value("");
+            }
+        })
+    };
 
     let on_save = {
         let selected_type = selected_type.clone();
@@ -892,21 +978,38 @@ pub fn learning(props: &LearningProps) -> Html {
                                     editing_plan_id.set(Some(id));
                                 })
                             }
+                            on_export_plan={on_export_plan}
                         />
                         if has_active_dialect(props.active_branch_dialect) {
-                            <button
-                                class="create-plan-button"
-                                onclick={
-                                    let show_create_plan = show_create_plan.clone();
-                                    let editing_plan_id = editing_plan_id.clone();
-                                    Callback::from(move |_| {
-                                        editing_plan_id.set(None);
-                                        show_create_plan.set(true)
-                                    })
-                                }
-                            >
-                                {"+ Create New Plan"}
-                            </button>
+                            <div class="plan-list-actions" style="display: flex; gap: var(--s-2);">
+                                <button
+                                    class="create-plan-button"
+                                    onclick={
+                                        let show_create_plan = show_create_plan.clone();
+                                        let editing_plan_id = editing_plan_id.clone();
+                                        Callback::from(move |_| {
+                                            editing_plan_id.set(None);
+                                            show_create_plan.set(true)
+                                        })
+                                    }
+                                >
+                                    {"+ Create New Plan"}
+                                </button>
+                                <button
+                                    class="import-plan-button"
+                                    onclick={on_import_click}
+                                    style="background: var(--surface-muted); color: var(--ink); border: 1px solid rgba(0,0,0,0.1);"
+                                >
+                                    {"Import Plan"}
+                                </button>
+                                <input
+                                    type="file"
+                                    accept=".yaml,.yml"
+                                    ref={file_input_ref}
+                                    style="display: none;"
+                                    onchange={on_file_change}
+                                />
+                            </div>
                         }
                     }
                 </div>
