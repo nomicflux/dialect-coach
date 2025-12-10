@@ -637,6 +637,7 @@ pub fn learning(props: &LearningProps) -> Html {
     let point_to_try = use_state(String::new);
     let instructions = use_state(String::new);
     let enriching = use_state(|| false);
+    let is_importing = use_state(|| false);
     let enrich_error = use_state(|| None::<String>);
     let show_create_plan = use_state(|| false);
     let editing_plan_id = use_state(|| None::<Uuid>);
@@ -723,35 +724,41 @@ pub fn learning(props: &LearningProps) -> Html {
     let on_file_change = {
         let file_input_ref = file_input_ref.clone();
         let user_state = props.user_state.clone();
+        let enrichment_service = props.enrichment_service.clone();
+        let is_importing = is_importing.clone();
         Callback::from(move |_e: Event| {
             if let Some(input) = file_input_ref.cast::<HtmlInputElement>()
                 && let Some(files) = input.files()
                 && let Some(file) = files.get(0)
             {
                 let user_state = user_state.clone();
+                let enrichment_service = enrichment_service.clone();
+                let is_importing = is_importing.clone();
+
+                is_importing.set(true);
+
                 wasm_bindgen_futures::spawn_local(async move {
                     let promise = file.text();
                     let future = wasm_bindgen_futures::JsFuture::from(promise);
                     match future.await {
                         Ok(text_val) => {
                             if let Some(text) = text_val.as_string() {
-                                match serde_yaml::from_str::<
-                                    dialect_coach_shared::models::LanguagePlan,
-                                >(&text)
-                                {
-                                    Ok(mut plan) => {
-                                        plan.id = Uuid::new_v4();
+                                let result = super::import_workflow::process_imported_text(
+                                    text,
+                                    enrichment_service,
+                                )
+                                .await;
+                                match result {
+                                    Ok(plan) => {
                                         user_state.dispatch(UserStateAction::AddLanguagePlan(plan));
                                     }
-                                    Err(e) => gloo::console::error!(
-                                        "Failed to parse plan YAML",
-                                        e.to_string()
-                                    ),
+                                    Err(e) => gloo::console::error!("Import failed", e),
                                 }
                             }
                         }
                         Err(e) => gloo::console::error!("Failed to read file", e),
                     }
+                    is_importing.set(false);
                 });
                 // Reset input value so same file can be selected again if needed
                 input.set_value("");
@@ -998,9 +1005,10 @@ pub fn learning(props: &LearningProps) -> Html {
                                 <button
                                     class="import-plan-button"
                                     onclick={on_import_click}
+                                    disabled={*is_importing}
                                     style="background: var(--surface-muted); color: var(--ink); border: 1px solid rgba(0,0,0,0.1);"
                                 >
-                                    {"Import Plan"}
+                                    {if *is_importing { "Importing..." } else { "Import Plan" }}
                                 </button>
                                 <input
                                     type="file"

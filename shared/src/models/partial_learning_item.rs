@@ -35,6 +35,45 @@ pub enum PartialLearningItem {
     Exploratory(PartialExploratory),
 }
 
+impl PartialLearningItem {
+    pub fn is_complete(&self) -> bool {
+        match self {
+            PartialLearningItem::Mistake(m) => m.is_complete(),
+            PartialLearningItem::Explained(e) => e.is_complete(),
+            PartialLearningItem::Translated(t) => t.is_complete(),
+            PartialLearningItem::Exploratory(e) => e.is_complete(),
+        }
+    }
+}
+
+impl PartialMistake {
+    pub fn is_complete(&self) -> bool {
+        self.specific_mistake.is_some() && self.correction.is_some()
+        // mistake_category has default handling in try_into_plan via "Imported" context,
+        // but strictly speaking a "Complete" item might ideally have it.
+        // However, standard flow allows importing without category.
+        // Let's rely on try_into_plan requirements: validation there requires specific_mistake & correction.
+    }
+}
+
+impl PartialExplained {
+    pub fn is_complete(&self) -> bool {
+        self.new_phrase.is_some() && self.explanation.is_some()
+    }
+}
+
+impl PartialTranslated {
+    pub fn is_complete(&self) -> bool {
+        self.translated_word.is_some() && self.translated_to.is_some()
+    }
+}
+
+impl PartialExploratory {
+    pub fn is_complete(&self) -> bool {
+        self.point_to_try.is_some() && self.instructions_for_use.is_some()
+    }
+}
+
 pub fn validate_partial_mistake(p: &PartialMistake) -> Result<(), String> {
     if p.specific_mistake.is_none() {
         return Err("specific_mistake is required".to_string());

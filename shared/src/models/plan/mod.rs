@@ -1,3 +1,5 @@
+pub mod import;
+
 use super::dialect::Dialect;
 use super::learning_item::LearningItem;
 use serde::{Deserialize, Serialize};
