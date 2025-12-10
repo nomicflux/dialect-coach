@@ -347,10 +347,6 @@ pub fn log_branch_metadata(event: &str, state: &dialect_coach_shared::UserState)
         .count();
 
     tracing::info!(user_id = %state.user_id, event, branch_count, conversation_len = state.conversation_history.len(), has_active_branch, missing_leaf_count, "Branch metadata snapshot");
-
-    if branch_count == 0 || !has_active_branch {
-        tracing::error!(user_id = %state.user_id, event, branch_count, has_active_branch, "Branch metadata invalid");
-    }
 }
 
 async fn save_usage_and_notify(
