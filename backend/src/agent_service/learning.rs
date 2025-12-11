@@ -369,13 +369,24 @@ fn build_existing_items_section(params: &LearningAgentParams<'_>) -> String {
 }
 
 fn build_learning_prompt(params: &LearningAgentParams<'_>) -> String {
+    let (user_section, asst_section) = match params.teaching_mode {
+        TeachingMode::Corrective | TeachingMode::Interleaved => (
+            format!("LATEST USER MESSAGE:\n{}\n\n", params.user_message),
+            String::new(),
+        ),
+        TeachingMode::Explanatory | TeachingMode::StoryTeller => (
+            String::new(),
+            format!("ASSISTANT RESPONSE:\n{}\n\n", params.assistant_response),
+        ),
+        _ => (String::new(), String::new()),
+    };
+
     format!(
-        "LATEST USER MESSAGE:\n{}\n\n\
-        ASSISTANT RESPONSE:\n{}\n\n\
+        "{}{}\
         LEARNING GOALS:\n{}\n\n\
         PREVIOUS LEARNING ITEMS:\n{}\n",
-        params.user_message,
-        params.assistant_response,
+        user_section,
+        asst_section,
         format_learning_goals(params.learning_goals),
         build_existing_items_section(params)
     )
