@@ -1,29 +1,33 @@
-use crate::app::app_state::{OptionalUserState, SettingsAction, UIState, UserStateAction};
+use crate::app::app_state::{SettingsAction, UIState};
+use crate::app::app_state::user::UserDomainAction;
 use crate::app::user_state_callbacks::{
-    on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
-    on_language_change, on_language_level_change, on_teaching_mode_change, on_user_gender_change,
+    on_arabic_script_change_strict, on_dialect_change_strict, on_formality_change_strict,
+    on_japanese_script_change_strict, on_language_change_strict, on_language_level_change_strict,
+    on_teaching_mode_change_strict, on_user_gender_change_strict,
 };
 use dialect_coach_shared::models::{
     ArabicScript, Formality, JapaneseScript, Language, LanguageLevel, TeachingMode, UserGender,
 };
+use dialect_coach_shared::UserState;
+use std::rc::Rc;
 use yew::prelude::*;
 
 #[derive(Properties)]
 pub struct SettingsProps {
-    pub user_state: UseReducerHandle<OptionalUserState>,
+    pub user: Rc<UserState>,
+    pub dispatch: Callback<UserDomainAction>,
     pub ui_state: UseReducerHandle<UIState>,
 }
 
 impl PartialEq for SettingsProps {
-    fn eq(&self, _other: &Self) -> bool {
-        // Simple comparison for now since handles are comparable
-        self.user_state == _other.user_state && self.ui_state == _other.ui_state
+    fn eq(&self, other: &Self) -> bool {
+        self.user == other.user && self.dispatch == other.dispatch && self.ui_state == other.ui_state
     }
 }
 
 fn render_experimental_dialects_toggle(
     show_experimental: bool,
-    user_state: &UseReducerHandle<OptionalUserState>,
+    dispatch: Callback<UserDomainAction>,
 ) -> Html {
     html! {
         <div class="panel-field">
@@ -31,12 +35,11 @@ fn render_experimental_dialects_toggle(
                 <input
                     type="checkbox"
                     checked={show_experimental}
-                    onchange={{
-                        let user_state = user_state.clone();
+                    onchange={
                         Callback::from(move |_| {
-                            user_state.dispatch(UserStateAction::Settings(SettingsAction::ToggleExperimentalDialects));
+                            dispatch.emit(UserDomainAction::Settings(SettingsAction::ToggleExperimentalDialects));
                         })
-                    }}
+                    }
                 />
                 {" Show experimental dialects"}
             </label>
@@ -50,14 +53,12 @@ fn render_experimental_dialects_toggle(
 #[function_component(Settings)]
 pub fn settings(props: &SettingsProps) -> Html {
     let SettingsProps {
-        user_state,
-        ui_state: _, // Unused in this view as we don't control panel visibility here
+        user,
+        dispatch,
+        ui_state: _,
     } = props;
 
-    let us = match user_state.state.as_ref() {
-        Some(s) => s,
-        None => return html! {},
-    };
+    let us = user;
 
     html! {
         <div class="settings-content" style="padding: var(--s-5);">
@@ -68,7 +69,7 @@ pub fn settings(props: &SettingsProps) -> Html {
                 <div class="field-group">
                     <div class="panel-field">
                         <label for="language-select">{"Language"}</label>
-                        <select id="language-select" onchange={on_language_change(user_state.clone())}>
+                        <select id="language-select" onchange={on_language_change_strict(dispatch.clone())}>
                             <option value="spanish" selected={us.selected_language == Language::Spanish}>{"Spanish"}</option>
                             <option value="arabic" selected={us.selected_language == Language::Arabic}>{"Arabic"}</option>
                             <option value="french" selected={us.selected_language == Language::French}>{"French"}</option>
@@ -79,7 +80,7 @@ pub fn settings(props: &SettingsProps) -> Html {
 
                     <div class="panel-field">
                         <label for="dialect-select">{"Dialect"}</label>
-                        <select id="dialect-select" onchange={on_dialect_change(user_state.clone())}>
+                        <select id="dialect-select" onchange={on_dialect_change_strict(user.clone(), dispatch.clone())}>
                             {{
                                 let dialects = us.current_dialects();
                                 let current = us.current_dialect();
@@ -100,7 +101,7 @@ pub fn settings(props: &SettingsProps) -> Html {
                         </div>
                     </div>
 
-                    {render_experimental_dialects_toggle(us.show_experimental_dialects, user_state)}
+                    {render_experimental_dialects_toggle(us.show_experimental_dialects, dispatch.clone())}
                 </div>
             </div>
 
@@ -110,7 +111,7 @@ pub fn settings(props: &SettingsProps) -> Html {
                 <div class="field-group">
                     <div class="panel-field">
                         <label for="formality-select">{"Formality Level"}</label>
-                        <select id="formality-select" onchange={on_formality_change(user_state.clone())}>
+                        <select id="formality-select" onchange={on_formality_change_strict(dispatch.clone())}>
                             <option value="formal" selected={us.formality == Formality::Formal}>{"Formal"}</option>
                             <option value="professional_casual" selected={us.formality == Formality::ProfessionalCasual}>{"Professional Casual"}</option>
                             <option value="informal" selected={us.formality == Formality::Informal}>{"Informal"}</option>
@@ -120,7 +121,7 @@ pub fn settings(props: &SettingsProps) -> Html {
 
                     <div class="panel-field">
                         <label for="teaching-mode-select">{"Teaching Mode"}</label>
-                        <select id="teaching-mode-select" onchange={on_teaching_mode_change(user_state.clone())}>
+                        <select id="teaching-mode-select" onchange={on_teaching_mode_change_strict(dispatch.clone())}>
                             <option value="immersive" selected={us.teaching_mode == TeachingMode::Immersive}>{"Immersive"}</option>
                             <option value="corrective" selected={us.teaching_mode == TeachingMode::Corrective}>{"Corrective"}</option>
                             <option value="explanatory" selected={us.teaching_mode == TeachingMode::Explanatory}>{"Explanatory"}</option>
@@ -132,7 +133,7 @@ pub fn settings(props: &SettingsProps) -> Html {
 
                     <div class="panel-field">
                         <label for="user-gender-select">{"Your Gender"}</label>
-                        <select id="user-gender-select" onchange={on_user_gender_change(user_state.clone())}>
+                        <select id="user-gender-select" onchange={on_user_gender_change_strict(dispatch.clone())}>
                             <option value="male" selected={us.user_gender == UserGender::Male}>{"Male"}</option>
                             <option value="female" selected={us.user_gender == UserGender::Female}>{"Female"}</option>
                             <option value="nonbinary" selected={us.user_gender == UserGender::NonBinary}>{"Non-binary"}</option>
@@ -141,7 +142,7 @@ pub fn settings(props: &SettingsProps) -> Html {
 
                     <div class="panel-field">
                         <label for="language-level-select">{"Your Level"}</label>
-                        <select id="language-level-select" onchange={on_language_level_change(user_state.clone())}>
+                        <select id="language-level-select" onchange={on_language_level_change_strict(user.clone(), dispatch.clone())}>
                             <option value="a1" selected={us.current_language_level() == LanguageLevel::A1}>{"A1 - Beginner"}</option>
                             <option value="a2" selected={us.current_language_level() == LanguageLevel::A2}>{"A2 - Elementary"}</option>
                             <option value="b1" selected={us.current_language_level() == LanguageLevel::B1}>{"B1 - Intermediate"}</option>
@@ -166,7 +167,7 @@ pub fn settings(props: &SettingsProps) -> Html {
                                     <label for="arabic-script-select">{"Script:"}</label>
                                     <select
                                         id="arabic-script-select"
-                                        onchange={on_arabic_script_change(user_state.clone())}
+                                        onchange={on_arabic_script_change_strict(dispatch.clone())}
                                         value={us.language_options.arabic_script.to_string()}
                                     >
                                         <option value="naskh" selected={us.language_options.arabic_script == ArabicScript::Naskh}>{"Naskh"}</option>
@@ -187,7 +188,7 @@ pub fn settings(props: &SettingsProps) -> Html {
                                     <label for="japanese-script-select">{"Script:"}</label>
                                     <select
                                         id="japanese-script-select"
-                                        onchange={on_japanese_script_change(user_state.clone())}
+                                        onchange={on_japanese_script_change_strict(dispatch.clone())}
                                         value={us.language_options.japanese_script.to_string()}
                                     >
                                         <option value="romaji" selected={us.language_options.japanese_script == JapaneseScript::Romaji}>{"Romaji"}</option>

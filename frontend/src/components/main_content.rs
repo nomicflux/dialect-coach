@@ -23,6 +23,8 @@ use gloo::events::EventListener;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
+use crate::app::app_state::user::UserDomainAction;
+use std::rc::Rc;
 
 #[derive(Clone, PartialEq)]
 pub enum TranslationModalState {
@@ -139,6 +141,13 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 });
             },
         )
+    };
+
+    let dispatch_domain = {
+        let user_state = user_state.clone();
+        Callback::from(move |action: UserDomainAction| {
+            user_state.dispatch(UserStateAction::from(action));
+        })
     };
 
     {
@@ -262,7 +271,8 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             let sidebar_active_tab = sidebar_active_tab.clone();
                             Callback::from(move |tab| sidebar_active_tab.set(tab))
                         }}
-                        user_state={user_state.clone()}
+                        user={Rc::new(us.clone())}
+                        dispatch={dispatch_domain}
                         ui_state={ui_state.clone()}
                         branches={us.branches.clone()}
                         active_branch_id={us.active_branch_id}

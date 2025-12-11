@@ -1,4 +1,6 @@
-use crate::app::app_state::{LearningAction, OptionalUserState, PlanAction, UserStateAction};
+use crate::app::app_state::{LearningAction, PlanAction};
+use crate::app::app_state::user::UserDomainAction;
+use dialect_coach_shared::UserState;
 use crate::components::plan::{ActivePlan, PlanCreate, PlanList};
 use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::{
@@ -28,7 +30,8 @@ pub struct LearningProps {
     pub on_undo: Callback<()>,
     pub deleted_count: usize,
     pub active_branch_dialect: Option<Dialect>,
-    pub user_state: UseReducerHandle<OptionalUserState>,
+    pub user: Rc<UserState>,
+    pub dispatch: Callback<UserDomainAction>,
     pub enrichment_service: Rc<EnrichmentService>,
 }
 
@@ -199,13 +202,13 @@ fn is_form_partial(selected_type: Option<&String>, fields: &FormFields) -> bool 
 fn dispatch_learning_item(
     selected_type: Option<&String>,
     fields: &FormFields,
-    user_state: &UseReducerHandle<OptionalUserState>,
+    dispatch: &Callback<UserDomainAction>,
 ) {
     match selected_type.map(|s| s.as_str()) {
         Some("Mistake") => {
             let item =
                 create_mistake_from_form(&fields.mistake, &fields.correction, &fields.category);
-            user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
+            dispatch.emit(UserDomainAction::Learning(LearningAction::AddItems(
                 vec![item],
                 vec![],
                 vec![],
@@ -214,7 +217,7 @@ fn dispatch_learning_item(
         }
         Some("Explanation") => {
             let item = create_explanation_from_form(&fields.phrase, &fields.explanation);
-            user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
+            dispatch.emit(UserDomainAction::Learning(LearningAction::AddItems(
                 vec![],
                 vec![item],
                 vec![],
@@ -224,7 +227,7 @@ fn dispatch_learning_item(
         Some("Translation") => {
             let item =
                 create_translation_from_form(&fields.word, &fields.translation, &fields.context);
-            user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
+            dispatch.emit(UserDomainAction::Learning(LearningAction::AddItems(
                 vec![],
                 vec![],
                 vec![item],
@@ -233,7 +236,7 @@ fn dispatch_learning_item(
         }
         Some("Exploration") => {
             let item = create_exploration_from_form(&fields.point, &fields.instructions);
-            user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
+            dispatch.emit(UserDomainAction::Learning(LearningAction::AddItems(
                 vec![],
                 vec![],
                 vec![],
@@ -656,11 +659,9 @@ pub fn learning(props: &LearningProps) -> Html {
         instructions: instructions.clone(),
     };
 
-    let plan_to_edit = props.user_state.state.as_ref().and_then(|state| {
-        editing_plan_id
-            .as_ref()
-            .and_then(|id| state.language_plans.iter().find(|p| p.id == *id).cloned())
-    });
+    let plan_to_edit = editing_plan_id
+        .as_ref()
+        .and_then(|id| props.user.language_plans.iter().find(|p| p.id == *id).cloned());
 
     let clear_fields = create_clear_fields_callback(ClearStates {
         mistake: specific_mistake.clone(),
@@ -678,12 +679,9 @@ pub fn learning(props: &LearningProps) -> Html {
     let clear_all = create_clear_all_callback(selected_type.clone(), clear_fields.clone());
 
     let on_export_plan = {
-        let user_state = props.user_state.clone();
+        let user = props.user.clone();
         Callback::from(move |plan_id: Uuid| {
-            let Some(state) = &user_state.state else {
-                return;
-            };
-            let Some(plan) = state.language_plans.iter().find(|p| p.id == plan_id) else {
+            let Some(plan) = user.language_plans.iter().find(|p| p.id == plan_id) else {
                 return;
             };
 
@@ -723,7 +721,7 @@ pub fn learning(props: &LearningProps) -> Html {
 
     let on_file_change = {
         let file_input_ref = file_input_ref.clone();
-        let user_state = props.user_state.clone();
+        let dispatch = props.dispatch.clone();
         let enrichment_service = props.enrichment_service.clone();
         let is_importing = is_importing.clone();
         Callback::from(move |_e: Event| {
@@ -731,7 +729,7 @@ pub fn learning(props: &LearningProps) -> Html {
                 && let Some(files) = input.files()
                 && let Some(file) = files.get(0)
             {
-                let user_state = user_state.clone();
+                let dispatch = dispatch.clone();
                 let enrichment_service = enrichment_service.clone();
                 let is_importing = is_importing.clone();
 
@@ -750,7 +748,7 @@ pub fn learning(props: &LearningProps) -> Html {
                                 .await;
                                 match result {
                                     Ok(plan) => {
-                                        user_state.dispatch(UserStateAction::Plan(PlanAction::Add(plan)));
+                                        dispatch.emit(UserDomainAction::Plan(PlanAction::Add(plan)));
                                     }
                                     Err(e) => gloo::console::error!("Import failed", e),
                                 }
@@ -769,13 +767,13 @@ pub fn learning(props: &LearningProps) -> Html {
     let on_save = {
         let selected_type = selected_type.clone();
         let fields = fields.clone();
-        let user_state = props.user_state.clone();
+        let dispatch = props.dispatch.clone();
         let clear_fields = clear_fields.clone();
         Callback::from(move |_| {
             if !is_form_valid(selected_type.as_ref(), &fields) {
                 return;
             }
-            dispatch_learning_item(selected_type.as_ref(), &fields, &user_state);
+            dispatch_learning_item(selected_type.as_ref(), &fields, &dispatch);
             clear_fields.emit(());
         })
     };
@@ -867,16 +865,12 @@ pub fn learning(props: &LearningProps) -> Html {
     let on_cancel = clear_all;
 
     let filtered_plans = if let Some(dialect) = props.active_branch_dialect {
-        if let Some(state) = &props.user_state.state {
-            state
-                .language_plans
-                .iter()
-                .filter(|p| p.dialect == dialect)
-                .cloned()
-                .collect()
-        } else {
-            Vec::new()
-        }
+        props.user
+            .language_plans
+            .iter()
+            .filter(|p| p.dialect == dialect)
+            .cloned()
+            .collect()
     } else {
         Vec::new()
     };
@@ -908,121 +902,119 @@ pub fn learning(props: &LearningProps) -> Html {
                 <p class="empty-message">{"No learning items yet. Start chatting to build your learning progress!"}</p>
             }
 
-            if let Some(user_state_val) = &props.user_state.state {
-                <div class="plans-section">
-                    if let Some(active_plan_id) = user_state_val.active_plan_id
-                        && let Some(active_plan) = user_state_val.language_plans.iter().find(|p| p.id == active_plan_id)
-                    {
-                        <ActivePlan
-                            plan={active_plan.clone()}
-                            on_advance={
-                                let user_state = props.user_state.clone();
-                                Callback::from(move |id| {
-                                    user_state.dispatch(UserStateAction::Plan(PlanAction::AdvanceStep(id)));
+            <div class="plans-section">
+                if let Some(active_plan_id) = props.user.active_plan_id
+                    && let Some(active_plan) = props.user.language_plans.iter().find(|p| p.id == active_plan_id)
+                {
+                    <ActivePlan
+                        plan={active_plan.clone()}
+                        on_advance={
+                            let dispatch = props.dispatch.clone();
+                            Callback::from(move |id| {
+                                dispatch.emit(UserDomainAction::Plan(PlanAction::AdvanceStep(id)));
+                            })
+                        }
+                    />
+                    <button
+                        class="view-all-plans-btn"
+                        onclick={
+                            let dispatch = props.dispatch.clone();
+                            Callback::from(move |_| {
+                                dispatch.emit(UserDomainAction::Plan(PlanAction::SetActive(None)));
+                            })
+                        }
+                    >
+                        {"← Back to All Plans"}
+                    </button>
+                } else if *show_create_plan || editing_plan_id.is_some() {
+                    if let Some(dialect) = props.active_branch_dialect {
+                        <PlanCreate
+                            dialect={dialect}
+                            plan_to_edit={plan_to_edit}
+                            on_create={
+                                let dispatch = props.dispatch.clone();
+                                let show_create_plan = show_create_plan.clone();
+                                let editing_plan_id = editing_plan_id.clone();
+                                Callback::from(move |plan: dialect_coach_shared::models::LanguagePlan| {
+                                    if editing_plan_id.is_some() {
+                                        dispatch.emit(UserDomainAction::Plan(PlanAction::Update(plan)));
+                                    } else {
+                                        dispatch.emit(UserDomainAction::Plan(PlanAction::Add(plan)));
+                                    }
+                                    show_create_plan.set(false);
+                                    editing_plan_id.set(None);
                                 })
                             }
-                        />
-                        <button
-                            class="view-all-plans-btn"
-                            onclick={
-                                let user_state = props.user_state.clone();
+                            on_cancel={
+                                let show_create_plan = show_create_plan.clone();
+                                let editing_plan_id = editing_plan_id.clone();
                                 Callback::from(move |_| {
-                                    user_state.dispatch(UserStateAction::Plan(PlanAction::SetActive(None)));
+                                    show_create_plan.set(false);
+                                    editing_plan_id.set(None);
                                 })
                             }
-                        >
-                            {"← Back to All Plans"}
-                        </button>
-                    } else if *show_create_plan || editing_plan_id.is_some() {
-                        if let Some(dialect) = props.active_branch_dialect {
-                            <PlanCreate
-                                dialect={dialect}
-                                plan_to_edit={plan_to_edit}
-                                on_create={
-                                    let user_state = props.user_state.clone();
-                                    let show_create_plan = show_create_plan.clone();
-                                    let editing_plan_id = editing_plan_id.clone();
-                                    Callback::from(move |plan: dialect_coach_shared::models::LanguagePlan| {
-                                        if editing_plan_id.is_some() {
-                                            user_state.dispatch(UserStateAction::Plan(PlanAction::Update(plan)));
-                                        } else {
-                                            user_state.dispatch(UserStateAction::Plan(PlanAction::Add(plan)));
-                                        }
-                                        show_create_plan.set(false);
-                                        editing_plan_id.set(None);
-                                    })
-                                }
-                                on_cancel={
+                            enrichment_service={props.enrichment_service.clone()}
+                        />
+                    }
+                } else {
+                    <PlanList
+                        plans={filtered_plans} // Use the pre-calculated filtered list
+                        active_plan_id={props.user.active_plan_id}
+                        on_select_plan={
+                            let dispatch = props.dispatch.clone();
+                            Callback::from(move |id| {
+                                dispatch.emit(UserDomainAction::Plan(PlanAction::SetActive(id)));
+                            })
+                        }
+                        on_delete_plan={
+                            let dispatch = props.dispatch.clone();
+                            Callback::from(move |id| {
+                                dispatch.emit(UserDomainAction::Plan(PlanAction::Delete(id)));
+                            })
+                        }
+                        on_edit_plan={
+                            let editing_plan_id = editing_plan_id.clone();
+                            Callback::from(move |id| {
+                                editing_plan_id.set(Some(id));
+                            })
+                        }
+                        on_export_plan={on_export_plan}
+                    />
+                    if has_active_dialect(props.active_branch_dialect) {
+                        <div class="plan-list-actions" style="display: flex; gap: var(--s-2);">
+                            <button
+                                class="create-plan-button"
+                                onclick={
                                     let show_create_plan = show_create_plan.clone();
                                     let editing_plan_id = editing_plan_id.clone();
                                     Callback::from(move |_| {
-                                        show_create_plan.set(false);
                                         editing_plan_id.set(None);
+                                        show_create_plan.set(true)
                                     })
                                 }
-                                enrichment_service={props.enrichment_service.clone()}
+                            >
+                                {"+ Create New Plan"}
+                            </button>
+                            <button
+                                class="import-plan-button"
+                                onclick={on_import_click}
+                                disabled={*is_importing}
+                                style="background: var(--surface-muted); color: var(--ink); border: 1px solid rgba(0,0,0,0.1);"
+                            >
+                                {if *is_importing { "Importing..." } else { "Import Plan" }}
+                            </button>
+                            <input
+                                type="file"
+                                accept=".yaml,.yml"
+                                ref={file_input_ref}
+                                style="display: none;"
+                                onchange={on_file_change}
                             />
-                        }
-                    } else {
-                        <PlanList
-                            plans={filtered_plans} // Use the pre-calculated filtered list
-                            active_plan_id={user_state_val.active_plan_id}
-                            on_select_plan={
-                                let user_state = props.user_state.clone();
-                                Callback::from(move |id| {
-                                    user_state.dispatch(UserStateAction::Plan(PlanAction::SetActive(id)));
-                                })
-                            }
-                            on_delete_plan={
-                                let user_state = props.user_state.clone();
-                                Callback::from(move |id| {
-                                    user_state.dispatch(UserStateAction::Plan(PlanAction::Delete(id)));
-                                })
-                            }
-                            on_edit_plan={
-                                let editing_plan_id = editing_plan_id.clone();
-                                Callback::from(move |id| {
-                                    editing_plan_id.set(Some(id));
-                                })
-                            }
-                            on_export_plan={on_export_plan}
-                        />
-                        if has_active_dialect(props.active_branch_dialect) {
-                            <div class="plan-list-actions" style="display: flex; gap: var(--s-2);">
-                                <button
-                                    class="create-plan-button"
-                                    onclick={
-                                        let show_create_plan = show_create_plan.clone();
-                                        let editing_plan_id = editing_plan_id.clone();
-                                        Callback::from(move |_| {
-                                            editing_plan_id.set(None);
-                                            show_create_plan.set(true)
-                                        })
-                                    }
-                                >
-                                    {"+ Create New Plan"}
-                                </button>
-                                <button
-                                    class="import-plan-button"
-                                    onclick={on_import_click}
-                                    disabled={*is_importing}
-                                    style="background: var(--surface-muted); color: var(--ink); border: 1px solid rgba(0,0,0,0.1);"
-                                >
-                                    {if *is_importing { "Importing..." } else { "Import Plan" }}
-                                </button>
-                                <input
-                                    type="file"
-                                    accept=".yaml,.yml"
-                                    ref={file_input_ref}
-                                    style="display: none;"
-                                    onchange={on_file_change}
-                                />
-                            </div>
-                        }
+                        </div>
                     }
-                </div>
-                <hr class="learning-divider" />
-            }
+                }
+            </div>
+            <hr class="learning-divider" />
 
             {render_add_item_form(FormRenderProps {
                 form_expanded: &form_expanded,

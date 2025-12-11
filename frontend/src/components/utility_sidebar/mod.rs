@@ -2,12 +2,14 @@ pub mod branches;
 pub mod import_workflow;
 pub mod learning;
 pub mod settings;
-use crate::app::app_state::{OptionalUserState, UIState, UserStateGamificationExt};
+use crate::app::app_state::user::UserDomainAction;
+use crate::app::app_state::{UIState, UserStateGamificationExt};
 use crate::components::gamification::QuestList;
 use crate::services::enrichment_service::EnrichmentService;
 use branches::Branches;
 use dialect_coach_shared::Dialect;
 use dialect_coach_shared::models::{ConversationBranch, LearningGoal, LearningItem, Message};
+use dialect_coach_shared::UserState;
 use gloo::events::EventListener;
 use learning::Learning;
 use settings::Settings;
@@ -29,7 +31,8 @@ pub struct UtilitySidebarProps {
     pub is_collapsed: bool,
     pub active_tab: SidebarTab,
     pub on_tab_change: Callback<SidebarTab>,
-    pub user_state: UseReducerHandle<OptionalUserState>,
+    pub user: Rc<UserState>, // Strict prop
+    pub dispatch: Callback<UserDomainAction>, // Strict prop
     pub ui_state: UseReducerHandle<UIState>,
     pub branches: Vec<ConversationBranch>,
     pub active_branch_id: Uuid,
@@ -185,13 +188,15 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
                             on_undo={props.on_undo_delete_learning_item.clone()}
                             deleted_count={props.deleted_learning_items_count}
                             active_branch_dialect={props.active_branch_dialect}
-                            user_state={props.user_state.clone()}
+                            user={props.user.clone()}
+                            dispatch={props.dispatch.clone()}
                             enrichment_service={props.enrichment_service.clone()}
                         />
                     },
                     SidebarTab::Quests => html! {
                         <div class="sidebar-section">
-                            {if let Some(stats) = props.user_state.state.as_ref().map(|s| s.gamification_stats()) {
+                            {{
+                                let stats = props.user.gamification_stats();
                                 let quests = stats.quests.iter()
                                     .filter(|q| props.active_branch_dialect == Some(q.dialect))
                                     .cloned()
@@ -201,14 +206,13 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
                                 } else {
                                     html! { <div class="empty-state">{"No quests available for this dialect."}</div> }
                                 }
-                            } else {
-                                html! {}
                             }}
                         </div>
                     },
                     SidebarTab::Settings => html! {
                         <Settings
-                            user_state={props.user_state.clone()}
+                            user={props.user.clone()}
+                            dispatch={props.dispatch.clone()}
                             ui_state={props.ui_state.clone()}
                         />
                     },
