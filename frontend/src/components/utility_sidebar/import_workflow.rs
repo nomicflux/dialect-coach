@@ -81,19 +81,19 @@ async fn enrich_items_parallel(
                 Ok(resp) => {
                     let mut value = resp.enriched_item;
                     // Inject missing "type" field if needed
-                    if let Some(obj) = value.as_object_mut() {
-                        if !obj.contains_key("type") {
-                            let type_str = match &partial {
-                                PartialLearningItem::Mistake(_) => "mistake",
-                                PartialLearningItem::Explained(_) => "explained",
-                                PartialLearningItem::Translated(_) => "translated",
-                                PartialLearningItem::Exploratory(_) => "exploratory",
-                            };
-                            obj.insert(
-                                "type".to_string(),
-                                serde_json::Value::String(type_str.to_string()),
-                            );
-                        }
+                    if let Some(obj) = value.as_object_mut() 
+                        && !obj.contains_key("type")
+                    {
+                        let type_str = match &partial {
+                            PartialLearningItem::Mistake(_) => "mistake",
+                            PartialLearningItem::Explained(_) => "explained",
+                            PartialLearningItem::Translated(_) => "translated",
+                            PartialLearningItem::Exploratory(_) => "exploratory",
+                        };
+                        obj.insert(
+                            "type".to_string(),
+                            serde_json::Value::String(type_str.to_string()),
+                        );
                     }
                     serde_json::from_value::<PartialLearningItem>(value)
                         .map_err(|e| format!("Parse error: {}", e))

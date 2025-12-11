@@ -638,10 +638,19 @@ fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserSt
             {
                 branch.message_ids.push(new_msg_id);
                 branch.leaf_message_id = Some(new_msg_id);
-                // Set branch dialect from first message if dialect is None
                 if branch.dialect.is_none() {
                     branch.dialect = Some(msg_dialect);
                 }
+            } else {
+                let new_branch = ConversationBranch::new(
+                    None,
+                    None,
+                    Some(new_msg_id),
+                    Some(msg_dialect),
+                    vec![new_msg_id],
+                );
+                next.active_branch_id = new_branch.id;
+                next.branches.push(new_branch);
             }
         }
         UserStateAction::AddLearningItems(mistakes, explained, translated, exploratory) => {
