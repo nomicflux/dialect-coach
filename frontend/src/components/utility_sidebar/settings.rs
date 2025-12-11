@@ -1,4 +1,4 @@
-use crate::app::app_state::{OptionalUserState, UIState, UserStateAction};
+use crate::app::app_state::{OptionalUserState, SettingsAction, UIState, UserStateAction};
 use crate::app::user_state_callbacks::{
     on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
     on_language_change, on_language_level_change, on_teaching_mode_change, on_user_gender_change,
@@ -34,7 +34,7 @@ fn render_experimental_dialects_toggle(
                     onchange={{
                         let user_state = user_state.clone();
                         Callback::from(move |_| {
-                            user_state.dispatch(UserStateAction::ToggleShowExperimentalDialects);
+                            user_state.dispatch(UserStateAction::Settings(SettingsAction::ToggleExperimentalDialects));
                         })
                     }}
                 />

@@ -1,14 +1,16 @@
-use super::actions::UserStateAction;
+use super::actions::{
+    BranchAction, LearningAction, MessageAction, PlanAction, SettingsAction, UserStateAction,
+};
 use super::helpers::*;
-use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::ConversationBranch;
+use dialect_coach_shared::UserState;
 use std::rc::Rc;
 use yew::prelude::*;
 
-pub fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserState {
-    let mut next = state.clone();
+pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
+    use MessageAction::*;
     match action {
-        UserStateAction::AddMessage(mut msg) => {
+        Add(mut msg) => {
             let current_leaf = next
                 .branches
                 .iter()
@@ -33,9 +35,22 @@ pub fn apply_user_state_action(state: &UserState, action: UserStateAction) -> Us
                 }
             }
         }
-        UserStateAction::AddLearningItems(mistakes, explained, translated, exploratory) => {
+        Delete(id) => {
+            next.conversation_history = delete_message(next.conversation_history.clone(), id);
+            next.branches = remove_message_from_branches(next.branches.clone(), id);
+        }
+        UndoDelete(msg) => {
+            next.conversation_history = undo_delete_message(next.conversation_history.clone(), msg);
+        }
+    }
+}
+
+pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
+    use LearningAction::*;
+    match action {
+        AddItems(mistakes, explained, translated, exploratory) => {
             next.learning_items = add_learning_items_to_vec(
-                next.learning_items,
+                next.learning_items.clone(),
                 mistakes,
                 explained,
                 translated,
@@ -43,68 +58,29 @@ pub fn apply_user_state_action(state: &UserState, action: UserStateAction) -> Us
                 next.selected_dialect,
             );
         }
-        UserStateAction::UpdateScores(analysis) => {
-            next.learning_items = apply_score_updates(next.learning_items, &analysis);
+        UpdateScores(analysis) => {
+            next.learning_items = apply_score_updates(next.learning_items.clone(), &analysis);
         }
-        UserStateAction::ChangeDialect(dialect) => {
-            let old_language = next.selected_dialect.language();
-            next.selected_dialect = dialect;
-            let new_language = dialect.language();
+        DeleteItem(id) => {
+            next.learning_items = delete_learning_item(next.learning_items.clone(), id);
+        }
+        UndoDeleteItem(item) => {
+            next.learning_items = undo_delete_learning_item(next.learning_items.clone(), item);
+        }
+        AddGoal(goal) => {
+            next.learning_goals = add_learning_goal(next.learning_goals.clone(), goal);
+        }
+        DeleteGoal(index) => {
+            next.learning_goals = delete_learning_goal(next.learning_goals.clone(), index);
+        }
+    }
+}
 
-            if old_language != new_language {
-                create_new_branch_for_language(&mut next);
-            }
-        }
-        UserStateAction::ChangeLanguage(language) => {
-            let old_language = next.selected_language;
-            next.selected_language = language;
-            next.selected_dialect =
-                UserState::default_dialect_for_language(language, next.show_experimental_dialects);
-
-            if old_language != language {
-                create_new_branch_for_language(&mut next);
-            }
-        }
-        UserStateAction::ChangeFormality(formality) => {
-            next.formality = formality;
-        }
-        UserStateAction::ChangeTeachingMode(tm) => {
-            next.teaching_mode = tm;
-        }
-        UserStateAction::UpdateUserGender(gender) => {
-            next.user_gender = gender;
-        }
-        UserStateAction::UpdateLanguageLevel(dialect, level) => {
-            next.set_level_for_dialect(dialect, level);
-        }
-        UserStateAction::ToggleTTS => {
-            next.tts_enabled = !next.tts_enabled;
-        }
-        UserStateAction::ToggleShowExperimentalDialects => {
-            next.show_experimental_dialects = !next.show_experimental_dialects;
-        }
-        UserStateAction::ReplaceUserState(new_state) => {
-            next = new_state;
-        }
-        UserStateAction::UpdateUsageStats(new_stats) => {
-            next.usage_stats = new_stats;
-        }
-        UserStateAction::DeleteLearningItem(id) => {
-            next.learning_items = delete_learning_item(next.learning_items, id);
-        }
-        UserStateAction::UndoDeleteLearningItem(item) => {
-            next.learning_items = undo_delete_learning_item(next.learning_items, item);
-        }
-        UserStateAction::DeleteMessage(id) => {
-            next.conversation_history = delete_message(next.conversation_history, id);
-            next.branches = remove_message_from_branches(next.branches, id);
-        }
-        UserStateAction::UndoDeleteMessage(msg) => {
-            next.conversation_history = undo_delete_message(next.conversation_history, msg);
-        }
-        UserStateAction::CreateBranch(message_id) => {
+pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
+    use BranchAction::*;
+    match action {
+        Create(message_id) => {
             // Update the current branch's parent_message_id if it's None
-            // This ensures both branches know where they diverged
             if let Some(current_branch) = next
                 .branches
                 .iter_mut()
@@ -135,13 +111,13 @@ pub fn apply_user_state_action(state: &UserState, action: UserStateAction) -> Us
             let new_branch_id = new_branch.id;
             next.branches.push(new_branch);
             next.active_branch_id = new_branch_id;
-            sync_to_active_branch(&mut next);
+            sync_to_active_branch(next);
         }
-        UserStateAction::SwitchBranch(branch_id) => {
+        Switch(branch_id) => {
             next.active_branch_id = branch_id;
-            sync_to_active_branch(&mut next);
+            sync_to_active_branch(next);
         }
-        UserStateAction::DeleteBranch(branch_id) => {
+        Delete(branch_id) => {
             next.branches.retain(|b| b.id != branch_id);
 
             if next.active_branch_id == branch_id {
@@ -150,51 +126,30 @@ pub fn apply_user_state_action(state: &UserState, action: UserStateAction) -> Us
                     .first()
                     .map(|b| b.id)
                     .unwrap_or(next.active_branch_id);
-                sync_to_active_branch(&mut next);
+                sync_to_active_branch(next);
             }
         }
-        UserStateAction::RenameBranch(branch_id, name) => {
+        Rename(branch_id, name) => {
             if let Some(branch) = next.branches.iter_mut().find(|b| b.id == branch_id) {
                 branch.name = Some(name);
             }
         }
-        UserStateAction::AddLearningGoal(goal) => {
-            next.learning_goals = add_learning_goal(next.learning_goals, goal);
-        }
-        UserStateAction::DeleteLearningGoal(index) => {
-            next.learning_goals = delete_learning_goal(next.learning_goals, index);
-        }
-        UserStateAction::CycleDialect => {
-            let old_language = next.selected_dialect.language();
-            next.selected_dialect = cycle_dialect(&next);
-            let new_language = next.selected_dialect.language();
+    }
+}
 
-            if old_language != new_language {
-                create_new_branch_for_language(&mut next);
-            }
-        }
-        UserStateAction::CycleFormality => {
-            next.formality = cycle_formality(next.formality);
-        }
-        UserStateAction::CycleTeachingMode => {
-            next.teaching_mode = cycle_teaching_mode(next.teaching_mode);
-        }
-        UserStateAction::SetArabicScript(script) => {
-            next.language_options.arabic_script = script;
-        }
-        UserStateAction::SetJapaneseScript(script) => {
-            next.language_options.japanese_script = script;
-        }
-        UserStateAction::AddLanguagePlan(plan) => {
+pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
+    use PlanAction::*;
+    match action {
+        Add(plan) => {
             next.language_plans.push(plan);
         }
-        UserStateAction::DeleteLanguagePlan(plan_id) => {
+        Delete(plan_id) => {
             next.language_plans.retain(|p| p.id != plan_id);
             if next.active_plan_id == Some(plan_id) {
                 next.active_plan_id = None;
             }
         }
-        UserStateAction::SetActivePlan(plan_id) => {
+        SetActive(plan_id) => {
             next.active_plan_id = plan_id;
             if let Some(pid) = plan_id
                 && let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == pid)
@@ -202,12 +157,12 @@ pub fn apply_user_state_action(state: &UserState, action: UserStateAction) -> Us
                 plan.start();
             }
         }
-        UserStateAction::AdvancePlanStep(plan_id) => {
+        AdvanceStep(plan_id) => {
             if let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == plan_id) {
                 plan.advance_step();
             }
         }
-        UserStateAction::UpdateLanguagePlan(updated_plan) => {
+        Update(updated_plan) => {
             if let Some(plan_idx) = next
                 .language_plans
                 .iter()
@@ -226,11 +181,85 @@ pub fn apply_user_state_action(state: &UserState, action: UserStateAction) -> Us
                 );
             }
         }
-        UserStateAction::ClearUserState => {
-            // This should never be called - ClearUserState is handled at OptionalUserState level
-            // But we need this case for exhaustiveness
-            panic!("ClearUserState should not reach apply_user_state_action");
+    }
+}
+
+pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
+    use SettingsAction::*;
+    match action {
+        ChangeDialect(dialect) => {
+            let old_language = next.selected_dialect.language();
+            next.selected_dialect = dialect;
+            let new_language = dialect.language();
+
+            if old_language != new_language {
+                create_new_branch_for_language(next);
+            }
         }
+        ChangeLanguage(language) => {
+            let old_language = next.selected_language;
+            next.selected_language = language;
+            next.selected_dialect =
+                UserState::default_dialect_for_language(language, next.show_experimental_dialects);
+
+            if old_language != language {
+                create_new_branch_for_language(next);
+            }
+        }
+        ChangeFormality(formality) => {
+            next.formality = formality;
+        }
+        ChangeTeachingMode(tm) => {
+            next.teaching_mode = tm;
+        }
+        UpdateGender(gender) => {
+            next.user_gender = gender;
+        }
+        UpdateLevel(dialect, level) => {
+            next.set_level_for_dialect(dialect, level);
+        }
+        ToggleTTS => {
+            next.tts_enabled = !next.tts_enabled;
+        }
+        ToggleExperimentalDialects => {
+            next.show_experimental_dialects = !next.show_experimental_dialects;
+        }
+        CycleDialect => {
+            let old_language = next.selected_dialect.language();
+            next.selected_dialect = cycle_dialect(next);
+            let new_language = next.selected_dialect.language();
+
+            if old_language != new_language {
+                create_new_branch_for_language(next);
+            }
+        }
+        CycleFormality => {
+            next.formality = cycle_formality(next.formality);
+        }
+        CycleTeachingMode => {
+            next.teaching_mode = cycle_teaching_mode(next.teaching_mode);
+        }
+        SetArabicScript(script) => {
+            next.language_options.arabic_script = script;
+        }
+        SetJapaneseScript(script) => {
+            next.language_options.japanese_script = script;
+        }
+    }
+}
+
+pub(crate) fn apply_user_state_action(state: &UserState, action: UserStateAction) -> UserState {
+    let mut next = state.clone();
+    match action {
+        UserStateAction::Message(a) => reduce_message(&mut next, a),
+        UserStateAction::Learning(a) => reduce_learning(&mut next, a),
+        UserStateAction::Branch(a) => reduce_branch(&mut next, a),
+        UserStateAction::Plan(a) => reduce_plan(&mut next, a),
+        UserStateAction::Settings(a) => reduce_settings(&mut next, a),
+        UserStateAction::UpdateUsageStats(stats) => {
+            next.usage_stats = stats;
+        }
+        _ => {} // Replace/Clear handled by wrapper
     }
     next
 }
@@ -267,3 +296,4 @@ impl Reducible for OptionalUserState {
         }
     }
 }
+

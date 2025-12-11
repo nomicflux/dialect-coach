@@ -8,44 +8,94 @@ use dialect_coach_shared::{
 };
 use uuid::Uuid;
 
-pub enum UserStateAction {
-    AddMessage(Message),
-    AddLearningItems(
+#[derive(Clone, PartialEq, Debug)]
+pub enum MessageAction {
+    Add(Message),
+    Delete(Uuid),
+    UndoDelete(Message),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum LearningAction {
+    AddItems(
         Vec<Mistake>,
         Vec<Explained>,
         Vec<Translated>,
         Vec<Exploratory>,
     ),
     UpdateScores(AgentAnalysis),
+    DeleteItem(Uuid),
+    UndoDeleteItem(LearningItem),
+    AddGoal(LearningGoal),
+    DeleteGoal(usize),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum BranchAction {
+    Create(Uuid),
+    Switch(Uuid),
+    Delete(Uuid),
+    Rename(Uuid, String),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum PlanAction {
+    Add(LanguagePlan),
+    Delete(Uuid),
+    SetActive(Option<Uuid>),
+    AdvanceStep(Uuid),
+    Update(LanguagePlan),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum SettingsAction {
     ChangeDialect(Dialect),
     ChangeLanguage(Language),
     ChangeFormality(Formality),
     ChangeTeachingMode(TeachingMode),
-    UpdateUserGender(UserGender),
+    UpdateGender(UserGender),
+    UpdateLevel(Dialect, LanguageLevel),
+    SetArabicScript(ArabicScript),
+    SetJapaneseScript(JapaneseScript),
     ToggleTTS,
-    ToggleShowExperimentalDialects,
-    ReplaceUserState(UserState),
-    UpdateUsageStats(UsageStats),
-    ClearUserState,
-    DeleteLearningItem(Uuid),
-    UndoDeleteLearningItem(LearningItem),
-    DeleteMessage(Uuid),
-    UndoDeleteMessage(Message),
-    CreateBranch(Uuid),
-    SwitchBranch(Uuid),
-    DeleteBranch(Uuid),
-    RenameBranch(Uuid, String),
-    AddLearningGoal(LearningGoal),
-    DeleteLearningGoal(usize),
+    ToggleExperimentalDialects,
     CycleDialect,
     CycleFormality,
     CycleTeachingMode,
-    SetArabicScript(ArabicScript),
-    SetJapaneseScript(JapaneseScript),
-    AddLanguagePlan(LanguagePlan),
-    DeleteLanguagePlan(Uuid),
-    SetActivePlan(Option<Uuid>),
-    AdvancePlanStep(Uuid),
-    UpdateLanguagePlan(LanguagePlan),
-    UpdateLanguageLevel(Dialect, LanguageLevel),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum UserStateAction {
+    // Domains
+    Message(MessageAction),
+    Learning(LearningAction),
+    Branch(BranchAction),
+    Plan(PlanAction),
+    Settings(SettingsAction),
+
+    // Lifecycle / Meta
+    ReplaceUserState(UserState),
+    UpdateUsageStats(UsageStats),
+    ClearUserState,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum UserDomainAction {
+    Message(MessageAction),
+    Learning(LearningAction),
+    Branch(BranchAction),
+    Plan(PlanAction),
+    Settings(SettingsAction),
+}
+
+impl From<UserDomainAction> for UserStateAction {
+    fn from(action: UserDomainAction) -> Self {
+        match action {
+            UserDomainAction::Message(a) => UserStateAction::Message(a),
+            UserDomainAction::Learning(a) => UserStateAction::Learning(a),
+            UserDomainAction::Branch(a) => UserStateAction::Branch(a),
+            UserDomainAction::Plan(a) => UserStateAction::Plan(a),
+            UserDomainAction::Settings(a) => UserStateAction::Settings(a),
+        }
+    }
 }

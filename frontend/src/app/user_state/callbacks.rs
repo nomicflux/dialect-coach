@@ -1,4 +1,7 @@
-use crate::app::app_state::{OptionalUserState, UIState, UIStateAction, UserStateAction};
+use crate::app::app_state::{
+    BranchAction, LearningAction, MessageAction, OptionalUserState, SettingsAction, UIState,
+    UIStateAction, UserStateAction,
+};
 use dialect_coach_shared::models::{
     ArabicScript, Formality, JapaneseScript, Language, LanguageLevel, LearningGoal, TeachingMode,
     UserGender,
@@ -23,7 +26,7 @@ pub fn on_language_change(user_state: UseReducerHandle<OptionalUserState>) -> Ca
                 "japanese" => Language::Japanese,
                 _ => Language::Spanish,
             };
-            user_state.dispatch(UserStateAction::ChangeLanguage(lang));
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::ChangeLanguage(lang)));
         }
     })
 }
@@ -41,7 +44,9 @@ pub fn on_dialect_change(user_state: UseReducerHandle<OptionalUserState>) -> Cal
             // Get all dialects for current language and find matching one
             let dialects = state.current_dialects();
             if let Some(dialect_features) = dialects.iter().find(|df| df.dialect.id() == value) {
-                user_state.dispatch(UserStateAction::ChangeDialect(dialect_features.dialect));
+                user_state.dispatch(UserStateAction::Settings(SettingsAction::ChangeDialect(
+                    dialect_features.dialect,
+                )));
             }
         }
     })
@@ -63,7 +68,7 @@ pub fn on_formality_change(user_state: UseReducerHandle<OptionalUserState>) -> C
                 "slang" => Formality::Slang,
                 _ => Formality::Informal,
             };
-            user_state.dispatch(UserStateAction::ChangeFormality(f));
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::ChangeFormality(f)));
         }
     })
 }
@@ -86,7 +91,7 @@ pub fn on_teaching_mode_change(user_state: UseReducerHandle<OptionalUserState>) 
                 "debug" => TeachingMode::Debug,
                 _ => TeachingMode::Immersive,
             };
-            user_state.dispatch(UserStateAction::ChangeTeachingMode(tm));
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::ChangeTeachingMode(tm)));
         }
     })
 }
@@ -105,7 +110,7 @@ pub fn on_user_gender_change(user_state: UseReducerHandle<OptionalUserState>) ->
                 "nonbinary" => UserGender::NonBinary,
                 _ => UserGender::NonBinary,
             };
-            user_state.dispatch(UserStateAction::UpdateUserGender(gender));
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::UpdateGender(gender)));
         }
     })
 }
@@ -127,10 +132,13 @@ pub fn on_language_level_change(
                 "b2" => LanguageLevel::B2,
                 "c1" => LanguageLevel::C1,
                 "c2" => LanguageLevel::C2,
+                "a25" => LanguageLevel::A2, // Temporary fix for typo in selection
                 _ => LanguageLevel::B1,
             };
             let dialect = state.selected_dialect;
-            user_state.dispatch(UserStateAction::UpdateLanguageLevel(dialect, level));
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::UpdateLevel(
+                dialect, level,
+            )));
         }
     })
 }
@@ -139,7 +147,7 @@ pub fn on_dialect_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Call
     let user_state = user_state.clone();
     Callback::from(move |_| {
         if user_state.state.is_some() {
-            user_state.dispatch(UserStateAction::CycleDialect);
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleDialect));
         }
     })
 }
@@ -148,7 +156,7 @@ pub fn on_formality_cycle(user_state: UseReducerHandle<OptionalUserState>) -> Ca
     let user_state = user_state.clone();
     Callback::from(move |_| {
         if user_state.state.is_some() {
-            user_state.dispatch(UserStateAction::CycleFormality);
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleFormality));
         }
     })
 }
@@ -157,7 +165,7 @@ pub fn on_teaching_mode_cycle(user_state: UseReducerHandle<OptionalUserState>) -
     let user_state = user_state.clone();
     Callback::from(move |_| {
         if user_state.state.is_some() {
-            user_state.dispatch(UserStateAction::CycleTeachingMode);
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleTeachingMode));
         }
     })
 }
@@ -176,7 +184,7 @@ pub fn on_delete_message_callback(
             {
                 ui_state.dispatch(UIStateAction::PushDeletedMessage(msg));
             }
-            user_state.dispatch(UserStateAction::DeleteMessage(msg_id));
+            user_state.dispatch(UserStateAction::Message(MessageAction::Delete(msg_id)));
         }
     })
 }
@@ -191,7 +199,7 @@ pub fn on_undo_message_callback(
             return;
         }
         if let Some(msg) = deleted_messages.back().cloned() {
-            user_state.dispatch(UserStateAction::UndoDeleteMessage(msg));
+            user_state.dispatch(UserStateAction::Message(MessageAction::UndoDelete(msg)));
             ui_state.dispatch(UIStateAction::PopDeletedMessage);
         }
     })
@@ -203,7 +211,7 @@ pub fn on_create_branch(user_state: UseReducerHandle<OptionalUserState>) -> Call
             return;
         }
         info!("Creating branch from message: {}", message_id);
-        user_state.dispatch(UserStateAction::CreateBranch(message_id));
+        user_state.dispatch(UserStateAction::Branch(BranchAction::Create(message_id)));
     })
 }
 
@@ -213,7 +221,7 @@ pub fn on_switch_branch(user_state: UseReducerHandle<OptionalUserState>) -> Call
             return;
         }
         info!("Switching to branch: {}", branch_id);
-        user_state.dispatch(UserStateAction::SwitchBranch(branch_id));
+        user_state.dispatch(UserStateAction::Branch(BranchAction::Switch(branch_id)));
     })
 }
 
@@ -223,7 +231,7 @@ pub fn on_delete_branch(user_state: UseReducerHandle<OptionalUserState>) -> Call
             return;
         }
         info!("Deleting branch: {}", branch_id);
-        user_state.dispatch(UserStateAction::DeleteBranch(branch_id));
+        user_state.dispatch(UserStateAction::Branch(BranchAction::Delete(branch_id)));
     })
 }
 
@@ -238,7 +246,9 @@ pub fn on_add_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callback<
             dialect: state.selected_dialect,
         };
         info!("Adding learning goal: {:?}", learning_goal);
-        user_state.dispatch(UserStateAction::AddLearningGoal(learning_goal));
+        user_state.dispatch(UserStateAction::Learning(LearningAction::AddGoal(
+            learning_goal,
+        )));
     })
 }
 
@@ -248,7 +258,7 @@ pub fn on_delete_goal(user_state: UseReducerHandle<OptionalUserState>) -> Callba
             return;
         }
         info!("Deleting learning goal at index: {}", index);
-        user_state.dispatch(UserStateAction::DeleteLearningGoal(index));
+        user_state.dispatch(UserStateAction::Learning(LearningAction::DeleteGoal(index)));
     })
 }
 
@@ -269,7 +279,7 @@ pub fn on_delete_learning_item_callback(
             }) {
                 ui_state.dispatch(UIStateAction::PushDeletedLearningItem(item.clone()));
             }
-            user_state.dispatch(UserStateAction::DeleteLearningItem(id));
+            user_state.dispatch(UserStateAction::Learning(LearningAction::DeleteItem(id)));
         }
     })
 }
@@ -287,7 +297,7 @@ pub fn on_arabic_script_change(user_state: UseReducerHandle<OptionalUserState>) 
                 "latin" => ArabicScript::Latin,
                 _ => ArabicScript::Naskh,
             };
-            user_state.dispatch(UserStateAction::SetArabicScript(script));
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::SetArabicScript(script)));
         }
     })
 }
@@ -308,7 +318,7 @@ pub fn on_japanese_script_change(
                 "kanji" => JapaneseScript::Kanji,
                 _ => JapaneseScript::KanjiWithRuby,
             };
-            user_state.dispatch(UserStateAction::SetJapaneseScript(script));
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::SetJapaneseScript(script)));
         }
     })
 }

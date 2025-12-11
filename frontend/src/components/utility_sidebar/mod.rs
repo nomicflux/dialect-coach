@@ -31,7 +31,6 @@ pub struct UtilitySidebarProps {
     pub on_tab_change: Callback<SidebarTab>,
     pub user_state: UseReducerHandle<OptionalUserState>,
     pub ui_state: UseReducerHandle<UIState>,
-    // Branch Data
     pub branches: Vec<ConversationBranch>,
     pub active_branch_id: Uuid,
     pub messages: Vec<Message>,
@@ -44,7 +43,6 @@ pub struct UtilitySidebarProps {
     pub on_delete_branch: Option<Callback<Uuid>>,
     #[prop_or_default]
     pub goal_input_ref: Option<NodeRef>,
-    // Learning Data
     pub learning_items: Vec<LearningItem>,
     pub active_branch_dialect: Option<Dialect>,
     pub enrichment_service: Rc<EnrichmentService>,

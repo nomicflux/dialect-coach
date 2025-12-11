@@ -1,4 +1,4 @@
-use crate::app::app_state::{OptionalUserState, UserStateAction};
+use crate::app::app_state::{LearningAction, OptionalUserState, PlanAction, UserStateAction};
 use crate::components::plan::{ActivePlan, PlanCreate, PlanList};
 use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::{
@@ -205,40 +205,40 @@ fn dispatch_learning_item(
         Some("Mistake") => {
             let item =
                 create_mistake_from_form(&fields.mistake, &fields.correction, &fields.category);
-            user_state.dispatch(UserStateAction::AddLearningItems(
+            user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
                 vec![item],
                 vec![],
                 vec![],
                 vec![],
-            ));
+            )));
         }
         Some("Explanation") => {
             let item = create_explanation_from_form(&fields.phrase, &fields.explanation);
-            user_state.dispatch(UserStateAction::AddLearningItems(
+            user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
                 vec![],
                 vec![item],
                 vec![],
                 vec![],
-            ));
+            )));
         }
         Some("Translation") => {
             let item =
                 create_translation_from_form(&fields.word, &fields.translation, &fields.context);
-            user_state.dispatch(UserStateAction::AddLearningItems(
+            user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
                 vec![],
                 vec![],
                 vec![item],
                 vec![],
-            ));
+            )));
         }
         Some("Exploration") => {
             let item = create_exploration_from_form(&fields.point, &fields.instructions);
-            user_state.dispatch(UserStateAction::AddLearningItems(
+            user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
                 vec![],
                 vec![],
                 vec![],
                 vec![item],
-            ));
+            )));
         }
         _ => {}
     }
@@ -750,7 +750,7 @@ pub fn learning(props: &LearningProps) -> Html {
                                 .await;
                                 match result {
                                     Ok(plan) => {
-                                        user_state.dispatch(UserStateAction::AddLanguagePlan(plan));
+                                        user_state.dispatch(UserStateAction::Plan(PlanAction::Add(plan)));
                                     }
                                     Err(e) => gloo::console::error!("Import failed", e),
                                 }
@@ -918,7 +918,7 @@ pub fn learning(props: &LearningProps) -> Html {
                             on_advance={
                                 let user_state = props.user_state.clone();
                                 Callback::from(move |id| {
-                                    user_state.dispatch(UserStateAction::AdvancePlanStep(id));
+                                    user_state.dispatch(UserStateAction::Plan(PlanAction::AdvanceStep(id)));
                                 })
                             }
                         />
@@ -927,7 +927,7 @@ pub fn learning(props: &LearningProps) -> Html {
                             onclick={
                                 let user_state = props.user_state.clone();
                                 Callback::from(move |_| {
-                                    user_state.dispatch(UserStateAction::SetActivePlan(None));
+                                    user_state.dispatch(UserStateAction::Plan(PlanAction::SetActive(None)));
                                 })
                             }
                         >
@@ -944,9 +944,9 @@ pub fn learning(props: &LearningProps) -> Html {
                                     let editing_plan_id = editing_plan_id.clone();
                                     Callback::from(move |plan: dialect_coach_shared::models::LanguagePlan| {
                                         if editing_plan_id.is_some() {
-                                            user_state.dispatch(UserStateAction::UpdateLanguagePlan(plan));
+                                            user_state.dispatch(UserStateAction::Plan(PlanAction::Update(plan)));
                                         } else {
-                                            user_state.dispatch(UserStateAction::AddLanguagePlan(plan));
+                                            user_state.dispatch(UserStateAction::Plan(PlanAction::Add(plan)));
                                         }
                                         show_create_plan.set(false);
                                         editing_plan_id.set(None);
@@ -970,13 +970,13 @@ pub fn learning(props: &LearningProps) -> Html {
                             on_select_plan={
                                 let user_state = props.user_state.clone();
                                 Callback::from(move |id| {
-                                    user_state.dispatch(UserStateAction::SetActivePlan(id));
+                                    user_state.dispatch(UserStateAction::Plan(PlanAction::SetActive(id)));
                                 })
                             }
                             on_delete_plan={
                                 let user_state = props.user_state.clone();
                                 Callback::from(move |id| {
-                                    user_state.dispatch(UserStateAction::DeleteLanguagePlan(id));
+                                    user_state.dispatch(UserStateAction::Plan(PlanAction::Delete(id)));
                                 })
                             }
                             on_edit_plan={

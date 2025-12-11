@@ -1,5 +1,6 @@
 use crate::app::app_state::{
-    AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
+    AppState, AppStateAction, MessageAction, OptionalUserState, SettingsAction, UIState,
+    UIStateAction, UserStateAction,
 };
 use dialect_coach_shared::{AIActionRequest, AuthCredentials, UserMessageWithContext};
 use log::{error, info};
@@ -23,7 +24,7 @@ pub fn on_send_message(
 
         let session_id = (*app_state).session_id().unwrap_or_else(Uuid::new_v4);
         let msg = state.create_user_msg(session_id, &content);
-        user_state.dispatch(UserStateAction::AddMessage(msg.clone()));
+        user_state.dispatch(UserStateAction::Message(MessageAction::Add(msg.clone())));
 
         // Extract learning items and goals using shared model logic
         let past_items = state.get_past_learning_items(&state.selected_dialect);
@@ -81,7 +82,7 @@ pub fn on_tts_toggle(
     Callback::from(move |_| {
         if let Some(state) = user_state.state.as_ref() {
             let new_value = !state.tts_enabled;
-            user_state.dispatch(UserStateAction::ToggleTTS);
+            user_state.dispatch(UserStateAction::Settings(SettingsAction::ToggleTTS));
             app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_value));
         }
     })

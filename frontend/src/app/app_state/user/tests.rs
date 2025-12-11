@@ -1,3 +1,6 @@
+use super::actions::{
+    BranchAction, MessageAction, PlanAction, SettingsAction,
+};
 use super::*;
 use dialect_coach_shared::models::MessageMetadata;
 use dialect_coach_shared::models::{
@@ -5,6 +8,23 @@ use dialect_coach_shared::models::{
 };
 use dialect_coach_shared::{LanguageLevel, Message, UsageStats, UserState};
 use uuid::Uuid;
+
+
+fn apply_user_state_action(state: &UserState, action: UserStateAction) -> Option<UserState> {
+    use super::reducer::*;
+    let mut next = state.clone();
+    match action {
+        UserStateAction::Message(a) => reduce_message(&mut next, a),
+        UserStateAction::Learning(a) => reduce_learning(&mut next, a),
+        UserStateAction::Branch(a) => reduce_branch(&mut next, a),
+        UserStateAction::Plan(a) => reduce_plan(&mut next, a),
+        UserStateAction::Settings(a) => reduce_settings(&mut next, a),
+        UserStateAction::UpdateUsageStats(s) => next.usage_stats = s,
+        UserStateAction::ReplaceUserState(s) => return Some(s),
+        UserStateAction::ClearUserState => return None,
+    }
+    Some(next)
+}
 
 fn create_test_message(session_id: Uuid, parent_id: Option<Uuid>) -> Message {
     Message::user_message(
@@ -31,8 +51,8 @@ fn test_create_branch_reducer() {
 
     let initial_branch_count = state.branches.len();
 
-    let action = UserStateAction::CreateBranch(msg_a.id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Create(msg_a.id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(state.branches.len(), initial_branch_count + 1);
     let new_branch = state.branches.last().unwrap();
@@ -62,8 +82,8 @@ fn test_create_branch_copies_full_message_path() {
     state.branches[0].message_ids = vec![msg_a.id, msg_b.id, msg_c.id];
 
     // Branch from B
-    let action = UserStateAction::CreateBranch(msg_b.id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Create(msg_b.id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     // New branch should have message_ids = [A, B]
     let new_branch = state.branches.last().unwrap();
@@ -77,8 +97,8 @@ fn test_switch_branch_reducer() {
     let mut state = UserState::new(Uuid::new_v4());
     let new_branch_id = Uuid::new_v4();
 
-    let action = UserStateAction::SwitchBranch(new_branch_id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Switch(new_branch_id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(state.active_branch_id, new_branch_id);
 }
@@ -93,8 +113,8 @@ fn test_add_message_appends_to_message_ids() {
 
     // Add first message
     let msg_a = create_test_message(session_id, None);
-    let action = UserStateAction::AddMessage(msg_a.clone());
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Message(MessageAction::Add(msg_a.clone()));
+    state = apply_user_state_action(&state, action).unwrap();
 
     // Branch should now have [A]
     assert_eq!(state.branches[0].message_ids, vec![msg_a.id]);
@@ -102,8 +122,8 @@ fn test_add_message_appends_to_message_ids() {
 
     // Add second message
     let msg_b = create_test_message(session_id, Some(msg_a.id));
-    let action = UserStateAction::AddMessage(msg_b.clone());
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Message(MessageAction::Add(msg_b.clone()));
+    state = apply_user_state_action(&state, action).unwrap();
 
     // Branch should now have [A, B]
     assert_eq!(state.branches[0].message_ids, vec![msg_a.id, msg_b.id]);
@@ -111,8 +131,8 @@ fn test_add_message_appends_to_message_ids() {
 
     // Add third message
     let msg_c = create_test_message(session_id, Some(msg_b.id));
-    let action = UserStateAction::AddMessage(msg_c.clone());
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Message(MessageAction::Add(msg_c.clone()));
+    state = apply_user_state_action(&state, action).unwrap();
 
     // Branch should now have [A, B, C]
     assert_eq!(
@@ -133,23 +153,23 @@ fn test_delete_message_preserves_other_branches() {
 
     // Create message A in initial branch
     let msg_a = create_test_message(session_id, None);
-    state = apply_user_state_action(&state, UserStateAction::AddMessage(msg_a.clone()));
+    state = apply_user_state_action(&state, UserStateAction::Message(MessageAction::Add(msg_a.clone()))).unwrap();
 
     // Create message B in initial branch (now A→B)
     let msg_b = create_test_message(session_id, Some(msg_a.id));
-    state = apply_user_state_action(&state, UserStateAction::AddMessage(msg_b.clone()));
+    state = apply_user_state_action(&state, UserStateAction::Message(MessageAction::Add(msg_b.clone()))).unwrap();
     let branch1_id = state.active_branch_id;
 
     // Branch after A to create Branch 2
-    state = apply_user_state_action(&state, UserStateAction::CreateBranch(msg_a.id));
+    state = apply_user_state_action(&state, UserStateAction::Branch(BranchAction::Create(msg_a.id))).unwrap();
     let branch2_id = state.active_branch_id;
 
     // Create message C in Branch 2 (now A→C)
     let msg_c = create_test_message(session_id, Some(msg_a.id));
-    state = apply_user_state_action(&state, UserStateAction::AddMessage(msg_c.clone()));
+    state = apply_user_state_action(&state, UserStateAction::Message(MessageAction::Add(msg_c.clone()))).unwrap();
 
     // Delete C from Branch 2
-    state = apply_user_state_action(&state, UserStateAction::DeleteMessage(msg_c.id));
+    state = apply_user_state_action(&state, UserStateAction::Message(MessageAction::Delete(msg_c.id))).unwrap();
 
     // Branch 2 should have [A]
     let branch2 = state.branches.iter().find(|b| b.id == branch2_id).unwrap();
@@ -157,10 +177,10 @@ fn test_delete_message_preserves_other_branches() {
     assert_eq!(branch2.leaf_message_id, Some(msg_a.id));
 
     // Switch to Branch 1 (A→B)
-    state = apply_user_state_action(&state, UserStateAction::SwitchBranch(branch1_id));
+    state = apply_user_state_action(&state, UserStateAction::Branch(BranchAction::Switch(branch1_id))).unwrap();
 
     // Delete B from Branch 1
-    state = apply_user_state_action(&state, UserStateAction::DeleteMessage(msg_b.id));
+    state = apply_user_state_action(&state, UserStateAction::Message(MessageAction::Delete(msg_b.id))).unwrap();
 
     // Branch 1 should still have [A]
     let branch1 = state.branches.iter().find(|b| b.id == branch1_id).unwrap();
@@ -194,8 +214,8 @@ fn test_delete_branch_reducer() {
     let branch_id = branch.id;
 
     let initial_message_count = state.conversation_history.len();
-    let action = UserStateAction::DeleteBranch(branch_id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Delete(branch_id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     assert!(!state.branches.iter().any(|b| b.id == branch_id));
     assert_eq!(state.conversation_history.len(), initial_message_count);
@@ -217,8 +237,8 @@ fn test_delete_active_branch_switches_to_first() {
     state.branches.push(new_branch);
     state.active_branch_id = new_branch_id;
 
-    let action = UserStateAction::DeleteBranch(new_branch_id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Delete(new_branch_id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(state.active_branch_id, first_branch_id);
 }
@@ -229,8 +249,8 @@ fn test_rename_branch_reducer() {
     let branch_id = state.branches.first().unwrap().id;
     let new_name = "Renamed Branch".to_string();
 
-    let action = UserStateAction::RenameBranch(branch_id, new_name.clone());
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Rename(branch_id, new_name.clone()));
+    state = apply_user_state_action(&state, action).unwrap();
 
     let branch = state.branches.iter().find(|b| b.id == branch_id).unwrap();
     assert_eq!(branch.name, Some(new_name));
@@ -242,8 +262,8 @@ fn test_add_message_updates_leaf() {
     let active_branch_id = state.active_branch_id;
 
     let msg1 = create_test_message(Uuid::new_v4(), None);
-    let action1 = UserStateAction::AddMessage(msg1.clone());
-    state = apply_user_state_action(&state, action1);
+    let action1 = UserStateAction::Message(MessageAction::Add(msg1.clone()));
+    state = apply_user_state_action(&state, action1).unwrap();
 
     let added_msg1 = state.conversation_history.last().unwrap();
     assert_eq!(added_msg1.parent_id, None);
@@ -257,8 +277,8 @@ fn test_add_message_updates_leaf() {
     assert_eq!(branch.leaf_message_id, Some(msg1_id));
 
     let msg2 = create_test_message(Uuid::new_v4(), None);
-    let action2 = UserStateAction::AddMessage(msg2);
-    state = apply_user_state_action(&state, action2);
+    let action2 = UserStateAction::Message(MessageAction::Add(msg2));
+    state = apply_user_state_action(&state, action2).unwrap();
 
     let added_msg2 = state.conversation_history.last().unwrap();
     assert_eq!(added_msg2.parent_id, Some(msg1_id));
@@ -333,8 +353,8 @@ fn test_simple_branch_deletion() {
         .leaf_message_id = Some(msg_y.id);
 
     // Delete branch C+D
-    let action = UserStateAction::DeleteBranch(branch_cd_id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Delete(branch_cd_id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     // Assert: All messages remain (A, B, C, D, X, Y); only branch metadata is deleted
     assert_eq!(state.conversation_history.len(), 6);
@@ -409,8 +429,8 @@ fn test_complex_nested_branch_deletion() {
         .leaf_message_id = Some(msg_y.id);
 
     // Delete branch Y
-    let action = UserStateAction::DeleteBranch(branch_y_id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Delete(branch_y_id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     // Assert: All messages remain (A, B, C, D, X, W, Y); only branch metadata deleted
     assert_eq!(state.conversation_history.len(), 7);
@@ -424,8 +444,8 @@ fn test_complex_nested_branch_deletion() {
     assert!(!state.branches.iter().any(|b| b.id == branch_y_id));
 
     // Delete branch C+D
-    let action2 = UserStateAction::DeleteBranch(branch_cd_id);
-    state = apply_user_state_action(&state, action2);
+    let action2 = UserStateAction::Branch(BranchAction::Delete(branch_cd_id));
+    state = apply_user_state_action(&state, action2).unwrap();
 
     // Assert: All messages remain (A, B, C, D, X, W, Y); both branch metadata deleted
     assert_eq!(state.conversation_history.len(), 7);
@@ -480,8 +500,8 @@ fn test_delete_branch_with_sub_branches() {
         .leaf_message_id = Some(msg_f.id);
 
     // Delete branch D→E→F
-    let action = UserStateAction::DeleteBranch(branch_def_id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Delete(branch_def_id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     // Assert: All messages remain (A, B, C, D, E, F); only branch metadata deleted
     assert_eq!(state.conversation_history.len(), 6);
@@ -562,8 +582,8 @@ fn test_delete_inactive_branch_preserves_active() {
         .collect();
 
     // Delete the inactive C→D branch
-    let action = UserStateAction::DeleteBranch(branch_cd_id);
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Branch(BranchAction::Delete(branch_cd_id));
+    state = apply_user_state_action(&state, action).unwrap();
 
     // Get active branch messages after deletion
     let active_after: Vec<_> = state
@@ -587,14 +607,14 @@ fn test_delete_inactive_branch_preserves_active() {
 fn test_update_usage_stats_preserves_conversation_branches() {
     let mut state = UserState::new(Uuid::new_v4());
     let msg = create_test_message(Uuid::new_v4(), None);
-    state = apply_user_state_action(&state, UserStateAction::AddMessage(msg.clone()));
+    state = apply_user_state_action(&state, UserStateAction::Message(MessageAction::Add(msg.clone()))).unwrap();
     let history_len = state.conversation_history.len();
     let branch_ids: Vec<Uuid> = state.branches.iter().map(|b| b.id).collect();
 
     let updated = apply_user_state_action(
         &state,
         UserStateAction::UpdateUsageStats(UsageStats::default()),
-    );
+    ).unwrap();
 
     assert_eq!(updated.conversation_history.len(), history_len);
     let updated_ids: Vec<Uuid> = updated.branches.iter().map(|b| b.id).collect();
@@ -674,8 +694,8 @@ fn test_cycle_dialect_action() {
     state.selected_dialect = Dialect::SpanishMexican;
     state.show_experimental_dialects = true;
 
-    let action = UserStateAction::CycleDialect;
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Settings(SettingsAction::CycleDialect);
+    state = apply_user_state_action(&state, action).unwrap();
 
     assert_ne!(state.selected_dialect, Dialect::SpanishMexican);
 }
@@ -685,8 +705,8 @@ fn test_cycle_formality_action() {
     let mut state = UserState::new(Uuid::new_v4());
     state.formality = Formality::Formal;
 
-    let action = UserStateAction::CycleFormality;
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Settings(SettingsAction::CycleFormality);
+    state = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(state.formality, Formality::ProfessionalCasual);
 }
@@ -696,8 +716,8 @@ fn test_cycle_teaching_mode_action() {
     let mut state = UserState::new(Uuid::new_v4());
     state.teaching_mode = TeachingMode::Immersive;
 
-    let action = UserStateAction::CycleTeachingMode;
-    state = apply_user_state_action(&state, action);
+    let action = UserStateAction::Settings(SettingsAction::CycleTeachingMode);
+    state = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(state.teaching_mode, TeachingMode::Corrective);
 }
@@ -738,12 +758,12 @@ fn test_language_plan_reducers() {
     };
 
     // Test AddLanguagePlan
-    state = apply_user_state_action(&state, UserStateAction::AddLanguagePlan(plan.clone()));
+    state = apply_user_state_action(&state, UserStateAction::Plan(PlanAction::Add(plan.clone()))).unwrap();
     assert_eq!(state.language_plans.len(), 1);
     assert_eq!(state.language_plans[0].id, plan_id);
 
     // Test SetActivePlan
-    state = apply_user_state_action(&state, UserStateAction::SetActivePlan(Some(plan_id)));
+    state = apply_user_state_action(&state, UserStateAction::Plan(PlanAction::SetActive(Some(plan_id)))).unwrap();
     assert_eq!(state.active_plan_id, Some(plan_id));
     // Should auto-start
     assert_eq!(state.language_plans[0].status, PlanStatus::InProgress);
@@ -753,7 +773,7 @@ fn test_language_plan_reducers() {
     );
 
     // Test AdvancePlanStep
-    state = apply_user_state_action(&state, UserStateAction::AdvancePlanStep(plan_id));
+    state = apply_user_state_action(&state, UserStateAction::Plan(PlanAction::AdvanceStep(plan_id))).unwrap();
     assert_eq!(state.language_plans[0].current_step_index, 1);
     assert_eq!(
         state.language_plans[0].steps[0].status,
@@ -765,7 +785,7 @@ fn test_language_plan_reducers() {
     );
 
     // Test DeleteLanguagePlan
-    state = apply_user_state_action(&state, UserStateAction::DeleteLanguagePlan(plan_id));
+    state = apply_user_state_action(&state, UserStateAction::Plan(PlanAction::Delete(plan_id))).unwrap();
     assert!(state.language_plans.is_empty());
     assert_eq!(state.active_plan_id, None);
 }
@@ -775,8 +795,8 @@ fn test_update_language_level_action() {
     let mut state = UserState::new(Uuid::new_v4());
     state.selected_dialect = Dialect::SpanishMexican;
 
-    let action = UserStateAction::UpdateLanguageLevel(Dialect::SpanishMexican, LanguageLevel::C1);
-    let updated = apply_user_state_action(&state, action);
+    let action = UserStateAction::Settings(SettingsAction::UpdateLevel(Dialect::SpanishMexican, LanguageLevel::C1));
+    let updated = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(
         updated.get_level_for_dialect(&Dialect::SpanishMexican),

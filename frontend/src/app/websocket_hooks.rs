@@ -6,7 +6,8 @@ use crate::app::app_state::callbacks::{
     on_user_state_ws_open,
 };
 use crate::app::app_state::{
-    AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateAction,
+    AppState, AppStateAction, LearningAction, MessageAction, OptionalUserState, UIState,
+    UIStateAction, UserStateAction,
 };
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{Message, MessageContent};
@@ -77,7 +78,7 @@ pub fn use_chat_websocket(
                     let msg_clone = msg.clone();
                     match msg.content {
                         MessageContent::UserMessage { .. } => {
-                            usc.dispatch(UserStateAction::AddMessage(msg_clone.clone()));
+                            usc.dispatch(UserStateAction::Message(MessageAction::Add(msg_clone.clone())));
                         }
                         MessageContent::AgentMessage { content } => {
                             check_rate_limit_error(&content.response, &asc);
@@ -95,9 +96,9 @@ pub fn use_chat_websocket(
                                 || !translated.is_empty()
                                 || !exploratory.is_empty()
                             {
-                                usc.dispatch(UserStateAction::AddLearningItems(
+                                usc.dispatch(UserStateAction::Learning(LearningAction::AddItems(
                                     mistakes, explained, translated, exploratory,
-                                ));
+                                )));
                             }
                             if let Some(analysis) = content.analysis.clone() {
                                 info!(
@@ -107,12 +108,12 @@ pub fn use_chat_websocket(
                                     analysis.translated_scores.len(),
                                     analysis.exploratory_scores.len()
                                 );
-                                usc.dispatch(UserStateAction::UpdateScores(analysis));
+                                usc.dispatch(UserStateAction::Learning(LearningAction::UpdateScores(analysis)));
                             }
                         }
                     }
 
-                    usc.dispatch(UserStateAction::AddMessage(msg_clone.clone()));
+                    usc.dispatch(UserStateAction::Message(MessageAction::Add(msg_clone.clone())));
                 }));
 
                 let asc = app_state.clone();

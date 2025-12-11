@@ -3,7 +3,10 @@ use crate::app::app_callbacks::{
 };
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
-use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction, UserStateAction};
+use crate::app::app_state::{
+    AppState, LearningAction, OptionalUserState, SettingsAction, UIState, UIStateAction,
+    UserStateAction,
+};
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
     on_delete_learning_item_callback, on_delete_message_callback, on_switch_branch,
@@ -77,12 +80,12 @@ pub fn main_content(props: &MainContentProps) -> Html {
         Callback::from(
             move |(target, english, context): (String, String, String)| {
                 let translated = Translated::new(english, target, Some(context));
-                user_state.dispatch(UserStateAction::AddLearningItems(
+                user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
                     vec![],
                     vec![],
                     vec![translated],
                     vec![],
-                ));
+                )));
                 modal_state.set(None);
             },
         )
@@ -127,7 +130,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 web_sys::console::error_1(
                                     &format!("Translation failed: {}", e).into(),
                                 );
-                                modal_state.set(None); // Close modal on error
+                                modal_state.set(None);
                             }
                         }
                     }
@@ -149,20 +152,6 @@ pub fn main_content(props: &MainContentProps) -> Html {
             let window = web_sys::window().unwrap();
             let listener = EventListener::new(&window, "keydown", move |event| {
                 let event = event.dyn_ref::<web_sys::KeyboardEvent>().unwrap();
-                // Debug: log key events when Ctrl or Shift is pressed
-                if event.ctrl_key() || event.shift_key() {
-                    web_sys::console::log_1(
-                        &format!(
-                            "Key: '{}', code: '{}', ctrl: {}, shift: {}, meta: {}",
-                            event.key(),
-                            event.code(),
-                            event.ctrl_key(),
-                            event.shift_key(),
-                            event.meta_key()
-                        )
-                        .into(),
-                    );
-                }
                 for (action, binding) in &shortcuts {
                     if matches_binding(event, binding) {
                         event.prevent_default();
@@ -184,7 +173,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 });
                             }
                             ShortcutAction::ToggleAutoSpeak => {
-                                user_state.dispatch(UserStateAction::ToggleTTS);
+                                user_state.dispatch(UserStateAction::Settings(SettingsAction::ToggleTTS));
                             }
                             ShortcutAction::ReplayLastMessage => {
                                 if let Some(state) = user_state.state.as_ref()
@@ -194,13 +183,13 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 }
                             }
                             ShortcutAction::CycleDialect => {
-                                user_state.dispatch(UserStateAction::CycleDialect);
+                                user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleDialect));
                             }
                             ShortcutAction::CycleTeachingMode => {
-                                user_state.dispatch(UserStateAction::CycleTeachingMode);
+                                user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleTeachingMode));
                             }
                             ShortcutAction::CycleFormality => {
-                                user_state.dispatch(UserStateAction::CycleFormality);
+                                user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleFormality));
                             }
                             ShortcutAction::FocusGoalInput => {
                                 // Disabled in this phase
@@ -250,15 +239,12 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     />
                     <InputBox
                         on_send={{
-                            // let ui_state = ui_state.clone(); // No longer needed for clearing
                             let send_message = on_send_message(app_state.clone(), user_state.clone());
                             Callback::from(move |content: String| {
-                                // InputBox clears itself now
                                 send_message.emit(content);
                             })
                         }}
                         disabled={!matches!(app_state.connection_state, ConnectionState::Connected)}
-                        // external_value removed
                         textarea_ref={Some(chat_input_ref.clone())}
                         language_option={us.current_language_option()}
                     />
@@ -298,7 +284,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             let deleted_items = ui_state.deleted_learning_items.clone();
                             Callback::from(move |_| {
                                 if let Some(item) = deleted_items.back() {
-                                    user_state.dispatch(UserStateAction::UndoDeleteLearningItem(item.clone()));
+                                    user_state.dispatch(UserStateAction::Learning(LearningAction::UndoDeleteItem(
+                                        item.clone(),
+                                    )));
                                     ui_state.dispatch(UIStateAction::PopDeletedLearningItem);
                                 }
                             })
