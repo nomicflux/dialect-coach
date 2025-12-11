@@ -1,5 +1,4 @@
 pub mod app_state;
-pub use app_state::OptionalUserState;
 use app_state::{AppState, AppStateAction, SessionAction, SessionState, UIState};
 
 #[path = "app/helpers.rs"]

@@ -6,4 +6,3 @@ pub mod tests;
 
 pub use actions::*;
 pub use helpers::*;
-pub use reducer::*;

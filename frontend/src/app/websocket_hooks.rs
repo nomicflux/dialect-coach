@@ -201,13 +201,10 @@ pub fn use_user_state_websocket(
             info!("No user authenticated, skipping user state WebSocket connection");
         }
 
-        // Cleanup when effect re-runs or component unmounts
         let had_user = user_opt.is_some();
         move || {
             if had_user {
                 info!("User state WebSocket cleanup");
-                // Note: UserStateWebSocketService doesn't have a disconnect method
-                // Connection will be cleaned up when component unmounts
             }
         }
     });

@@ -2,10 +2,8 @@ use super::actions::{
     BranchAction, LearningAction, MessageAction, PlanAction, SettingsAction, UserStateAction,
 };
 use super::helpers::*;
-use dialect_coach_shared::models::ConversationBranch;
 use dialect_coach_shared::UserState;
-use std::rc::Rc;
-use yew::prelude::*;
+use dialect_coach_shared::models::ConversationBranch;
 
 pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
     use MessageAction::*;
@@ -264,36 +262,4 @@ pub(crate) fn apply_user_state_action(state: &UserState, action: UserStateAction
     next
 }
 
-#[derive(Clone, PartialEq, Default)]
-pub struct OptionalUserState {
-    pub state: Option<UserState>,
-    pub needs_save: bool,
-}
-
-impl Reducible for OptionalUserState {
-    type Action = UserStateAction;
-
-    fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
-        match action {
-            UserStateAction::ReplaceUserState(new_state) => OptionalUserState {
-                state: Some(new_state),
-                needs_save: false,
-            }
-            .into(),
-            UserStateAction::ClearUserState => OptionalUserState {
-                state: None,
-                needs_save: false,
-            }
-            .into(),
-            _ => match &self.state {
-                Some(state) => OptionalUserState {
-                    state: Some(apply_user_state_action(state, action)),
-                    needs_save: true,
-                }
-                .into(),
-                None => self,
-            },
-        }
-    }
-}
 
