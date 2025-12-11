@@ -1,362 +1,18 @@
 use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{
-    BranchAction, LearningAction, MessageAction, SessionAction, SessionState, SettingsAction, UIState,
-    UIStateAction,
+    BranchAction, LearningAction, MessageAction, SettingsAction, UIState, UIStateAction,
 };
+use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::{
     ArabicScript, Formality, JapaneseScript, Language, LanguageLevel, LearningGoal, TeachingMode,
     UserGender,
 };
-use dialect_coach_shared::UserState;
 use log::info;
+use std::rc::Rc;
 use uuid::Uuid;
 use yew::prelude::*;
 
-pub fn on_language_change(session: UseReducerHandle<SessionState>) -> Callback<Event> {
-    let session = session.clone();
-    Callback::from(move |e: Event| {
-        if session.user.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-            let lang = match value.as_str() {
-                "spanish" => Language::Spanish,
-                "arabic" => Language::Arabic,
-                "french" => Language::French,
-                "english" => Language::English,
-                "japanese" => Language::Japanese,
-                _ => Language::Spanish,
-            };
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::ChangeLanguage(lang),
-            )));
-        }
-    })
-}
-
-pub fn on_dialect_change(session: UseReducerHandle<SessionState>) -> Callback<Event> {
-    let session = session.clone();
-    Callback::from(move |e: Event| {
-        let state = match session.user.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-
-            // Get all dialects for current language and find matching one
-            let dialects = state.current_dialects();
-            if let Some(dialect_features) = dialects.iter().find(|df| df.dialect.id() == value) {
-                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                    SettingsAction::ChangeDialect(dialect_features.dialect),
-                )));
-            }
-        }
-    })
-}
-
-pub fn on_formality_change(session: UseReducerHandle<SessionState>) -> Callback<Event> {
-    let session = session.clone();
-
-    Callback::from(move |e: Event| {
-        if session.user.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-            let f = match value.as_str() {
-                "formal" => Formality::Formal,
-                "professional_casual" => Formality::ProfessionalCasual,
-                "informal" => Formality::Informal,
-                "slang" => Formality::Slang,
-                _ => Formality::Informal,
-            };
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::ChangeFormality(f),
-            )));
-        }
-    })
-}
-
-pub fn on_teaching_mode_change(session: UseReducerHandle<SessionState>) -> Callback<Event> {
-    let session = session.clone();
-
-    Callback::from(move |e: Event| {
-        if session.user.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-            let tm = match value.as_str() {
-                "immersive" => TeachingMode::Immersive,
-                "corrective" => TeachingMode::Corrective,
-                "explanatory" => TeachingMode::Explanatory,
-                "interleaved" => TeachingMode::Interleaved,
-                "storyteller" => TeachingMode::StoryTeller,
-                "debug" => TeachingMode::Debug,
-                _ => TeachingMode::Immersive,
-            };
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::ChangeTeachingMode(tm),
-            )));
-        }
-    })
-}
-
-pub fn on_user_gender_change(session: UseReducerHandle<SessionState>) -> Callback<Event> {
-    let session = session.clone();
-
-    Callback::from(move |e: Event| {
-        if session.user.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let gender = match select.value().as_str() {
-                "male" => UserGender::Male,
-                "female" => UserGender::Female,
-                "nonbinary" => UserGender::NonBinary,
-                _ => UserGender::NonBinary,
-            };
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::UpdateGender(gender),
-            )));
-        }
-    })
-}
-
-pub fn on_language_level_change(session: UseReducerHandle<SessionState>) -> Callback<Event> {
-    let session = session.clone();
-    Callback::from(move |e: Event| {
-        let state = match session.user.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let level = match select.value().as_str() {
-                "a1" => LanguageLevel::A1,
-                "a2" => LanguageLevel::A2,
-                "b1" => LanguageLevel::B1,
-                "b2" => LanguageLevel::B2,
-                "c1" => LanguageLevel::C1,
-                "c2" => LanguageLevel::C2,
-                "a25" => LanguageLevel::A2, // Temporary fix for typo in selection
-                _ => LanguageLevel::B1,
-            };
-            let dialect = state.selected_dialect;
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::UpdateLevel(dialect, level),
-            )));
-        }
-    })
-}
-
-pub fn on_dialect_cycle(session: UseReducerHandle<SessionState>) -> Callback<()> {
-    let session = session.clone();
-    Callback::from(move |_| {
-        if session.user.is_some() {
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::CycleDialect,
-            )));
-        }
-    })
-}
-
-pub fn on_formality_cycle(session: UseReducerHandle<SessionState>) -> Callback<()> {
-    let session = session.clone();
-    Callback::from(move |_| {
-        if session.user.is_some() {
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::CycleFormality,
-            )));
-        }
-    })
-}
-
-pub fn on_teaching_mode_cycle(session: UseReducerHandle<SessionState>) -> Callback<()> {
-    let session = session.clone();
-    Callback::from(move |_| {
-        if session.user.is_some() {
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::CycleTeachingMode,
-            )));
-        }
-    })
-}
-
-pub fn on_delete_message_callback(
-    ui_state: UseReducerHandle<UIState>,
-    session: UseReducerHandle<SessionState>,
-) -> Callback<Uuid> {
-    Callback::from(move |msg_id: Uuid| {
-        if let Some(state) = session.user.as_ref() {
-            if let Some(msg) = state
-                .conversation_history
-                .iter()
-                .find(|m| m.id == msg_id)
-                .cloned()
-            {
-                ui_state.dispatch(UIStateAction::PushDeletedMessage(msg));
-            }
-            session.dispatch(SessionAction::Domain(UserDomainAction::Message(
-                MessageAction::Delete(msg_id),
-            )));
-        }
-    })
-}
-
-pub fn on_undo_message_callback(
-    ui_state: UseReducerHandle<UIState>,
-    session: UseReducerHandle<SessionState>,
-) -> Callback<()> {
-    let deleted_messages = ui_state.deleted_messages.clone();
-    Callback::from(move |_| {
-        if session.user.is_none() {
-            return;
-        }
-        if let Some(msg) = deleted_messages.back().cloned() {
-            session.dispatch(SessionAction::Domain(UserDomainAction::Message(
-                MessageAction::UndoDelete(msg),
-            )));
-            ui_state.dispatch(UIStateAction::PopDeletedMessage);
-        }
-    })
-}
-
-pub fn on_create_branch(session: UseReducerHandle<SessionState>) -> Callback<Uuid> {
-    Callback::from(move |message_id: Uuid| {
-        if session.user.is_none() {
-            return;
-        }
-        info!("Creating branch from message: {}", message_id);
-        session.dispatch(SessionAction::Domain(UserDomainAction::Branch(
-            BranchAction::Create(message_id),
-        )));
-    })
-}
-
-pub fn on_switch_branch(session: UseReducerHandle<SessionState>) -> Callback<Uuid> {
-    Callback::from(move |branch_id: Uuid| {
-        if session.user.is_none() {
-            return;
-        }
-        info!("Switching to branch: {}", branch_id);
-        session.dispatch(SessionAction::Domain(UserDomainAction::Branch(
-            BranchAction::Switch(branch_id),
-        )));
-    })
-}
-
-pub fn on_delete_branch(session: UseReducerHandle<SessionState>) -> Callback<Uuid> {
-    Callback::from(move |branch_id: Uuid| {
-        if session.user.is_none() {
-            return;
-        }
-        info!("Deleting branch: {}", branch_id);
-        session.dispatch(SessionAction::Domain(UserDomainAction::Branch(
-            BranchAction::Delete(branch_id),
-        )));
-    })
-}
-
-pub fn on_add_goal(session: UseReducerHandle<SessionState>) -> Callback<String> {
-    Callback::from(move |goal: String| {
-        let state = match session.user.as_ref() {
-            Some(s) => s,
-            None => return,
-        };
-        let learning_goal = LearningGoal {
-            goal,
-            dialect: state.selected_dialect,
-        };
-        info!("Adding learning goal: {:?}", learning_goal);
-        session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
-            LearningAction::AddGoal(learning_goal),
-        )));
-    })
-}
-
-pub fn on_delete_goal(session: UseReducerHandle<SessionState>) -> Callback<usize> {
-    Callback::from(move |index: usize| {
-        if session.user.is_none() {
-            return;
-        }
-        info!("Deleting learning goal at index: {}", index);
-        session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
-            LearningAction::DeleteGoal(index),
-        )));
-    })
-}
-
-pub fn on_delete_learning_item_callback(
-    ui_state: UseReducerHandle<UIState>,
-    session: UseReducerHandle<SessionState>,
-) -> Callback<Uuid> {
-    Callback::from(move |id: Uuid| {
-        if let Some(state) = session.user.as_ref() {
-            if let Some(item) = state.learning_items.iter().find(|i| {
-                let item_id = match &i.item {
-                    dialect_coach_shared::LearningItemType::Mistake(m) => m.id,
-                    dialect_coach_shared::LearningItemType::Explanation(e) => e.id,
-                    dialect_coach_shared::LearningItemType::Translation(t) => t.id,
-                    dialect_coach_shared::LearningItemType::Exploration(e) => e.id,
-                };
-                item_id == id
-            }) {
-                ui_state.dispatch(UIStateAction::PushDeletedLearningItem(item.clone()));
-            }
-            session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
-                LearningAction::DeleteItem(id),
-            )));
-        }
-    })
-}
-
-pub fn on_arabic_script_change(session: UseReducerHandle<SessionState>) -> Callback<Event> {
-    let session = session.clone();
-    Callback::from(move |e: Event| {
-        if session.user.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let script = match select.value().as_str() {
-                "naskh" => ArabicScript::Naskh,
-                "ruqa" => ArabicScript::Ruqa,
-                "latin" => ArabicScript::Latin,
-                _ => ArabicScript::Naskh,
-            };
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::SetArabicScript(script),
-            )));
-        }
-    })
-}
-
-pub fn on_japanese_script_change(session: UseReducerHandle<SessionState>) -> Callback<Event> {
-    let session = session.clone();
-    Callback::from(move |e: Event| {
-        if session.user.is_none() {
-            return;
-        }
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let script = match select.value().as_str() {
-                "romaji" => JapaneseScript::Romaji,
-                "only_kana" => JapaneseScript::OnlyKana,
-                "kanji_with_ruby" => JapaneseScript::KanjiWithRuby,
-                "kanji" => JapaneseScript::Kanji,
-                _ => JapaneseScript::KanjiWithRuby,
-            };
-            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
-                SettingsAction::SetJapaneseScript(script),
-            )));
-        }
-    })
-}
-
-// Strict Callbacks
-use std::rc::Rc;
-
-pub fn on_language_change_strict(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
+pub fn on_language_change(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
     Callback::from(move |e: Event| {
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
             let value = select.value();
@@ -368,12 +24,14 @@ pub fn on_language_change_strict(dispatch: Callback<UserDomainAction>) -> Callba
                 "japanese" => Language::Japanese,
                 _ => Language::Spanish,
             };
-            dispatch.emit(UserDomainAction::Settings(SettingsAction::ChangeLanguage(lang)));
+            dispatch.emit(UserDomainAction::Settings(SettingsAction::ChangeLanguage(
+                lang,
+            )));
         }
     })
 }
 
-pub fn on_dialect_change_strict(
+pub fn on_dialect_change(
     user: Rc<UserState>,
     dispatch: Callback<UserDomainAction>,
 ) -> Callback<Event> {
@@ -391,7 +49,7 @@ pub fn on_dialect_change_strict(
     })
 }
 
-pub fn on_formality_change_strict(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
+pub fn on_formality_change(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
     Callback::from(move |e: Event| {
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
             let value = select.value();
@@ -402,12 +60,14 @@ pub fn on_formality_change_strict(dispatch: Callback<UserDomainAction>) -> Callb
                 "slang" => Formality::Slang,
                 _ => Formality::Informal,
             };
-            dispatch.emit(UserDomainAction::Settings(SettingsAction::ChangeFormality(f)));
+            dispatch.emit(UserDomainAction::Settings(SettingsAction::ChangeFormality(
+                f,
+            )));
         }
     })
 }
 
-pub fn on_teaching_mode_change_strict(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
+pub fn on_teaching_mode_change(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
     Callback::from(move |e: Event| {
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
             let value = select.value();
@@ -420,12 +80,14 @@ pub fn on_teaching_mode_change_strict(dispatch: Callback<UserDomainAction>) -> C
                 "debug" => TeachingMode::Debug,
                 _ => TeachingMode::Immersive,
             };
-            dispatch.emit(UserDomainAction::Settings(SettingsAction::ChangeTeachingMode(tm)));
+            dispatch.emit(UserDomainAction::Settings(
+                SettingsAction::ChangeTeachingMode(tm),
+            ));
         }
     })
 }
 
-pub fn on_user_gender_change_strict(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
+pub fn on_user_gender_change(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
     Callback::from(move |e: Event| {
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
             let gender = match select.value().as_str() {
@@ -434,12 +96,14 @@ pub fn on_user_gender_change_strict(dispatch: Callback<UserDomainAction>) -> Cal
                 "nonbinary" => UserGender::NonBinary,
                 _ => UserGender::NonBinary,
             };
-            dispatch.emit(UserDomainAction::Settings(SettingsAction::UpdateGender(gender)));
+            dispatch.emit(UserDomainAction::Settings(SettingsAction::UpdateGender(
+                gender,
+            )));
         }
     })
 }
 
-pub fn on_language_level_change_strict(
+pub fn on_language_level_change(
     user: Rc<UserState>,
     dispatch: Callback<UserDomainAction>,
 ) -> Callback<Event> {
@@ -463,10 +127,8 @@ pub fn on_language_level_change_strict(
     })
 }
 
-pub fn on_dialect_cycle_strict(
-    _user: Rc<UserState>, // Kept for consistency if needed, but cycle logic is in reducer? 
-    // Wait, old `on_dialect_cycle`: `if user_state.state.is_some()`.
-    // It does not read state. It just dispatches.
+pub fn on_dialect_cycle(
+    _user: Rc<UserState>,
     dispatch: Callback<UserDomainAction>,
 ) -> Callback<()> {
     Callback::from(move |_| {
@@ -474,22 +136,21 @@ pub fn on_dialect_cycle_strict(
     })
 }
 
-pub fn on_formality_cycle_strict(dispatch: Callback<UserDomainAction>) -> Callback<()> {
+pub fn on_formality_cycle(dispatch: Callback<UserDomainAction>) -> Callback<()> {
     Callback::from(move |_| {
         dispatch.emit(UserDomainAction::Settings(SettingsAction::CycleFormality));
     })
 }
 
-pub fn on_teaching_mode_cycle_strict(dispatch: Callback<UserDomainAction>) -> Callback<()> {
+pub fn on_teaching_mode_cycle(dispatch: Callback<UserDomainAction>) -> Callback<()> {
     Callback::from(move |_| {
-        dispatch.emit(UserDomainAction::Settings(SettingsAction::CycleTeachingMode));
+        dispatch.emit(UserDomainAction::Settings(
+            SettingsAction::CycleTeachingMode,
+        ));
     })
 }
 
-pub fn on_add_goal_strict(
-    user: Rc<UserState>,
-    dispatch: Callback<UserDomainAction>,
-) -> Callback<String> {
+pub fn on_add_goal(user: Rc<UserState>, dispatch: Callback<UserDomainAction>) -> Callback<String> {
     Callback::from(move |goal: String| {
         let learning_goal = LearningGoal {
             goal,
@@ -502,14 +163,16 @@ pub fn on_add_goal_strict(
     })
 }
 
-pub fn on_delete_goal_strict(dispatch: Callback<UserDomainAction>) -> Callback<usize> {
+pub fn on_delete_goal(dispatch: Callback<UserDomainAction>) -> Callback<usize> {
     Callback::from(move |index: usize| {
         info!("Deleting learning goal at index: {}", index);
-        dispatch.emit(UserDomainAction::Learning(LearningAction::DeleteGoal(index)));
+        dispatch.emit(UserDomainAction::Learning(LearningAction::DeleteGoal(
+            index,
+        )));
     })
 }
 
-pub fn on_delete_learning_item_callback_strict(
+pub fn on_delete_learning_item_callback(
     ui_state: UseReducerHandle<UIState>,
     user: Rc<UserState>,
     dispatch: Callback<UserDomainAction>,
@@ -530,7 +193,7 @@ pub fn on_delete_learning_item_callback_strict(
     })
 }
 
-pub fn on_undo_message_callback_strict(
+pub fn on_undo_message_callback(
     ui_state: UseReducerHandle<UIState>,
     dispatch: Callback<UserDomainAction>,
 ) -> Callback<()> {
@@ -543,7 +206,7 @@ pub fn on_undo_message_callback_strict(
     })
 }
 
-pub fn on_arabic_script_change_strict(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
+pub fn on_arabic_script_change(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
     Callback::from(move |e: Event| {
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
             let script = match select.value().as_str() {
@@ -552,12 +215,14 @@ pub fn on_arabic_script_change_strict(dispatch: Callback<UserDomainAction>) -> C
                 "latin" => ArabicScript::Latin,
                 _ => ArabicScript::Naskh,
             };
-            dispatch.emit(UserDomainAction::Settings(SettingsAction::SetArabicScript(script)));
+            dispatch.emit(UserDomainAction::Settings(SettingsAction::SetArabicScript(
+                script,
+            )));
         }
     })
 }
 
-pub fn on_japanese_script_change_strict(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
+pub fn on_japanese_script_change(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
     Callback::from(move |e: Event| {
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
             let script = match select.value().as_str() {
@@ -567,7 +232,48 @@ pub fn on_japanese_script_change_strict(dispatch: Callback<UserDomainAction>) ->
                 "kanji" => JapaneseScript::Kanji,
                 _ => JapaneseScript::KanjiWithRuby,
             };
-            dispatch.emit(UserDomainAction::Settings(SettingsAction::SetJapaneseScript(script)));
+            dispatch.emit(UserDomainAction::Settings(
+                SettingsAction::SetJapaneseScript(script),
+            ));
         }
+    })
+}
+
+pub fn on_create_branch(dispatch: Callback<UserDomainAction>) -> Callback<Uuid> {
+    Callback::from(move |message_id: Uuid| {
+        info!("Creating branch from message: {}", message_id);
+        dispatch.emit(UserDomainAction::Branch(BranchAction::Create(message_id)));
+    })
+}
+
+pub fn on_switch_branch(dispatch: Callback<UserDomainAction>) -> Callback<Uuid> {
+    Callback::from(move |branch_id: Uuid| {
+        info!("Switching to branch: {}", branch_id);
+        dispatch.emit(UserDomainAction::Branch(BranchAction::Switch(branch_id)));
+    })
+}
+
+pub fn on_delete_branch(dispatch: Callback<UserDomainAction>) -> Callback<Uuid> {
+    Callback::from(move |branch_id: Uuid| {
+        info!("Deleting branch: {}", branch_id);
+        dispatch.emit(UserDomainAction::Branch(BranchAction::Delete(branch_id)));
+    })
+}
+
+pub fn on_delete_message_callback(
+    ui_state: UseReducerHandle<UIState>,
+    user: Rc<UserState>,
+    dispatch: Callback<UserDomainAction>,
+) -> Callback<Uuid> {
+    Callback::from(move |msg_id: Uuid| {
+        if let Some(msg) = user
+            .conversation_history
+            .iter()
+            .find(|m| m.id == msg_id)
+            .cloned()
+        {
+            ui_state.dispatch(UIStateAction::PushDeletedMessage(msg));
+        }
+        dispatch.emit(UserDomainAction::Message(MessageAction::Delete(msg_id)));
     })
 }

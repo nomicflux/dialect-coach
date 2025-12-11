@@ -261,5 +261,3 @@ pub(crate) fn apply_user_state_action(state: &UserState, action: UserStateAction
     }
     next
 }
-
-

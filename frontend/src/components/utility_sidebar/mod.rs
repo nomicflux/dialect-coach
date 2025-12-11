@@ -8,8 +8,8 @@ use crate::components::gamification::QuestList;
 use crate::services::enrichment_service::EnrichmentService;
 use branches::Branches;
 use dialect_coach_shared::Dialect;
-use dialect_coach_shared::models::{ConversationBranch, LearningGoal, LearningItem, Message};
 use dialect_coach_shared::UserState;
+use dialect_coach_shared::models::{ConversationBranch, LearningGoal, LearningItem, Message};
 use gloo::events::EventListener;
 use learning::Learning;
 use settings::Settings;
@@ -31,7 +31,7 @@ pub struct UtilitySidebarProps {
     pub is_collapsed: bool,
     pub active_tab: SidebarTab,
     pub on_tab_change: Callback<SidebarTab>,
-    pub user: Rc<UserState>, // Strict prop
+    pub user: Rc<UserState>,                  // Strict prop
     pub dispatch: Callback<UserDomainAction>, // Strict prop
     pub ui_state: UseReducerHandle<UIState>,
     pub branches: Vec<ConversationBranch>,

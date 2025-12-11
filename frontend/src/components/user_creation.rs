@@ -16,10 +16,7 @@ impl PartialEq for UserCreationProps {
 
 #[function_component(UserCreation)]
 pub fn user_creation(props: &UserCreationProps) -> Html {
-    let UserCreationProps {
-        app_state,
-        session,
-    } = props;
+    let UserCreationProps { app_state, session } = props;
 
     let username = use_state(String::new);
     let email = use_state(String::new);

@@ -3,6 +3,7 @@ use crate::app::app_callbacks::{
 };
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
+use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{
     AppState, LearningAction, SessionAction, SessionState, SettingsAction, UIState, UIStateAction,
 };
@@ -19,11 +20,10 @@ use dialect_coach_shared::models::{
     LearningGoal, LearningItem, PhraseTranslation, Translated, UserState,
 };
 use gloo::events::EventListener;
+use std::rc::Rc;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
-use crate::app::app_state::user::UserDomainAction;
-use std::rc::Rc;
 
 #[derive(Clone, PartialEq)]
 pub enum TranslationModalState {
@@ -82,12 +82,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
         Callback::from(
             move |(target, english, context): (String, String, String)| {
                 let translated = Translated::new(english, target, Some(context));
-                session.dispatch(SessionAction::Domain(UserDomainAction::Learning(LearningAction::AddItems(
-                    vec![],
-                    vec![],
-                    vec![translated],
-                    vec![],
-                ))));
+                session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
+                    LearningAction::AddItems(vec![], vec![], vec![translated], vec![]),
+                )));
                 modal_state.set(None);
             },
         )
@@ -182,7 +179,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 });
                             }
                             ShortcutAction::ToggleAutoSpeak => {
-                                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(SettingsAction::ToggleTTS)));
+                                session.dispatch(SessionAction::Domain(
+                                    UserDomainAction::Settings(SettingsAction::ToggleTTS),
+                                ));
                             }
                             ShortcutAction::ReplayLastMessage => {
                                 if let Some(user) = session.user.as_ref()
@@ -192,13 +191,19 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 }
                             }
                             ShortcutAction::CycleDialect => {
-                                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(SettingsAction::CycleDialect)));
+                                session.dispatch(SessionAction::Domain(
+                                    UserDomainAction::Settings(SettingsAction::CycleDialect),
+                                ));
                             }
                             ShortcutAction::CycleTeachingMode => {
-                                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(SettingsAction::CycleTeachingMode)));
+                                session.dispatch(SessionAction::Domain(
+                                    UserDomainAction::Settings(SettingsAction::CycleTeachingMode),
+                                ));
                             }
                             ShortcutAction::CycleFormality => {
-                                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(SettingsAction::CycleFormality)));
+                                session.dispatch(SessionAction::Domain(
+                                    UserDomainAction::Settings(SettingsAction::CycleFormality),
+                                ));
                             }
                             ShortcutAction::FocusGoalInput => {
                                 // Disabled in this phase
@@ -233,8 +238,8 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         user={user_rc.clone()}
                         is_loading={app_state.is_loading}
                         on_replay_message={Some(on_replay_message(app_state.clone()))}
-                        on_delete_message={Some(on_delete_message_callback(ui_state.clone(), session.clone()))}
-                        on_create_branch={Some(on_create_branch(session.clone()))}
+                        on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_rc.clone(), dispatch_domain.clone()))}
+                        on_create_branch={Some(on_create_branch(dispatch_domain.clone()))}
                         on_auto_start={Some(on_auto_start(app_state.clone(), session.clone()))}
                         on_continue_branch={Some(on_continue_branch(app_state.clone(), session.clone()))}
                         on_explain={Some(on_explain_message(app_state.clone(), session.clone(), ui_state.clone()))}
@@ -259,7 +264,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     />
                     {render_message_undo_notification(
                         ui_state.deleted_messages.len(),
-                        on_undo_message_callback(ui_state.clone(), session.clone())
+                        on_undo_message_callback(ui_state.clone(), dispatch_domain.clone())
                     )}
                 </div>
 
@@ -272,22 +277,22 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             Callback::from(move |tab| sidebar_active_tab.set(tab))
                         }}
                         user={user_rc.clone()}
-                        dispatch={dispatch_domain}
+                        dispatch={dispatch_domain.clone()}
                         ui_state={ui_state.clone()}
                         branches={us.branches.clone()}
                         active_branch_id={us.active_branch_id}
                         messages={us.conversation_history.clone()}
                         learning_goals={get_filtered_goals(us)}
-                        on_add_goal={on_add_goal(session.clone())}
-                        on_delete_goal={on_delete_goal(session.clone())}
-                        on_switch_branch={Some(on_switch_branch(session.clone()))}
-                        on_delete_branch={Some(on_delete_branch(session.clone()))}
+                        on_add_goal={on_add_goal(user_rc.clone(), dispatch_domain.clone())}
+                        on_delete_goal={on_delete_goal(dispatch_domain.clone())}
+                        on_switch_branch={Some(on_switch_branch(dispatch_domain.clone()))}
+                        on_delete_branch={Some(on_delete_branch(dispatch_domain.clone()))}
                         goal_input_ref={Some(goal_input_ref.clone())}
                         // Learning Panel Props
                         learning_items={get_filtered_items(us)}
                         active_branch_dialect={Some(us.selected_dialect)}
                         enrichment_service={app_state.enrichment_service.clone()}
-                        on_delete_learning_item={on_delete_learning_item_callback(ui_state.clone(), session.clone())}
+                        on_delete_learning_item={on_delete_learning_item_callback(ui_state.clone(), user_rc.clone(), dispatch_domain.clone())}
                         on_undo_delete_learning_item={{
                             let ui_state = ui_state.clone();
                             let session = session.clone();

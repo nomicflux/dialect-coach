@@ -43,7 +43,8 @@ pub fn app() -> Html {
     let session_dispatch = session.clone();
     let _force_save = use_debounced_save(&session, move |state| {
         let ws_service = app_state_for_save.user_state_ws_service.borrow();
-        match ws_service.save_user_state(state) { // This expects UserState
+        match ws_service.save_user_state(state) {
+            // This expects UserState
             Ok(()) => {
                 info!("UserState save request sent via WebSocket");
                 session_dispatch.dispatch(SessionAction::Saved);

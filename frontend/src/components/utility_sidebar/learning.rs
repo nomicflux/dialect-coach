@@ -1,8 +1,8 @@
-use crate::app::app_state::{LearningAction, PlanAction};
 use crate::app::app_state::user::UserDomainAction;
-use dialect_coach_shared::UserState;
+use crate::app::app_state::{LearningAction, PlanAction};
 use crate::components::plan::{ActivePlan, PlanCreate, PlanList};
 use crate::services::enrichment_service::EnrichmentService;
+use dialect_coach_shared::UserState;
 use dialect_coach_shared::{
     Dialect, EnrichRequest, Explained, Exploratory, LearningItem, LearningItemType, Mistake,
     MistakeCategory, PartialExplained, PartialExploratory, PartialLearningItem, PartialMistake,
@@ -659,9 +659,14 @@ pub fn learning(props: &LearningProps) -> Html {
         instructions: instructions.clone(),
     };
 
-    let plan_to_edit = editing_plan_id
-        .as_ref()
-        .and_then(|id| props.user.language_plans.iter().find(|p| p.id == *id).cloned());
+    let plan_to_edit = editing_plan_id.as_ref().and_then(|id| {
+        props
+            .user
+            .language_plans
+            .iter()
+            .find(|p| p.id == *id)
+            .cloned()
+    });
 
     let clear_fields = create_clear_fields_callback(ClearStates {
         mistake: specific_mistake.clone(),
@@ -748,7 +753,8 @@ pub fn learning(props: &LearningProps) -> Html {
                                 .await;
                                 match result {
                                     Ok(plan) => {
-                                        dispatch.emit(UserDomainAction::Plan(PlanAction::Add(plan)));
+                                        dispatch
+                                            .emit(UserDomainAction::Plan(PlanAction::Add(plan)));
                                     }
                                     Err(e) => gloo::console::error!("Import failed", e),
                                 }
@@ -865,7 +871,8 @@ pub fn learning(props: &LearningProps) -> Html {
     let on_cancel = clear_all;
 
     let filtered_plans = if let Some(dialect) = props.active_branch_dialect {
-        props.user
+        props
+            .user
             .language_plans
             .iter()
             .filter(|p| p.dialect == dialect)

@@ -1,5 +1,5 @@
-use super::user::reducer::apply_user_state_action;
 use super::user::UserDomainAction;
+use super::user::reducer::apply_user_state_action;
 use dialect_coach_shared::UserState;
 use std::rc::Rc;
 use yew::prelude::*;
