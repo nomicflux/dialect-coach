@@ -34,6 +34,9 @@
 ## General Workflaw
 
 - Literal compliance: execute the exact request as written; do not re-interpret, summarize, or paraphrase unless explicitly asked.
+- Deduction and Contrapositives: Deduction REQUIRES adhering to the facts. If you come to a conclusion that is impossible or contradicts
+  the user prompt, then this shows that your argument is wrong (such as you narrowing the search to one specific section
+  of code too soon).
 - Verbatim reproduction: when asked to “repeat back”, “copy/paste”, or similar, return the referenced text verbatim with original formatting.
 - Process inclusion: treat procedural steps, completion criteria, and checklists as essential content—never drop them when repeating or extracting “steps”.
 - Scope fidelity: include only the requested block/section and nothing extra; don’t widen or narrow the scope beyond what’s specified.

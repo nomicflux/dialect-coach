@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::{User, UserState};
+
 /// Version identifier for User schema
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum UserVersion {
@@ -13,6 +15,12 @@ pub enum UserStateVersion {
     #[default]
     V1,
 }
+
+pub type UserV1 = User;
+pub type UserStateV1 = UserState;
+
+pub const CURRENT_USER_VERSION: UserVersion = UserVersion::V1;
+pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V1;
 
 /// Generic wrapper for versioned data stored in sled
 /// Stores the version enum and raw JSON data separately.
@@ -36,6 +44,22 @@ impl<V: Default> VersionedData<V> {
     pub fn with_version(version: V, data: serde_json::Value) -> Self {
         Self { version, data }
     }
+}
+
+pub trait Migration<From, To> {
+    fn migrate_forward(from: From) -> To;
+    fn migrate_backward(to: To) -> From;
+}
+
+pub fn migrate_user_state_to_current(
+    _from_version: UserStateVersion,
+    data: UserStateV1,
+) -> UserState {
+    data
+}
+
+pub fn migrate_user_to_current(_from_version: UserVersion, data: UserV1) -> User {
+    data
 }
 
 #[cfg(test)]
@@ -202,5 +226,78 @@ mod tests {
             serde_json::from_str(&json).unwrap();
 
         assert_eq!(deserialized, versioned);
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct TestDataV1 {
+        name: String,
+        count: u32,
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct TestDataV2 {
+        name: String,
+        count: u32,
+        is_active: bool,
+    }
+
+    struct TestMigration;
+
+    impl Migration<TestDataV1, TestDataV2> for TestMigration {
+        fn migrate_forward(from: TestDataV1) -> TestDataV2 {
+            TestDataV2 {
+                name: from.name,
+                count: from.count,
+                is_active: false,
+            }
+        }
+
+        fn migrate_backward(to: TestDataV2) -> TestDataV1 {
+            TestDataV1 {
+                name: to.name,
+                count: to.count,
+            }
+        }
+    }
+
+    #[test]
+    fn test_migration_forward() {
+        let v1 = TestDataV1 {
+            name: "test".to_string(),
+            count: 42,
+        };
+
+        let v2 = TestMigration::migrate_forward(v1.clone());
+
+        assert_eq!(v2.name, v1.name);
+        assert_eq!(v2.count, v1.count);
+        assert!(!v2.is_active);
+    }
+
+    #[test]
+    fn test_migration_backward() {
+        let v2 = TestDataV2 {
+            name: "test".to_string(),
+            count: 42,
+            is_active: true,
+        };
+
+        let v1 = TestMigration::migrate_backward(v2.clone());
+
+        assert_eq!(v1.name, v2.name);
+        assert_eq!(v1.count, v2.count);
+    }
+
+    #[test]
+    fn test_migration_roundtrip() {
+        let original_v1 = TestDataV1 {
+            name: "roundtrip".to_string(),
+            count: 100,
+        };
+
+        let v2 = TestMigration::migrate_forward(original_v1.clone());
+        let back_to_v1 = TestMigration::migrate_backward(v2);
+
+        assert_eq!(original_v1, back_to_v1);
     }
 }

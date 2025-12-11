@@ -42,4 +42,7 @@ pub use tts::*;
 pub use usage_stats::*;
 pub use user::*;
 pub use user_state::*;
-pub use versioning::{UserStateVersion, UserVersion, VersionedData};
+pub use versioning::{
+    migrate_user_state_to_current, migrate_user_to_current, Migration, UserStateV1, UserStateVersion,
+    UserV1, UserVersion, VersionedData, CURRENT_USER_STATE_VERSION, CURRENT_USER_VERSION,
+};

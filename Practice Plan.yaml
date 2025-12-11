@@ -1,0 +1,59 @@
+id: 276262a2-06fe-45a9-812e-6a4762b5503f
+title: Practice Plan
+dialect: spanish_argentinian
+description: Plan description
+steps:
+- id: 12904a46-5c0d-4c61-9f48-2d16f8b4d513
+  step_number: 1
+  title: First Step
+  step_type: !Learning
+    content:
+      items:
+      - item: !Translation
+          id: 493a02fa-10f7-5655-9d82-afdb4ec0be5f
+          translated_word: to speak / to talk
+          translated_to: hablar
+          context: null
+        score: 0
+        dialect: spanish_argentinian
+      - item: !Translation
+          id: a771d9eb-4574-5651-aace-d0fe76152497
+          translated_word: to work
+          translated_to: trabajar
+          context: null
+        score: 0
+        dialect: spanish_argentinian
+  instructions: Do somethnig
+  status: NotStarted
+  started_at: null
+  completed_at: null
+- id: b407f901-6857-454c-b00a-66d0027fdfa0
+  step_number: 2
+  title: Second Step
+  step_type: !Learning
+    content:
+      items:
+      - item: !Explanation
+          id: 4b372997-6e73-5aaf-96c2-116b37e5fa82
+          new_phrase: Present Indicative
+          explanation: Try using it
+        score: 0
+        dialect: spanish_argentinian
+  instructions: More stuff
+  status: NotStarted
+  started_at: null
+  completed_at: null
+- id: 4551dff4-4cf3-4bc9-b142-2b07a523e946
+  step_number: 3
+  title: Review Time
+  step_type: !Review
+    review_step_ids:
+    - 12904a46-5c0d-4c61-9f48-2d16f8b4d513
+    - b407f901-6857-454c-b00a-66d0027fdfa0
+  instructions: Review it all
+  status: NotStarted
+  started_at: null
+  completed_at: null
+current_step_index: 0
+status: NotStarted
+created_at: 1765341359

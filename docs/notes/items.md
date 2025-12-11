@@ -43,6 +43,8 @@
 - does Arabic REQUIRE full vocalization for TTS? Also, should that be added as a language option?
 - ensure state keeps trying to save, show clear error when it does not
 - add version to users in persistence, then migration path
+- learning item: errors to fix
+  - but make sure this does not happen in other learning items
 
 Longer Term
 ---

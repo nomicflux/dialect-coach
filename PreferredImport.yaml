@@ -1,0 +1,27 @@
+title: Practice Plan
+dialect: spanish_argentinian
+description: Plan description
+steps:
+- title: First Step
+  step_type: !Learning
+    content:
+      items:
+      - item: !Translation
+          translated_to: hablar
+      - item: !Translation
+          translated_to: trabajar
+  instructions: Do somethnig
+- title: Second Step
+  step_type: !Learning
+    content:
+      items:
+      - item: !Explanation
+          new_phrase: Present Indicative
+          explanation: Try using it
+  instructions: More stuff
+- title: Review Time
+  step_type: !Review
+    review_steps:
+    - First Step
+    - Second Step
+  instructions: Review it all
