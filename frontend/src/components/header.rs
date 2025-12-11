@@ -1,6 +1,6 @@
 use crate::app::app_callbacks::{on_signin_click, on_signout_click};
 use crate::app::app_state::{
-    AppState, AppStateAction, OptionalUserState, UIState, UIStateAction, UserStateGamificationExt,
+    AppState, AppStateAction, SessionState, UIState, UIStateAction, UserStateGamificationExt,
 };
 use crate::components::gamification::{FluencyBar, StreakDisplay};
 use crate::services::websocket::ConnectionState;
@@ -10,7 +10,7 @@ use yew::prelude::*;
 pub struct HeaderProps {
     pub app_state: UseReducerHandle<AppState>,
     pub ui_state: UseReducerHandle<UIState>,
-    pub user_state: UseReducerHandle<OptionalUserState>,
+    pub session: UseReducerHandle<SessionState>,
 }
 
 impl PartialEq for HeaderProps {
@@ -38,7 +38,7 @@ pub fn header(props: &HeaderProps) -> Html {
     let HeaderProps {
         app_state,
         ui_state,
-        user_state,
+        session,
     } = props;
 
     let signin_username = use_state(String::new);
@@ -63,13 +63,13 @@ pub fn header(props: &HeaderProps) -> Html {
 
                 <div class="user-section">
                     {if let Some(user) = app_state.current_user.as_ref() {
-                        if let Some(stats) = user_state.state.as_ref().map(|s| s.gamification_stats()) {
+                        if let Some(stats) = session.user.as_ref().map(|s| s.gamification_stats()) {
                             html! {
                                 <div class="user-signed-in">
                                     <FluencyBar xp={stats.xp} />
                                     <StreakDisplay current_streak={stats.streak.current_streak} />
                                     <span>{format!("Signed in as: {}", user.username)}</span>
-                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), user_state.clone())}>
+                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), session.clone())}>
                                         {"Sign Out"}
                                     </button>
                                 </div>
@@ -78,7 +78,7 @@ pub fn header(props: &HeaderProps) -> Html {
                              html! {
                                 <div class="user-signed-in">
                                     <span>{format!("Signed in as: {}", user.username)}</span>
-                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), user_state.clone())}>
+                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), session.clone())}>
                                         {"Sign Out"}
                                     </button>
                                 </div>

@@ -1,4 +1,5 @@
-use crate::app::app_state::{AppState, AppStateAction, OptionalUserState, UserStateAction};
+use crate::app::app_state::user::UserDomainAction;
+use crate::app::app_state::{AppState, AppStateAction, SessionAction, SessionState};
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::Message;
 use log::{error, info};
@@ -27,7 +28,7 @@ pub fn on_user_state_ws_open(app_state: UseReducerHandle<AppState>, user_id: Uui
 
 pub fn on_user_state_load_response(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) -> Callback<Option<UserState>> {
     let app_state = app_state.clone();
     Callback::from(move |loaded_state: Option<UserState>| {
@@ -38,14 +39,14 @@ pub fn on_user_state_load_response(
                 state.conversation_history.len(),
                 state.learning_items.len()
             );
-            user_state.dispatch(UserStateAction::ReplaceUserState(state.clone()));
+            session.dispatch(SessionAction::UpdateUser(state.clone()));
             app_state.dispatch(AppStateAction::NotifyTTSEnabled(state.tts_enabled));
         } else {
             // New user - create initial UserState
             if let Some(user) = app_state.current_user.as_ref() {
                 info!("No user state found for new user, creating initial state");
                 let new_state = UserState::new(user.id);
-                user_state.dispatch(UserStateAction::ReplaceUserState(new_state.clone()));
+                session.dispatch(SessionAction::UpdateUser(new_state.clone()));
                 app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));
             } else {
                 error!(
@@ -67,10 +68,12 @@ pub fn on_user_state_save_response() -> Callback<Result<(), String>> {
 }
 
 pub fn on_user_state_usage_stats_update(
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) -> Callback<dialect_coach_shared::UsageStats> {
     Callback::from(move |usage_stats: dialect_coach_shared::UsageStats| {
         info!("Received usage stats update");
-        user_state.dispatch(UserStateAction::UpdateUsageStats(usage_stats));
+        session.dispatch(SessionAction::Domain(UserDomainAction::UsageStats(
+            usage_stats,
+        )));
     })
 }

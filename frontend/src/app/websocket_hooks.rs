@@ -5,9 +5,10 @@ use crate::app::app_state::callbacks::{
     on_user_state_load_response, on_user_state_save_response, on_user_state_usage_stats_update,
     on_user_state_ws_open,
 };
+use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{
-    AppState, AppStateAction, LearningAction, MessageAction, OptionalUserState, UIState,
-    UIStateAction, UserStateAction,
+    AppState, AppStateAction, LearningAction, MessageAction, SessionAction, SessionState, UIState,
+    UIStateAction,
 };
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{Message, MessageContent};
@@ -28,7 +29,7 @@ fn check_rate_limit_error(error_text: &str, app_state: &UseReducerHandle<AppStat
 #[hook]
 pub fn use_chat_websocket(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
     ui_state: UseReducerHandle<UIState>,
 ) {
     let current_user = app_state.current_user.clone();
@@ -36,7 +37,7 @@ pub fn use_chat_websocket(
     use_effect_with(current_user, move |user_opt| {
         let had_user = user_opt.is_some();
         let app_state = app_state.clone();
-        let user_state = user_state.clone();
+        let session = session.clone();
         let ui_state = ui_state.clone();
         let ws_service_clone = app_state.ws_service.clone();
 
@@ -64,7 +65,7 @@ pub fn use_chat_websocket(
                 }));
 
                 let asc = app_state.clone();
-                let usc = user_state.clone();
+                let session_handle = session.clone();
                 let uis = ui_state.clone();
                 ws.set_on_message(Callback::from(move |msg: Message| {
                     asc.dispatch(AppStateAction::LoadingComplete);
@@ -78,7 +79,9 @@ pub fn use_chat_websocket(
                     let msg_clone = msg.clone();
                     match msg.content {
                         MessageContent::UserMessage { .. } => {
-                            usc.dispatch(UserStateAction::Message(MessageAction::Add(msg_clone.clone())));
+                            session_handle.dispatch(SessionAction::Domain(UserDomainAction::Message(
+                                MessageAction::Add(msg_clone.clone()),
+                            )));
                         }
                         MessageContent::AgentMessage { content } => {
                             check_rate_limit_error(&content.response, &asc);
@@ -96,8 +99,13 @@ pub fn use_chat_websocket(
                                 || !translated.is_empty()
                                 || !exploratory.is_empty()
                             {
-                                usc.dispatch(UserStateAction::Learning(LearningAction::AddItems(
-                                    mistakes, explained, translated, exploratory,
+                                session_handle.dispatch(SessionAction::Domain(UserDomainAction::Learning(
+                                    LearningAction::AddItems(
+                                        mistakes,
+                                        explained,
+                                        translated,
+                                        exploratory,
+                                    ),
                                 )));
                             }
                             if let Some(analysis) = content.analysis.clone() {
@@ -108,12 +116,16 @@ pub fn use_chat_websocket(
                                     analysis.translated_scores.len(),
                                     analysis.exploratory_scores.len()
                                 );
-                                usc.dispatch(UserStateAction::Learning(LearningAction::UpdateScores(analysis)));
+                                session_handle.dispatch(SessionAction::Domain(UserDomainAction::Learning(
+                                    LearningAction::UpdateScores(analysis),
+                                )));
                             }
                         }
                     }
 
-                    usc.dispatch(UserStateAction::Message(MessageAction::Add(msg_clone.clone())));
+                    session_handle.dispatch(SessionAction::Domain(UserDomainAction::Message(
+                        MessageAction::Add(msg_clone.clone()),
+                    )));
                 }));
 
                 let asc = app_state.clone();
@@ -160,13 +172,13 @@ pub fn use_chat_websocket(
 #[hook]
 pub fn use_user_state_websocket(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) {
     let current_user = app_state.current_user.clone();
 
     use_effect_with(current_user, move |user_opt| {
         let app_state = app_state.clone();
-        let user_state = user_state.clone();
+        let session = session.clone();
         let ws_service_clone = app_state.user_state_ws_service.clone();
 
         if let Some(user) = user_opt {
@@ -180,10 +192,10 @@ pub fn use_user_state_websocket(
             ws.set_on_open(on_user_state_ws_open(app_state.clone(), user_id));
             ws.set_on_load_response(on_user_state_load_response(
                 app_state.clone(),
-                user_state.clone(),
+                session.clone(),
             ));
             ws.set_on_save_response(on_user_state_save_response());
-            ws.set_on_usage_stats_update(on_user_state_usage_stats_update(user_state.clone()));
+            ws.set_on_usage_stats_update(on_user_state_usage_stats_update(session.clone()));
             ws.connect();
         } else {
             info!("No user authenticated, skipping user state WebSocket connection");
@@ -205,12 +217,12 @@ pub fn use_user_state_websocket(
 pub fn use_user_websocket(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<crate::app::app_state::UIState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) {
     use_effect_with((), move |_| {
         let app_state = app_state.clone();
         let ui_state = ui_state.clone();
-        let user_state = user_state.clone();
+        let session = session.clone();
 
         info!("Initializing user WebSocket connection");
 
@@ -220,15 +232,15 @@ pub fn use_user_websocket(
         ws.set_on_create_response(on_user_create_response(
             app_state.clone(),
             ui_state.clone(),
-            user_state.clone(),
+            session.clone(),
         ));
         ws.set_on_signin_response(on_user_signin_response(
             app_state.clone(),
-            user_state.clone(),
+            session.clone(),
         ));
         ws.set_on_validate_session_response(on_validate_session_response(
             app_state.clone(),
-            user_state.clone(),
+            session.clone(),
         ));
 
         let ws_clone_for_open = ws_clone.clone();

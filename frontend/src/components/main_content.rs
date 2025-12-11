@@ -4,8 +4,7 @@ use crate::app::app_callbacks::{
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
 use crate::app::app_state::{
-    AppState, LearningAction, OptionalUserState, SettingsAction, UIState, UIStateAction,
-    UserStateAction,
+    AppState, LearningAction, SessionAction, SessionState, SettingsAction, UIState, UIStateAction,
 };
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
@@ -41,7 +40,7 @@ pub enum TranslationModalState {
 pub struct MainContentProps {
     pub app_state: UseReducerHandle<AppState>,
     pub ui_state: UseReducerHandle<UIState>,
-    pub user_state: UseReducerHandle<OptionalUserState>,
+    pub session: UseReducerHandle<SessionState>,
 }
 
 impl PartialEq for MainContentProps {
@@ -55,10 +54,10 @@ pub fn main_content(props: &MainContentProps) -> Html {
     let MainContentProps {
         app_state,
         ui_state,
-        user_state,
+        session,
     } = props;
 
-    let us = match user_state.state.as_ref() {
+    let us = match session.user.as_ref() {
         Some(s) => s,
         None => return html! {},
     };
@@ -78,17 +77,17 @@ pub fn main_content(props: &MainContentProps) -> Html {
     };
 
     let on_save_phrase = {
-        let user_state = user_state.clone();
+        let session = session.clone();
         let modal_state = modal_state.clone();
         Callback::from(
             move |(target, english, context): (String, String, String)| {
                 let translated = Translated::new(english, target, Some(context));
-                user_state.dispatch(UserStateAction::Learning(LearningAction::AddItems(
+                session.dispatch(SessionAction::Domain(UserDomainAction::Learning(LearningAction::AddItems(
                     vec![],
                     vec![],
                     vec![translated],
                     vec![],
-                )));
+                ))));
                 modal_state.set(None);
             },
         )
@@ -96,14 +95,14 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     let on_selection_translate_click = {
         let translation_service = app_state.translation_service.clone();
-        let user_state_handle = user_state.clone();
+        let session_handle = session.clone();
         let modal_state = modal_state.clone();
         let ui_dispatch = ui_state.clone();
 
         Callback::from(
             move |(message_id, selected_text, context): (Uuid, String, String)| {
                 let translation_service = translation_service.clone();
-                let user_state_handle = user_state_handle.clone();
+                let session_handle = session_handle.clone();
                 let modal_state = modal_state.clone();
                 let ui_dispatch = ui_dispatch.clone();
 
@@ -115,9 +114,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 ui_dispatch.dispatch(UIStateAction::SetTranslateLoading { message_id });
 
                 wasm_bindgen_futures::spawn_local(async move {
-                    if let Some(user_state) = user_state_handle.state.as_ref() {
-                        let dialect = user_state.current_dialect();
-                        let formality = Some(user_state.formality);
+                    if let Some(user) = session_handle.user.as_ref() {
+                        let dialect = user.current_dialect();
+                        let formality = Some(user.formality);
 
                         match translation_service
                             .translate_phrase(&selected_text, context.clone(), dialect, formality)
@@ -145,19 +144,19 @@ pub fn main_content(props: &MainContentProps) -> Html {
     };
 
     let dispatch_domain = {
-        let user_state = user_state.clone();
+        let session = session.clone();
         Callback::from(move |action: UserDomainAction| {
-            user_state.dispatch(UserStateAction::from(action));
+            session.dispatch(SessionAction::Domain(action));
         })
     };
 
     {
         let ui_state = ui_state.clone();
         let app_state = app_state.clone();
-        let user_state = user_state.clone();
+        let session = session.clone();
         let chat_input_ref = chat_input_ref.clone();
         // let goal_input_ref = goal_input_ref.clone();
-        use_effect_with(user_state.clone(), move |_| {
+        use_effect_with(session.clone(), move |_| {
             let shortcuts = default_shortcuts();
             let window = web_sys::window().unwrap();
             let listener = EventListener::new(&window, "keydown", move |event| {
@@ -183,23 +182,23 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 });
                             }
                             ShortcutAction::ToggleAutoSpeak => {
-                                user_state.dispatch(UserStateAction::Settings(SettingsAction::ToggleTTS));
+                                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(SettingsAction::ToggleTTS)));
                             }
                             ShortcutAction::ReplayLastMessage => {
-                                if let Some(state) = user_state.state.as_ref()
-                                    && let Some(msg) = state.get_active_branch_messages().last()
+                                if let Some(user) = session.user.as_ref()
+                                    && let Some(msg) = user.get_active_branch_messages().last()
                                 {
                                     on_replay_message(app_state.clone()).emit((*msg).clone());
                                 }
                             }
                             ShortcutAction::CycleDialect => {
-                                user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleDialect));
+                                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(SettingsAction::CycleDialect)));
                             }
                             ShortcutAction::CycleTeachingMode => {
-                                user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleTeachingMode));
+                                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(SettingsAction::CycleTeachingMode)));
                             }
                             ShortcutAction::CycleFormality => {
-                                user_state.dispatch(UserStateAction::Settings(SettingsAction::CycleFormality));
+                                session.dispatch(SessionAction::Domain(UserDomainAction::Settings(SettingsAction::CycleFormality)));
                             }
                             ShortcutAction::FocusGoalInput => {
                                 // Disabled in this phase
@@ -234,11 +233,11 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         user={user_rc.clone()}
                         is_loading={app_state.is_loading}
                         on_replay_message={Some(on_replay_message(app_state.clone()))}
-                        on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_state.clone()))}
-                        on_create_branch={Some(on_create_branch(user_state.clone()))}
-                        on_auto_start={Some(on_auto_start(app_state.clone(), user_state.clone()))}
-                        on_continue_branch={Some(on_continue_branch(app_state.clone(), user_state.clone()))}
-                        on_explain={Some(on_explain_message(app_state.clone(), user_state.clone(), ui_state.clone()))}
+                        on_delete_message={Some(on_delete_message_callback(ui_state.clone(), session.clone()))}
+                        on_create_branch={Some(on_create_branch(session.clone()))}
+                        on_auto_start={Some(on_auto_start(app_state.clone(), session.clone()))}
+                        on_continue_branch={Some(on_continue_branch(app_state.clone(), session.clone()))}
+                        on_explain={Some(on_explain_message(app_state.clone(), session.clone(), ui_state.clone()))}
                         explain_loading={ui_state.explain_loading.clone()}
                         translate_loading={ui_state.translate_loading.clone()}
                         on_selection_translate={Some(on_selection_translate_click.clone())}
@@ -249,7 +248,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     />
                     <InputBox
                         on_send={{
-                            let send_message = on_send_message(app_state.clone(), user_state.clone());
+                            let send_message = on_send_message(app_state.clone(), session.clone());
                             Callback::from(move |content: String| {
                                 send_message.emit(content);
                             })
@@ -260,7 +259,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     />
                     {render_message_undo_notification(
                         ui_state.deleted_messages.len(),
-                        on_undo_message_callback(ui_state.clone(), user_state.clone())
+                        on_undo_message_callback(ui_state.clone(), session.clone())
                     )}
                 </div>
 
@@ -279,25 +278,25 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         active_branch_id={us.active_branch_id}
                         messages={us.conversation_history.clone()}
                         learning_goals={get_filtered_goals(us)}
-                        on_add_goal={on_add_goal(user_state.clone())}
-                        on_delete_goal={on_delete_goal(user_state.clone())}
-                        on_switch_branch={Some(on_switch_branch(user_state.clone()))}
-                        on_delete_branch={Some(on_delete_branch(user_state.clone()))}
+                        on_add_goal={on_add_goal(session.clone())}
+                        on_delete_goal={on_delete_goal(session.clone())}
+                        on_switch_branch={Some(on_switch_branch(session.clone()))}
+                        on_delete_branch={Some(on_delete_branch(session.clone()))}
                         goal_input_ref={Some(goal_input_ref.clone())}
                         // Learning Panel Props
                         learning_items={get_filtered_items(us)}
                         active_branch_dialect={Some(us.selected_dialect)}
                         enrichment_service={app_state.enrichment_service.clone()}
-                        on_delete_learning_item={on_delete_learning_item_callback(ui_state.clone(), user_state.clone())}
+                        on_delete_learning_item={on_delete_learning_item_callback(ui_state.clone(), session.clone())}
                         on_undo_delete_learning_item={{
                             let ui_state = ui_state.clone();
-                            let user_state = user_state.clone();
+                            let session = session.clone();
                             let deleted_items = ui_state.deleted_learning_items.clone();
                             Callback::from(move |_| {
                                 if let Some(item) = deleted_items.back() {
-                                    user_state.dispatch(UserStateAction::Learning(LearningAction::UndoDeleteItem(
+                                    session.dispatch(SessionAction::Domain(UserDomainAction::Learning(LearningAction::UndoDeleteItem(
                                         item.clone(),
-                                    )));
+                                    ))));
                                     ui_state.dispatch(UIStateAction::PopDeletedLearningItem);
                                 }
                             })

@@ -1,6 +1,7 @@
+use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{
-    AppState, AppStateAction, MessageAction, OptionalUserState, SettingsAction, UIState,
-    UIStateAction, UserStateAction,
+    AppState, AppStateAction, MessageAction, SessionAction, SessionState, SettingsAction, UIState,
+    UIStateAction,
 };
 use dialect_coach_shared::{AIActionRequest, AuthCredentials, UserMessageWithContext};
 use log::{error, info};
@@ -9,13 +10,13 @@ use yew::prelude::*;
 
 pub fn on_send_message(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) -> Callback<String> {
     let app_state = app_state.clone();
-    let user_state = user_state.clone();
+    let session = session.clone();
 
     Callback::from(move |content: String| {
-        let state = match user_state.state.as_ref() {
+        let state = match session.user.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -24,7 +25,9 @@ pub fn on_send_message(
 
         let session_id = (*app_state).session_id().unwrap_or_else(Uuid::new_v4);
         let msg = state.create_user_msg(session_id, &content);
-        user_state.dispatch(UserStateAction::Message(MessageAction::Add(msg.clone())));
+        session.dispatch(SessionAction::Domain(UserDomainAction::Message(
+            MessageAction::Add(msg.clone()),
+        )));
 
         // Extract learning items and goals using shared model logic
         let past_items = state.get_past_learning_items(&state.selected_dialect);
@@ -75,14 +78,16 @@ pub fn on_send_message(
 
 pub fn on_tts_toggle(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) -> Callback<()> {
     let app_state = app_state.clone();
-    let user_state = user_state.clone();
+    let session = session.clone();
     Callback::from(move |_| {
-        if let Some(state) = user_state.state.as_ref() {
+        if let Some(state) = session.user.as_ref() {
             let new_value = !state.tts_enabled;
-            user_state.dispatch(UserStateAction::Settings(SettingsAction::ToggleTTS));
+            session.dispatch(SessionAction::Domain(UserDomainAction::Settings(
+                SettingsAction::ToggleTTS,
+            )));
             app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_value));
         }
     })
@@ -90,7 +95,7 @@ pub fn on_tts_toggle(
 
 pub fn on_create_user_click(
     app_state: UseReducerHandle<AppState>,
-    _user_state: UseReducerHandle<OptionalUserState>,
+    _session: UseReducerHandle<SessionState>,
 ) -> Callback<(String, String, String, String)> {
     Callback::from(
         move |(username, email, password, invite_code): (String, String, String, String)| {
@@ -131,7 +136,7 @@ pub fn on_signin_click(app_state: UseReducerHandle<AppState>) -> Callback<(Strin
 pub fn on_user_create_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
-    _user_state: UseReducerHandle<OptionalUserState>,
+    _session: UseReducerHandle<SessionState>,
 ) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
     Callback::from(
         move |result: Result<(dialect_coach_shared::User, String), String>| match result {
@@ -152,7 +157,7 @@ pub fn on_user_create_response(
 
 pub fn on_user_signin_response(
     app_state: UseReducerHandle<AppState>,
-    _user_state: UseReducerHandle<OptionalUserState>,
+    _session: UseReducerHandle<SessionState>,
 ) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
     Callback::from(
         move |result: Result<(dialect_coach_shared::User, String), String>| match result {
@@ -173,7 +178,7 @@ pub fn on_user_signin_response(
 
 pub fn on_validate_session_response(
     app_state: UseReducerHandle<AppState>,
-    _user_state: UseReducerHandle<OptionalUserState>,
+    _session: UseReducerHandle<SessionState>,
 ) -> Callback<Result<dialect_coach_shared::User, String>> {
     Callback::from(
         move |result: Result<dialect_coach_shared::User, String>| match result {
@@ -192,23 +197,23 @@ pub fn on_validate_session_response(
 
 pub fn on_signout_click(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) -> Callback<MouseEvent> {
     Callback::from(move |_: MouseEvent| {
         info!("User signed out, clearing user state and session cookie");
         crate::utils::cookies::clear_session_token();
         app_state.dispatch(AppStateAction::DestroySession);
-        user_state.dispatch(UserStateAction::ClearUserState);
+        session.dispatch(SessionAction::Logout);
         app_state.dispatch(AppStateAction::ClearUser);
     })
 }
 
 pub fn on_auto_start(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) -> Callback<()> {
     Callback::from(move |_| {
-        let state = match user_state.state.as_ref() {
+        let state = match session.user.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -240,10 +245,10 @@ pub fn on_auto_start(
 
 pub fn on_continue_branch(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
 ) -> Callback<Uuid> {
     Callback::from(move |parent_message_id: Uuid| {
-        let state = match user_state.state.as_ref() {
+        let state = match session.user.as_ref() {
             Some(s) => s,
             None => return,
         };
@@ -281,11 +286,11 @@ pub fn on_continue_branch(
 
 pub fn on_explain_message(
     app_state: UseReducerHandle<AppState>,
-    user_state: UseReducerHandle<OptionalUserState>,
+    session: UseReducerHandle<SessionState>,
     ui_state: UseReducerHandle<UIState>,
 ) -> Callback<Uuid> {
     Callback::from(move |message_id: Uuid| {
-        let state = match user_state.state.as_ref() {
+        let state = match session.user.as_ref() {
             Some(s) => s,
             None => {
                 error!("No user state for explain message");

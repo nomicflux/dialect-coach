@@ -1,6 +1,6 @@
 pub mod app_state;
 pub use app_state::OptionalUserState;
-use app_state::{AppState, AppStateAction, UIState};
+use app_state::{AppState, AppStateAction, SessionAction, SessionState, UIState};
 
 #[path = "app/helpers.rs"]
 pub mod app_helpers;
@@ -31,21 +31,23 @@ pub fn app() -> Html {
     let ui_state = use_reducer(UIState::default);
 
     // No user state until authentication
-    let user_state = use_reducer(|| {
+    let session = use_reducer(|| {
         info!("App starting with no user state");
-        OptionalUserState {
-            state: None,
+        SessionState {
+            user: None,
             needs_save: false,
         }
     });
 
     // Set up debounced auto-save via WebSocket with retry queue
     let app_state_for_save = app_state.clone();
-    let _force_save = use_debounced_save(&user_state, move |state| {
+    let session_dispatch = session.clone();
+    let _force_save = use_debounced_save(&session, move |state| {
         let ws_service = app_state_for_save.user_state_ws_service.borrow();
-        match ws_service.save_user_state(state) {
+        match ws_service.save_user_state(state) { // This expects UserState
             Ok(()) => {
                 info!("UserState save request sent via WebSocket");
+                session_dispatch.dispatch(SessionAction::Saved);
             }
             Err(e) => {
                 error!("Failed to send UserState save: {}", e);
@@ -56,9 +58,9 @@ pub fn app() -> Html {
     });
 
     // WebSocket hooks
-    use_chat_websocket(app_state.clone(), user_state.clone(), ui_state.clone());
-    use_user_state_websocket(app_state.clone(), user_state.clone());
-    use_user_websocket(app_state.clone(), ui_state.clone(), user_state.clone());
+    use_chat_websocket(app_state.clone(), session.clone(), ui_state.clone());
+    use_user_state_websocket(app_state.clone(), session.clone());
+    use_user_websocket(app_state.clone(), ui_state.clone(), session.clone());
 
     // Auto-dismiss error messages after 5 seconds
     {
@@ -80,7 +82,7 @@ pub fn app() -> Html {
                 <Header
                     app_state={app_state.clone()}
                     ui_state={ui_state.clone()}
-                    user_state={user_state.clone()}
+                    session={session.clone()}
                 />
 
                 <main
@@ -93,15 +95,15 @@ pub fn app() -> Html {
                             <UserCreation
                                 app_state={app_state.clone()}
     // ui_state removed
-                                user_state={user_state.clone()}
+                                session={session.clone()}
                             />
                         }
-                    } else if user_state.state.is_some() {
+                    } else if session.user.is_some() {
                         html! {
                             <MainContent
                                 app_state={app_state.clone()}
                                 ui_state={ui_state.clone()}
-                                user_state={user_state.clone()}
+                                session={session.clone()}
                             />
                         }
                     } else {
