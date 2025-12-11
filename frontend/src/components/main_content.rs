@@ -62,6 +62,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
         Some(s) => s,
         None => return html! {},
     };
+    let user_rc = Rc::new(us.clone());
 
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();
@@ -230,7 +231,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 <div class="chat-canvas">
 
                     <ChatWindow
-                        user_state={us.clone()}
+                        user={user_rc.clone()}
                         is_loading={app_state.is_loading}
                         on_replay_message={Some(on_replay_message(app_state.clone()))}
                         on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_state.clone()))}
@@ -271,7 +272,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             let sidebar_active_tab = sidebar_active_tab.clone();
                             Callback::from(move |tab| sidebar_active_tab.set(tab))
                         }}
-                        user={Rc::new(us.clone())}
+                        user={user_rc.clone()}
                         dispatch={dispatch_domain}
                         ui_state={ui_state.clone()}
                         branches={us.branches.clone()}

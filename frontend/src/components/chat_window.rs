@@ -1,6 +1,7 @@
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::{ConversationBranch, Message};
 use std::collections::HashSet;
+use std::rc::Rc;
 use uuid::Uuid;
 use web_sys::HtmlElement;
 use yew::prelude::*;
@@ -9,7 +10,7 @@ use super::MessageBubble;
 
 #[derive(Properties, PartialEq)]
 pub struct ChatWindowProps {
-    pub user_state: UserState,
+    pub user: Rc<UserState>, // Strict prop
     pub is_loading: bool,
     #[prop_or_default]
     pub on_replay_message: Option<Callback<Message>>,
@@ -68,7 +69,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     // Auto-scroll to bottom when new messages arrive
     {
         let chat_container_ref = chat_container_ref.clone();
-        let message_count = props.user_state.conversation_history.len();
+        let message_count = props.user.conversation_history.len();
 
         use_effect_with(message_count, move |_| {
             if let Some(container) = chat_container_ref.cast::<HtmlElement>() {
@@ -78,12 +79,12 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
         });
     }
 
-    let active_messages = props.user_state.get_active_branch_messages();
+    let active_messages = props.user.get_active_branch_messages();
 
     html! {
         <div class="chat" ref={chat_container_ref} role="log" aria-live="polite" aria-relevant="additions">
             <div class="chat-scroll">
-                {if props.user_state.conversation_history.is_empty() {
+                {if props.user.conversation_history.is_empty() {
                     html! {
                         <div class="empty">
                             <div class="empty-icon">{"💬"}</div>
@@ -97,8 +98,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                         <div class="messages-list">
                             {for active_messages.iter().map(|msg| {
                                 let is_own = !msg.is_agent();
-                                let has_children = has_child_branches(msg.id, &props.user_state.branches);
-                                let language_option = props.user_state.language_options.for_language(msg.metadata.language);
+                                let has_children = has_child_branches(msg.id, &props.user.branches);
+                                let language_option = props.user.language_options.for_language(msg.metadata.language);
                                 let is_explain_loading = props.explain_loading.contains(&msg.id);
                                 let is_translate_loading = props.translate_loading.contains(&msg.id);
                                 html! {
