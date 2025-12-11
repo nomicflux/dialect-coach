@@ -1,6 +1,8 @@
 use super::*;
 use dialect_coach_shared::models::MessageMetadata;
-use dialect_coach_shared::models::{ConversationBranch, Dialect, Formality, Language, TeachingMode};
+use dialect_coach_shared::models::{
+    ConversationBranch, Dialect, Formality, Language, TeachingMode,
+};
 use dialect_coach_shared::{LanguageLevel, Message, UsageStats, UserState};
 use uuid::Uuid;
 
@@ -773,8 +775,7 @@ fn test_update_language_level_action() {
     let mut state = UserState::new(Uuid::new_v4());
     state.selected_dialect = Dialect::SpanishMexican;
 
-    let action =
-        UserStateAction::UpdateLanguageLevel(Dialect::SpanishMexican, LanguageLevel::C1);
+    let action = UserStateAction::UpdateLanguageLevel(Dialect::SpanishMexican, LanguageLevel::C1);
     let updated = apply_user_state_action(&state, action);
 
     assert_eq!(

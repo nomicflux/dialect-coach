@@ -119,7 +119,10 @@ pub fn cycle_teaching_mode(current: TeachingMode) -> TeachingMode {
     }
 }
 
-pub fn apply_score_updates(items: Vec<LearningItem>, analysis: &AgentAnalysis) -> Vec<LearningItem> {
+pub fn apply_score_updates(
+    items: Vec<LearningItem>,
+    analysis: &AgentAnalysis,
+) -> Vec<LearningItem> {
     items
         .into_iter()
         .map(|item| update_item_score(item, analysis))

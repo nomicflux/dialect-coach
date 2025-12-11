@@ -19,8 +19,6 @@ impl PartialEq for HeaderProps {
     }
 }
 
-// create_input_field removed
-
 fn render_create_button(ui_state: &UseReducerHandle<UIState>) -> Html {
     let ui_state = ui_state.clone();
     html! {
@@ -48,17 +46,12 @@ pub fn header(props: &HeaderProps) -> Html {
 
     let on_signin = {
         let app_state = app_state.clone();
-        let ui_state = ui_state.clone();
         let username = signin_username.clone();
         let password = signin_password.clone();
         Callback::from(move |_: MouseEvent| {
-            on_signin_click(app_state.clone(), ui_state.clone()).emit((
-                (*username).clone(),
-                (*password).clone(),
-            ));
+            on_signin_click(app_state.clone()).emit(((*username).clone(), (*password).clone()));
         })
     };
-
 
     html! {
         <header class="app-header">

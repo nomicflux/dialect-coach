@@ -76,40 +76,40 @@ pub fn app() -> Html {
     }
 
     html! {
-        <div class="app">
-            <Header
-                app_state={app_state.clone()}
-                ui_state={ui_state.clone()}
-                user_state={user_state.clone()}
-            />
+            <div class="app">
+                <Header
+                    app_state={app_state.clone()}
+                    ui_state={ui_state.clone()}
+                    user_state={user_state.clone()}
+                />
 
-            <main
-                class="app-main"
-                data-sidebar-collapsed={if ui_state.sidebar_collapsed { "true" } else { "false" }}
-                data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
-            >
-                {if ui_state.show_user_creation_page {
-                    html! {
-                        <UserCreation
-                            app_state={app_state.clone()}
-                            ui_state={ui_state.clone()}
-                            user_state={user_state.clone()}
-                        />
-                    }
-                } else if user_state.state.is_some() {
-                    html! {
-                        <MainContent
-                            app_state={app_state.clone()}
-                            ui_state={ui_state.clone()}
-                            user_state={user_state.clone()}
-                        />
-                    }
-                } else {
-                    html! {
-                        <WelcomeScreen />
-                    }
-                }}
-            </main>
-        </div>
-    }
+                <main
+                    class="app-main"
+                    data-sidebar-collapsed={if ui_state.sidebar_collapsed { "true" } else { "false" }}
+                    data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
+                >
+                    {if ui_state.show_user_creation_page {
+                        html! {
+                            <UserCreation
+                                app_state={app_state.clone()}
+    // ui_state removed
+                                user_state={user_state.clone()}
+                            />
+                        }
+                    } else if user_state.state.is_some() {
+                        html! {
+                            <MainContent
+                                app_state={app_state.clone()}
+                                ui_state={ui_state.clone()}
+                                user_state={user_state.clone()}
+                            />
+                        }
+                    } else {
+                        html! {
+                            <WelcomeScreen />
+                        }
+                    }}
+                </main>
+            </div>
+        }
 }

@@ -89,19 +89,18 @@ pub fn on_tts_toggle(
 
 pub fn on_create_user_click(
     app_state: UseReducerHandle<AppState>,
-    _ui_state: UseReducerHandle<UIState>,
     _user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<(String, String, String, String)> {
     Callback::from(
         move |(username, email, password, invite_code): (String, String, String, String)| {
             let credentials = AuthCredentials::InviteCode(invite_code);
 
-            if let Err(e) =
-                app_state
-                    .user_ws_service
-                    .borrow()
-                    .create_user(username, email, credentials, password)
-            {
+            if let Err(e) = app_state.user_ws_service.borrow().create_user(
+                username,
+                email,
+                credentials,
+                password,
+            ) {
                 error!("Failed to create user: {}", e);
                 app_state.dispatch(AppStateAction::SetError(format!(
                     "Failed to create user: {}",
@@ -112,10 +111,7 @@ pub fn on_create_user_click(
     )
 }
 
-pub fn on_signin_click(
-    app_state: UseReducerHandle<AppState>,
-    _ui_state: UseReducerHandle<UIState>,
-) -> Callback<(String, String)> {
+pub fn on_signin_click(app_state: UseReducerHandle<AppState>) -> Callback<(String, String)> {
     Callback::from(move |(username, password): (String, String)| {
         if let Err(e) = app_state
             .user_ws_service
@@ -131,8 +127,6 @@ pub fn on_signin_click(
     })
 }
 
-// clear_create_form_inputs removed
-
 pub fn on_user_create_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
@@ -143,7 +137,6 @@ pub fn on_user_create_response(
             Ok((user, token)) => {
                 info!("User created successfully: {}", user.username);
                 crate::utils::cookies::set_session_token(&token);
-                // inputs cleared by component unmounting
                 ui_state.dispatch(UIStateAction::HideUserCreationPage);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
@@ -156,11 +149,8 @@ pub fn on_user_create_response(
     )
 }
 
-// clear_signin_form_inputs removed
-
 pub fn on_user_signin_response(
     app_state: UseReducerHandle<AppState>,
-    _ui_state: UseReducerHandle<UIState>,
     _user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
     Callback::from(

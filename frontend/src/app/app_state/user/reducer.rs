@@ -1,7 +1,7 @@
 use super::actions::UserStateAction;
 use super::helpers::*;
-use dialect_coach_shared::models::ConversationBranch;
 use dialect_coach_shared::UserState;
+use dialect_coach_shared::models::ConversationBranch;
 use std::rc::Rc;
 use yew::prelude::*;
 
@@ -246,13 +246,11 @@ impl Reducible for OptionalUserState {
 
     fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
         match action {
-            UserStateAction::ReplaceUserState(new_state) => {
-                OptionalUserState {
-                    state: Some(new_state),
-                    needs_save: false,
-                }
-                .into()
+            UserStateAction::ReplaceUserState(new_state) => OptionalUserState {
+                state: Some(new_state),
+                needs_save: false,
             }
+            .into(),
             UserStateAction::ClearUserState => OptionalUserState {
                 state: None,
                 needs_save: false,

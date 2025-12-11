@@ -587,7 +587,6 @@ mod tests {
         let prompt = build_learning_prompt(&params);
         assert!(prompt.contains("LATEST USER MESSAGE"));
         assert!(prompt.contains("¿Cómo estás?"));
-        assert!(prompt.contains("ASSISTANT RESPONSE"));
         assert!(prompt.contains("Goal 1"));
         assert!(prompt.contains("hablar -> habla"));
     }

@@ -1,11 +1,10 @@
 use crate::app::app_callbacks::on_create_user_click;
-use crate::app::app_state::{AppState, OptionalUserState, UIState};
+use crate::app::app_state::{AppState, OptionalUserState};
 use yew::prelude::*;
 
 #[derive(Properties)]
 pub struct UserCreationProps {
     pub app_state: UseReducerHandle<AppState>,
-    pub ui_state: UseReducerHandle<UIState>,
     pub user_state: UseReducerHandle<OptionalUserState>,
 }
 
@@ -19,7 +18,6 @@ impl PartialEq for UserCreationProps {
 pub fn user_creation(props: &UserCreationProps) -> Html {
     let UserCreationProps {
         app_state,
-        ui_state: _ui_state, // Unused for input values now
         user_state,
     } = props;
 
@@ -30,14 +28,13 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
 
     let on_submit = {
         let app_state = app_state.clone();
-        let ui_state = props.ui_state.clone();
         let user_state = user_state.clone();
         let username = username.clone();
         let email = email.clone();
         let invite_code = invite_code.clone();
         let password = password.clone();
 
-        let create_user = on_create_user_click(app_state, ui_state, user_state);
+        let create_user = on_create_user_click(app_state, user_state);
 
         Callback::from(move |_| {
             create_user.emit((

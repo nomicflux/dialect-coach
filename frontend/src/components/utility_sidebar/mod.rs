@@ -51,12 +51,11 @@ pub struct UtilitySidebarProps {
     pub on_delete_learning_item: Callback<Uuid>,
     pub on_undo_delete_learning_item: Callback<()>,
     pub deleted_learning_items_count: usize,
-    pub sidebar_width: i32,
-    pub on_set_sidebar_width: Callback<i32>,
 }
 
 #[function_component(UtilitySidebar)]
 pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
+    let sidebar_width = use_state(|| 350);
     let is_resizing = use_state(|| false);
     let resizing_ref = use_state(|| false); // Ref-like state to track resizing in closures
 
@@ -81,14 +80,14 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
     {
         let is_resizing = is_resizing.clone();
         let resizing_ref = resizing_ref.clone();
-        let on_set_sidebar_width = props.on_set_sidebar_width.clone();
+        let sidebar_width = sidebar_width.clone();
 
         use_effect(move || {
             let window = web_sys::window().expect("no global `window` exists");
 
             let mouse_move_handler = {
                 let resizing_ref = resizing_ref.clone();
-                let on_set_sidebar_width = on_set_sidebar_width.clone();
+                let sidebar_width = sidebar_width.clone();
                 let window = window.clone();
 
                 move |event: &Event| {
@@ -101,7 +100,7 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
 
                         // Constrain width (min 200px, max 800px or 80% of screen)
                         let constrained_width = new_width.clamp(250, 800);
-                        on_set_sidebar_width.emit(constrained_width);
+                        sidebar_width.set(constrained_width);
                     }
                 }
             };
@@ -131,7 +130,7 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
     let sidebar_class = classes!("utility-sidebar", props.is_collapsed.then_some("collapsed"),);
 
     // Apply width via style attribute
-    let style = format!("--sidebar-width: {}px;", props.sidebar_width);
+    let style = format!("--sidebar-width: {}px;", *sidebar_width);
 
     html! {
         <div class={sidebar_class} style={style}>
