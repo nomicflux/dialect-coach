@@ -1,0 +1,51 @@
+use dialect_coach_shared::models::{
+    ArabicScript, Dialect, Formality, JapaneseScript, Language, LanguageLevel, LanguagePlan,
+    Message, TeachingMode, UserGender,
+};
+use dialect_coach_shared::{
+    AgentAnalysis, Explained, Exploratory, LearningGoal, LearningItem, Mistake, Translated,
+    UsageStats, UserState,
+};
+use uuid::Uuid;
+
+pub enum UserStateAction {
+    AddMessage(Message),
+    AddLearningItems(
+        Vec<Mistake>,
+        Vec<Explained>,
+        Vec<Translated>,
+        Vec<Exploratory>,
+    ),
+    UpdateScores(AgentAnalysis),
+    ChangeDialect(Dialect),
+    ChangeLanguage(Language),
+    ChangeFormality(Formality),
+    ChangeTeachingMode(TeachingMode),
+    UpdateUserGender(UserGender),
+    ToggleTTS,
+    ToggleShowExperimentalDialects,
+    ReplaceUserState(UserState),
+    UpdateUsageStats(UsageStats),
+    ClearUserState,
+    DeleteLearningItem(Uuid),
+    UndoDeleteLearningItem(LearningItem),
+    DeleteMessage(Uuid),
+    UndoDeleteMessage(Message),
+    CreateBranch(Uuid),
+    SwitchBranch(Uuid),
+    DeleteBranch(Uuid),
+    RenameBranch(Uuid, String),
+    AddLearningGoal(LearningGoal),
+    DeleteLearningGoal(usize),
+    CycleDialect,
+    CycleFormality,
+    CycleTeachingMode,
+    SetArabicScript(ArabicScript),
+    SetJapaneseScript(JapaneseScript),
+    AddLanguagePlan(LanguagePlan),
+    DeleteLanguagePlan(Uuid),
+    SetActivePlan(Option<Uuid>),
+    AdvancePlanStep(Uuid),
+    UpdateLanguagePlan(LanguagePlan),
+    UpdateLanguageLevel(Dialect, LanguageLevel),
+}

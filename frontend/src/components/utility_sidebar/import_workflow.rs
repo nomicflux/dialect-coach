@@ -81,7 +81,7 @@ async fn enrich_items_parallel(
                 Ok(resp) => {
                     let mut value = resp.enriched_item;
                     // Inject missing "type" field if needed
-                    if let Some(obj) = value.as_object_mut() 
+                    if let Some(obj) = value.as_object_mut()
                         && !obj.contains_key("type")
                     {
                         let type_str = match &partial {

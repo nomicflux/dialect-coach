@@ -347,7 +347,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     };
 
     // Clear selection when selection changes and becomes empty
-    use_effect_with(selection_state.clone(), {
+    use_effect_with((), {
         let selection_state = selection_state.clone();
         move |_| {
             let document = web_sys::window()
@@ -371,8 +371,13 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                 callback.as_ref().unchecked_ref(),
             );
 
-            // Keep callback alive
-            move || drop(callback)
+            // Keep callback alive and remove on cleanup
+            move || {
+                let _ = document.remove_event_listener_with_callback(
+                    "selectionchange",
+                    callback.as_ref().unchecked_ref(),
+                );
+            }
         }
     });
 
