@@ -18,8 +18,7 @@ pub struct InputBoxProps {
     pub on_send: Callback<String>,
     #[prop_or(false)]
     pub disabled: bool,
-    #[prop_or_default]
-    pub external_value: Option<String>,
+    // external_value removed
     #[prop_or_default]
     pub textarea_ref: Option<NodeRef>,
     #[prop_or_default]
@@ -31,18 +30,7 @@ pub fn input_box(props: &InputBoxProps) -> Html {
     let input_value = use_state(String::new);
     let default_ref = use_node_ref();
     let textarea_node_ref = props.textarea_ref.clone().unwrap_or(default_ref);
-
-    // Update input value if external value is provided
-    {
-        let input_value = input_value.clone();
-        let external_value = props.external_value.clone();
-        use_effect_with(external_value, move |external_val| {
-            if let Some(value) = external_val {
-                input_value.set(value.clone());
-            }
-            || ()
-        });
-    }
+    // Removed external_value sync logic
 
     let on_input = {
         let input_value = input_value.clone();

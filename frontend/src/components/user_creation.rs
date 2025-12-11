@@ -1,5 +1,5 @@
 use crate::app::app_callbacks::on_create_user_click;
-use crate::app::app_state::{AppState, OptionalUserState, UIState, UIStateAction};
+use crate::app::app_state::{AppState, OptionalUserState, UIState};
 use yew::prelude::*;
 
 #[derive(Properties)]
@@ -15,102 +15,97 @@ impl PartialEq for UserCreationProps {
     }
 }
 
-fn username_field(ui_state: &UseReducerHandle<UIState>) -> Html {
-    let ui_state = ui_state.clone();
-    let value = ui_state.create_username_input.clone();
-    html! {
-        <input
-            type="text"
-            placeholder="Username"
-            value={value}
-            oninput={Callback::from(move |e: InputEvent| {
-                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                    ui_state.dispatch(UIStateAction::SetCreateUsernameInput(input.value()));
-                }
-            })}
-        />
-    }
-}
-
-fn email_field(ui_state: &UseReducerHandle<UIState>) -> Html {
-    let ui_state = ui_state.clone();
-    let value = ui_state.create_email_input.clone();
-    html! {
-        <input
-            type="email"
-            placeholder="Email"
-            value={value}
-            oninput={Callback::from(move |e: InputEvent| {
-                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                    ui_state.dispatch(UIStateAction::SetCreateEmailInput(input.value()));
-                }
-            })}
-        />
-    }
-}
-
-fn invite_code_field(ui_state: &UseReducerHandle<UIState>) -> Html {
-    let ui_state = ui_state.clone();
-    let value = ui_state.create_invite_code_input.clone();
-    html! {
-        <input
-            type="text"
-            placeholder="Invite Code"
-            value={value}
-            oninput={Callback::from(move |e: InputEvent| {
-                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                    ui_state.dispatch(UIStateAction::SetCreateInviteCodeInput(input.value()));
-                }
-            })}
-        />
-    }
-}
-
-fn password_field(ui_state: &UseReducerHandle<UIState>) -> Html {
-    let ui_state = ui_state.clone();
-    let value = ui_state.create_password_input.clone();
-    html! {
-        <input
-            type="password"
-            placeholder="Password"
-            value={value}
-            oninput={Callback::from(move |e: InputEvent| {
-                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                    ui_state.dispatch(UIStateAction::SetCreatePasswordInput(input.value()));
-                }
-            })}
-        />
-    }
-}
-
-fn submit_button(
-    app_state: &UseReducerHandle<AppState>,
-    ui_state: &UseReducerHandle<UIState>,
-    user_state: &UseReducerHandle<OptionalUserState>,
-) -> Html {
-    let onclick = on_create_user_click(app_state.clone(), ui_state.clone(), user_state.clone());
-    html! {
-        <button class="btn btn--primary" {onclick}>{"Create Account"}</button>
-    }
-}
-
 #[function_component(UserCreation)]
 pub fn user_creation(props: &UserCreationProps) -> Html {
     let UserCreationProps {
         app_state,
-        ui_state,
+        ui_state: _ui_state, // Unused for input values now
         user_state,
     } = props;
+
+    let username = use_state(String::new);
+    let email = use_state(String::new);
+    let invite_code = use_state(String::new);
+    let password = use_state(String::new);
+
+    let on_submit = {
+        let app_state = app_state.clone();
+        let ui_state = props.ui_state.clone();
+        let user_state = user_state.clone();
+        let username = username.clone();
+        let email = email.clone();
+        let invite_code = invite_code.clone();
+        let password = password.clone();
+
+        let create_user = on_create_user_click(app_state, ui_state, user_state);
+
+        Callback::from(move |_| {
+            create_user.emit((
+                (*username).clone(),
+                (*email).clone(),
+                (*password).clone(),
+                (*invite_code).clone(),
+            ));
+        })
+    };
 
     html! {
         <div class="user-creation-page">
             <h2>{"Create Your Account"}</h2>
             <div class="user-creation-form">
-                {username_field(ui_state)}
-                {email_field(ui_state)}
-                {invite_code_field(ui_state)}
-                {password_field(ui_state)}
-                {submit_button(app_state, ui_state, user_state)}
+                <input
+                    type="text"
+                    placeholder="Username"
+                    value={(*username).clone()}
+                    oninput={
+                        let username = username.clone();
+                        Callback::from(move |e: InputEvent| {
+                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                username.set(input.value());
+                            }
+                        })
+                    }
+                />
+                <input
+                    type="email"
+                    placeholder="Email"
+                    value={(*email).clone()}
+                    oninput={
+                        let email = email.clone();
+                        Callback::from(move |e: InputEvent| {
+                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                email.set(input.value());
+                            }
+                        })
+                    }
+                />
+                <input
+                    type="text"
+                    placeholder="Invite Code"
+                    value={(*invite_code).clone()}
+                    oninput={
+                        let invite_code = invite_code.clone();
+                        Callback::from(move |e: InputEvent| {
+                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                invite_code.set(input.value());
+                            }
+                        })
+                    }
+                />
+                <input
+                    type="password"
+                    placeholder="Password"
+                    value={(*password).clone()}
+                    oninput={
+                        let password = password.clone();
+                        Callback::from(move |e: InputEvent| {
+                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                password.set(input.value());
+                            }
+                        })
+                    }
+                />
+                <button class="btn btn--primary" onclick={on_submit}>{"Create Account"}</button>
             </div>
         </div>
     }

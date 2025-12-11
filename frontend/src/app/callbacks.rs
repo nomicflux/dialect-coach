@@ -89,39 +89,34 @@ pub fn on_tts_toggle(
 
 pub fn on_create_user_click(
     app_state: UseReducerHandle<AppState>,
-    ui_state: UseReducerHandle<UIState>,
+    _ui_state: UseReducerHandle<UIState>,
     _user_state: UseReducerHandle<OptionalUserState>,
-) -> Callback<MouseEvent> {
-    Callback::from(move |_: MouseEvent| {
-        let username = ui_state.create_username_input.clone();
-        let email = ui_state.create_email_input.clone();
-        let invite_code = ui_state.create_invite_code_input.clone();
-        let password = ui_state.create_password_input.clone();
-        let credentials = AuthCredentials::InviteCode(invite_code);
+) -> Callback<(String, String, String, String)> {
+    Callback::from(
+        move |(username, email, password, invite_code): (String, String, String, String)| {
+            let credentials = AuthCredentials::InviteCode(invite_code);
 
-        if let Err(e) =
-            app_state
-                .user_ws_service
-                .borrow()
-                .create_user(username, email, credentials, password)
-        {
-            error!("Failed to create user: {}", e);
-            app_state.dispatch(AppStateAction::SetError(format!(
-                "Failed to create user: {}",
-                e
-            )));
-        }
-    })
+            if let Err(e) =
+                app_state
+                    .user_ws_service
+                    .borrow()
+                    .create_user(username, email, credentials, password)
+            {
+                error!("Failed to create user: {}", e);
+                app_state.dispatch(AppStateAction::SetError(format!(
+                    "Failed to create user: {}",
+                    e
+                )));
+            }
+        },
+    )
 }
 
 pub fn on_signin_click(
     app_state: UseReducerHandle<AppState>,
-    ui_state: UseReducerHandle<UIState>,
-) -> Callback<MouseEvent> {
-    Callback::from(move |_: MouseEvent| {
-        let username = ui_state.signin_username_input.clone();
-        let password = ui_state.signin_password_input.clone();
-
+    _ui_state: UseReducerHandle<UIState>,
+) -> Callback<(String, String)> {
+    Callback::from(move |(username, password): (String, String)| {
         if let Err(e) = app_state
             .user_ws_service
             .borrow()
@@ -136,12 +131,7 @@ pub fn on_signin_click(
     })
 }
 
-fn clear_create_form_inputs(ui_state: &UseReducerHandle<UIState>) {
-    ui_state.dispatch(UIStateAction::ClearCreateUsernameInput);
-    ui_state.dispatch(UIStateAction::ClearCreateEmailInput);
-    ui_state.dispatch(UIStateAction::ClearCreateInviteCodeInput);
-    ui_state.dispatch(UIStateAction::ClearCreatePasswordInput);
-}
+// clear_create_form_inputs removed
 
 pub fn on_user_create_response(
     app_state: UseReducerHandle<AppState>,
@@ -153,24 +143,10 @@ pub fn on_user_create_response(
             Ok((user, token)) => {
                 info!("User created successfully: {}", user.username);
                 crate::utils::cookies::set_session_token(&token);
-                clear_create_form_inputs(&ui_state);
+                // inputs cleared by component unmounting
                 ui_state.dispatch(UIStateAction::HideUserCreationPage);
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
-
-                // Trigger sign-in to load/create UserState (reuses normal sign-in flow)
-                let password = ui_state.create_password_input.clone();
-                if let Err(e) = app_state
-                    .user_ws_service
-                    .borrow()
-                    .sign_in(user.username.clone(), password)
-                {
-                    error!("Failed to sign in after user creation: {}", e);
-                    app_state.dispatch(AppStateAction::SetError(format!(
-                        "User created but sign in failed: {}",
-                        e
-                    )));
-                }
             }
             Err(e) => {
                 error!("Failed to create user: {}", e);
@@ -180,15 +156,11 @@ pub fn on_user_create_response(
     )
 }
 
-fn clear_signin_form_inputs(ui_state: &UseReducerHandle<UIState>) {
-    ui_state.dispatch(UIStateAction::ClearSigninUsernameInput);
-    ui_state.dispatch(UIStateAction::ClearSigninInviteCodeInput);
-    ui_state.dispatch(UIStateAction::ClearSigninPasswordInput);
-}
+// clear_signin_form_inputs removed
 
 pub fn on_user_signin_response(
     app_state: UseReducerHandle<AppState>,
-    ui_state: UseReducerHandle<UIState>,
+    _ui_state: UseReducerHandle<UIState>,
     _user_state: UseReducerHandle<OptionalUserState>,
 ) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
     Callback::from(
@@ -196,7 +168,7 @@ pub fn on_user_signin_response(
             Ok((user, token)) => {
                 info!("Signed in successfully as: {}", user.username);
                 crate::utils::cookies::set_session_token(&token);
-                clear_signin_form_inputs(&ui_state);
+                // inputs cleared by component unmounting
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
             }

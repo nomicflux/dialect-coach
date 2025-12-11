@@ -7,8 +7,6 @@ use yew::prelude::*;
 pub enum UIStateAction {
     OpenPanel,
     ClosePanel,
-    EnterInputPrompt(String),
-    ClearInputPrompt,
     PushTranslatingButton(String),
     ClearTranslatingButton,
     OpenLearningPanel,
@@ -17,20 +15,6 @@ pub enum UIStateAction {
     SetSidebarCollapsed(bool),
     ToggleLearningPanel,
     ToggleUsageFooter,
-    SetCreateUsernameInput(String),
-    SetSigninUsernameInput(String),
-    SetCreateEmailInput(String),
-    SetCreateInviteCodeInput(String),
-    SetCreatePasswordInput(String),
-    SetSigninInviteCodeInput(String),
-    SetSigninPasswordInput(String),
-    ClearCreateUsernameInput,
-    ClearSigninUsernameInput,
-    ClearCreateEmailInput,
-    ClearCreateInviteCodeInput,
-    ClearCreatePasswordInput,
-    ClearSigninInviteCodeInput,
-    ClearSigninPasswordInput,
     PushDeletedLearningItem(LearningItem),
     PopDeletedLearningItem,
     PushDeletedMessage(Message),
@@ -46,19 +30,11 @@ pub enum UIStateAction {
 #[derive(Clone, PartialEq)]
 pub struct UIState {
     pub panel_open: bool,
-    pub input_prompt_value: Option<String>,
     pub translating_button: Option<String>,
     pub learning_panel_open: bool,
     pub sidebar_collapsed: bool,
     pub learning_panel_collapsed: bool,
     pub usage_footer_collapsed: bool,
-    pub create_username_input: String,
-    pub signin_username_input: String,
-    pub create_email_input: String,
-    pub create_invite_code_input: String,
-    pub create_password_input: String,
-    pub signin_invite_code_input: String,
-    pub signin_password_input: String,
     pub deleted_learning_items: VecDeque<LearningItem>,
     pub deleted_messages: VecDeque<Message>,
     pub show_user_creation_page: bool,
@@ -70,19 +46,11 @@ impl Default for UIState {
     fn default() -> Self {
         Self {
             panel_open: false,
-            input_prompt_value: None,
             translating_button: None,
             learning_panel_open: false,
             sidebar_collapsed: false,
             learning_panel_collapsed: false,
             usage_footer_collapsed: true,
-            create_username_input: String::new(),
-            signin_username_input: String::new(),
-            create_email_input: String::new(),
-            create_invite_code_input: String::new(),
-            create_password_input: String::new(),
-            signin_invite_code_input: String::new(),
-            signin_password_input: String::new(),
             deleted_learning_items: VecDeque::new(),
             deleted_messages: VecDeque::new(),
             show_user_creation_page: false,
@@ -98,8 +66,6 @@ impl UIState {
         match action {
             UIStateAction::OpenPanel => next.panel_open = true,
             UIStateAction::ClosePanel => next.panel_open = false,
-            UIStateAction::EnterInputPrompt(input) => next.input_prompt_value = Some(input),
-            UIStateAction::ClearInputPrompt => next.input_prompt_value = None,
             UIStateAction::PushTranslatingButton(msg) => next.translating_button = Some(msg),
             UIStateAction::ClearTranslatingButton => next.translating_button = None,
             UIStateAction::OpenLearningPanel => next.learning_panel_open = true,
@@ -112,24 +78,6 @@ impl UIState {
             UIStateAction::ToggleUsageFooter => {
                 next.usage_footer_collapsed = !next.usage_footer_collapsed
             }
-            UIStateAction::SetCreateUsernameInput(input) => next.create_username_input = input,
-            UIStateAction::SetSigninUsernameInput(input) => next.signin_username_input = input,
-            UIStateAction::SetCreateEmailInput(input) => next.create_email_input = input,
-            UIStateAction::SetCreateInviteCodeInput(input) => next.create_invite_code_input = input,
-            UIStateAction::SetCreatePasswordInput(input) => next.create_password_input = input,
-            UIStateAction::SetSigninInviteCodeInput(input) => next.signin_invite_code_input = input,
-            UIStateAction::SetSigninPasswordInput(input) => next.signin_password_input = input,
-            UIStateAction::ClearCreateUsernameInput => next.create_username_input = String::new(),
-            UIStateAction::ClearSigninUsernameInput => next.signin_username_input = String::new(),
-            UIStateAction::ClearCreateEmailInput => next.create_email_input = String::new(),
-            UIStateAction::ClearCreateInviteCodeInput => {
-                next.create_invite_code_input = String::new()
-            }
-            UIStateAction::ClearCreatePasswordInput => next.create_password_input = String::new(),
-            UIStateAction::ClearSigninInviteCodeInput => {
-                next.signin_invite_code_input = String::new()
-            }
-            UIStateAction::ClearSigninPasswordInput => next.signin_password_input = String::new(),
             UIStateAction::PushDeletedLearningItem(item) => {
                 next.deleted_learning_items.push_back(item);
                 if next.deleted_learning_items.len() > 10 {

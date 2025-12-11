@@ -19,27 +19,7 @@ impl PartialEq for HeaderProps {
     }
 }
 
-fn create_input_field(
-    value: String,
-    action: impl Fn(String) -> UIStateAction + 'static,
-    ui_state: &UseReducerHandle<UIState>,
-    input_type: String,
-    placeholder: String,
-) -> Html {
-    let ui_state = ui_state.clone();
-    html! {
-        <input
-            type={input_type}
-            placeholder={placeholder}
-            value={value}
-            oninput={Callback::from(move |e: InputEvent| {
-                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                    ui_state.dispatch(action(input.value()));
-                }
-            })}
-        />
-    }
-}
+// create_input_field removed
 
 fn render_create_button(ui_state: &UseReducerHandle<UIState>) -> Html {
     let ui_state = ui_state.clone();
@@ -55,34 +35,6 @@ fn render_create_button(ui_state: &UseReducerHandle<UIState>) -> Html {
     }
 }
 
-fn render_signin_form(
-    app_state: &UseReducerHandle<AppState>,
-    ui_state: &UseReducerHandle<UIState>,
-) -> Html {
-    html! {
-        <div class="user-form">
-            <label>{"Sign In"}</label>
-            {create_input_field(
-                ui_state.signin_username_input.clone(),
-                UIStateAction::SetSigninUsernameInput,
-                ui_state,
-                "text".to_string(),
-                "Username".to_string()
-            )}
-            {create_input_field(
-                ui_state.signin_password_input.clone(),
-                UIStateAction::SetSigninPasswordInput,
-                ui_state,
-                "password".to_string(),
-                "Password".to_string()
-            )}
-            <button onclick={on_signin_click(app_state.clone(), ui_state.clone())}>
-                {"Sign In"}
-            </button>
-        </div>
-    }
-}
-
 #[function_component(Header)]
 pub fn header(props: &HeaderProps) -> Html {
     let HeaderProps {
@@ -90,6 +42,23 @@ pub fn header(props: &HeaderProps) -> Html {
         ui_state,
         user_state,
     } = props;
+
+    let signin_username = use_state(String::new);
+    let signin_password = use_state(String::new);
+
+    let on_signin = {
+        let app_state = app_state.clone();
+        let ui_state = ui_state.clone();
+        let username = signin_username.clone();
+        let password = signin_password.clone();
+        Callback::from(move |_: MouseEvent| {
+            on_signin_click(app_state.clone(), ui_state.clone()).emit((
+                (*username).clone(),
+                (*password).clone(),
+            ));
+        })
+    };
+
 
     html! {
         <header class="app-header">
@@ -126,7 +95,38 @@ pub fn header(props: &HeaderProps) -> Html {
                         html! {
                             <div class="user-forms">
                                 {render_create_button(ui_state)}
-                                {render_signin_form(app_state, ui_state)}
+                                <div class="user-form">
+                                    <label>{"Sign In"}</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Username"
+                                        value={(*signin_username).clone()}
+                                        oninput={
+                                            let signin_username = signin_username.clone();
+                                            Callback::from(move |e: InputEvent| {
+                                                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                                    signin_username.set(input.value());
+                                                }
+                                            })
+                                        }
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder="Password"
+                                        value={(*signin_password).clone()}
+                                        oninput={
+                                            let signin_password = signin_password.clone();
+                                            Callback::from(move |e: InputEvent| {
+                                                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                                    signin_password.set(input.value());
+                                                }
+                                            })
+                                        }
+                                    />
+                                    <button onclick={on_signin}>
+                                        {"Sign In"}
+                                    </button>
+                                </div>
                             </div>
                         }
                     }}

@@ -252,16 +252,15 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     />
                     <InputBox
                         on_send={{
-                            let ui_state = ui_state.clone();
+                            // let ui_state = ui_state.clone(); // No longer needed for clearing
                             let send_message = on_send_message(app_state.clone(), user_state.clone());
                             Callback::from(move |content: String| {
-                                // Clear the prompt value after use
-                                ui_state.dispatch(UIStateAction::ClearInputPrompt);
+                                // InputBox clears itself now
                                 send_message.emit(content);
                             })
                         }}
                         disabled={!matches!(app_state.connection_state, ConnectionState::Connected)}
-                        external_value={(ui_state.input_prompt_value).clone()}
+                        // external_value removed
                         textarea_ref={Some(chat_input_ref.clone())}
                         language_option={us.current_language_option()}
                     />
