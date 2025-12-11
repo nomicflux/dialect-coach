@@ -300,4 +300,69 @@ mod tests {
 
         assert_eq!(original_v1, back_to_v1);
     }
+
+    fn extract_field_names(value: &serde_json::Value) -> Vec<String> {
+        if let Some(obj) = value.as_object() {
+            let mut fields: Vec<String> = obj.keys().cloned().collect();
+            fields.sort();
+            fields
+        } else {
+            Vec::new()
+        }
+    }
+
+    #[test]
+    fn test_user_structure_snapshot() {
+        let user = User::new(
+            uuid::Uuid::new_v4(),
+            "testuser".to_string(),
+            "test@example.com".to_string(),
+        );
+
+        let json = serde_json::to_value(&user).unwrap();
+        let actual_fields = extract_field_names(&json);
+        let expected_fields = vec!["email", "id", "username"];
+
+        assert!(
+            actual_fields == expected_fields,
+            "STRUCTURE CHANGE DETECTED in User!\n\nExpected fields: {:?}\nActual fields:   {:?}\n\nTO FIX THIS TEST:\n1. Add new version variant to UserVersion enum (e.g., V2)\n2. Create UserV2 type alias in shared/src/models/versioning.rs\n3. Create migration struct and implement Migration<UserV1, UserV2>:\n   impl Migration<UserV1, UserV2> for UserV1ToV2 {{\n       fn migrate_forward(from: UserV1) -> UserV2 {{ ... }}\n       fn migrate_backward(to: UserV2) -> UserV1 {{ ... }}\n   }}\n4. Update CURRENT_USER_VERSION constant to V2\n5. Update this test's expected fields to match new structure\n\nSee shared/src/models/versioning.rs for migration examples.",
+            expected_fields,
+            actual_fields
+        );
+    }
+
+    #[test]
+    fn test_user_state_structure_snapshot() {
+        let state = UserState::new(uuid::Uuid::new_v4());
+
+        let json = serde_json::to_value(&state).unwrap();
+        let actual_fields = extract_field_names(&json);
+        let expected_fields = vec![
+            "active_branch_id",
+            "active_plan_id",
+            "branches",
+            "conversation_history",
+            "dialect_levels",
+            "formality",
+            "language_options",
+            "language_plans",
+            "learning_goals",
+            "learning_items",
+            "selected_dialect",
+            "selected_language",
+            "show_experimental_dialects",
+            "teaching_mode",
+            "tts_enabled",
+            "usage_stats",
+            "user_gender",
+            "user_id",
+        ];
+
+        assert!(
+            actual_fields == expected_fields,
+            "STRUCTURE CHANGE DETECTED in UserState!\n\nExpected fields: {:?}\nActual fields:   {:?}\n\nTO FIX THIS TEST:\n1. Add new version variant to UserStateVersion enum (e.g., V2)\n2. Create UserStateV2 type alias in shared/src/models/versioning.rs\n3. Create migration struct and implement Migration<UserStateV1, UserStateV2>:\n   impl Migration<UserStateV1, UserStateV2> for UserStateV1ToV2 {{\n       fn migrate_forward(from: UserStateV1) -> UserStateV2 {{ ... }}\n       fn migrate_backward(to: UserStateV2) -> UserStateV1 {{ ... }}\n   }}\n4. Update CURRENT_USER_STATE_VERSION constant to V2\n5. Update this test's expected fields to match new structure\n\nSee shared/src/models/versioning.rs for migration examples.",
+            expected_fields,
+            actual_fields
+        );
+    }
 }
