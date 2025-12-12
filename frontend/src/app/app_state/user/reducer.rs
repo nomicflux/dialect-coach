@@ -4,6 +4,9 @@ use super::actions::{
 use super::helpers::*;
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::ConversationBranch;
+use dialect_coach_shared::{
+    AgentAnalysis, LearningItem, LearningItemType,
+};
 
 pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
     use MessageAction::*;
@@ -59,6 +62,8 @@ pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
         }
         UpdateScores(analysis) => {
             next.learning_items = apply_score_updates(next.learning_items.clone(), &analysis);
+            promote_plan_items(next, &analysis);
+            check_step_completion(next);
         }
         DeleteItem(id) => {
             next.learning_items = delete_learning_item(next.learning_items.clone(), id);
@@ -261,4 +266,158 @@ pub(crate) fn apply_user_state_action(state: &UserState, action: UserStateAction
         _ => {} // Replace/Clear handled by wrapper
     }
     next
+}
+
+fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
+    if let Some(plan) = state
+        .language_plans
+        .iter()
+        .find(|p| Some(p.id) == state.active_plan_id)
+        && let Some(step) = plan.steps.get(plan.current_step_index)
+        && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
+    {
+        for item in &content.items {
+            let id = get_learning_item_id(item);
+            if !state.learning_items.iter().any(|i| get_learning_item_id(i) == id)
+                && item_has_score(item, analysis)
+            {
+                state.learning_items.push(item.clone());
+            }
+        }
+    }
+}
+
+fn check_step_completion(state: &mut UserState) {
+    if let Some(plan) = state
+        .language_plans
+        .iter_mut()
+        .find(|p| Some(p.id) == state.active_plan_id)
+        && let Some(step) = plan.steps.get(plan.current_step_index)
+        && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
+    {
+        let all_passed = content.items.iter().all(|plan_item| {
+            state.learning_items.iter().any(|item| {
+                get_learning_item_id(item) == get_learning_item_id(plan_item) && item.score >= 80
+            })
+        });
+
+        if all_passed {
+            plan.advance_step();
+        }
+    }
+}
+
+fn item_has_score(item: &LearningItem, analysis: &AgentAnalysis) -> bool {
+    match &item.item {
+        LearningItemType::Mistake(m) => analysis.mistake_scores.contains_key(&m.id),
+        LearningItemType::Explanation(e) => analysis.explained_scores.contains_key(&e.id),
+        LearningItemType::Translation(t) => analysis.translated_scores.contains_key(&t.id),
+        LearningItemType::Exploration(e) => analysis.exploratory_scores.contains_key(&e.id),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dialect_coach_shared::models::{MistakeCategory, LearningItemScore};
+    use dialect_coach_shared::{Dialect, LanguagePlan, PlanStep, StepType, PlanContent, Mistake};
+    use uuid::Uuid;
+
+    #[test]
+    fn test_promote_plan_items() {
+        let mut state = UserState::new(Uuid::new_v4());
+        let dialect = Dialect::SpanishMexican;
+        let mut plan = LanguagePlan::new(
+            "Test Plan".to_string(),
+            dialect,
+            Some("Beginner".to_string()),
+            vec![],
+        );
+
+        let mistake = Mistake::new(
+            "mistake".to_string(),
+            "correction".to_string(),
+            MistakeCategory::SpellingError {
+                context: "ctx".to_string(),
+            },
+        );
+        let plan_item = LearningItem::new(LearningItemType::Mistake(mistake.clone()), dialect);
+        
+        plan.steps.push(PlanStep::new(
+            1,
+            "Step 1".to_string(),
+            StepType::Learning {
+                content: PlanContent { items: vec![plan_item.clone()] },
+            },
+            "Learn this".to_string(),
+        ));
+        
+        state.language_plans.push(plan.clone());
+        state.active_plan_id = Some(plan.id);
+
+        let mut analysis = AgentAnalysis::default();
+        analysis.mistake_scores.insert(mistake.id, LearningItemScore { score: 10 });
+
+        let action = LearningAction::UpdateScores(analysis);
+        reduce_learning(&mut state, action);
+
+        assert_eq!(state.learning_items.len(), 1);
+        assert_eq!(get_learning_item_id(&state.learning_items[0]), mistake.id);
+    }
+
+    #[test]
+    fn test_check_step_completion() {
+        let mut state = UserState::new(Uuid::new_v4());
+        let dialect = Dialect::SpanishMexican;
+        let mut plan = LanguagePlan::new(
+            "Test Plan".to_string(),
+            dialect,
+            Some("Beginner".to_string()),
+            vec![],
+        );
+
+        let mistake = Mistake::new(
+            "mistake".to_string(),
+            "correction".to_string(),
+            MistakeCategory::SpellingError {
+                context: "ctx".to_string(),
+            },
+        );
+        let plan_item = LearningItem::new(LearningItemType::Mistake(mistake.clone()), dialect);
+        let mut active_item = plan_item.clone();
+        active_item.score = 80;
+
+        plan.steps.push(PlanStep::new(
+            1,
+            "Step 1".to_string(),
+            StepType::Learning {
+                content: PlanContent { items: vec![plan_item.clone()] },
+            },
+            "Learn this".to_string(),
+        ));
+         plan.steps.push(PlanStep::new(
+            2,
+            "Step 2".to_string(),
+            StepType::Learning {
+                content: PlanContent { items: vec![] },
+            },
+            "Next Step".to_string(),
+        ));
+        
+        state.language_plans.push(plan.clone());
+        state.active_plan_id = Some(plan.id);
+        state.learning_items.push(active_item);
+
+        // Verification: current index should be 0
+        assert_eq!(state.language_plans[0].current_step_index, 0);
+
+        // Trigger logic manually via helper or action? 
+        // Action is easier to check integration.
+        let analysis = AgentAnalysis::default();
+        let action = LearningAction::UpdateScores(analysis);
+        reduce_learning(&mut state, action);
+
+        // Should have advanced
+        assert_eq!(state.language_plans[0].current_step_index, 1);
+    }
 }

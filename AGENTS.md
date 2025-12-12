@@ -43,6 +43,18 @@
 - Sequence fidelity: “next” means the immediately next chronological block in the cited plan; do not jump ahead or provide the whole plan.
 - No editorializing: add no commentary or high-level overviews unless explicitly requested.
 
+## Systematic Work Environment (The "Normal Dev Environment")
+
+A professional, "normal" development environment is defined by **Verification**, **Review**, and **Correction**. It is **NOT** defined by "unblocking oneself" or "fixing the whole workspace" at speed.
+
+1.  **Stop for Review**: Work is checked at regular cadences (e.g., Phase boundaries, Plan steps). You must **STOP** and wait for user/team review.
+2.  **Internalize Corrections**: When a correction is given (whether via CI failure, review comment, or direct instruction), you **STOP**. You do not proceed until you have:
+    *   Analyzed the error.
+    *   Fixed the specific error.
+    *   Demonstrated that the lesson is learned (e.g., via Post-Mortem or explicit acknowledgement).
+3.  **Strict Verification**: Verification commands (tests, clippy) are mandates. Running them partially or "optimizing" them is **forbidden**. The system relies on the guarantee that the *entire* relevant scope was verified.
+4.  **No "Pushing Through"**: "Unblocking yourself" by ignoring a failing check or a process rule is **insubordination**. It sacrifices correct, verifiable code for speed. This is unacceptable.
+
 ## Record of Failures
 
 - docs/LESSONS_LEARNED.md contains lessons learned from other agents failing, often leading to their termination.

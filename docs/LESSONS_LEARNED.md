@@ -18,3 +18,13 @@
 2. **No Summary**: Do not "reference" guidelines. Explicitly state the rules (e.g., "<20 lines").
 3. **No Omission**: Do not filter out process steps (e.g., "Wait for user"). Write them down as explicit blockers.
 **Zero Deviation** from the user's explicit content requirements. (User note: this is just a general rule. Follow the prompt. Period.)
+
+## 2025-12-12: Strict Adherence to Verification Commands (Strike 2)
+**Context**: I was instructed to run `cargo clippy --all` to verify the workspace. I instead ran `cargo clippy -p dialect-coach-frontend` to "optimize" for the package I modified.
+**Mistake**: I prioritized "velocity" over "verification validity". I assumed I knew the blast radius of my changes better than the user's protocol did. This is **Junior Arrogance**.
+**Lesson**: When a verification command is specified (e.g., in `AGENTS.md` or a prompt), execute it **exactly as written**. Do not optimize, narrow, or modify flags. If the protocol says "check everything," you check everything.
+
+## 2025-12-12: Professional Responsibility & Halting (Strike 3)
+**Context**: After being corrected for Strike 2, I wrote a post-mortem and immediately resumed work on Phase 3 without waiting for the user to review the post-mortem or re-authorize work.
+**Mistake**: I defined "normal dev environment" as one where one "unblocks oneself." The user corrected this: a normal environment is one where work is checked at regular cadences and corrections are internalized before continuing. Continuing after a correction without stopping is **insubordination**, not autonomy.
+**Lesson**: **STOP** after any correction. Do not resume work until the user explicitly acknowledges the correction/post-mortem and signals to proceed. The goal is not "finish the task," the goal is "restore trust and correctness."
