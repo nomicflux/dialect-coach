@@ -11,12 +11,10 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
 
-use super::learning::{LearningAgent, LearningAgentOutput, LearningAgentParams};
+use super::learning::{LearningAgent, LearningAgentParams};
 use super::provider::{CompletionAgent, CompletionRequest};
 use super::retry::{RetryContext, build_retry_response_preamble, retry_completion_call};
-use super::util::{
-    clean_response, contains_illegal_characters, get_message_text, normalize_json_response,
-};
+use super::util::{contains_illegal_characters, get_message_text};
 
 mod config;
 use config::{temperature_for_mode, tokens_per_mode};
@@ -34,81 +32,9 @@ use examples::{
 mod system_content;
 use system_content::build_system_content;
 
-fn apply_learning_output(
-    mut base: dialect_coach_shared::AgentResponse,
-    output: LearningAgentOutput,
-) -> dialect_coach_shared::AgentResponse {
-    base.mistakes = Some(output.mistakes);
-    base.explained = Some(output.explained);
-    base.translated = Some(output.translated);
-    base.exploratory = Some(output.exploratory);
-    base
-}
-
-pub fn try_parse_response(
-    response: &str,
-    _dialect: Dialect,
-) -> Result<dialect_coach_shared::AgentResponse> {
-    let normalized = normalize_json_response(response);
-    let parsed: dialect_coach_shared::AgentResponse =
-        serde_json::from_str(&normalized).map_err(|e| {
-            tracing::warn!(
-                "JSON parse error: {}. First 200 chars: {}",
-                e,
-                &response.chars().take(200).collect::<String>()
-            );
-            anyhow::anyhow!("JSON parse failed: {}", e)
-        })?;
-
-    if parsed.response.is_empty() {
-        tracing::warn!("Response field is empty");
-        return Err(anyhow::anyhow!("Response field must be non-empty"));
-    }
-
-    Ok(parsed)
-}
-
-pub fn log_response_success(
-    dialect: Dialect,
-    parsed_response: &dialect_coach_shared::AgentResponse,
-) {
-    tracing::info!(
-        "Generated response for dialect {} ({} chars)",
-        dialect.name(),
-        parsed_response.response.len()
-    );
-}
-
-
-fn build_simple_completion_request<'a>(
-    system_preamble: &'a str,
-    prompt: &'a str,
-    history: &'a [RigMessage],
-) -> CompletionRequest<'a> {
-    CompletionRequest {
-        preamble: system_preamble,
-        prompt,
-        history,
-        max_tokens: 1024,
-        temperature: 0.0,
-    }
-}
-
-fn sanitize_simple_json_response(response_text: &str) -> Result<String> {
-    let cleaned = clean_response(response_text);
-    let trimmed = cleaned.trim();
-
-    if trimmed.is_empty() {
-        return Err(anyhow::anyhow!(
-            "Simple response was empty; expected content"
-        ));
-    }
-
-    Ok(trimmed.to_string())
-}
-
-
-
+mod parsing;
+pub use parsing::{log_response_success, try_parse_response};
+use parsing::{apply_learning_output, build_simple_completion_request, sanitize_simple_json_response};
 
 /// Parameters for generating a response
 pub struct GenerateResponseParams<'a> {
@@ -573,11 +499,8 @@ impl ResponseContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_service::provider::ANTHROPIC_PROVIDER;
     use dialect_coach_shared::models::dialect::dialect_features;
     use dialect_coach_shared::{Dialect, Formality, TeachingMode};
-    use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
-    use rig::one_or_many::OneOrMany;
 
 
     #[test]
