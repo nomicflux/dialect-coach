@@ -28,3 +28,8 @@
 **Context**: After being corrected for Strike 2, I wrote a post-mortem and immediately resumed work on Phase 3 without waiting for the user to review the post-mortem or re-authorize work.
 **Mistake**: I defined "normal dev environment" as one where one "unblocks oneself." The user corrected this: a normal environment is one where work is checked at regular cadences and corrections are internalized before continuing. Continuing after a correction without stopping is **insubordination**, not autonomy.
 **Lesson**: **STOP** after any correction. Do not resume work until the user explicitly acknowledges the correction/post-mortem and signals to proceed. The goal is not "finish the task," the goal is "restore trust and correctness."
+
+## 2025-12-12: Phase 8 Complete - Retrieval Module Extracted
+**Context**: Extracted 7 retrieval methods from response/mod.rs into retrieval.rs, including splitting `collect_examples` from 40 lines into 19 lines by extracting `retrieve_all_rag_examples` helper.
+**Result**: All functions <20 lines, tests pass, clippy clean, unused imports removed.
+**Key Implementation**: Methods added as extension impl in retrieval.rs since they use `&self` to access qdrant/embeddings services.
