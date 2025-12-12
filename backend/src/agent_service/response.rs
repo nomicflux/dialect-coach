@@ -370,18 +370,15 @@ fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>)
                         t,
                     ) => {
                         content.push_str(&format!(
-                            "- Translation: {} -> {}\n",
-                            t.translated_word, t.translated_to
+                            "- Vocab word to use: {}\n",
+                            t.translated_to
                         ));
-                        if let Some(ctx) = &t.context {
-                            content.push_str(&format!("  Context: {}\n", ctx));
-                        }
                     }
                     dialect_coach_shared::models::learning_item::LearningItemType::Explanation(
                         e,
                     ) => {
                         content.push_str(&format!(
-                            "- Explanation ({}): {}\n",
+                            "- Grammatical point to incorporate ({}): {}\n",
                             e.new_phrase, e.explanation
                         ));
                     }

@@ -38,7 +38,8 @@ pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
             next.branches = remove_message_from_branches(next.branches.clone(), id);
         }
         UndoDelete(msg) => {
-            next.conversation_history = undo_delete_message(next.conversation_history.clone(), msg);
+            next.conversation_history = undo_delete_message(next.conversation_history.clone(), msg.clone());
+            next.branches = restore_message_to_branch(next.branches.clone(), &msg);
         }
     }
 }

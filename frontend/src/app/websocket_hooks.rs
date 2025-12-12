@@ -120,12 +120,13 @@ pub fn use_chat_websocket(
                                     LearningAction::UpdateScores(analysis),
                                 )));
                             }
+
+                            // Add agent message to conversation history
+                            session_handle.dispatch(SessionAction::Domain(UserDomainAction::Message(
+                                MessageAction::Add(msg_clone.clone()),
+                            )));
                         }
                     }
-
-                    session_handle.dispatch(SessionAction::Domain(UserDomainAction::Message(
-                        MessageAction::Add(msg_clone.clone()),
-                    )));
                 }));
 
                 let asc = app_state.clone();

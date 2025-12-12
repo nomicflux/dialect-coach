@@ -165,6 +165,39 @@ pub fn undo_delete_message(mut history: Vec<Message>, msg: Message) -> Vec<Messa
     history
 }
 
+pub fn restore_message_to_branch(
+    mut branches: Vec<ConversationBranch>,
+    msg: &Message,
+) -> Vec<ConversationBranch> {
+    // Find the branch that should contain this message based on parent chain
+    for branch in &mut branches {
+        // Check if this message belongs in this branch by verifying parent chain
+        if let Some(parent_id) = msg.parent_id {
+            if branch.message_ids.contains(&parent_id) {
+                // Insert after parent, maintaining order
+                if let Some(pos) = branch.message_ids.iter().position(|&id| id == parent_id) {
+                    branch.message_ids.insert(pos + 1, msg.id);
+                    // Update leaf if this was the last message
+                    if pos + 1 == branch.message_ids.len() - 1 {
+                        branch.leaf_message_id = Some(msg.id);
+                    }
+                }
+                break;
+            }
+        } else {
+            // Root message - add to branch with no parent
+            if branch.parent_message_id.is_none() && !branch.message_ids.contains(&msg.id) {
+                branch.message_ids.insert(0, msg.id);
+                if branch.message_ids.len() == 1 {
+                    branch.leaf_message_id = Some(msg.id);
+                }
+                break;
+            }
+        }
+    }
+    branches
+}
+
 pub fn add_learning_goal(mut goals: Vec<LearningGoal>, goal: LearningGoal) -> Vec<LearningGoal> {
     goals.push(goal);
     goals
