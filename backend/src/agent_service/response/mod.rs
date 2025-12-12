@@ -11,30 +11,28 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
 
-use super::language_instructions::build_language_instruction;
 use super::learning::{LearningAgent, LearningAgentOutput, LearningAgentParams};
 use super::provider::{CompletionAgent, CompletionRequest};
 use super::retry::{RetryContext, build_retry_response_preamble, retry_completion_call};
 use super::util::{
-    JSON_OUTPUT_INSTRUCTION, clean_response, contains_illegal_characters,
-    format_learning_items_context, get_message_text,
-    learning_goals_section, normalize_json_response,
+    clean_response, contains_illegal_characters, get_message_text, normalize_json_response,
 };
 
 mod config;
-use config::{temperature_for_mode, tokens_per_mode, CONTENT_FILTERING_DIRECTIVES, RESPONSE_JSON_OUTPUT_FORMAT};
+use config::{temperature_for_mode, tokens_per_mode};
 
 mod speaker;
-use speaker::{speaker_desc, mimic_instruction, extract_gender_from_dialect};
 
 mod teaching;
-use teaching::{response_teaching_desc, language_level_instruction};
 
 mod examples;
 use examples::{
     build_conversation_history_with_examples, deduplicate_examples, get_sample_formalities,
     group_examples_by_formality,
 };
+
+mod system_content;
+use system_content::build_system_content;
 
 fn apply_learning_output(
     mut base: dialect_coach_shared::AgentResponse,
@@ -110,200 +108,6 @@ fn sanitize_simple_json_response(response_text: &str) -> Result<String> {
 }
 
 
-fn build_plan_system_content(plan: &Option<&dialect_coach_shared::LanguagePlan>) -> String {
-    if let Some(plan) = plan
-        && let Some(step) = plan.steps.get(plan.current_step_index)
-    {
-        let mut content = String::new(); // Use a new `content` variable for the plan details
-
-        // Collect items to display
-        let items_to_display: Vec<&dialect_coach_shared::models::learning_item::LearningItem> =
-            match &step.step_type {
-                dialect_coach_shared::models::plan::StepType::Learning { content } => {
-                    content.items.iter().collect()
-                }
-                dialect_coach_shared::models::plan::StepType::Review { review_step_ids } => {
-                    // Collect items from all referenced steps
-                    review_step_ids
-                        .iter()
-                        .filter_map(|id| plan.steps.iter().find(|s| s.id == *id))
-                        .filter_map(|step| {
-                            if let dialect_coach_shared::models::plan::StepType::Learning {
-                                content,
-                            } = &step.step_type
-                            {
-                                Some(content)
-                            } else {
-                                None
-                            }
-                        })
-                        .flat_map(|content| content.items.iter())
-                        .collect()
-                }
-            };
-
-        // Add structured content to prompt
-        if !items_to_display.is_empty() {
-            match step.step_type {
-                dialect_coach_shared::models::plan::StepType::Learning { .. } => {
-                    content.push_str("\nRELEVANT LEARNING CONTENT:\n");
-                }
-                dialect_coach_shared::models::plan::StepType::Review { .. } => {
-                    content.push_str("\nREVIEW MATERIALS (FROM PREVIOUS STEPS):\n");
-                }
-            }
-
-            for item in items_to_display {
-                match &item.item {
-                    dialect_coach_shared::models::learning_item::LearningItemType::Translation(
-                        t,
-                    ) => {
-                        content.push_str(&format!(
-                            "- Vocab word to use: {}\n",
-                            t.translated_to
-                        ));
-                    }
-                    dialect_coach_shared::models::learning_item::LearningItemType::Explanation(
-                        e,
-                    ) => {
-                        content.push_str(&format!(
-                            "- Grammatical point to incorporate ({}): {}\n",
-                            e.new_phrase, e.explanation
-                        ));
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        let goal_instruction = match &step.step_type {
-            dialect_coach_shared::models::plan::StepType::Learning { .. } => {
-                "Your Goal: Naturally incorporate the Provided Step Materials into your own speech to demonstrate them. Do NOT explicitly teach, list the items, or ask the user to use them. Just chat naturally using the target vocabulary/grammar."
-            }
-            dialect_coach_shared::models::plan::StepType::Review { .. } => {
-                "Your Goal: This is a REVIEW step. The user has learned the listed materials in previous steps. Verify the user remembers them by using them in context or asking questions that require the user to use them. Do not spoon-feed answers. Challenge them."
-            }
-        };
-
-        return format!(
-            "\n\n# ACTIVE LANGUAGE PLAN\nYou are guiding the user through the plan: \"{}\".\n\
-                Current Step: {}\n\
-                Instructions: {}\n\
-                {}\
-                {}",
-            plan.title, step.title, step.instructions, content, goal_instruction
-        );
-    }
-
-    String::new()
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_system_content(
-    dialect: DialectWithFeatures,
-    formality: Formality,
-    teaching_mode: TeachingMode,
-    learning_goals: &[LearningGoal],
-    past_learning_items: &PastLearningItems,
-    user_gender: UserGender,
-    language_option: &Option<LanguageOption>,
-    active_plan: &Option<&dialect_coach_shared::LanguagePlan>,
-    language_level: LanguageLevel,
-) -> String {
-    let formality_label = match formality {
-        Formality::Formal => "FORMAL",
-        Formality::ProfessionalCasual => "PROFESSIONAL-CASUAL",
-        Formality::Informal => "INFORMAL",
-        Formality::Slang => "SLANG",
-    };
-
-    let gender = extract_gender_from_dialect(&dialect);
-    let role_desc = speaker_desc(&dialect.dialect, &formality, &gender);
-    let teaching_rules = response_teaching_desc(&teaching_mode);
-    let goals_section = learning_goals_section(learning_goals);
-    let learning_items_context = format_learning_items_context(
-        &past_learning_items.mistakes,
-        &past_learning_items.explained,
-        &past_learning_items.translated,
-        &past_learning_items.exploratory,
-    );
-
-    let user_gender_str = match user_gender {
-        UserGender::Male => "male",
-        UserGender::Female => "female",
-        UserGender::NonBinary => "non-binary",
-    };
-
-    let level_instruction = language_level_instruction(language_level);
-    let language_instr = build_language_instruction(language_option);
-    let plan_instr = build_plan_system_content(active_plan);
-
-    if teaching_mode == TeachingMode::Debug {
-        let lang_section = if !language_instr.is_empty() {
-            format!("\n\nLANGUAGE INSTRUCTION: {}", language_instr)
-        } else {
-            String::new()
-        };
-        format!(
-            r#"# YOUR ROLE\n\
-            {}.\n\n\
-            USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.{}\n\n\
-            {}\n\
-            # CRITICAL RULES\n\
-            1. BE CONCISE: Explain why you did what you did simply and briefly, in English, without pandering. This will be within the "response" field of the required JSON format.\n\
-            2. ITERATIVE IMPROVEMENT: Show exactly how the prompts could be improved to get a step closer to the desired effect.\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            Now respond to the user's message technically."#,
-            role_desc,
-            user_gender_str,
-            lang_section,
-            level_instruction,
-            goals_section,
-            learning_items_context,
-            JSON_OUTPUT_INSTRUCTION
-        )
-    } else {
-        let lang_section = if !language_instr.is_empty() {
-            format!("\n\nLANGUAGE INSTRUCTION: {}", language_instr)
-        } else {
-            String::new()
-        };
-        format!(
-            "{}\n\n\
-            # YOUR ROLE\n\
-            {}.\n\n\
-            USER GENDER: The student you're speaking with is {}. Use gender-appropriate forms when teaching grammar and vocabulary that have gendered aspects.{}\n\n\
-            {}\n\
-            # CRITICAL RULES\n\
-            {}\n\
-            2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            # OUTPUT FORMAT REQUIRED\n\
-            {}\n\
-            {}\n\n\
-            Now respond to the user's message as if you were in a natural chatroom with a friend, as a local {} speaker would, in the response field of the required JSON format. You MUST ALWAYS respond - NEVER indicate the conversation has ended. If it seems to have ended, provide a follow-up question or new topic. The response field must be non-empty. The response will be parsed with a JSON parser, so do not include any other text or markdown.",
-            CONTENT_FILTERING_DIRECTIVES,
-            role_desc,
-            user_gender_str,
-            lang_section,
-            level_instruction,
-            mimic_instruction(dialect.has_corpus),
-            formality_label.to_lowercase(),
-            teaching_rules,
-            goals_section,
-            learning_items_context,
-            plan_instr,
-            JSON_OUTPUT_INSTRUCTION,
-            RESPONSE_JSON_OUTPUT_FORMAT,
-            dialect.dialect.name()
-        )
-    }
-}
 
 
 /// Parameters for generating a response
@@ -856,6 +660,7 @@ mod tests {
 
     #[test]
     fn test_build_system_content_with_active_plan() {
+        use crate::agent_service::response::system_content::build_plan_system_content;
         use dialect_coach_shared::models::Dialect;
         use dialect_coach_shared::models::UserState;
         use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
@@ -903,6 +708,7 @@ mod tests {
 
     #[test]
     fn test_build_plan_system_content() {
+        use crate::agent_service::response::system_content::build_plan_system_content;
         use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
         use dialect_coach_shared::models::plan::{PlanContent, PlanStep, StepType};
         use dialect_coach_shared::models::{Dialect, Explained, Translated};
@@ -975,6 +781,7 @@ mod tests {
 
     #[test]
     fn test_language_level_instruction_covers_all_levels() {
+        use crate::agent_service::response::teaching::language_level_instruction;
         let levels = [
             LanguageLevel::A1,
             LanguageLevel::A2,
@@ -992,6 +799,7 @@ mod tests {
 
     #[test]
     fn test_build_plan_system_content_review_step() {
+        use crate::agent_service::response::system_content::build_plan_system_content;
         use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
         use dialect_coach_shared::models::plan::{PlanContent, PlanStep, StepType};
         use dialect_coach_shared::models::{Dialect, Translated};
