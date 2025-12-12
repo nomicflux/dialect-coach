@@ -35,6 +35,9 @@ We will implement an "organic" flow where items from the Learning Plan are promo
     -   `cargo test --all`
     -   `cargo clippy --all`
 
+# STOP
+**Wait for the user to verify before continuing.**
+
 ---
 
 ## Phase 2: Organic Promotion Logic
@@ -80,6 +83,9 @@ We will implement an "organic" flow where items from the Learning Plan are promo
     -   `cargo test --all`
     -   `cargo clippy --all`
 
+# STOP
+**Wait for the user to verify before continuing.**
+
 ---
 
 ## Phase 3: Completion Logic
@@ -119,3 +125,6 @@ We will implement an "organic" flow where items from the Learning Plan are promo
 - **Automated**:
     -   `cargo test --all`
     -   `cargo clippy --all`
+
+# STOP
+**Wait for the user to verify before continuing.**

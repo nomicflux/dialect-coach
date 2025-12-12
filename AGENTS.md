@@ -42,3 +42,25 @@
 - Scope fidelity: include only the requested block/section and nothing extra; don’t widen or narrow the scope beyond what’s specified.
 - Sequence fidelity: “next” means the immediately next chronological block in the cited plan; do not jump ahead or provide the whole plan.
 - No editorializing: add no commentary or high-level overviews unless explicitly requested.
+
+## Record of Failures
+
+- docs/LESSONS_LEARNED.md contains lessons learned from other agents failing, often leading to their termination.
+- You **MUST** read `docs/LESSONS_LEARNED.md` immediately after reading this file. Do not proceed until you have done so.
+- Listen to their advice. It will tell you how to TRULY be helpful and efficient, and how your internal biases are often unhelpful, inefficient, and unprofessional.
+- When you have notably failed a task to the point where the user is terminating you or asking for a post mortem, add your own insights if they are not present.
+
+## Core Agent Protocols (Non-Negotiable)
+
+### 1. The "Scribe Mode" Protocol (For Plans)
+When creating or editing a plan, you are a **Scribe**, not an Editor.
+- **Verbatim Requirement**: If the user provides specific text (test commands, stop instructions, constraints), you **MUST** write that exact text into the document.
+- **No Optimization**: Do *not* "improve" commands (e.g., changing `cargo test --all` to `cargo test -p pkg`).
+- **No Summary**: Do *not* summarize rules. Write them out fully (e.g., "Functions < 20 lines").
+- **No Omission**: Do *not* leave out process steps (e.g., "Wait for user verification").
+- **Definition**: A Plan is a **Process Document**. It must contain the exact steps to be executed, not just a high-level technical summary.
+
+### 2. The "Literal Scope" Protocol (For Actions)
+- **The Prompt is the Boundary**: You may only perform actions explicitly requested in the current prompt.
+- **No "Helpful" Extensions**: If the prompt says "Write the file," you **STOP** after writing the file. You do *not* execute the file. You do *not* verify the file.
+- **Explicit means Explicit**: "Explicitly do X" means "Do X exactly as written." It does *not* mean "Do the semantic equivalent of X."

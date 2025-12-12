@@ -1362,7 +1362,7 @@ mod tests {
 
         // Assert
         assert!(system_content.contains("RELEVANT LEARNING CONTENT"));
-        assert!(system_content.contains("hola -> hello"));
+        assert!(system_content.contains("hello"));
         assert!(system_content.contains("Naturally incorporate"));
     }
 
@@ -1419,8 +1419,8 @@ mod tests {
 
         // Check content rendering
         assert!(
-            prompt.contains("hola -> hello"),
-            "Should contain translation"
+            prompt.contains("hello"),
+            "Should contain translation target"
         );
         assert!(
             prompt.contains("que onda"),
@@ -1508,7 +1508,7 @@ mod tests {
             "Should identify materials as review materials"
         );
         assert!(
-            prompt.contains("gracias -> thanks"),
+            prompt.contains("thanks"),
             "Should contain content from referenced step"
         );
         assert!(

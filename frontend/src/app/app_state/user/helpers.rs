@@ -34,30 +34,25 @@ pub fn add_learning_items_to_vec(
     dialect: Dialect,
 ) -> Vec<LearningItem> {
     for mistake in mistakes {
-        items.push(LearningItem::new(
-            LearningItemType::Mistake(mistake),
-            dialect,
-        ));
+        push_unique(&mut items, LearningItem::new(LearningItemType::Mistake(mistake), dialect));
     }
     for expl in explained {
-        items.push(LearningItem::new(
-            LearningItemType::Explanation(expl),
-            dialect,
-        ));
+        push_unique(&mut items, LearningItem::new(LearningItemType::Explanation(expl), dialect));
     }
     for trans in translated {
-        items.push(LearningItem::new(
-            LearningItemType::Translation(trans),
-            dialect,
-        ));
+        push_unique(&mut items, LearningItem::new(LearningItemType::Translation(trans), dialect));
     }
     for explor in exploratory {
-        items.push(LearningItem::new(
-            LearningItemType::Exploration(explor),
-            dialect,
-        ));
+        push_unique(&mut items, LearningItem::new(LearningItemType::Exploration(explor), dialect));
     }
     items
+}
+
+fn push_unique(items: &mut Vec<LearningItem>, item: LearningItem) {
+    let new_id = get_learning_item_id(&item);
+    if !items.iter().any(|i| get_learning_item_id(i) == new_id) {
+        items.push(item);
+    }
 }
 
 pub fn update_item_score(mut item: LearningItem, analysis: &AgentAnalysis) -> LearningItem {
@@ -224,5 +219,39 @@ pub fn sync_to_active_branch(state: &mut UserState) {
     {
         state.selected_dialect = dialect;
         state.selected_language = dialect.language();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dialect_coach_shared::models::MistakeCategory;
+
+    #[test]
+    fn test_add_learning_items_deduplication() {
+        let dialect = Dialect::SpanishMexican;
+        let mistake = Mistake::new(
+            "mistake".to_string(),
+            "correction".to_string(),
+            MistakeCategory::SpellingError {
+                context: "ctx".to_string(),
+            },
+        );
+        let item = LearningItem::new(LearningItemType::Mistake(mistake.clone()), dialect);
+
+        let items = vec![item.clone()];
+
+        // Try adding the same mistake again
+        let result = add_learning_items_to_vec(
+            items,
+            vec![mistake],
+            vec![],
+            vec![],
+            vec![],
+            dialect,
+        );
+
+        assert_eq!(result.len(), 1, "Should not add duplicate item");
+        assert_eq!(get_learning_item_id(&result[0]), get_learning_item_id(&item));
     }
 }
