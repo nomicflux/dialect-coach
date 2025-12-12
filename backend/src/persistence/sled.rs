@@ -1,6 +1,12 @@
 use super::{UserPersistence, UserRecord};
 use anyhow::{Result, anyhow};
-use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
+use dialect_coach_shared::{
+    InviteCode, UsageStats, User, UserState,
+    UserStateVersion, UserVersion, VersionedData,
+    CURRENT_USER_STATE_VERSION, CURRENT_USER_VERSION,
+    migrate_user_state_to_current, migrate_user_to_current,
+    UserV1, UserStateV1,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -46,6 +52,41 @@ fn deserialize_from_json<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> Result<T
     Ok(serde_json::from_slice(bytes)?)
 }
 
+fn serialize_versioned_user_state(state: &UserState) -> Result<Vec<u8>> {
+    let v1_data = UserStateV1::from(state.clone());
+    let wrapper = VersionedData {
+        version: CURRENT_USER_STATE_VERSION,
+        data: serde_json::to_value(v1_data)?,
+    };
+    Ok(serde_json::to_vec(&wrapper)?)
+}
+
+fn deserialize_versioned_user_state(bytes: &[u8]) -> Result<UserState> {
+    let wrapper: VersionedData<UserStateVersion> = serde_json::from_slice(bytes)?;
+    let v1_data: UserStateV1 = serde_json::from_value(wrapper.data)?;
+    Ok(migrate_user_state_to_current(wrapper.version, v1_data))
+}
+
+fn serialize_versioned_user_record(user: &User, password_hash: &str) -> Result<Vec<u8>> {
+    let v1_user = UserV1::from(user.clone());
+    let record = UserRecord {
+        user: v1_user,
+        password_hash: password_hash.to_string(),
+    };
+    let wrapper = VersionedData {
+        version: CURRENT_USER_VERSION,
+        data: serde_json::to_value(record)?,
+    };
+    Ok(serde_json::to_vec(&wrapper)?)
+}
+
+fn deserialize_versioned_user_record(bytes: &[u8]) -> Result<(User, String)> {
+    let wrapper: VersionedData<UserVersion> = serde_json::from_slice(bytes)?;
+    let record: UserRecord = serde_json::from_value(wrapper.data)?;
+    let user = migrate_user_to_current(wrapper.version, record.user);
+    Ok((user, record.password_hash))
+}
+
 #[async_trait::async_trait]
 impl UserPersistence for SledPersistence {
     async fn initialize(&self) -> Result<()> {
@@ -59,7 +100,7 @@ impl UserPersistence for SledPersistence {
 
         let tree = self.user_states_tree()?;
         let key = clean.user_id.to_string();
-        let value = serialize_to_json(&clean)?;
+        let value = serialize_versioned_user_state(&clean)?;
         tree.insert(key.as_bytes(), value)?;
 
         // DEBUG: Log plans written to disk
@@ -76,7 +117,7 @@ impl UserPersistence for SledPersistence {
         let key = user_id.to_string();
         let mut result: Option<UserState> = tree
             .get(key.as_bytes())?
-            .map(|bytes| deserialize_from_json(&bytes))
+            .map(|bytes| deserialize_versioned_user_state(&bytes))
             .transpose()?;
 
         if let Some(ref mut state) = result
@@ -103,11 +144,7 @@ impl UserPersistence for SledPersistence {
             return Err(anyhow!("Username already exists"));
         }
 
-        let record = UserRecord {
-            user: user.clone(),
-            password_hash,
-        };
-        let value = serialize_to_json(&record)?;
+        let value = serialize_versioned_user_record(user, &password_hash)?;
         tree.insert(user.username.as_bytes(), value)?;
         tracing::debug!("Created user: {}", user.username);
         Ok(())
@@ -117,10 +154,7 @@ impl UserPersistence for SledPersistence {
         let tree = self.users_tree()?;
         let result = tree
             .get(username.as_bytes())?
-            .map(|bytes| -> Result<(User, String)> {
-                let record: UserRecord = deserialize_from_json(&bytes)?;
-                Ok((record.user, record.password_hash))
-            })
+            .map(|bytes| deserialize_versioned_user_record(&bytes))
             .transpose()?;
         tracing::debug!(
             "Loaded user by username: {} (found: {})",
@@ -134,10 +168,10 @@ impl UserPersistence for SledPersistence {
         let tree = self.users_tree()?;
         for item in tree.iter() {
             let (_key, bytes) = item?;
-            let record: UserRecord = deserialize_from_json(&bytes)?;
-            if record.user.id == user_id {
+            let (user, _) = deserialize_versioned_user_record(&bytes)?;
+            if user.id == user_id {
                 tracing::debug!("Loaded user by ID: {} (found)", user_id);
-                return Ok(Some(record.user));
+                return Ok(Some(user));
             }
         }
         tracing::debug!("Loaded user by ID: {} (not found)", user_id);
