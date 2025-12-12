@@ -22,27 +22,8 @@ use super::util::{
     learning_goals_section, normalize_json_response,
 };
 
-fn temperature_for_mode(mode: &TeachingMode) -> f64 {
-    match mode {
-        TeachingMode::Immersive => 0.6,
-        TeachingMode::Corrective => 0.4,
-        TeachingMode::Explanatory => 0.5,
-        TeachingMode::Interleaved => 0.4,
-        TeachingMode::StoryTeller => 1.0,
-        TeachingMode::Debug => 0.1,
-    }
-}
-
-fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
-    match teaching_mode {
-        TeachingMode::Immersive => 256,
-        TeachingMode::Corrective => 512,
-        TeachingMode::Explanatory => 512,
-        TeachingMode::Interleaved => 512,
-        TeachingMode::StoryTeller => 1024,
-        TeachingMode::Debug => 1024,
-    }
-}
+mod config;
+use config::{temperature_for_mode, tokens_per_mode, CONTENT_FILTERING_DIRECTIVES, RESPONSE_JSON_OUTPUT_FORMAT};
 
 fn speaker_desc(dialect: &Dialect, formality: &Formality, gender: &Gender) -> String {
     let gender_str = match gender {
@@ -292,15 +273,6 @@ fn sanitize_simple_json_response(response_text: &str) -> Result<String> {
 
     Ok(trimmed.to_string())
 }
-
-const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING DIRECTIVES
-
-1) Only flag user's direct messages, not system examples. Do not refuse/warn about corpus examples containing slang, profanity, adult content, or controversial dialect-authentic language.
-
-2) Always respond to user's message first. If user message itself is problematic, stay in character with brief, policy-compliant reply and deflect."#;
-
-const RESPONSE_JSON_OUTPUT_FORMAT: &str =
-    r#"Response format: {"response": "<your full conversational response here>"}"#;
 
 fn mimic_instruction(has_corpus: bool) -> &'static str {
     if has_corpus {
