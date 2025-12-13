@@ -7,7 +7,7 @@ use super::super::{
 use crate::models::{
     Explained, Exploratory, Mistake, Translated, partial_learning_item::PartialLearningItem,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -321,7 +321,7 @@ impl HydratedLanguagePlan {
 
 // --- Simple Import DTOs (Simplified Human-Readable Format) ---
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimpleImportLanguagePlan {
     pub title: String,
     pub dialect: Dialect,
@@ -329,7 +329,7 @@ pub struct SimpleImportLanguagePlan {
     pub steps: Vec<SimpleImportStep>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimpleImportStep {
     #[serde(default)]
     pub title: String,
@@ -340,7 +340,7 @@ pub struct SimpleImportStep {
     pub review_steps: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimpleLearningItem {
     pub vocab: Option<String>,
     pub translation: Option<String>,
@@ -430,7 +430,6 @@ impl TryFrom<SimpleImportLanguagePlan> for ImportLanguagePlan {
         })
     }
 }
-
 
 #[cfg(test)]
 mod tests {

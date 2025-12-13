@@ -10,6 +10,7 @@ pub mod analysis;
 pub mod enrichment;
 pub mod language_instructions;
 pub mod learning;
+pub mod planning;
 pub mod provider;
 pub mod response;
 pub mod retry;
@@ -79,6 +80,7 @@ pub struct AgentService {
     pub(crate) response_agent: Arc<dyn CompletionAgent>,
     pub(crate) learning_agent: Arc<dyn CompletionAgent>,
     pub(crate) analysis_agent: Arc<dyn CompletionAgent>,
+    pub(crate) planning_agent: Arc<dyn CompletionAgent>,
     qdrant: Arc<QdrantService>,
     embeddings: Arc<EmbeddingService>,
 }
@@ -110,6 +112,7 @@ impl AgentService {
             response_agent,
             learning_agent,
             analysis_agent,
+            planning_agent: load_channel_agent("PLANNING")?,
             qdrant,
             embeddings,
         })
@@ -207,6 +210,15 @@ impl AgentService {
             agent: self.learning_agent.clone(),
         };
         enrichment::enrich_learning_item(&retry_ctx, &req).await
+    }
+
+    pub async fn generate_learning_plan(
+        &self,
+        text: &str,
+        dialect: dialect_coach_shared::Dialect,
+    ) -> Result<dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan> {
+        let generator = planning::PlanGenerator::new(self.planning_agent.clone());
+        generator.generate_plan(text, dialect).await
     }
 }
 

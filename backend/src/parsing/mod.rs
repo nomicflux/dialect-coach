@@ -6,17 +6,17 @@ use anyhow::Result;
 
 const MAX_CHARS: usize = 20_000;
 
-pub enum DocumentSource<'a> {
-    Text(&'a str),
-    Html(&'a str),
-    Pdf(&'a [u8]),
+pub enum DocumentSource {
+    Text(String),
+    Html(String),
+    Pdf(Vec<u8>),
 }
 
 pub fn extract_clean_text(source: DocumentSource) -> Result<String> {
     let raw_text = match source {
-        DocumentSource::Text(s) => text::parse_text(s)?,
-        DocumentSource::Html(s) => html::parse_html(s)?,
-        DocumentSource::Pdf(b) => pdf::parse_pdf(b)?,
+        DocumentSource::Text(s) => text::parse_text(&s)?,
+        DocumentSource::Html(s) => html::parse_html(&s)?,
+        DocumentSource::Pdf(b) => pdf::parse_pdf(&b)?,
     };
 
     Ok(truncate_text(&raw_text))

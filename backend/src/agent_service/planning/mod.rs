@@ -33,7 +33,7 @@ impl PlanGenerator {
             temperature: 0.1, // Precision required
         };
 
-        let retry_ctx = retry::RetryContext {
+        let _retry_ctx = retry::RetryContext {
             agent: self.agent.clone(),
         };
 

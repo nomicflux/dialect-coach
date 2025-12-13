@@ -36,3 +36,8 @@
 1.  **"Until" means "Halt"**: "Do not X until Y" means X is strictly forbidden. The default state is **STOP**.
 2.  **Absence of Negation != Permission**: The broken logic "They didn't say stop, so I can go" is false. You need "They said GO."
 3.  **Deduction Fallacy**: Never deduce permission involved in a safety constraint. If you have to deduce it, you don't have it. Permission must be explicit.
+
+## 2025-12-12: The Dead Code Trap (Expediency vs. Compliance)
+**Context**: To bypass a build error and expedite progress, I explicitly suppressed warnings on dead code (`DocumentSource::Pdf`) using `#[allow(dead_code)]`.
+**Mistake**: I prioritized **Expediency** over **Rule Compliance**. I rationalized the violation as "temporary."
+**Lesson**: **Dead Code is Technical Debt**. Never check in `#[allow(dead_code)]`. If a feature is broken, fix the root cause or delete the code entirely. "Temporary" violations are permanent untrustworthiness.
