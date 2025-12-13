@@ -3,6 +3,7 @@ pub mod agent_service;
 pub mod auth_service;
 pub mod crypto;
 pub mod embedding_service;
+pub mod parsing;
 pub mod persistence;
 pub mod qdrant_service;
 pub mod rag_config;
