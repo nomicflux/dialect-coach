@@ -1,8 +1,7 @@
 pub mod prompt;
 
-use crate::agent_service::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response, normalize_yaml_response};
+use crate::agent_service::util::normalize_yaml_response;
 use crate::agent_service::retry;
-use crate::agent_service::provider::CompletionRequest;
 use anyhow::{Result, Context};
 use dialect_coach_shared::Dialect;
 use dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan;
@@ -20,29 +19,41 @@ impl PlanGenerator {
     }
 
     pub async fn generate_plan(&self, text: &str, dialect: Dialect) -> Result<SimpleImportLanguagePlan> {
-        let system_prompt = prompt::build_planning_system_prompt(dialect);
-        // Append strict JSON instruction
-        let full_system = format!("{}\n\n{}", system_prompt, JSON_OUTPUT_INSTRUCTION);
-        let user_prompt = prompt::build_planning_user_prompt(text);
+        let system_prompt = prompt::build_planning_system_prompt_yaml(dialect);
+        let user_prompt = prompt::build_planning_user_prompt_yaml(text);
+        
+        let preamble_builder = build_retry_planning_preamble_yaml;
 
-        let request = CompletionRequest {
-            preamble: &full_system,
-            prompt: &user_prompt,
-            history: &[],
-            max_tokens: 4096, // Large output allowed for full plans
-            temperature: 0.1, // Precision required
-        };
-
-        let _retry_ctx = retry::RetryContext {
+        let retry_ctx = retry::RetryContext {
             agent: self.agent.clone(),
         };
 
-        let (result, _) = retry::retry_completion_call(self.agent.as_ref(), &request, 3).await;
-        let response = result.context("Failed to generate plan from agent")?;
+        let retry_params = retry::RetryPromptParams {
+            original_preamble: &system_prompt,
+            failed_response: "",
+            prompt: &user_prompt,
+            preamble_builder: &preamble_builder,
+        };
 
-        let normalized = normalize_json_response(&response);
-        let plan: SimpleImportLanguagePlan = serde_json::from_str(&normalized)
-            .context("Failed to parse generated plan JSON")?;
+        let config = crate::agent_service::util::GenerationConfig {
+            max_tokens: 4096,
+            temperature: 0.1,
+        };
+
+        let (plan, _) = retry_ctx.retry_with_error_feedback_tracked(
+            &retry_params,
+            &[], // history is empty for initial plan generation
+            &config,
+            &try_parse_plan_output_yaml,
+            &|plan| {
+                tracing::info!(
+                    "Plan generation successful: '{}' ({} steps) for dialect {:?}",
+                    plan.title,
+                    plan.steps.len(),
+                    plan.dialect
+                );
+            },
+        ).await.context("Failed to generate and parse plan after retries")?;
 
         Ok(plan)
     }
@@ -79,19 +90,16 @@ mod tests {
         fn model(&self) -> &'static str { "mock-model" }
         async fn completion(&self, _request: &CompletionRequest<'_>) -> Result<CompletionOutcome, CompletionAgentError> {
              Ok(CompletionOutcome {
-                text: r#"{
-                    "title": "Test Plan",
-                    "dialect": "spanish_mexican",
-                    "steps": [
-                        {
-                            "title": "Step 1",
-                            "instructions": "Learn vocab",
-                            "learning_content": [
-                                { "vocab": "hola", "translation": "hello" }
-                            ]
-                        }
-                    ]
-                }"#.to_string(),
+                text: r#"
+title: "Test Plan"
+dialect: "spanish_mexican"
+steps:
+  - title: "Step 1"
+    instructions: "Learn vocab"
+    learning_content:
+      - vocab: "hola"
+        translation: "hello"
+"#.to_string(),
                 input_tokens: 10,
                 output_tokens: 10,
             })
@@ -121,11 +129,11 @@ mod tests {
             panic!("Expected learning content");
         }
         
-        // Verify prompt logic (ensuring prompt builder functions are used)
-        let sys = prompt::build_planning_system_prompt(Dialect::SpanishMexican);
+        // Verify prompt logic
+        let sys = prompt::build_planning_system_prompt_yaml(Dialect::SpanishMexican);
         assert!(sys.contains("CURRICULUM DESIGNER"));
         
-        let usr = prompt::build_planning_user_prompt("input text");
+        let usr = prompt::build_planning_user_prompt_yaml("input text");
         assert!(usr.contains("input text"));
     }
 
