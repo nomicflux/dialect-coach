@@ -6,7 +6,7 @@ use anyhow::{Result, Context};
 use dialect_coach_shared::Dialect;
 use dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan;
 
-use crate::agent_service::provider::CompletionAgent;
+use crate::agent_service::provider::{CompletionAgent, CompletionRequest};
 use std::sync::Arc;
 
 pub struct PlanGenerator {
@@ -22,40 +22,88 @@ impl PlanGenerator {
         let system_prompt = prompt::build_planning_system_prompt_yaml(dialect);
         let user_prompt = prompt::build_planning_user_prompt_yaml(text);
         
-        let preamble_builder = build_retry_planning_preamble_yaml;
-
-        let retry_ctx = retry::RetryContext {
-            agent: self.agent.clone(),
-        };
-
-        let retry_params = retry::RetryPromptParams {
-            original_preamble: &system_prompt,
-            failed_response: "",
-            prompt: &user_prompt,
-            preamble_builder: &preamble_builder,
-        };
-
         let config = crate::agent_service::util::GenerationConfig {
             max_tokens: 4096,
             temperature: 0.1,
         };
 
-        let (plan, _) = retry_ctx.retry_with_error_feedback_tracked(
-            &retry_params,
-            &[], // history is empty for initial plan generation
-            &config,
-            &try_parse_plan_output_yaml,
-            &|plan| {
+        let request = CompletionRequest {
+            preamble: &system_prompt,
+            prompt: &user_prompt,
+            history: &[],
+            max_tokens: config.max_tokens,
+            temperature: config.temperature,
+        };
+
+        // Step 1: Initial (standard) completion call
+        let (initial_result, _) = retry::retry_completion_call(self.agent.as_ref(), &request, 3).await;
+
+        let response = match initial_result {
+            Ok(r) => r,
+            Err(e) => return Err(e).context("Failed to generate plan after initial retries"),
+        };
+
+        // Step 2: Try parsing
+        match try_parse_plan_output_yaml(&response) {
+            Ok(plan) => {
                 tracing::info!(
                     "Plan generation successful: '{}' ({} steps) for dialect {:?}",
                     plan.title,
                     plan.steps.len(),
                     plan.dialect
                 );
-            },
-        ).await.context("Failed to generate and parse plan after retries")?;
+                Ok(plan)
+            }
+            // Step 3: On parse failure, enter tracked retry loop with feedback
+            Err(e) => {
+                let error_msg = format!("{}", e);
+                tracing::warn!("Plan parsing failed, entering feedback loop. Error: {}", error_msg);
 
-        Ok(plan)
+                let retry_ctx = retry::RetryContext {
+                    agent: self.agent.clone(),
+                };
+                
+                let preamble_builder = |original: &str, failed: &str, error: &str| {
+                    build_retry_planning_preamble_yaml(original, failed, error)
+                };
+
+                let retry_params = retry::RetryPromptParams {
+                    original_preamble: &system_prompt,
+                    failed_response: &response,
+                    error_message: &error_msg,
+                    prompt: &user_prompt,
+                    preamble_builder: &preamble_builder,
+                };
+
+                // We need to define these closures here to satisfy the retry interface
+                let parse_fn = |resp: &str| try_parse_plan_output_yaml(resp);
+                let log_success = |plan: &SimpleImportLanguagePlan| {
+                    tracing::info!(
+                        "Retry plan generation successful: '{}' ({} steps) for dialect {:?}",
+                        plan.title,
+                        plan.steps.len(),
+                        plan.dialect
+                    );
+                };
+
+                let (plan, _) = retry_ctx.retry_with_error_feedback_tracked(
+                    &retry_params,
+                    &[],
+                    &config,
+                    &parse_fn,
+                    &log_success,
+                ).await.map_err(|retry_err| {
+                    tracing::error!(
+                        "Plan generation failed after feedback loop.\nPREAMBLE:\n{}\n\nERROR:\n{:?}",
+                        system_prompt,
+                        retry_err
+                    );
+                    retry_err
+                })?;
+                
+                Ok(plan)
+            }
+        }
     }
 }
 
@@ -64,10 +112,11 @@ pub fn try_parse_plan_output_yaml(response: &str) -> Result<SimpleImportLanguage
     serde_yaml::from_str(&normalized).context("Failed to parse generated plan YAML")
 }
 
-pub fn build_retry_planning_preamble_yaml(original: &str, failed: &str) -> String {
+pub fn build_retry_planning_preamble_yaml(original: &str, failed: &str, error: &str) -> String {
     retry::build_retry_preamble(
         original,
         failed,
+        error,
         "You MUST return valid YAML. Ensure indentation is correct and no markdown fencing is used.",
     )
 }
@@ -177,7 +226,8 @@ steps: []
     fn test_build_retry_planning_preamble_yaml() {
         let original = "Original Preamble";
         let failed = "invalid yaml";
-        let preamble = build_retry_planning_preamble_yaml(original, failed);
+        let error = "some error";
+        let preamble = build_retry_planning_preamble_yaml(original, failed, error);
         assert!(preamble.contains(original));
         assert!(preamble.contains("CRITICAL ERROR"));
         assert!(preamble.contains("MUST return valid YAML"));

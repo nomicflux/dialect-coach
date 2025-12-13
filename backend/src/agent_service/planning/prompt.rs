@@ -54,9 +54,9 @@ pub fn build_planning_system_prompt_yaml(dialect: Dialect) -> String {
             review_steps: 
               - \"Part 1: Basic Usage\"
         ",
-        util::YAML_OUTPUT_INSTRUCTION,
         dialect,
-        dialect
+        util::YAML_OUTPUT_INSTRUCTION,
+        dialect.id()
     )
 }
 
@@ -87,5 +87,6 @@ mod tests {
         let user = build_planning_user_prompt_yaml("input text");
         assert!(user.contains("input text"));
         assert!(user.contains("YAML"));
+        assert!(sys.contains("spanish_mexican")); // Verify ID is used in schema
     }
 }

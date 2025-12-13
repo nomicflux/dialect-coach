@@ -95,7 +95,7 @@ impl ResponseContext {
                 handle_parse_success(self, parsed_response, initial_usage, params, skip_learning)
                     .await
             }
-            Err(_) => {
+            Err(e) => {
                 handle_parse_failure_with_retry(
                     self,
                     response,
@@ -104,6 +104,7 @@ impl ResponseContext {
                     system_content,
                     history_with_prefill,
                     skip_learning,
+                    &format!("{}", e),
                 )
                 .await
             }
@@ -251,6 +252,7 @@ async fn attach_learning_with_error_handling(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_parse_failure_with_retry(
     ctx: &ResponseContext,
     response: String,
@@ -259,6 +261,7 @@ async fn handle_parse_failure_with_retry(
     system_content: &str,
     history_with_prefill: Vec<RigMessage>,
     skip_learning: bool,
+    initial_error: &str,
 ) -> Result<(
     dialect_coach_shared::AgentResponse,
     Vec<AgentUsage>,
@@ -275,13 +278,14 @@ async fn handle_parse_failure_with_retry(
     let log_success = move |parsed: &dialect_coach_shared::AgentResponse| {
         log_response_success(dialect, parsed);
     };
-    let preamble_builder = move |preamble: &str, failed: &str| -> String {
-        build_retry_response_preamble(preamble, failed)
+    let preamble_builder = move |preamble: &str, failed: &str, error: &str| -> String {
+        build_retry_response_preamble(preamble, failed, error)
     };
     let max_tokens = tokens_per_mode(&teaching_mode);
     let prompt_params = crate::agent_service::retry::RetryPromptParams {
         original_preamble: system_content,
         failed_response: &response,
+        error_message: initial_error,
         prompt: params.user_message,
         preamble_builder: &preamble_builder,
     };
@@ -322,7 +326,7 @@ async fn execute_retry_with_learning<F>(
     Vec<AgentUsage>,
 )>
 where
-    F: Fn(&str, &str) -> String + Sync + Send,
+    F: Fn(&str, &str, &str) -> String + Sync + Send,
 {
     match retry_ctx
         .retry_with_error_feedback_tracked(

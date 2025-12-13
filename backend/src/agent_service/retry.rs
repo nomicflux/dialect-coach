@@ -13,10 +13,11 @@ pub struct RetryAttemptParams {
 
 pub struct RetryPromptParams<'a, F>
 where
-    F: Fn(&str, &str) -> String,
+    F: Fn(&str, &str, &str) -> String,
 {
     pub original_preamble: &'a str,
     pub failed_response: &'a str,
+    pub error_message: &'a str,
     pub prompt: &'a str,
     pub preamble_builder: &'a F,
 }
@@ -24,6 +25,7 @@ where
 pub fn build_retry_preamble(
     original_preamble: &str,
     failed_response: &str,
+    error_message: &str,
     additional_instructions: &str,
 ) -> String {
     let error_detail = if util::is_incomplete_json(failed_response) {
@@ -32,7 +34,12 @@ pub fn build_retry_preamble(
         YOU MUST keep your response shorter to fit within the token limit, or ensure the JSON is properly closed even if truncated.\n\
         THIS IS A CRITICAL ERROR THAT MUST BE FIXED NOW.".to_string()
     } else {
-        util::detect_json_parse_error()
+        // Use the actual error message if provided, otherwise generic
+        if !error_message.is_empty() {
+             format!("PARSE ERROR: {}", error_message)
+        } else {
+             util::detect_json_parse_error()
+        }
     };
 
     format!(
@@ -44,18 +51,20 @@ pub fn build_retry_preamble(
     )
 }
 
-pub fn build_retry_response_preamble(original_preamble: &str, failed_response: &str) -> String {
+pub fn build_retry_response_preamble(original_preamble: &str, failed_response: &str, error_message: &str) -> String {
     build_retry_preamble(
         original_preamble,
         failed_response,
+        error_message,
         "The 'response' field MUST be non-empty. You MUST NOT end the conversation.",
     )
 }
 
-pub fn build_retry_learning_preamble(original_preamble: &str, failed_response: &str) -> String {
+pub fn build_retry_learning_preamble(original_preamble: &str, failed_response: &str, error_message: &str) -> String {
     build_retry_preamble(
         original_preamble,
         failed_response,
+        error_message,
         "You MUST return valid JSON arrays for the learning items. Do not repeat prior items unless they clearly recur.",
     )
 }
@@ -246,14 +255,14 @@ pub fn process_retry_response<T, F>(
     model: &str,
     parse_fn: &impl Fn(&str) -> Result<T>,
     log_success: &impl Fn(&T),
-) -> Result<(Option<T>, String), anyhow::Error>
+) -> Result<(Option<T>, String, Option<String>), anyhow::Error>
 where
-    F: Fn(&str, &str) -> String,
+    F: Fn(&str, &str, &str) -> String,
 {
     match parse_fn(&response) {
         Ok(parsed_response) => {
             log_success(&parsed_response);
-            Ok((Some(parsed_response), response))
+            Ok((Some(parsed_response), response, None))
         }
         Err(e) => {
             if detect_truncation_error(&e, &response) {
@@ -272,7 +281,7 @@ where
                     prompt_params.failed_response,
                 ));
             }
-            Ok((None, response))
+            Ok((None, response, Some(format!("{}", e))))
         }
     }
 }
@@ -289,11 +298,12 @@ impl RetryContext {
         config: &GenerationConfig,
     ) -> Result<(String, Vec<AgentUsage>)>
     where
-        F: Fn(&str, &str) -> String,
+        F: Fn(&str, &str, &str) -> String,
     {
         let retry_preamble = (prompt_params.preamble_builder)(
             prompt_params.original_preamble,
             prompt_params.failed_response,
+            prompt_params.error_message, 
         );
         let request = CompletionRequest {
             preamble: &retry_preamble,
@@ -319,9 +329,9 @@ impl RetryContext {
         config: &GenerationConfig,
         parse_fn: &impl Fn(&str) -> Result<T>,
         log_success: &impl Fn(&T),
-    ) -> Result<(Option<T>, String, Vec<AgentUsage>)>
+    ) -> Result<(Option<T>, String, Option<String>, Vec<AgentUsage>)>
     where
-        F: Fn(&str, &str) -> String,
+        F: Fn(&str, &str, &str) -> String,
     {
         tracing::warn!(
             "Retrying with error feedback (attempt {}/{})",
@@ -334,7 +344,7 @@ impl RetryContext {
             .await?;
 
         tracing::info!("Raw retry response from Claude: {}", response);
-        let (result, response_str) = process_retry_response(
+        let (result, response_str, error_msg) = process_retry_response(
             attempt_params,
             response,
             prompt_params,
@@ -343,7 +353,7 @@ impl RetryContext {
             parse_fn,
             log_success,
         )?;
-        Ok((result, response_str, usage))
+        Ok((result, response_str, error_msg, usage))
     }
 
     pub async fn retry_with_error_feedback_tracked<T, F>(
@@ -355,16 +365,18 @@ impl RetryContext {
         log_success: &impl Fn(&T),
     ) -> Result<(T, Vec<AgentUsage>)>
     where
-        F: Fn(&str, &str) -> String,
+        F: Fn(&str, &str, &str) -> String,
     {
         let max_retries = 3;
         let mut last_failed_response = prompt_params.failed_response.to_string();
+        let mut last_error_message = prompt_params.error_message.to_string();
         let mut all_usage = Vec::new();
 
         for attempt in 1..=max_retries {
             let prompt_params_iter = RetryPromptParams {
                 original_preamble: prompt_params.original_preamble,
                 failed_response: &last_failed_response,
+                error_message: &last_error_message,
                 prompt: prompt_params.prompt,
                 preamble_builder: prompt_params.preamble_builder,
             };
@@ -372,7 +384,7 @@ impl RetryContext {
                 attempt,
                 max_retries,
             };
-            let (result, response, usage) = self
+            let (result, response, error_msg_opt, usage) = self
                 .handle_retry_attempt(
                     &attempt_params_iter,
                     &prompt_params_iter,
@@ -389,6 +401,9 @@ impl RetryContext {
                 return Ok((parsed_response, all_usage));
             }
             last_failed_response = response;
+            if let Some(msg) = error_msg_opt {
+                last_error_message = msg;
+            }
         }
 
         Err(anyhow::anyhow!(

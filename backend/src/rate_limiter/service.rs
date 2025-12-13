@@ -4,11 +4,13 @@ use std::sync::Arc;
 use super::config::RateLimitConfig;
 use super::org_quota::OrgQuotaChecker;
 
-pub trait RateLimiterService {
+pub trait RateLimiterService: Send + Sync {
     fn can_make_response_call(&self, stats: &UsageStats, config: &RateLimitConfig) -> bool;
     fn can_make_analysis_call(&self, stats: &UsageStats, config: &RateLimitConfig) -> bool;
     fn can_make_tts_call(&self, stats: &UsageStats, config: &RateLimitConfig) -> bool;
+    #[allow(async_fn_in_trait)]
     async fn anthropic_has_quota(&self) -> bool;
+    #[allow(async_fn_in_trait)]
     async fn elevenlabs_has_quota(&self) -> bool;
 }
 
