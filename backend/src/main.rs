@@ -47,6 +47,7 @@ async fn main() -> Result<()> {
     
     let planning_generator = Arc::new(agent_service::planning::PlanGenerator::new(
         agent.planning_agent.clone(),
+        agent.planning_config.clone(),
     ));
     
     let state = AppState {

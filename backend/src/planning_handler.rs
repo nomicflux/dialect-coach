@@ -1,5 +1,5 @@
 use crate::agent_service::planning::PlanGenerator;
-use crate::parsing;
+use crate::parsing::{self, ParsedContent};
 use axum::{
     extract::{Multipart, State},
     response::{IntoResponse, Json},
@@ -14,13 +14,18 @@ pub async fn generate_plan_handler(
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     // 1. Extract parts
-    let (text, dialect) = match extract_data_from_multipart(&mut multipart).await {
+    let (content, dialect) = match extract_data_from_multipart(&mut multipart).await {
         Ok(data) => data,
         Err(e) => return e.into_response(),
     };
 
     // 2. Generate Plan
-    match planning_generator.generate_plan(&text, dialect).await {
+    let result = match content {
+        ParsedContent::Text(text) => planning_generator.generate_plan(&text, dialect).await,
+        ParsedContent::ScannedImages(images) => planning_generator.generate_plan_from_images(&images, dialect).await,
+    };
+
+    match result {
         Ok(plan) => Json(plan).into_response(),
         Err(e) => {
             tracing::error!("Plan generation failed: {}", e);
@@ -29,8 +34,8 @@ pub async fn generate_plan_handler(
     }
 }
 
-async fn extract_data_from_multipart(multipart: &mut Multipart) -> Result<(String, Dialect), (StatusCode, Json<serde_json::Value>)> {
-    let mut text_content = None;
+async fn extract_data_from_multipart(multipart: &mut Multipart) -> Result<(ParsedContent, Dialect), (StatusCode, Json<serde_json::Value>)> {
+    let mut content = None;
     let mut dialect_opt = None;
 
     while let Some(field) = multipart.next_field().await.unwrap_or(None) {
@@ -38,11 +43,11 @@ async fn extract_data_from_multipart(multipart: &mut Multipart) -> Result<(Strin
         if name == "dialect" {
             dialect_opt = parse_dialect_field(field).await;
         } else if name == "file" || name == "text" {
-            text_content = parse_file_field(field).await?;
+            content = parse_file_field(field).await?;
         }
     }
 
-    validate_inputs(text_content, dialect_opt)
+    validate_inputs(content, dialect_opt)
 }
 
 async fn parse_dialect_field(field: axum::extract::multipart::Field<'_>) -> Option<Dialect> {
@@ -52,7 +57,7 @@ async fn parse_dialect_field(field: axum::extract::multipart::Field<'_>) -> Opti
     None
 }
 
-async fn parse_file_field(field: axum::extract::multipart::Field<'_>) -> Result<Option<String>, (StatusCode, Json<serde_json::Value>)> {
+async fn parse_file_field(field: axum::extract::multipart::Field<'_>) -> Result<Option<ParsedContent>, (StatusCode, Json<serde_json::Value>)> {
     let content_type = field.content_type().unwrap_or("text/plain").to_string();
     if let Ok(bytes) = field.bytes().await {
         let source = map_bytes_to_source(&bytes, &content_type)?;
@@ -76,17 +81,22 @@ fn map_bytes_to_source(bytes: &[u8], content_type: &str) -> Result<parsing::Docu
     }
 }
 
-fn validate_inputs(text: Option<String>, dialect: Option<Dialect>) -> Result<(String, Dialect), (StatusCode, Json<serde_json::Value>)> {
-    let text = match text {
-        Some(t) if !t.trim().is_empty() => t,
-        _ => return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "No text content found"})))),
+fn validate_inputs(content: Option<ParsedContent>, dialect: Option<Dialect>) -> Result<(ParsedContent, Dialect), (StatusCode, Json<serde_json::Value>)> {
+    let content = match content {
+        Some(c) => match &c {
+            ParsedContent::Text(t) if t.trim().is_empty() => return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "Empty text content"})))),
+            ParsedContent::Text(_) => c,
+            ParsedContent::ScannedImages(imgs) if imgs.is_empty() => return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "No images found in scanned content"})))),
+            ParsedContent::ScannedImages(_) => c,
+        },
+        _ => return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "No file or text content found"})))),
     };
 
     let dialect = match dialect {
         Some(d) => d,
         None => return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "Missing or invalid dialect"})))),
     };
-    Ok((text, dialect))
+    Ok((content, dialect))
 }
 
 #[cfg(test)]
@@ -124,7 +134,8 @@ mod tests {
     #[tokio::test]
     async fn test_generate_plan_endpoint() {
         let mock_agent = Arc::new(MockAgent);
-        let generator = Arc::new(PlanGenerator::new(mock_agent));
+        let config = crate::agent_service::provider::ProviderAgentConfig::openai("test".to_string(), None, 200);
+        let generator = Arc::new(PlanGenerator::new(mock_agent, config));
 
         let app = Router::new()
             .route("/generate", post(generate_plan_handler))

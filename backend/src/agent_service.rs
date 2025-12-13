@@ -11,6 +11,7 @@ pub mod enrichment;
 pub mod language_instructions;
 pub mod learning;
 pub mod planning;
+pub mod ocr;
 pub mod provider;
 pub mod response;
 pub mod retry;
@@ -38,7 +39,7 @@ fn load_reasoning_budget(channel_prefix: &str) -> u32 {
         .unwrap_or(200)
 }
 
-fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
+fn load_channel_agent(prefix: &str) -> Result<(Arc<dyn CompletionAgent>, ProviderAgentConfig)> {
     let provider =
         channel_env(prefix, "PROVIDER").unwrap_or_else(|| ANTHROPIC_PROVIDER.to_string());
     let reasoning_budget = load_reasoning_budget(prefix);
@@ -54,8 +55,8 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
                 })?;
             let model = channel_env(prefix, "MODEL").or_else(|| env::var("ANTHROPIC_MODEL").ok());
             let config = ProviderAgentConfig::anthropic(api_key, model, reasoning_budget);
-            let agent = CompletionAgentFactory::build(config)?;
-            Ok(Arc::from(agent))
+            let agent = CompletionAgentFactory::build(config.clone())?;
+            Ok((Arc::from(agent), config))
         }
         OPENAI_PROVIDER => {
             let api_key = channel_env(prefix, "API_KEY")
@@ -65,8 +66,8 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
                 })?;
             let model = channel_env(prefix, "MODEL").or_else(|| env::var("OPENAI_MODEL").ok());
             let config = ProviderAgentConfig::openai(api_key, model, reasoning_budget);
-            let agent = CompletionAgentFactory::build(config)?;
-            Ok(Arc::from(agent))
+            let agent = CompletionAgentFactory::build(config.clone())?;
+            Ok((Arc::from(agent), config))
         }
         other => Err(anyhow!(
             "Unsupported provider '{}' configured for {} channel",
@@ -82,6 +83,7 @@ pub struct AgentService {
     pub learning_agent: Arc<dyn CompletionAgent>,
     pub analysis_agent: Arc<dyn CompletionAgent>,
     pub planning_agent: Arc<dyn CompletionAgent>,
+    pub planning_config: ProviderAgentConfig,
     pub qdrant: Arc<QdrantService>,
     pub embeddings: Arc<EmbeddingService>,
 }
@@ -89,9 +91,11 @@ pub struct AgentService {
 impl AgentService {
     /// Create new agent service from environment variables
     pub fn from_env(qdrant: Arc<QdrantService>, embeddings: Arc<EmbeddingService>) -> Result<Self> {
-        let response_agent = load_channel_agent("RESPONSE")?;
-        let learning_agent = load_channel_agent("LEARNING")?;
-        let analysis_agent = load_channel_agent("ANALYSIS")?;
+        let response_agent = load_channel_agent("RESPONSE")?.0;
+        let learning_agent = load_channel_agent("LEARNING")?.0;
+        let analysis_agent = load_channel_agent("ANALYSIS")?.0;
+        
+        let (planning_agent, planning_config) = load_channel_agent("PLANNING")?;
 
         tracing::info!(
             "Response agent configured: provider={}, model={}",
@@ -108,12 +112,18 @@ impl AgentService {
             analysis_agent.provider(),
             analysis_agent.model()
         );
+        tracing::info!(
+            "Planning agent configured: provider={}, model={}",
+            planning_agent.provider(),
+            planning_agent.model()
+        );
 
         Ok(Self {
             response_agent,
             learning_agent,
             analysis_agent,
-            planning_agent: load_channel_agent("PLANNING")?,
+            planning_agent,
+            planning_config,
             qdrant,
             embeddings,
         })
@@ -218,7 +228,7 @@ impl AgentService {
         text: &str,
         dialect: dialect_coach_shared::Dialect,
     ) -> Result<dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan> {
-        let generator = planning::PlanGenerator::new(self.planning_agent.clone());
+        let generator = planning::PlanGenerator::new(self.planning_agent.clone(), self.planning_config.clone());
         generator.generate_plan(text, dialect).await
     }
 }
@@ -268,7 +278,7 @@ mod tests {
             "Failed to load agent: {:?}",
             result.as_ref().err()
         );
-        let agent = result.unwrap();
+        let agent = result.unwrap().0;
         assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
 
         unsafe {
@@ -293,7 +303,7 @@ mod tests {
 
         let result = load_channel_agent("RESPONSE");
         assert!(result.is_ok());
-        let agent = result.unwrap();
+        let agent = result.unwrap().0;
         assert_eq!(agent.provider(), OPENAI_PROVIDER);
 
         unsafe {
@@ -318,7 +328,7 @@ mod tests {
 
         let result = load_channel_agent("RESPONSE");
         assert!(result.is_ok());
-        let agent = result.unwrap();
+        let agent = result.unwrap().0;
         assert_eq!(agent.provider(), OPENAI_PROVIDER);
         assert_eq!(agent.model(), "gpt-4-turbo");
 

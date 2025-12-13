@@ -6,16 +6,24 @@ use anyhow::{Result, Context};
 use dialect_coach_shared::Dialect;
 use dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan;
 
-use crate::agent_service::provider::{CompletionAgent, CompletionRequest};
+use crate::agent_service::provider::{CompletionAgent, CompletionRequest, ProviderAgentConfig};
+use crate::agent_service::ocr::OcrService;
 use std::sync::Arc;
 
 pub struct PlanGenerator {
     agent: Arc<dyn CompletionAgent>,
+    config: ProviderAgentConfig,
 }
 
 impl PlanGenerator {
-    pub fn new(agent: Arc<dyn CompletionAgent>) -> Self {
-        Self { agent }
+    pub fn new(agent: Arc<dyn CompletionAgent>, config: ProviderAgentConfig) -> Self {
+        Self { agent, config }
+    }
+
+    pub async fn generate_plan_from_images(&self, images: &[Vec<u8>], dialect: Dialect) -> Result<SimpleImportLanguagePlan> {
+        let text = OcrService::transcribe_images(images, &self.config).await
+            .context("Failed to transcribe images")?;
+        self.generate_plan(&text, dialect).await
     }
 
     pub async fn generate_plan(&self, text: &str, dialect: Dialect) -> Result<SimpleImportLanguagePlan> {
@@ -159,7 +167,8 @@ steps:
     async fn test_generator_flow() {
         // Create a mock agent that returns a valid JSON plan
         let mock_agent = Arc::new(MockAgent);
-        let generator = PlanGenerator::new(mock_agent);
+        let config = crate::agent_service::provider::ProviderAgentConfig::openai("test".to_string(), None, 200);
+        let generator = PlanGenerator::new(mock_agent, config);
 
         // Verify public API
         let plan = generator.generate_plan("some text", Dialect::SpanishMexican).await.unwrap();

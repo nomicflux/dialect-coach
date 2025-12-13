@@ -12,14 +12,21 @@ pub enum DocumentSource {
     Pdf(Vec<u8>),
 }
 
-pub fn extract_clean_text(source: DocumentSource) -> Result<String> {
-    let raw_text = match source {
-        DocumentSource::Text(s) => text::parse_text(&s)?,
-        DocumentSource::Html(s) => html::parse_html(&s)?,
-        DocumentSource::Pdf(b) => pdf::parse_pdf(&b)?,
-    };
 
-    Ok(truncate_text(&raw_text))
+pub enum ParsedContent {
+    Text(String),
+    ScannedImages(Vec<Vec<u8>>),
+}
+
+pub fn extract_clean_text(source: DocumentSource) -> Result<ParsedContent> {
+    match source {
+        DocumentSource::Text(s) => Ok(ParsedContent::Text(text::parse_text(&s)?)),
+        DocumentSource::Html(s) => Ok(ParsedContent::Text(truncate_text(&html::parse_html(&s)?))),
+        DocumentSource::Pdf(b) => match pdf::parse_pdf(&b)? {
+             ParsedContent::Text(t) => Ok(ParsedContent::Text(truncate_text(&t))),
+             ParsedContent::ScannedImages(images) => Ok(ParsedContent::ScannedImages(images)),
+        },
+    }
 }
 
 fn truncate_text(text: &str) -> String {

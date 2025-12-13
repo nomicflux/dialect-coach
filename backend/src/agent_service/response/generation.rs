@@ -96,16 +96,17 @@ impl ResponseContext {
                     .await
             }
             Err(e) => {
-                handle_parse_failure_with_retry(
-                    self,
+                let initial_error = format!("{}", e);
+                handle_parse_failure_with_retry(RetryHandlingParams {
+                    ctx: self,
                     response,
                     initial_usage,
                     params,
                     system_content,
                     history_with_prefill,
                     skip_learning,
-                    &format!("{}", e),
-                )
+                    initial_error: &initial_error,
+                })
                 .await
             }
         }
@@ -251,26 +252,27 @@ async fn attach_learning_with_error_handling(
         }
     }
 }
-
-#[allow(clippy::too_many_arguments)]
-async fn handle_parse_failure_with_retry(
-    ctx: &ResponseContext,
+struct RetryHandlingParams<'a> {
+    ctx: &'a ResponseContext,
     response: String,
     initial_usage: Vec<AgentUsage>,
-    params: &GenerateResponseParams<'_>,
-    system_content: &str,
+    params: &'a GenerateResponseParams<'a>,
+    system_content: &'a str,
     history_with_prefill: Vec<RigMessage>,
     skip_learning: bool,
-    initial_error: &str,
+    initial_error: &'a str,
+}
+async fn handle_parse_failure_with_retry(
+    input: RetryHandlingParams<'_>,
 ) -> Result<(
     dialect_coach_shared::AgentResponse,
     Vec<AgentUsage>,
     Vec<AgentUsage>,
 )> {
-    let dialect = params.dialect.dialect;
-    let teaching_mode = params.teaching_mode;
+    let dialect = input.params.dialect.dialect;
+    let teaching_mode = input.params.teaching_mode;
     let retry_ctx = RetryContext {
-        agent: ctx.response_agent.clone(),
+        agent: input.ctx.response_agent.clone(),
     };
     let parse_fn = move |response: &str| -> Result<dialect_coach_shared::AgentResponse> {
         try_parse_response(response, dialect)
@@ -283,10 +285,10 @@ async fn handle_parse_failure_with_retry(
     };
     let max_tokens = tokens_per_mode(&teaching_mode);
     let prompt_params = crate::agent_service::retry::RetryPromptParams {
-        original_preamble: system_content,
-        failed_response: &response,
-        error_message: initial_error,
-        prompt: params.user_message,
+        original_preamble: input.system_content,
+        failed_response: &input.response,
+        error_message: input.initial_error,
+        prompt: input.params.user_message,
         preamble_builder: &preamble_builder,
     };
     let config = GenerationConfig {
@@ -294,16 +296,16 @@ async fn handle_parse_failure_with_retry(
         temperature: temperature_for_mode(&teaching_mode),
     };
     execute_retry_with_learning(
-        ctx,
+        input.ctx,
         retry_ctx,
         prompt_params,
-        history_with_prefill,
+        input.history_with_prefill,
         config,
         parse_fn,
         log_success,
-        initial_usage,
-        params,
-        skip_learning,
+        input.initial_usage,
+        input.params,
+        input.skip_learning,
     )
     .await
 }

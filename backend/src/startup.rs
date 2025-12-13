@@ -132,7 +132,8 @@ pub fn build_router(state: AppState, tts_state: Option<tts_handler::TtsState>) -
         )
         .route(
             "/api/plans/generate",
-            post(planning_handler::generate_plan_handler),
+            post(planning_handler::generate_plan_handler)
+                .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024)),
         )
         .route("/admin", get(serve_admin_html))
         .route("/admin/api/status", get(admin::status::get_admin_status))
