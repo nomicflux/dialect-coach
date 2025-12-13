@@ -76,13 +76,14 @@ fn load_channel_agent(prefix: &str) -> Result<Arc<dyn CompletionAgent>> {
     }
 }
 
+#[derive(Clone)]
 pub struct AgentService {
-    pub(crate) response_agent: Arc<dyn CompletionAgent>,
-    pub(crate) learning_agent: Arc<dyn CompletionAgent>,
-    pub(crate) analysis_agent: Arc<dyn CompletionAgent>,
-    pub(crate) planning_agent: Arc<dyn CompletionAgent>,
-    qdrant: Arc<QdrantService>,
-    embeddings: Arc<EmbeddingService>,
+    pub response_agent: Arc<dyn CompletionAgent>,
+    pub learning_agent: Arc<dyn CompletionAgent>,
+    pub analysis_agent: Arc<dyn CompletionAgent>,
+    pub planning_agent: Arc<dyn CompletionAgent>,
+    pub qdrant: Arc<QdrantService>,
+    pub embeddings: Arc<EmbeddingService>,
 }
 
 impl AgentService {

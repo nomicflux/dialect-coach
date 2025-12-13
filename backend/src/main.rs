@@ -1,23 +1,6 @@
-mod admin;
-mod admin_invites;
-mod agent_service;
-mod auth_service;
-mod crypto;
-mod embedding_service;
-mod enrichment_handler;
-mod parsing;
-mod persistence;
-mod planning_handler;
-mod qdrant_service;
-mod rag_config;
-mod rate_limiter;
-mod startup;
-mod state;
-mod translation_handler;
-mod tts_handler;
-mod tts_service;
-mod usage_tracker;
-mod websocket;
+use dialect_coach_backend::agent_service;
+use dialect_coach_backend::startup;
+use dialect_coach_backend::AppState;
 
 use anyhow::Result;
 use std::collections::HashMap;
@@ -25,8 +8,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-
-use state::AppState;
 
 #[tokio::main]
 async fn main() -> Result<()> {

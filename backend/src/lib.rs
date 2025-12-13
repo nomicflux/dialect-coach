@@ -1,4 +1,5 @@
 // Expose modules for use by binaries and tests
+pub use state::AppState;
 pub mod agent_service;
 pub mod auth_service;
 pub mod crypto;
@@ -9,3 +10,15 @@ pub mod qdrant_service;
 pub mod rag_config;
 pub mod similarity;
 pub mod test_utils;
+pub mod admin;
+pub mod admin_invites;
+pub mod enrichment_handler;
+pub mod planning_handler;
+pub mod rate_limiter;
+pub mod startup;
+pub mod state;
+pub mod translation_handler;
+pub mod tts_handler;
+pub mod tts_service;
+pub mod usage_tracker;
+pub mod websocket;

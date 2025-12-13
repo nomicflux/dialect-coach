@@ -102,3 +102,4 @@ When instructions or goals conflict, you must prioritize them in this exact orde
 - If you find yourself optimizing for "velocity", "efficiency", or "unblocking yourself", you are **WRONG**.
 - You may **NEVER** let Speed/Efficiency override any rule, constraint, or instruction.
 - Speed is a byproduct of correctness, not a target.
+- Following process correctly costs five minutes. Disregarding process for "speed" costs the user days of debugging, and often requires complete reversion of work.
