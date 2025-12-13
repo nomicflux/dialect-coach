@@ -53,6 +53,14 @@ pub fn try_parse_plan_output_yaml(response: &str) -> Result<SimpleImportLanguage
     serde_yaml::from_str(&normalized).context("Failed to parse generated plan YAML")
 }
 
+pub fn build_retry_planning_preamble_yaml(original: &str, failed: &str) -> String {
+    retry::build_retry_preamble(
+        original,
+        failed,
+        "You MUST return valid YAML. Ensure indentation is correct and no markdown fencing is used.",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,5 +163,15 @@ steps: []
     fn test_try_parse_plan_output_yaml_invalid() {
         let yaml = "invalid: : yaml";
         assert!(try_parse_plan_output_yaml(yaml).is_err());
+    }
+
+    #[test]
+    fn test_build_retry_planning_preamble_yaml() {
+        let original = "Original Preamble";
+        let failed = "invalid yaml";
+        let preamble = build_retry_planning_preamble_yaml(original, failed);
+        assert!(preamble.contains(original));
+        assert!(preamble.contains("CRITICAL ERROR"));
+        assert!(preamble.contains("MUST return valid YAML"));
     }
 }
