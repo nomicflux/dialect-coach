@@ -2,13 +2,15 @@ use rig::completion::{
     Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
 };
 use rig::one_or_many::OneOrMany;
+use std::collections::HashSet;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::{
-    AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Gender, Message, MessageContent,
-    MessageMetadata, UserGender, UserMessageWithContext, UserState,
+    AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Gender, LanguagePlan, LearningItem,
+    LearningItemType, Message, MessageContent, MessageMetadata, UserGender, UserMessageWithContext,
+    UserState,
 };
 
 use crate::rag_config::RAGConfig;
@@ -166,17 +168,20 @@ async fn run_agents_with_analysis(
     );
 
     let user_text = msg_with_context.message.get_content();
+    let active_plan = user_state.active_plan();
+    let all_items =
+        combine_plan_and_user_items(&user_state.learning_items, active_plan.as_ref());
+    let (m, e, t, x) = extract_learning_items(&all_items, dialect);
+
     let ((response_result, response_usage, learning_usage), (analysis_result, analysis_usage)) = tokio::join!(
         state.agent.generate_response(params),
-        state
-            .agent
-            .generate_analysis(crate::agent_service::analysis::AnalysisRequestParams {
+        state.agent.generate_analysis(crate::agent_service::analysis::AnalysisRequestParams {
                 dialect,
                 msg: &user_text,
-                mistakes: &msg_with_context.past_mistakes,
-                explained: &msg_with_context.past_explained,
-                translated: &msg_with_context.past_translated,
-                exploratory: &msg_with_context.past_exploratory,
+                mistakes: &m,
+                explained: &e,
+                translated: &t,
+                exploratory: &x,
                 language_option: &msg_with_context.language_option,
             })
     );
@@ -532,6 +537,36 @@ fn extract_learning_items(
     (mistakes, explained, translated, exploratory)
 }
 
+fn get_item_id(item: &LearningItem) -> Uuid {
+    match &item.item {
+        LearningItemType::Mistake(m) => m.id,
+        LearningItemType::Explanation(e) => e.id,
+        LearningItemType::Translation(t) => t.id,
+        LearningItemType::Exploration(e) => e.id,
+    }
+}
+
+#[allow(clippy::collapsible_if)]
+fn combine_plan_and_user_items(
+    user_items: &[LearningItem],
+    plan: Option<&LanguagePlan>,
+) -> Vec<LearningItem> {
+    let mut all_items = user_items.to_vec();
+    if let Some(plan) = plan {
+        if let Some(step) = plan.steps.get(plan.current_step_index) {
+            if let dialect_coach_shared::StepType::Learning { content } = &step.step_type {
+                let existing_ids: HashSet<Uuid> = all_items.iter().map(get_item_id).collect();
+                for item in &content.items {
+                    if !existing_ids.contains(&get_item_id(item)) {
+                        all_items.push(item.clone());
+                    }
+                }
+            }
+        }
+    }
+    all_items
+}
+
 async fn call_agent_for_conversation_action(
     state: &AppState,
     action: &AIActionRequest,
@@ -588,7 +623,11 @@ async fn call_agent_for_conversation_action(
             context.language_level,
         ),
         _ => {
-            let (m, e, t, x) = extract_learning_items(&user_state.learning_items, dialect);
+            let active_plan = user_state.active_plan();
+            let all_items =
+                combine_plan_and_user_items(&user_state.learning_items, active_plan.as_ref());
+
+            let (m, e, t, x) = extract_learning_items(&all_items, dialect);
             let goals = user_state
                 .learning_goals
                 .iter()
@@ -765,5 +804,60 @@ mod tests {
 
         assert_eq!(m[0].specific_mistake, "bad");
         assert_eq!(e[0].new_phrase, "phrase");
+    }
+
+    #[test]
+    fn test_combine_plan_and_user_items() {
+        use dialect_coach_shared::models::{
+            Mistake, MistakeCategory, PlanContent, PlanStep, StepType,
+        };
+
+        let dialect = Dialect::SpanishMexican;
+        let mistake1 = Mistake::new(
+            "m1".to_string(),
+            "c1".to_string(),
+            MistakeCategory::Other {
+                context: "ctx".to_string(),
+            },
+        );
+        let item1 = LearningItem::new(LearningItemType::Mistake(mistake1.clone()), dialect);
+
+        let mistake2 = Mistake::new(
+            "m2".to_string(),
+            "c2".to_string(),
+            MistakeCategory::Other {
+                context: "ctx".to_string(),
+            },
+        );
+        let item2 = LearningItem::new(LearningItemType::Mistake(mistake2.clone()), dialect);
+
+        // User has item1
+        let user_items = vec![item1.clone()];
+
+        // Plan has item1 AND item2
+        let step = PlanStep::new(
+            1,
+            "Step 1".to_string(),
+            StepType::Learning {
+                content: PlanContent {
+                    items: vec![item1.clone(), item2.clone()],
+                },
+            },
+            "Inst".to_string(),
+        );
+        let plan = LanguagePlan::new(
+            "Plan".to_string(),
+            dialect,
+            None,
+            vec![step],
+        );
+
+        let combined = combine_plan_and_user_items(&user_items, Some(&plan));
+
+        assert_eq!(combined.len(), 2);
+        // Should contain item1 and item2, without duplicating item1
+        let ids: HashSet<Uuid> = combined.iter().map(get_item_id).collect();
+        assert!(ids.contains(&mistake1.id));
+        assert!(ids.contains(&mistake2.id));
     }
 }

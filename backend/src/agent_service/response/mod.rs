@@ -1,8 +1,6 @@
-use anyhow::{Context, Result};
 use dialect_coach_shared::{
-    AgentUsage, DialectWithFeatures, Explained, Exploratory, Formality,
-    LanguageLevel, LanguageOption, LearningGoal, Mistake, PastLearningItems, TeachingMode,
-    Translated, UserGender,
+    Explained, Exploratory, Formality, LanguageLevel, LanguageOption, LearningGoal, Mistake,
+    TeachingMode, Translated, UserGender, DialectWithFeatures,
 };
 use rig::completion::Message as RigMessage;
 use std::sync::Arc;
@@ -11,29 +9,23 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
 
-use super::learning::{LearningAgent, LearningAgentParams};
-use super::provider::{CompletionAgent, CompletionRequest};
-use super::retry::{RetryContext, build_retry_response_preamble, retry_completion_call};
-use super::util::contains_illegal_characters;
 
 mod config;
-use config::{temperature_for_mode, tokens_per_mode};
 
+use super::provider::CompletionAgent;
 mod speaker;
 
 mod teaching;
 
 mod examples;
-use examples::build_conversation_history_with_examples;
 
 mod system_content;
-use system_content::build_system_content;
-
 mod parsing;
-pub use parsing::{log_response_success, try_parse_response};
-use parsing::{apply_learning_output, build_simple_completion_request, sanitize_simple_json_response};
+
 
 mod retrieval;
+
+mod generation;
 
 /// Parameters for generating a response
 pub struct GenerateResponseParams<'a> {
@@ -61,308 +53,16 @@ pub struct ResponseContext {
     pub embeddings: Arc<EmbeddingService>,
 }
 
-impl ResponseContext {
-    async fn attach_learning_items(
-        &self,
-        params: &GenerateResponseParams<'_>,
-        parsed_response: dialect_coach_shared::AgentResponse,
-    ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
-        let assistant_response = parsed_response.response.clone();
-        let learning_agent = LearningAgent::new(self.learning_agent.clone());
-        let learning_params = LearningAgentParams {
-            user_message: params.user_message,
-            assistant_response: &assistant_response,
-            dialect: params.dialect.dialect,
-            formality: params.formality,
-            teaching_mode: params.teaching_mode,
-            learning_goals: params.learning_goals,
-            past_mistakes: params.past_mistakes,
-            past_explained: params.past_explained,
-            past_translated: params.past_translated,
-            past_exploratory: params.past_exploratory,
-            language_option: params.language_option,
-        };
-        let (result, usage) = learning_agent
-            .generate_learning_items(&learning_params)
-            .await;
-        match result {
-            Ok(output) => Ok((apply_learning_output(parsed_response, output), usage)),
-            Err(e) => Err(e),
-        }
-    }
-
-    async fn handle_successful_completion(
-        &self,
-        response: String,
-        usage: Vec<AgentUsage>,
-        params: &GenerateResponseParams<'_>,
-        system_content: &str,
-        history_with_prefill: Vec<RigMessage>,
-        skip_learning: bool,
-    ) -> (
-        Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
-        Vec<AgentUsage>,
-        Vec<AgentUsage>,
-    ) {
-        match self
-            .handle_response_parsing(
-                response,
-                usage.clone(),
-                params,
-                system_content,
-                history_with_prefill,
-                skip_learning,
-            )
-            .await
-        {
-            Ok((agent_response, response_usage, learning_usage)) => {
-                (Ok(agent_response), response_usage, learning_usage)
-            }
-            Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    "Response processing failed after provider completion"
-                );
-                (Err(e), usage, Vec::new())
-            }
-        }
-    }
-
-    async fn handle_response_parsing(
-        &self,
-        response: String,
-        initial_usage: Vec<AgentUsage>,
-        params: &GenerateResponseParams<'_>,
-        system_content: &str,
-        history_with_prefill: Vec<RigMessage>,
-        skip_learning: bool,
-    ) -> Result<(
-        dialect_coach_shared::AgentResponse,
-        Vec<AgentUsage>,
-        Vec<AgentUsage>,
-    )> {
-        tracing::debug!(
-            dialect = %params.dialect.dialect.name(),
-            "Raw provider response: {}",
-            response
-        );
-        match try_parse_response(&response, params.dialect.dialect) {
-            Ok(parsed_response) => {
-                if contains_illegal_characters(&parsed_response.response) {
-                    tracing::error!(
-                        "Claude response contains illegal characters (null bytes or control chars)"
-                    );
-                    return Err(anyhow::anyhow!("Response contains illegal characters"));
-                }
-                log_response_success(params.dialect.dialect, &parsed_response);
-                if skip_learning {
-                    Ok((parsed_response, initial_usage, Vec::new()))
-                } else {
-                    match self.attach_learning_items(params, parsed_response).await {
-                        Ok((final_response, learning_usage)) => {
-                            Ok((final_response, initial_usage, learning_usage))
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                dialect = %params.dialect.dialect.name(),
-                                error = %e,
-                                "Failed to attach learning items to parsed response"
-                            );
-                            Err(e)
-                        }
-                    }
-                }
-            }
-            Err(_) => {
-                let dialect = params.dialect.dialect;
-                let teaching_mode = params.teaching_mode;
-                let retry_ctx = RetryContext {
-                    agent: self.response_agent.clone(),
-                };
-                let parse_fn =
-                    move |response: &str| -> Result<dialect_coach_shared::AgentResponse> {
-                        try_parse_response(response, dialect)
-                    };
-                let log_success = move |parsed: &dialect_coach_shared::AgentResponse| {
-                    log_response_success(dialect, parsed);
-                };
-                let preamble_builder = move |preamble: &str, failed: &str| -> String {
-                    build_retry_response_preamble(preamble, failed)
-                };
-                let max_tokens = tokens_per_mode(&teaching_mode);
-                let prompt_params = super::retry::RetryPromptParams {
-                    original_preamble: system_content,
-                    failed_response: &response,
-                    prompt: params.user_message,
-                    preamble_builder: &preamble_builder,
-                };
-                let config = super::util::GenerationConfig {
-                    max_tokens,
-                    temperature: temperature_for_mode(&teaching_mode),
-                };
-                match retry_ctx
-                    .retry_with_error_feedback_tracked(
-                        &prompt_params,
-                        &history_with_prefill,
-                        &config,
-                        &parse_fn,
-                        &log_success,
-                    )
-                    .await
-                {
-                    Ok((parsed_response, retry_usage)) => {
-                        let mut all_response_usage = initial_usage;
-                        all_response_usage.extend(retry_usage);
-                        if skip_learning {
-                            Ok((parsed_response, all_response_usage, Vec::new()))
-                        } else {
-                            match self.attach_learning_items(params, parsed_response).await {
-                                Ok((final_response, learning_usage)) => {
-                                    Ok((final_response, all_response_usage, learning_usage))
-                                }
-                                Err(e) => Err(e),
-                            }
-                        }
-                    }
-                    Err(e) => Err(e),
-                }
-            }
-        }
-    }
-
-    pub async fn generate_response(
-        &self,
-        params: &GenerateResponseParams<'_>,
-        skip_learning: bool,
-    ) -> (
-        Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
-        Vec<AgentUsage>,
-        Vec<AgentUsage>,
-    ) {
-        if contains_illegal_characters(params.user_message) {
-            tracing::error!(
-                dialect = %params.dialect.dialect.name(),
-                "User message contains illegal control characters; aborting response generation"
-            );
-            return (
-                Err(anyhow::anyhow!("User message contains illegal characters")),
-                Vec::new(),
-                Vec::new(),
-            );
-        }
-
-        let (primary_examples, secondary_examples) = match self
-            .collect_examples(
-                params.user_message,
-                params.conversation_history,
-                params.dialect.clone(),
-                params.formality,
-                params.rag_config,
-            )
-            .await
-        {
-            Ok(examples) => examples,
-            Err(e) => {
-                tracing::error!(
-                    dialect = %params.dialect.dialect.name(),
-                    error = %e,
-                    "Failed to collect RAG examples for response generation"
-                );
-                return (Err(e), Vec::new(), Vec::new());
-            }
-        };
-
-        let past_learning_items = PastLearningItems {
-            mistakes: params.past_mistakes.to_vec(),
-            explained: params.past_explained.to_vec(),
-            translated: params.past_translated.to_vec(),
-            exploratory: params.past_exploratory.to_vec(),
-        };
-        let system_content = build_system_content(
-            params.dialect.clone(),
-            params.formality,
-            params.teaching_mode,
-            params.learning_goals,
-            &past_learning_items,
-            params.user_gender,
-            params.language_option,
-            &params.active_plan,
-            params.language_level,
-        );
-        tracing::debug!("System content sent to Claude:\n{}", system_content);
-        let history_with_prefill = build_conversation_history_with_examples(
-            params.conversation_history,
-            &primary_examples,
-            &secondary_examples,
-            self.response_agent.provider(),
-        );
-        let request = CompletionRequest {
-            preamble: &system_content,
-            prompt: params.user_message,
-            history: &history_with_prefill,
-            max_tokens: tokens_per_mode(&params.teaching_mode),
-            temperature: temperature_for_mode(&params.teaching_mode),
-        };
-
-        let (result, usage) =
-            retry_completion_call(self.response_agent.as_ref(), &request, 3).await;
-        match result {
-            Ok(response) => {
-                self.handle_successful_completion(
-                    response,
-                    usage,
-                    params,
-                    &system_content,
-                    history_with_prefill,
-                    skip_learning,
-                )
-                .await
-            }
-            Err(e) => {
-                let provider = self.response_agent.provider();
-                let model = self.response_agent.model();
-                let error_text = format!("{}", e);
-                tracing::error!(
-                    provider = %provider,
-                    model = %model,
-                    error = %error_text,
-                    "Provider completion failed before response parsing"
-                );
-                (
-                    Err(e.context(format!(
-                        "Failed to get completion from provider {} model {}: {}",
-                        provider, model, error_text
-                    ))),
-                    usage,
-                    Vec::new(),
-                )
-            }
-        }
-    }
-
-    pub async fn generate_simple_response(
-        &self,
-        system_preamble: &str,
-        prompt: &str,
-        history: Vec<RigMessage>,
-    ) -> Result<dialect_coach_shared::AgentResponse> {
-        let request = build_simple_completion_request(system_preamble, prompt, &history);
-        let (result, _) = retry_completion_call(self.response_agent.as_ref(), &request, 1).await;
-        let text = result.context(format!(
-            "Failed to get translation from provider {} model {}",
-            self.response_agent.provider(),
-            self.response_agent.model()
-        ))?;
-        let sanitized = sanitize_simple_json_response(&text)?;
-        Ok(dialect_coach_shared::AgentResponse::from(sanitized))
-    }
-}
+impl ResponseContext {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use dialect_coach_shared::models::dialect::dialect_features;
-    use dialect_coach_shared::{Dialect, Formality, TeachingMode};
+    use dialect_coach_shared::{
+        AgentUsage, Dialect, Formality, TeachingMode, LearningGoal, PastLearningItems, UserGender, LanguageLevel,
+    };
+    use crate::agent_service::response::system_content::build_system_content;
+    use crate::agent_service::response::parsing::{build_simple_completion_request, sanitize_simple_json_response};
 
 
     #[test]
