@@ -1,4 +1,5 @@
 use dialect_coach_shared::Dialect;
+use crate::agent_service::util;
 
 pub fn build_planning_system_prompt(dialect: Dialect) -> String {
     format!(
@@ -104,8 +105,9 @@ pub fn build_planning_system_prompt_yaml(dialect: Dialect) -> String {
         - **review_steps**: EXACT titles of previous steps to review.
 
         
+        
         # OUTPUT SCHEMA
-        Return a single valid YAML object. No markdown fencing.
+        {}
         title: \"Plan Title\" (e.g. \"Verbs with Con\")
         dialect: \"{}\"
         steps:
@@ -121,6 +123,7 @@ pub fn build_planning_system_prompt_yaml(dialect: Dialect) -> String {
             review_steps: 
               - \"Part 1: Basic Usage\"
         ",
+        util::YAML_OUTPUT_INSTRUCTION,
         dialect,
         dialect
     )
