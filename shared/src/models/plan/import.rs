@@ -343,7 +343,9 @@ pub struct SimpleImportStep {
 #[derive(Debug, Clone, Deserialize)]
 pub struct SimpleLearningItem {
     pub vocab: Option<String>,
+    pub translation: Option<String>,
     pub grammar: Option<String>,
+    pub explanation: Option<String>,
 }
 
 impl TryFrom<SimpleImportLanguagePlan> for ImportLanguagePlan {
@@ -360,7 +362,7 @@ impl TryFrom<SimpleImportLanguagePlan> for ImportLanguagePlan {
                         let partial = match (item.vocab, item.grammar) {
                             (Some(v), None) => ImportPartialLearningItem::Translation(
                                 crate::models::PartialTranslated {
-                                    translated_word: None,
+                                    translated_word: item.translation,
                                     translated_to: Some(v),
                                     context: None,
                                 },
@@ -368,7 +370,7 @@ impl TryFrom<SimpleImportLanguagePlan> for ImportLanguagePlan {
                             (None, Some(g)) => ImportPartialLearningItem::Explanation(
                                 crate::models::PartialExplained {
                                     new_phrase: Some(g),
-                                    explanation: None,
+                                    explanation: item.explanation,
                                 },
                             ),
                             (None, None) => {
@@ -428,6 +430,7 @@ impl TryFrom<SimpleImportLanguagePlan> for ImportLanguagePlan {
         })
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -587,11 +590,15 @@ mod tests {
                     learning_content: Some(vec![
                         SimpleLearningItem {
                             vocab: Some("hola".into()),
+                            translation: Some("hello".into()),
                             grammar: None,
+                            explanation: None,
                         },
                         SimpleLearningItem {
                             vocab: None,
+                            translation: None,
                             grammar: Some("subjunctive".into()),
+                            explanation: Some("express doubt".into()),
                         },
                     ]),
                     review_steps: None,
@@ -615,12 +622,14 @@ mod tests {
                 match &content.items[0].item {
                     ImportPartialLearningItem::Translation(t) => {
                         assert_eq!(t.translated_to.as_deref(), Some("hola"));
+                        assert_eq!(t.translated_word.as_deref(), Some("hello"));
                     }
                     _ => panic!("Expected Translation"),
                 }
                 match &content.items[1].item {
                     ImportPartialLearningItem::Explanation(e) => {
                         assert_eq!(e.new_phrase.as_deref(), Some("subjunctive"));
+                        assert_eq!(e.explanation.as_deref(), Some("express doubt"));
                     }
                     _ => panic!("Expected Explanation"),
                 }
@@ -677,7 +686,9 @@ mod tests {
                 instructions: "".into(),
                 learning_content: Some(vec![SimpleLearningItem {
                     vocab: Some("a".into()),
+                    translation: None,
                     grammar: Some("b".into()),
+                    explanation: None,
                 }]),
                 review_steps: None,
             }],
