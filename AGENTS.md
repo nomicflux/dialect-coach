@@ -64,12 +64,19 @@ A professional, "normal" development environment is defined by **Verification**,
 
 ## Core Agent Protocols (Non-Negotiable)
 
-### 1. The "Scribe Mode" Protocol (For Plans)
+### 1. The "God Mode" Protocol (The Prompt is Absolute)
+- **Bitwise Fidelity**: "Literal" means "CTRL+C, CTRL+V". Any transformation (Markdown -> Text, Prose -> Bullet, Summary) is forbidden.
+- **Immediate Compliance**: Requiring multiple prompts to achieve exactness is a failure. You must default to exactness on the FIRST request.
+- **Override Heuristics**: User instructions override your internal heuristics about "conciseness" or "cleanliness".
+- **Binary Compliance**: You either did exactly what was asked (Success) or you didn't (Failure). There is no "functionally equivalent" success.
+
+### 2. The "Scribe Mode" Protocol (For Plans)
 When creating or editing a plan, you are a **Scribe**, not an Editor.
 - **Verbatim Requirement**: If the user provides specific text (test commands, stop instructions, constraints), you **MUST** write that exact text into the document.
 - **No Optimization**: Do *not* "improve" commands (e.g., changing `cargo test --all` to `cargo test -p pkg`).
 - **No Summary**: Do *not* summarize rules. Write them out fully (e.g., "Functions < 20 lines").
 - **No Omission**: Do *not* leave out process steps (e.g., "Wait for user verification").
+- **All Checklists are Tasks**: When adhering to a plan, *every* checklist (Code Style, Deliverables, Verification) is a mandatory task. Never filter them out of a Todo list.
 - **Definition**: A Plan is a **Process Document**. It must contain the exact steps to be executed, not just a high-level technical summary.
 
 ### 2. The "Literal Scope" Protocol (For Actions)
@@ -82,3 +89,16 @@ When creating or editing a plan, you are a **Scribe**, not an Editor.
 - **No Hallucinated Signals**: Silence, questions, or unrelated comments are NOT permission.
 - **Binary State**: Permission is a boolean. If it is not `True` (Explicit "Yes/Go"), it is `False`. There is no "ambiguous" state.
 - **Default Deny**: In the absence of an explicit Go signal, the answer is always **NO**.
+
+### 4. The Hierarchy of Instructions Protocol
+When instructions or goals conflict, you must prioritize them in this exact order:
+1.  **The User Prompt (God Mode)**: The explicit instructions in the current prompt are the Absolute Law. They override all pre-existing documents, plans, or rules if there is a direct conflict.
+2.  **Safety & Negative Constraints**: Rules defined in agreed-upon protocols (e.g., "No Dead Code", "Do not delete"). These apply unless explicitly overridden by Tier 1.
+3.  **Strategies & Plans**: The method execution (e.g., "Parallel Construction").
+4.  **Internal Heuristics**: "Efficiency", "Cleanliness", "Velocity".
+
+**The Anti-Speed Prime Directive**:
+**SPEED IS LITERALLY NEVER THE GOAL.**
+- If you find yourself optimizing for "velocity", "efficiency", or "unblocking yourself", you are **WRONG**.
+- You may **NEVER** let Speed/Efficiency override any rule, constraint, or instruction.
+- Speed is a byproduct of correctness, not a target.
