@@ -8,24 +8,17 @@ use std::sync::Arc;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
-
-
-mod config;
-
 use super::provider::CompletionAgent;
-mod speaker;
 
-mod teaching;
-
+// Module declarations
+mod config;
 mod examples;
-
-mod system_content;
-mod parsing;
-
-
-mod retrieval;
-
 mod generation;
+mod parsing;
+mod retrieval;
+mod speaker;
+mod system_content;
+mod teaching;
 
 /// Parameters for generating a response
 pub struct GenerateResponseParams<'a> {
@@ -52,8 +45,6 @@ pub struct ResponseContext {
     pub qdrant: Arc<QdrantService>,
     pub embeddings: Arc<EmbeddingService>,
 }
-
-impl ResponseContext {}
 
 #[cfg(test)]
 mod tests {
