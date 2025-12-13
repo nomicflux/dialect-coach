@@ -70,3 +70,26 @@ pub(super) fn sanitize_simple_json_response(response_text: &str) -> Result<Strin
 
     Ok(trimmed.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_simple_completion_request_uses_zero_temperature() {
+        let request = build_simple_completion_request("sys", "prompt", &[]);
+        assert_eq!(request.temperature, 0.0);
+        assert_eq!(request.max_tokens, 1024);
+        assert_eq!(request.preamble, "sys");
+        assert_eq!(request.prompt, "prompt");
+    }
+
+    #[test]
+    fn test_sanitize_simple_json_response_strips_markdown_and_validates() {
+        let wrapped = "```json\n{\"response\":\"hola\"}\n```";
+        let sanitized = sanitize_simple_json_response(wrapped).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+        assert_eq!(value["response"], "hola");
+        assert!(!sanitized.contains("```"));
+    }
+}

@@ -73,3 +73,25 @@ pub(crate) fn language_level_instruction(level: LanguageLevel) -> &'static str {
         LanguageLevel::C2 => LEVEL_C2,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_language_level_instruction_covers_all_levels() {
+        let levels = [
+            LanguageLevel::A1,
+            LanguageLevel::A2,
+            LanguageLevel::B1,
+            LanguageLevel::B2,
+            LanguageLevel::C1,
+            LanguageLevel::C2,
+        ];
+        for level in levels {
+            let instruction = language_level_instruction(level);
+            assert!(!instruction.is_empty());
+            assert!(instruction.contains("LANGUAGE LEVEL"));
+        }
+    }
+}

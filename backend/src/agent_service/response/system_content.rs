@@ -245,3 +245,243 @@ pub(crate) fn build_system_content(
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dialect_coach_shared::models::dialect::dialect_features;
+    use dialect_coach_shared::{
+        Dialect, PastLearningItems, UserGender,
+    };
+    use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
+    use dialect_coach_shared::models::plan::{PlanContent, PlanStep, StepType};
+    use dialect_coach_shared::models::{Explained, Translated};
+
+    #[test]
+    fn test_build_system_content_debug() {
+        let dialect = Dialect::SpanishMexican;
+        let formality = Formality::Informal;
+        let teaching_mode = TeachingMode::Debug;
+        let learning_goals = vec![];
+        let past_learning_items = PastLearningItems::default();
+
+        let content = build_system_content(
+            dialect_features(dialect),
+            formality,
+            teaching_mode,
+            &learning_goals,
+            &past_learning_items,
+            UserGender::NonBinary,
+            &None,
+            &None,
+            LanguageLevel::B1,
+        );
+
+        assert!(content.contains("# YOUR ROLE"));
+        assert!(content.contains("BE CONCISE"));
+        assert!(content.contains("ITERATIVE IMPROVEMENT"));
+        assert!(content.contains("LANGUAGE LEVEL"));
+        assert!(content.contains("technically"));
+    }
+
+    #[test]
+    fn test_build_system_content_normal() {
+        let dialect = Dialect::SpanishArgentinian;
+        let formality = Formality::Informal;
+        let teaching_mode = TeachingMode::Immersive;
+        let learning_goals = vec![LearningGoal {
+            goal: "Goal 1".to_string(),
+            dialect: Dialect::SpanishArgentinian,
+        }];
+        let past_learning_items = PastLearningItems::default();
+
+        let content = build_system_content(
+            dialect_features(dialect),
+            formality,
+            teaching_mode,
+            &learning_goals,
+            &past_learning_items,
+            UserGender::NonBinary,
+            &None,
+            &None,
+            LanguageLevel::A2,
+        );
+
+        assert!(content.contains("# YOUR ROLE"));
+        assert!(content.contains("MIMIC THE PATTERNS"));
+        assert!(content.contains("MAINTAIN FORMALITY"));
+        assert!(content.contains("informal"));
+        assert!(content.contains("# LEARNING GOALS"));
+        assert!(content.contains("Goal 1"));
+        assert!(content.contains("LANGUAGE LEVEL"));
+    }
+
+    #[test]
+    fn test_build_system_content_with_active_plan() {
+        use dialect_coach_shared::models::Dialect;
+        use dialect_coach_shared::models::UserState;
+        use uuid::Uuid;
+
+        let mut content = PlanContent::default();
+        content.items.push(LearningItem::new(
+            LearningItemType::Translation(Translated::new(
+                "hola".to_string(),
+                "hello".to_string(),
+                None,
+            )),
+            Dialect::SpanishMexican,
+        ));
+
+        let current_step = PlanStep::new(
+            1,
+            "Intro".to_string(),
+            StepType::Learning { content },
+            "Learn basic greetings".to_string(),
+        );
+
+        let plan = LanguagePlan::new(
+            "Test Plan".to_string(),
+            Dialect::SpanishMexican,
+            None,
+            vec![current_step],
+        );
+
+        let mut state = UserState::new(Uuid::new_v4());
+        state.language_plans.push(plan.clone());
+        state.active_plan_id = Some(plan.id);
+
+        // Act
+        let system_content = build_plan_system_content(&Some(&plan));
+
+        // Assert
+        assert!(system_content.contains("RELEVANT LEARNING CONTENT"));
+        assert!(system_content.contains("hello"));
+        assert!(system_content.contains("Naturally incorporate"));
+    }
+
+    #[test]
+    fn test_build_plan_system_content() {
+        let mut content = PlanContent::default();
+
+        content.items.push(LearningItem::new(
+            LearningItemType::Translation(Translated::new(
+                "hola".to_string(),
+                "hello".to_string(),
+                None,
+            )),
+            Dialect::SpanishMexican,
+        ));
+        content.items.push(LearningItem::new(
+            LearningItemType::Explanation(Explained::new(
+                "que onda".to_string(),
+                "what's up".to_string(),
+            )),
+            Dialect::SpanishMexican,
+        ));
+
+        let step = PlanStep::new(
+            1,
+            "Test Step".to_string(),
+            StepType::Learning { content },
+            "Use these words".to_string(),
+        );
+
+        let plan = LanguagePlan::new(
+            "Test Plan".to_string(),
+            Dialect::SpanishMexican,
+            None,
+            vec![step],
+        );
+
+        let prompt = build_plan_system_content(&Some(&plan));
+
+        // Check for key prompt elements
+        assert!(
+            prompt.contains("ACTIVE LANGUAGE PLAN"),
+            "Should identify as active plan"
+        );
+        assert!(prompt.contains("Test Step"), "Should contain step title");
+        assert!(
+            prompt.contains("Use these words"),
+            "Should contain instructions"
+        );
+
+        // Check content rendering
+        assert!(
+            prompt.contains("hello"),
+            "Should contain translation target"
+        );
+        assert!(
+            prompt.contains("que onda"),
+            "Should contain explanation phrase"
+        );
+
+        // Check new goal instruction
+        assert!(
+            prompt.contains("Naturally incorporate"),
+            "Should contain new goal instruction"
+        );
+        assert!(
+            !prompt.contains("correct them gently"),
+            "Should NOT contain old goal instruction"
+        );
+    }
+
+    #[test]
+    fn test_build_plan_system_content_review_step() {
+        // Create a learning step with content
+        let mut content1 = PlanContent::default();
+        content1.items.push(LearningItem::new(
+            LearningItemType::Translation(Translated::new(
+                "gracias".to_string(),
+                "thanks".to_string(),
+                None,
+            )),
+            Dialect::SpanishMexican,
+        ));
+
+        let step1 = PlanStep::new(
+            1,
+            "Learning Step".to_string(),
+            StepType::Learning { content: content1 },
+            "Learn this".to_string(),
+        );
+
+        // Create a review step referencing step1
+        let step2 = PlanStep::new(
+            2,
+            "Review Step".to_string(),
+            StepType::Review {
+                review_step_ids: vec![step1.id],
+            },
+            "Review this".to_string(),
+        );
+
+        let plan = LanguagePlan {
+            id: uuid::Uuid::new_v4(),
+            title: "Test Plan".to_string(),
+            dialect: Dialect::SpanishMexican,
+            description: None,
+            steps: vec![step1, step2],
+            current_step_index: 1, // Set to Review step
+            status: dialect_coach_shared::models::plan::PlanStatus::InProgress,
+            created_at: 0,
+        };
+
+        let prompt = build_plan_system_content(&Some(&plan));
+
+        assert!(prompt.contains("Current Step: Review Step"));
+        assert!(
+            prompt.contains("REVIEW MATERIALS"),
+            "Should identify materials as review materials"
+        );
+        assert!(
+            prompt.contains("thanks"),
+            "Should contain content from referenced step"
+        );
+        assert!(
+            prompt.contains("The user has learned the listed materials"),
+            "Should contain review-specific goal instruction"
+        );
+    }
+}
