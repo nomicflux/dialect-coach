@@ -1,14 +1,14 @@
 use dialect_coach_shared::{
-    Explained, Exploratory, Formality, LanguageLevel, LanguageOption, LearningGoal, Mistake,
-    TeachingMode, Translated, UserGender, DialectWithFeatures,
+    DialectWithFeatures, Explained, Exploratory, Formality, LanguageLevel, LanguageOption,
+    LearningGoal, Mistake, TeachingMode, Translated, UserGender,
 };
 use rig::completion::Message as RigMessage;
 use std::sync::Arc;
 
+use super::provider::CompletionAgent;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
-use super::provider::CompletionAgent;
 
 // Module declarations
 mod config;
@@ -45,4 +45,3 @@ pub struct ResponseContext {
     pub qdrant: Arc<QdrantService>,
     pub embeddings: Arc<EmbeddingService>,
 }
-

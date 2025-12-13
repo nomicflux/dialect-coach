@@ -2,9 +2,9 @@ use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument, DialectWithFeatures, Formality};
 use rig::completion::Message as RigMessage;
 
-use super::examples::{deduplicate_examples, get_sample_formalities, group_examples_by_formality};
 use super::super::util::get_message_text;
 use super::ResponseContext;
+use super::examples::{deduplicate_examples, get_sample_formalities, group_examples_by_formality};
 use crate::rag_config::RAGConfig;
 
 impl ResponseContext {

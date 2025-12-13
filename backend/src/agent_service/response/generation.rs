@@ -7,12 +7,17 @@ use dialect_coach_shared::DialectDocument;
 
 use super::config::{temperature_for_mode, tokens_per_mode};
 use super::examples::build_conversation_history_with_examples;
-use super::parsing::{apply_learning_output, build_simple_completion_request, log_response_success, sanitize_simple_json_response, try_parse_response};
+use super::parsing::{
+    apply_learning_output, build_simple_completion_request, log_response_success,
+    sanitize_simple_json_response, try_parse_response,
+};
 use super::system_content::build_system_content;
 
 use crate::agent_service::learning::{LearningAgent, LearningAgentParams};
 use crate::agent_service::provider::CompletionRequest;
-use crate::agent_service::retry::{RetryContext, build_retry_response_preamble, retry_completion_call};
+use crate::agent_service::retry::{
+    RetryContext, build_retry_response_preamble, retry_completion_call,
+};
 use crate::agent_service::util::{GenerationConfig, contains_illegal_characters};
 
 impl ResponseContext {
@@ -87,7 +92,8 @@ impl ResponseContext {
         );
         match try_parse_response(&response, params.dialect.dialect) {
             Ok(parsed_response) => {
-                handle_parse_success(self, parsed_response, initial_usage, params, skip_learning).await
+                handle_parse_success(self, parsed_response, initial_usage, params, skip_learning)
+                    .await
             }
             Err(_) => {
                 handle_parse_failure_with_retry(
@@ -209,7 +215,9 @@ async fn handle_parse_success(
     Vec<AgentUsage>,
 )> {
     if contains_illegal_characters(&parsed_response.response) {
-        tracing::error!("Claude response contains illegal characters (null bytes or control chars)");
+        tracing::error!(
+            "Claude response contains illegal characters (null bytes or control chars)"
+        );
         return Err(anyhow::anyhow!("Response contains illegal characters"));
     }
     log_response_success(params.dialect.dialect, &parsed_response);
@@ -231,9 +239,7 @@ async fn attach_learning_with_error_handling(
     Vec<AgentUsage>,
 )> {
     match ctx.attach_learning_items(params, parsed_response).await {
-        Ok((final_response, learning_usage)) => {
-            Ok((final_response, initial_usage, learning_usage))
-        }
+        Ok((final_response, learning_usage)) => Ok((final_response, initial_usage, learning_usage)),
         Err(e) => {
             tracing::error!(
                 dialect = %params.dialect.dialect.name(),
@@ -244,7 +250,6 @@ async fn attach_learning_with_error_handling(
         }
     }
 }
-
 
 async fn handle_parse_failure_with_retry(
     ctx: &ResponseContext,
@@ -360,10 +365,7 @@ async fn attach_learning_after_retry(
     }
 }
 
-fn validate_user_message(
-    message: &str,
-    dialect: dialect_coach_shared::Dialect,
-) -> Result<()> {
+fn validate_user_message(message: &str, dialect: dialect_coach_shared::Dialect) -> Result<()> {
     if contains_illegal_characters(message) {
         tracing::error!(
             dialect = %dialect.name(),
@@ -377,7 +379,12 @@ fn validate_user_message(
 async fn prepare_generation_context(
     ctx: &ResponseContext,
     params: &GenerateResponseParams<'_>,
-) -> Result<(String, Vec<RigMessage>, Vec<DialectDocument>, Vec<DialectDocument>)> {
+) -> Result<(
+    String,
+    Vec<RigMessage>,
+    Vec<DialectDocument>,
+    Vec<DialectDocument>,
+)> {
     let (primary_examples, secondary_examples) = ctx
         .collect_examples(
             params.user_message,

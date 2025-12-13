@@ -4,9 +4,7 @@ use super::actions::{
 use super::helpers::*;
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::ConversationBranch;
-use dialect_coach_shared::{
-    AgentAnalysis, LearningItem, LearningItemType,
-};
+use dialect_coach_shared::{AgentAnalysis, LearningItem, LearningItemType};
 
 pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
     use MessageAction::*;
@@ -41,7 +39,8 @@ pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
             next.branches = remove_message_from_branches(next.branches.clone(), id);
         }
         UndoDelete(msg) => {
-            next.conversation_history = undo_delete_message(next.conversation_history.clone(), msg.clone());
+            next.conversation_history =
+                undo_delete_message(next.conversation_history.clone(), msg.clone());
             next.branches = restore_message_to_branch(next.branches.clone(), &msg);
         }
     }
@@ -278,7 +277,10 @@ fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
     {
         for item in &content.items {
             let id = get_learning_item_id(item);
-            if !state.learning_items.iter().any(|i| get_learning_item_id(i) == id)
+            if !state
+                .learning_items
+                .iter()
+                .any(|i| get_learning_item_id(i) == id)
                 && item_has_score(item, analysis)
             {
                 state.learning_items.push(item.clone());
@@ -319,8 +321,8 @@ fn item_has_score(item: &LearningItem, analysis: &AgentAnalysis) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::models::{MistakeCategory, LearningItemScore};
-    use dialect_coach_shared::{Dialect, LanguagePlan, PlanStep, StepType, PlanContent, Mistake};
+    use dialect_coach_shared::models::{LearningItemScore, MistakeCategory};
+    use dialect_coach_shared::{Dialect, LanguagePlan, Mistake, PlanContent, PlanStep, StepType};
     use uuid::Uuid;
 
     #[test]
@@ -342,21 +344,25 @@ mod tests {
             },
         );
         let plan_item = LearningItem::new(LearningItemType::Mistake(mistake.clone()), dialect);
-        
+
         plan.steps.push(PlanStep::new(
             1,
             "Step 1".to_string(),
             StepType::Learning {
-                content: PlanContent { items: vec![plan_item.clone()] },
+                content: PlanContent {
+                    items: vec![plan_item.clone()],
+                },
             },
             "Learn this".to_string(),
         ));
-        
+
         state.language_plans.push(plan.clone());
         state.active_plan_id = Some(plan.id);
 
         let mut analysis = AgentAnalysis::default();
-        analysis.mistake_scores.insert(mistake.id, LearningItemScore { score: 10 });
+        analysis
+            .mistake_scores
+            .insert(mistake.id, LearningItemScore { score: 10 });
 
         let action = LearningAction::UpdateScores(analysis);
         reduce_learning(&mut state, action);
@@ -391,11 +397,13 @@ mod tests {
             1,
             "Step 1".to_string(),
             StepType::Learning {
-                content: PlanContent { items: vec![plan_item.clone()] },
+                content: PlanContent {
+                    items: vec![plan_item.clone()],
+                },
             },
             "Learn this".to_string(),
         ));
-         plan.steps.push(PlanStep::new(
+        plan.steps.push(PlanStep::new(
             2,
             "Step 2".to_string(),
             StepType::Learning {
@@ -403,7 +411,7 @@ mod tests {
             },
             "Next Step".to_string(),
         ));
-        
+
         state.language_plans.push(plan.clone());
         state.active_plan_id = Some(plan.id);
         state.learning_items.push(active_item);
@@ -411,7 +419,7 @@ mod tests {
         // Verification: current index should be 0
         assert_eq!(state.language_plans[0].current_step_index, 0);
 
-        // Trigger logic manually via helper or action? 
+        // Trigger logic manually via helper or action?
         // Action is easier to check integration.
         let analysis = AgentAnalysis::default();
         let action = LearningAction::UpdateScores(analysis);

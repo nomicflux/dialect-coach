@@ -1,15 +1,17 @@
-use dialect_coach_shared::{
-    DialectWithFeatures, Formality, LanguageLevel, LanguageOption, LearningGoal,
-    PastLearningItems, TeachingMode, UserGender,
-};
 use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
 use dialect_coach_shared::models::plan::{LanguagePlan, PlanStep, StepType};
+use dialect_coach_shared::{
+    DialectWithFeatures, Formality, LanguageLevel, LanguageOption, LearningGoal, PastLearningItems,
+    TeachingMode, UserGender,
+};
 
-use crate::agent_service::language_instructions::build_language_instruction;
-use crate::agent_service::util::{format_learning_items_context, learning_goals_section, JSON_OUTPUT_INSTRUCTION};
 use super::config::{CONTENT_FILTERING_DIRECTIVES, RESPONSE_JSON_OUTPUT_FORMAT};
 use super::speaker::{extract_gender_from_dialect, mimic_instruction, speaker_desc};
 use super::teaching::{language_level_instruction, response_teaching_desc};
+use crate::agent_service::language_instructions::build_language_instruction;
+use crate::agent_service::util::{
+    JSON_OUTPUT_INSTRUCTION, format_learning_items_context, learning_goals_section,
+};
 
 fn collect_plan_items<'a>(step: &'a PlanStep, plan: &'a LanguagePlan) -> Vec<&'a LearningItem> {
     match &step.step_type {
@@ -250,12 +252,10 @@ pub(crate) fn build_system_content(
 mod tests {
     use super::*;
     use dialect_coach_shared::models::dialect::dialect_features;
-    use dialect_coach_shared::{
-        Dialect, PastLearningItems, UserGender,
-    };
     use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
     use dialect_coach_shared::models::plan::{PlanContent, PlanStep, StepType};
     use dialect_coach_shared::models::{Explained, Translated};
+    use dialect_coach_shared::{Dialect, PastLearningItems, UserGender};
 
     #[test]
     fn test_build_system_content_debug() {

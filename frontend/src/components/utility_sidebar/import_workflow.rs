@@ -33,7 +33,9 @@ fn parse_import_plan(text: &str) -> Result<ImportLanguagePlan, String> {
     }
 
     // Try simple import
-    match serde_yaml::from_str::<dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan>(text) {
+    match serde_yaml::from_str::<dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan>(
+        text,
+    ) {
         Ok(simple) => simple.try_into(),
         Err(e) => Err(format!(
             "Failed to parse as Standard or Simple Plan. Error: {}",

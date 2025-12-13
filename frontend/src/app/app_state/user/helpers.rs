@@ -34,16 +34,28 @@ pub fn add_learning_items_to_vec(
     dialect: Dialect,
 ) -> Vec<LearningItem> {
     for mistake in mistakes {
-        push_unique(&mut items, LearningItem::new(LearningItemType::Mistake(mistake), dialect));
+        push_unique(
+            &mut items,
+            LearningItem::new(LearningItemType::Mistake(mistake), dialect),
+        );
     }
     for expl in explained {
-        push_unique(&mut items, LearningItem::new(LearningItemType::Explanation(expl), dialect));
+        push_unique(
+            &mut items,
+            LearningItem::new(LearningItemType::Explanation(expl), dialect),
+        );
     }
     for trans in translated {
-        push_unique(&mut items, LearningItem::new(LearningItemType::Translation(trans), dialect));
+        push_unique(
+            &mut items,
+            LearningItem::new(LearningItemType::Translation(trans), dialect),
+        );
     }
     for explor in exploratory {
-        push_unique(&mut items, LearningItem::new(LearningItemType::Exploration(explor), dialect));
+        push_unique(
+            &mut items,
+            LearningItem::new(LearningItemType::Exploration(explor), dialect),
+        );
     }
     items
 }
@@ -242,16 +254,13 @@ mod tests {
         let items = vec![item.clone()];
 
         // Try adding the same mistake again
-        let result = add_learning_items_to_vec(
-            items,
-            vec![mistake],
-            vec![],
-            vec![],
-            vec![],
-            dialect,
-        );
+        let result =
+            add_learning_items_to_vec(items, vec![mistake], vec![], vec![], vec![], dialect);
 
         assert_eq!(result.len(), 1, "Should not add duplicate item");
-        assert_eq!(get_learning_item_id(&result[0]), get_learning_item_id(&item));
+        assert_eq!(
+            get_learning_item_id(&result[0]),
+            get_learning_item_id(&item)
+        );
     }
 }

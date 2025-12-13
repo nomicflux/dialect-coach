@@ -113,8 +113,7 @@ mod tests {
     #[test]
     fn test_versioned_data_with_version() {
         let data = serde_json::json!({"id": "test"});
-        let versioned =
-            VersionedData::with_version(UserVersion::V1, data.clone());
+        let versioned = VersionedData::with_version(UserVersion::V1, data.clone());
 
         assert_eq!(versioned.version, UserVersion::V1);
         assert_eq!(versioned.data, data);
@@ -140,8 +139,7 @@ mod tests {
             serde_json::json!({"id": "test", "value": 42}),
         );
         let json = serde_json::to_string(&original).unwrap();
-        let deserialized: VersionedData<UserVersion> =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: VersionedData<UserVersion> = serde_json::from_str(&json).unwrap();
 
         assert_eq!(deserialized.version, original.version);
         assert_eq!(deserialized.data, original.data);
@@ -165,8 +163,7 @@ mod tests {
             serde_json::json!({"user_id": "123"}),
         );
         let json = serde_json::to_string(&original).unwrap();
-        let deserialized: VersionedData<UserStateVersion> =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: VersionedData<UserStateVersion> = serde_json::from_str(&json).unwrap();
 
         assert_eq!(deserialized.version, original.version);
         assert_eq!(deserialized.data, original.data);
@@ -174,10 +171,8 @@ mod tests {
 
     #[test]
     fn test_versioned_data_clone() {
-        let original = VersionedData::with_version(
-            UserVersion::V1,
-            serde_json::json!({"id": "test"}),
-        );
+        let original =
+            VersionedData::with_version(UserVersion::V1, serde_json::json!({"id": "test"}));
         let cloned = original.clone();
 
         assert_eq!(cloned.version, original.version);
@@ -219,11 +214,9 @@ mod tests {
             }
         });
 
-        let versioned =
-            VersionedData::with_version(UserStateVersion::V1, data.clone());
+        let versioned = VersionedData::with_version(UserStateVersion::V1, data.clone());
         let json = serde_json::to_string(&versioned).unwrap();
-        let deserialized: VersionedData<UserStateVersion> =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: VersionedData<UserStateVersion> = serde_json::from_str(&json).unwrap();
 
         assert_eq!(deserialized, versioned);
     }

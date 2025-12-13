@@ -1,8 +1,7 @@
-use dialect_coach_shared::{LanguageLevel, TeachingMode};
 use super::config::tokens_per_mode;
+use dialect_coach_shared::{LanguageLevel, TeachingMode};
 
-const IMMERSIVE_DESC: &str =
-    "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections.";
+const IMMERSIVE_DESC: &str = "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections.";
 
 const CORRECTIVE_DESC: &str = r#"3. CORRECTIVE MODE: Respond naturally, warmly but concisely (hard limit of 1-2 short sentences).
 If and only if the user made mistakes in their previous message, include some corrected versions as a gentle guide.

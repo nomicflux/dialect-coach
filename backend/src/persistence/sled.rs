@@ -1,11 +1,9 @@
 use super::{UserPersistence, UserRecord};
 use anyhow::{Result, anyhow};
 use dialect_coach_shared::{
-    InviteCode, UsageStats, User, UserState,
-    UserStateVersion, UserVersion, VersionedData,
-    CURRENT_USER_STATE_VERSION, CURRENT_USER_VERSION,
+    CURRENT_USER_STATE_VERSION, CURRENT_USER_VERSION, InviteCode, UsageStats, User, UserState,
+    UserStateV1, UserStateVersion, UserV1, UserVersion, VersionedData,
     migrate_user_state_to_current, migrate_user_to_current,
-    UserV1, UserStateV1,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
