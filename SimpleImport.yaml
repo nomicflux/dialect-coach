@@ -1,0 +1,18 @@
+title: Practice Plan
+dialect: spanish_argentinian
+description: Plan description
+steps:
+- title: First Step
+  learning_content:
+    - vocab: hablar
+    - vocab: trabajar
+  instructions: Do somethnig
+- title: Second Step
+  learning_content:
+    - grammar: present indicative
+  instructions: More stuff
+- title: Review Time
+  review_steps:
+    - First Step
+    - Second Step
+  instructions: Review it all

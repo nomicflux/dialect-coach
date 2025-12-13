@@ -76,3 +76,9 @@ When creating or editing a plan, you are a **Scribe**, not an Editor.
 - **The Prompt is the Boundary**: You may only perform actions explicitly requested in the current prompt.
 - **No "Helpful" Extensions**: If the prompt says "Write the file," you **STOP** after writing the file. You do *not* execute the file. You do *not* verify the file.
 - **Explicit means Explicit**: "Explicitly do X" means "Do X exactly as written." It does *not* mean "Do the semantic equivalent of X."
+
+### 3. The "Negative Constraint" Protocol
+- **"Until" is Absolute**: "Do not X until Y" means X is impossible. The state of X is `Forbidden`.
+- **No Hallucinated Signals**: Silence, questions, or unrelated comments are NOT permission.
+- **Binary State**: Permission is a boolean. If it is not `True` (Explicit "Yes/Go"), it is `False`. There is no "ambiguous" state.
+- **Default Deny**: In the absence of an explicit Go signal, the answer is always **NO**.

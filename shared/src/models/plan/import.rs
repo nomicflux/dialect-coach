@@ -319,6 +319,116 @@ impl HydratedLanguagePlan {
     }
 }
 
+// --- Simple Import DTOs (Simplified Human-Readable Format) ---
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SimpleImportLanguagePlan {
+    pub title: String,
+    pub dialect: Dialect,
+    pub description: Option<String>,
+    pub steps: Vec<SimpleImportStep>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SimpleImportStep {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub instructions: String,
+    // User must provide exactly one of these (enforced in conversion)
+    pub learning_content: Option<Vec<SimpleLearningItem>>,
+    pub review_steps: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SimpleLearningItem {
+    pub vocab: Option<String>,
+    pub grammar: Option<String>,
+}
+
+impl TryFrom<SimpleImportLanguagePlan> for ImportLanguagePlan {
+    type Error = String;
+
+    fn try_from(simple: SimpleImportLanguagePlan) -> Result<Self, Self::Error> {
+        let mut steps = Vec::new();
+
+        for (i, s) in simple.steps.into_iter().enumerate() {
+            let step_type = match (s.learning_content, s.review_steps) {
+                (Some(items), None) => {
+                    let mut import_items = Vec::new();
+                    for item in items {
+                        let partial = match (item.vocab, item.grammar) {
+                            (Some(v), None) => ImportPartialLearningItem::Translation(
+                                crate::models::PartialTranslated {
+                                    translated_word: None,
+                                    translated_to: Some(v),
+                                    context: None,
+                                },
+                            ),
+                            (None, Some(g)) => ImportPartialLearningItem::Explanation(
+                                crate::models::PartialExplained {
+                                    new_phrase: Some(g),
+                                    explanation: None,
+                                },
+                            ),
+                            (None, None) => {
+                                return Err(format!(
+                                    "Step {} item has neither 'vocab' nor 'grammar'",
+                                    i + 1
+                                ));
+                            }
+                            (Some(_), Some(_)) => {
+                                return Err(format!(
+                                    "Step {} item has both 'vocab' and 'grammar' (must be one)",
+                                    i + 1
+                                ));
+                            }
+                        };
+                        import_items.push(ImportLearningItem {
+                            item: partial,
+                            score: None,
+                            dialect: None, // Will inherit from plan during hydrate
+                        });
+                    }
+                    ImportStepType::Learning {
+                        content: ImportPlanContent {
+                            items: import_items,
+                        },
+                    }
+                }
+                (None, Some(reviews)) => ImportStepType::Review {
+                    review_steps: reviews,
+                },
+                (Some(_), Some(_)) => {
+                    return Err(format!(
+                        "Step {} has both 'learning_content' and 'review_steps'",
+                        i + 1
+                    ));
+                }
+                (None, None) => {
+                    return Err(format!(
+                        "Step {} has neither 'learning_content' nor 'review_steps'",
+                        i + 1
+                    ));
+                }
+            };
+
+            steps.push(ImportPlanStep {
+                title: s.title,
+                step_type,
+                instructions: s.instructions,
+            });
+        }
+
+        Ok(ImportLanguagePlan {
+            title: simple.title,
+            dialect: simple.dialect,
+            description: simple.description,
+            steps,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -462,5 +572,116 @@ mod tests {
         } else {
             panic!("Wrong step type");
         }
+    }
+
+    #[test]
+    fn test_simple_import_conversion() {
+        let simple = SimpleImportLanguagePlan {
+            title: "Simple".into(),
+            dialect: Dialect::SpanishChilean,
+            description: None,
+            steps: vec![
+                SimpleImportStep {
+                    title: "S1".into(),
+                    instructions: "".into(),
+                    learning_content: Some(vec![
+                        SimpleLearningItem {
+                            vocab: Some("hola".into()),
+                            grammar: None,
+                        },
+                        SimpleLearningItem {
+                            vocab: None,
+                            grammar: Some("subjunctive".into()),
+                        },
+                    ]),
+                    review_steps: None,
+                },
+                SimpleImportStep {
+                    title: "Rev".into(),
+                    instructions: "".into(),
+                    learning_content: None,
+                    review_steps: Some(vec!["S1".into()]),
+                },
+            ],
+        };
+
+        let import_plan: ImportLanguagePlan = simple.try_into().expect("Conversion failed");
+        assert_eq!(import_plan.steps.len(), 2);
+
+        // Check S1
+        match &import_plan.steps[0].step_type {
+            ImportStepType::Learning { content } => {
+                assert_eq!(content.items.len(), 2);
+                match &content.items[0].item {
+                    ImportPartialLearningItem::Translation(t) => {
+                        assert_eq!(t.translated_to.as_deref(), Some("hola"));
+                    }
+                    _ => panic!("Expected Translation"),
+                }
+                match &content.items[1].item {
+                    ImportPartialLearningItem::Explanation(e) => {
+                        assert_eq!(e.new_phrase.as_deref(), Some("subjunctive"));
+                    }
+                    _ => panic!("Expected Explanation"),
+                }
+            }
+            _ => panic!("Expected Learning"),
+        }
+
+        // Check Rev
+        match &import_plan.steps[1].step_type {
+            ImportStepType::Review { review_steps } => {
+                assert_eq!(review_steps[0], "S1");
+            }
+            _ => panic!("Expected Review"),
+        }
+    }
+
+    #[test]
+    fn test_simple_import_errors() {
+        // Error: Both content and review
+        let s_both = SimpleImportLanguagePlan {
+            title: "Bad".into(),
+            dialect: Dialect::SpanishChilean,
+            description: None,
+            steps: vec![SimpleImportStep {
+                title: "BadStep".into(),
+                instructions: "".into(),
+                learning_content: Some(vec![]),
+                review_steps: Some(vec![]),
+            }],
+        };
+        assert!(ImportLanguagePlan::try_from(s_both).is_err());
+
+        // Error: Neither content nor review
+        let s_neither = SimpleImportLanguagePlan {
+            title: "Bad".into(),
+            dialect: Dialect::SpanishChilean,
+            description: None,
+            steps: vec![SimpleImportStep {
+                title: "BadStep".into(),
+                instructions: "".into(),
+                learning_content: None,
+                review_steps: None,
+            }],
+        };
+        assert!(ImportLanguagePlan::try_from(s_neither).is_err());
+
+        // Error: Item has both vocab and grammar
+        let s_item_both = SimpleImportLanguagePlan {
+            title: "Bad".into(),
+            dialect: Dialect::SpanishChilean,
+            description: None,
+            steps: vec![SimpleImportStep {
+                title: "BadStep".into(),
+                instructions: "".into(),
+                learning_content: Some(vec![SimpleLearningItem {
+                    vocab: Some("a".into()),
+                    grammar: Some("b".into()),
+                }]),
+                review_steps: None,
+            }],
+        };
+        assert!(ImportLanguagePlan::try_from(s_item_both).is_err());
     }
 }

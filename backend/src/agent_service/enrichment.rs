@@ -48,7 +48,7 @@ fn build_translated_prompt(partial: &PartialTranslated, dialect: Dialect) -> Str
 fn build_explained_prompt(partial: &PartialExplained, dialect: Dialect) -> String {
     if let Some(phrase) = &partial.new_phrase {
         format!(
-            "Explain this {} phrase: \"{}\"\n\nResponse format:\nEXPLANATION: [what it means and how it's used]",
+            "Explain this {} phrase or grammatical concept: \"{}\"\n\nResponse format:\nEXPLANATION: [what it means and how it's used]",
             dialect, phrase
         )
     } else if let Some(explanation) = &partial.explanation {
@@ -361,6 +361,7 @@ mod tests {
         };
         let prompt = build_explained_prompt(&partial, Dialect::SpanishMexican);
         assert!(prompt.contains("órale"));
+        assert!(prompt.contains("grammatical concept"));
         assert!(prompt.contains("EXPLANATION"));
     }
 

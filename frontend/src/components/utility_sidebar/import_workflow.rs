@@ -27,8 +27,19 @@ pub async fn process_imported_text(
 }
 
 fn parse_import_plan(text: &str) -> Result<ImportLanguagePlan, String> {
-    serde_yaml::from_str::<ImportLanguagePlan>(text)
-        .map_err(|e| format!("Failed to parse YAML: {}", e))
+    // Try standard import first
+    if let Ok(plan) = serde_yaml::from_str::<ImportLanguagePlan>(text) {
+        return Ok(plan);
+    }
+
+    // Try simple import
+    match serde_yaml::from_str::<dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan>(text) {
+        Ok(simple) => simple.try_into(),
+        Err(e) => Err(format!(
+            "Failed to parse as Standard or Simple Plan. Error: {}",
+            e
+        )),
+    }
 }
 
 /// Identifies incomplete items that need enrichment.

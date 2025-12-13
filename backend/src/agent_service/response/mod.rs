@@ -59,7 +59,7 @@ impl ResponseContext {}
 mod tests {
     use dialect_coach_shared::models::dialect::dialect_features;
     use dialect_coach_shared::{
-        AgentUsage, Dialect, Formality, TeachingMode, LearningGoal, PastLearningItems, UserGender, LanguageLevel,
+        Dialect, Formality, TeachingMode, LearningGoal, PastLearningItems, UserGender, LanguageLevel,
     };
     use crate::agent_service::response::system_content::build_system_content;
     use crate::agent_service::response::parsing::{build_simple_completion_request, sanitize_simple_json_response};

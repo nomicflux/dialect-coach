@@ -259,6 +259,6 @@ mod tests {
         let stats = derive_gamification_stats(&state);
         assert_eq!(stats.quests.len(), 1);
         assert_eq!(stats.quests[0].description, "Fix: error1");
-        assert_eq!(stats.quests[0].completed, false);
+        assert!(!stats.quests[0].completed);
     }
 }
