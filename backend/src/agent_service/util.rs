@@ -7,6 +7,8 @@ use rig::one_or_many::OneOrMany;
 pub const JSON_OUTPUT_INSTRUCTION: &str =
     "Return raw JSON only. No markdown code blocks. Start with { end with }.";
 
+pub const YAML_OUTPUT_INSTRUCTION: &str = "Return raw YAML only. No markdown code blocks.";
+
 pub fn learning_goals_section(goals: &[dialect_coach_shared::LearningGoal]) -> String {
     if goals.is_empty() {
         return String::new();
@@ -147,6 +149,14 @@ pub fn clean_response(response: &str) -> String {
         .to_string()
 }
 
+pub fn normalize_yaml_response(response: &str) -> String {
+    response
+        .replace("```yaml", "")
+        .replace("```", "")
+        .trim()
+        .to_string()
+}
+
 pub fn normalize_json_response(response: &str) -> String {
     let cleaned = clean_response(response);
     if cleaned.trim_start().starts_with('{') {
@@ -221,5 +231,15 @@ mod tests {
         assert!(summary.contains("house -> casa"));
         assert!(summary.contains("Exploratory prompts assigned"));
         assert!(summary.contains("Usa el pretérito"));
+    }
+
+    #[test]
+    fn test_normalize_yaml_response() {
+        let input = "```yaml\nfoo: bar\n```";
+        let expected = "foo: bar";
+        assert_eq!(normalize_yaml_response(input), expected);
+
+        let input_no_fence = "foo: bar";
+        assert_eq!(normalize_yaml_response(input_no_fence), expected);
     }
 }
