@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow, Context};
-use crate::agent_service::provider::{ProviderAgentConfig, ANTHROPIC_PROVIDER, OPENAI_PROVIDER};
+use crate::agent_service::provider::{ANTHROPIC_PROVIDER, OPENAI_PROVIDER, ProviderAgentConfig};
+use anyhow::{Context, Result, anyhow};
 use serde_json::json;
 use std::time::Duration;
 
@@ -19,7 +19,10 @@ impl OcrService {
         match config.provider.as_str() {
             ANTHROPIC_PROVIDER => Self::transcribe_anthropic(&client, images, config).await,
             OPENAI_PROVIDER => Self::transcribe_openai(&client, images, config).await,
-            _ => Err(anyhow!("Unsupported provider for Vision OCR: {}", config.provider)),
+            _ => Err(anyhow!(
+                "Unsupported provider for Vision OCR: {}",
+                config.provider
+            )),
         }
     }
 
@@ -60,7 +63,8 @@ impl OcrService {
             ]
         });
 
-        let response = client.post("https://api.anthropic.com/v1/messages")
+        let response = client
+            .post("https://api.anthropic.com/v1/messages")
             .header("x-api-key", &config.api_key)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
@@ -75,7 +79,7 @@ impl OcrService {
         }
 
         let body: serde_json::Value = response.json().await?;
-        
+
         let text = body["content"][0]["text"]
             .as_str()
             .unwrap_or("")
@@ -117,7 +121,8 @@ impl OcrService {
             "max_tokens": 4096
         });
 
-        let response = client.post("https://api.openai.com/v1/chat/completions")
+        let response = client
+            .post("https://api.openai.com/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", config.api_key))
             .header("content-type", "application/json")
             .json(&payload)
@@ -131,7 +136,7 @@ impl OcrService {
         }
 
         let body: serde_json::Value = response.json().await?;
-        
+
         let text = body["choices"][0]["message"]["content"]
             .as_str()
             .unwrap_or("")

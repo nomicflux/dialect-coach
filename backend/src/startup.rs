@@ -5,10 +5,10 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use axum::{
+    Router,
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{delete, get, post},
-    Router,
 };
 use persistence::{SledPersistence, UserPersistence};
 use std::collections::HashMap;
@@ -64,9 +64,7 @@ pub async fn init_persistence() -> Result<Arc<dyn UserPersistence>> {
     Ok(user_persistence)
 }
 
-pub fn init_auth(
-    user_persistence: Arc<dyn UserPersistence>,
-) -> Arc<dyn auth_service::AuthService> {
+pub fn init_auth(user_persistence: Arc<dyn UserPersistence>) -> Arc<dyn auth_service::AuthService> {
     Arc::new(auth_service::InviteCodeAuthService::new(user_persistence))
 }
 
@@ -87,9 +85,7 @@ pub fn init_tts(
     user_persistence: Arc<dyn UserPersistence>,
     rate_limiter: Arc<rate_limiter::service::RateLimiter>,
     rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
-    user_state_connections: Arc<
-        Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>,
-    >,
+    user_state_connections: Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
 ) -> Option<tts_handler::TtsState> {
     match ElevenLabsTtsProvider::from_env() {
         Ok(tts_provider) => {

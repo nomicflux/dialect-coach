@@ -10,8 +10,8 @@ pub mod analysis;
 pub mod enrichment;
 pub mod language_instructions;
 pub mod learning;
-pub mod planning;
 pub mod ocr;
+pub mod planning;
 pub mod provider;
 pub mod response;
 pub mod retry;
@@ -94,7 +94,7 @@ impl AgentService {
         let response_agent = load_channel_agent("RESPONSE")?.0;
         let learning_agent = load_channel_agent("LEARNING")?.0;
         let analysis_agent = load_channel_agent("ANALYSIS")?.0;
-        
+
         let (planning_agent, planning_config) = load_channel_agent("PLANNING")?;
 
         tracing::info!(
@@ -228,7 +228,8 @@ impl AgentService {
         text: &str,
         dialect: dialect_coach_shared::Dialect,
     ) -> Result<dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan> {
-        let generator = planning::PlanGenerator::new(self.planning_agent.clone(), self.planning_config.clone());
+        let generator =
+            planning::PlanGenerator::new(self.planning_agent.clone(), self.planning_config.clone());
         generator.generate_plan(text, dialect).await
     }
 }

@@ -1,13 +1,13 @@
 pub mod prompt;
 
-use crate::agent_service::util::normalize_yaml_response;
 use crate::agent_service::retry;
-use anyhow::{Result, Context};
+use crate::agent_service::util::normalize_yaml_response;
+use anyhow::{Context, Result};
 use dialect_coach_shared::Dialect;
 use dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan;
 
-use crate::agent_service::provider::{CompletionAgent, CompletionRequest, ProviderAgentConfig};
 use crate::agent_service::ocr::OcrService;
+use crate::agent_service::provider::{CompletionAgent, CompletionRequest, ProviderAgentConfig};
 use std::sync::Arc;
 
 pub struct PlanGenerator {
@@ -20,16 +20,25 @@ impl PlanGenerator {
         Self { agent, config }
     }
 
-    pub async fn generate_plan_from_images(&self, images: &[Vec<u8>], dialect: Dialect) -> Result<SimpleImportLanguagePlan> {
-        let text = OcrService::transcribe_images(images, &self.config).await
+    pub async fn generate_plan_from_images(
+        &self,
+        images: &[Vec<u8>],
+        dialect: Dialect,
+    ) -> Result<SimpleImportLanguagePlan> {
+        let text = OcrService::transcribe_images(images, &self.config)
+            .await
             .context("Failed to transcribe images")?;
         self.generate_plan(&text, dialect).await
     }
 
-    pub async fn generate_plan(&self, text: &str, dialect: Dialect) -> Result<SimpleImportLanguagePlan> {
+    pub async fn generate_plan(
+        &self,
+        text: &str,
+        dialect: Dialect,
+    ) -> Result<SimpleImportLanguagePlan> {
         let system_prompt = prompt::build_planning_system_prompt_yaml(dialect);
         let user_prompt = prompt::build_planning_user_prompt_yaml(text);
-        
+
         let config = crate::agent_service::util::GenerationConfig {
             max_tokens: 4096,
             temperature: 0.1,
@@ -44,7 +53,8 @@ impl PlanGenerator {
         };
 
         // Step 1: Initial (standard) completion call
-        let (initial_result, _) = retry::retry_completion_call(self.agent.as_ref(), &request, 3).await;
+        let (initial_result, _) =
+            retry::retry_completion_call(self.agent.as_ref(), &request, 3).await;
 
         let response = match initial_result {
             Ok(r) => r,
@@ -65,12 +75,15 @@ impl PlanGenerator {
             // Step 3: On parse failure, enter tracked retry loop with feedback
             Err(e) => {
                 let error_msg = format!("{}", e);
-                tracing::warn!("Plan parsing failed, entering feedback loop. Error: {}", error_msg);
+                tracing::warn!(
+                    "Plan parsing failed, entering feedback loop. Error: {}",
+                    error_msg
+                );
 
                 let retry_ctx = retry::RetryContext {
                     agent: self.agent.clone(),
                 };
-                
+
                 let preamble_builder = |original: &str, failed: &str, error: &str| {
                     build_retry_planning_preamble_yaml(original, failed, error)
                 };
@@ -108,7 +121,7 @@ impl PlanGenerator {
                     );
                     retry_err
                 })?;
-                
+
                 Ok(plan)
             }
         }
@@ -133,20 +146,27 @@ pub fn build_retry_planning_preamble_yaml(original: &str, failed: &str, error: &
 mod tests {
     use super::*;
     use crate::agent_service::provider::{CompletionAgent, CompletionRequest};
+    use async_trait::async_trait;
     use dialect_coach_shared::Dialect;
     use std::sync::Arc;
-    use async_trait::async_trait;
 
     struct MockAgent;
 
-    use crate::agent_service::provider::{CompletionOutcome, CompletionAgentError};
+    use crate::agent_service::provider::{CompletionAgentError, CompletionOutcome};
 
     #[async_trait]
     impl CompletionAgent for MockAgent {
-        fn provider(&self) -> &'static str { "mock" }
-        fn model(&self) -> &'static str { "mock-model" }
-        async fn completion(&self, _request: &CompletionRequest<'_>) -> Result<CompletionOutcome, CompletionAgentError> {
-             Ok(CompletionOutcome {
+        fn provider(&self) -> &'static str {
+            "mock"
+        }
+        fn model(&self) -> &'static str {
+            "mock-model"
+        }
+        async fn completion(
+            &self,
+            _request: &CompletionRequest<'_>,
+        ) -> Result<CompletionOutcome, CompletionAgentError> {
+            Ok(CompletionOutcome {
                 text: r#"
 title: "Test Plan"
 dialect: "spanish_mexican"
@@ -156,7 +176,8 @@ steps:
     learning_content:
       - vocab: "hola"
         translation: "hello"
-"#.to_string(),
+"#
+                .to_string(),
                 input_tokens: 10,
                 output_tokens: 10,
             })
@@ -167,17 +188,24 @@ steps:
     async fn test_generator_flow() {
         // Create a mock agent that returns a valid JSON plan
         let mock_agent = Arc::new(MockAgent);
-        let config = crate::agent_service::provider::ProviderAgentConfig::openai("test".to_string(), None, 200);
+        let config = crate::agent_service::provider::ProviderAgentConfig::openai(
+            "test".to_string(),
+            None,
+            200,
+        );
         let generator = PlanGenerator::new(mock_agent, config);
 
         // Verify public API
-        let plan = generator.generate_plan("some text", Dialect::SpanishMexican).await.unwrap();
-        
+        let plan = generator
+            .generate_plan("some text", Dialect::SpanishMexican)
+            .await
+            .unwrap();
+
         // Asset plan content from mock
         assert_eq!(plan.title, "Test Plan");
         assert_eq!(plan.dialect, Dialect::SpanishMexican);
         assert_eq!(plan.steps.len(), 1);
-        
+
         let step = &plan.steps[0];
         if let Some(items) = &step.learning_content {
             let item = &items[0];
@@ -186,11 +214,11 @@ steps:
         } else {
             panic!("Expected learning content");
         }
-        
+
         // Verify prompt logic
         let sys = prompt::build_planning_system_prompt_yaml(Dialect::SpanishMexican);
         assert!(sys.contains("CURRICULUM DESIGNER"));
-        
+
         let usr = prompt::build_planning_user_prompt_yaml("input text");
         assert!(usr.contains("input text"));
     }

@@ -4,7 +4,7 @@ pub fn parse_html(content: &str) -> Result<String> {
     if content.trim().is_empty() {
         return Err(anyhow!("Empty HTML content"));
     }
-    
+
     // Simple heuristic: if it's too long, truncate clean logic handled in mod.rs
     // Here we just convert to text.
     // 12000 columns width to prevent hard wrapping (better for LLM)

@@ -36,9 +36,9 @@ pub fn build_retry_preamble(
     } else {
         // Use the actual error message if provided, otherwise generic
         if !error_message.is_empty() {
-             format!("PARSE ERROR: {}", error_message)
+            format!("PARSE ERROR: {}", error_message)
         } else {
-             util::detect_json_parse_error()
+            util::detect_json_parse_error()
         }
     };
 
@@ -51,7 +51,11 @@ pub fn build_retry_preamble(
     )
 }
 
-pub fn build_retry_response_preamble(original_preamble: &str, failed_response: &str, error_message: &str) -> String {
+pub fn build_retry_response_preamble(
+    original_preamble: &str,
+    failed_response: &str,
+    error_message: &str,
+) -> String {
     build_retry_preamble(
         original_preamble,
         failed_response,
@@ -60,7 +64,11 @@ pub fn build_retry_response_preamble(original_preamble: &str, failed_response: &
     )
 }
 
-pub fn build_retry_learning_preamble(original_preamble: &str, failed_response: &str, error_message: &str) -> String {
+pub fn build_retry_learning_preamble(
+    original_preamble: &str,
+    failed_response: &str,
+    error_message: &str,
+) -> String {
     build_retry_preamble(
         original_preamble,
         failed_response,
@@ -303,7 +311,7 @@ impl RetryContext {
         let retry_preamble = (prompt_params.preamble_builder)(
             prompt_params.original_preamble,
             prompt_params.failed_response,
-            prompt_params.error_message, 
+            prompt_params.error_message,
         );
         let request = CompletionRequest {
             preamble: &retry_preamble,

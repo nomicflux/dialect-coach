@@ -1,6 +1,5 @@
-use dialect_coach_shared::Dialect;
 use crate::agent_service::util;
-
+use dialect_coach_shared::Dialect;
 
 pub fn build_planning_system_prompt_yaml(dialect: Dialect) -> String {
     format!(
@@ -71,9 +70,6 @@ pub fn build_planning_user_prompt_yaml(text: &str) -> String {
 mod tests {
     use super::*;
     use dialect_coach_shared::Dialect;
-
-
-
 
     #[test]
     fn test_build_prompts_yaml() {

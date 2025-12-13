@@ -1,6 +1,6 @@
 use crate::admin;
 use crate::state::AppState;
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use chrono::Utc;
 
 /// Get admin status from all monitors
