@@ -1,6 +1,6 @@
 pub mod prompt;
 
-use crate::agent_service::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response};
+use crate::agent_service::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response, normalize_yaml_response};
 use crate::agent_service::retry;
 use crate::agent_service::provider::CompletionRequest;
 use anyhow::{Result, Context};
@@ -46,6 +46,11 @@ impl PlanGenerator {
 
         Ok(plan)
     }
+}
+
+pub fn try_parse_plan_output_yaml(response: &str) -> Result<SimpleImportLanguagePlan> {
+    let normalized = normalize_yaml_response(response);
+    serde_yaml::from_str(&normalized).context("Failed to parse generated plan YAML")
 }
 
 #[cfg(test)]
@@ -114,5 +119,41 @@ mod tests {
         
         let usr = prompt::build_planning_user_prompt("input text");
         assert!(usr.contains("input text"));
+    }
+
+    #[test]
+    fn test_try_parse_plan_output_yaml_valid() {
+        let yaml = r#"
+title: "Test Plan"
+dialect: "spanish_mexican"
+steps:
+  - title: "Step 1"
+    instructions: "Do this"
+    learning_content:
+      - vocab: "hola"
+        translation: "hello"
+"#;
+        let plan = try_parse_plan_output_yaml(yaml).unwrap();
+        assert_eq!(plan.title, "Test Plan");
+        assert_eq!(plan.steps.len(), 1);
+    }
+
+    #[test]
+    fn test_try_parse_plan_output_yaml_fenced() {
+        let yaml = r#"
+```yaml
+title: "Test Plan"
+dialect: "spanish_mexican"
+steps: []
+```
+"#;
+        let plan = try_parse_plan_output_yaml(yaml).unwrap();
+        assert_eq!(plan.title, "Test Plan");
+    }
+
+    #[test]
+    fn test_try_parse_plan_output_yaml_invalid() {
+        let yaml = "invalid: : yaml";
+        assert!(try_parse_plan_output_yaml(yaml).is_err());
     }
 }
