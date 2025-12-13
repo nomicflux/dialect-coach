@@ -699,6 +699,97 @@
     color: var(--text-secondary);
     font-style: italic;
     font-size: 0.9em;
+
     text-align: center;
     padding: 1rem;
+}
+
+/* Plan Generator Styles */
+.plan-generator {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.plan-generator .section-title {
+    margin: 0 0 1rem 0;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--accent-primary);
+}
+
+.plan-generator .tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.5rem;
+}
+
+.plan-generator .tab-button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-weight: 500;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.plan-generator .tab-button:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.plan-generator .tab-button.active {
+    color: var(--accent-primary);
+    background: rgba(var(--accent-primary-rgb), 0.1);
+}
+
+.plan-generator .panel-field {
+    margin-bottom: 1rem;
+}
+
+.plan-generator .panel-field label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.plan-generator .generator-textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: var(--text-primary);
+    resize: vertical;
+    font-family: inherit;
+}
+
+.plan-generator .field-help {
+    margin-top: 0.25rem;
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.plan-generator .error-message {
+    color: var(--error-color);
+    background: rgba(var(--error-color-rgb), 0.1);
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.9em;
+}
+
+/* Plan Generator Button loading state */
+.save-button.loading {
+    opacity: 0.7;
+    cursor: wait;
 }

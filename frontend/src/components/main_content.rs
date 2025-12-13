@@ -292,6 +292,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         learning_items={get_filtered_items(us)}
                         active_branch_dialect={Some(us.selected_dialect)}
                         enrichment_service={app_state.enrichment_service.clone()}
+                        plan_service={app_state.plan_service.clone()}
                         on_delete_learning_item={on_delete_learning_item_callback(ui_state.clone(), user_rc.clone(), dispatch_domain.clone())}
                         on_undo_delete_learning_item={{
                             let ui_state = ui_state.clone();

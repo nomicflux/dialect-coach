@@ -1,9 +1,36 @@
+use crate::app::app_state::user::UserDomainAction;
+use crate::app::app_state::PlanAction;
 use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::models::{
+    plan::{import::ImportLanguagePlan, LanguagePlan},
     EnrichRequest, PartialLearningItem,
-    plan::{LanguagePlan, import::ImportLanguagePlan},
 };
 use std::rc::Rc;
+use yew::prelude::*;
+
+/// Handles the generated plan by converting it to YAML and processing it through the import workflow.
+pub fn handle_generated_plan(
+    simple_plan: dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan,
+    dispatch: Callback<UserDomainAction>,
+    enrichment_service: Rc<EnrichmentService>,
+    show_generator: UseStateHandle<bool>,
+) {
+    wasm_bindgen_futures::spawn_local(async move {
+        match serde_yaml::to_string(&simple_plan) {
+            Ok(yaml) => {
+                let result = process_imported_text(yaml, enrichment_service).await;
+                match result {
+                    Ok(plan) => {
+                        dispatch.emit(UserDomainAction::Plan(PlanAction::Add(plan)));
+                        show_generator.set(false);
+                    }
+                    Err(e) => gloo::console::error!("Import processing failed", e),
+                }
+            }
+            Err(e) => gloo::console::error!("Failed to serialize generated plan", e.to_string()),
+        }
+    });
+}
 
 /// Orchestrates the entire import process from text to final plan.
 pub async fn process_imported_text(

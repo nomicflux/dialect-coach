@@ -13,6 +13,7 @@ use crate::services::translation::TranslationService;
 use crate::services::user_state_websocket::UserStateWebSocketService;
 use crate::services::user_websocket::UserWebSocketService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
+use crate::services::plan_service::PlanService;
 
 pub enum AppStateAction {
     SetLoading,
@@ -55,6 +56,7 @@ pub struct AppState {
     pub tts_service: Option<Rc<CloudTtsService>>,
     pub translation_service: Rc<TranslationService>,
     pub enrichment_service: Rc<EnrichmentService>,
+    pub plan_service: Rc<PlanService>,
     pub save_queue: Rc<PendingSaveQueue>,
     pub autoplay_enabled: bool,
     pub rate_limit_state: RateLimitState,
@@ -80,6 +82,7 @@ impl Default for AppState {
             tts_service: Some(Rc::new(CloudTtsService::new("http://localhost:3000"))),
             translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
             enrichment_service: Rc::new(EnrichmentService::new("http://localhost:3000")),
+            plan_service: Rc::new(PlanService::new("http://localhost:3000")),
             save_queue: Rc::new(PendingSaveQueue::new()),
             autoplay_enabled: false,
             rate_limit_state: RateLimitState::default(),

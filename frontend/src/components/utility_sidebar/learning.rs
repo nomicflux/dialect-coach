@@ -1,7 +1,9 @@
 use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{LearningAction, PlanAction};
+use crate::components::plan::generator::PlanGenerator;
 use crate::components::plan::{ActivePlan, PlanCreate, PlanList};
 use crate::services::enrichment_service::EnrichmentService;
+use crate::services::plan_service::PlanService;
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::{
     Dialect, EnrichRequest, Explained, Exploratory, LearningItem, LearningItemType, Mistake,
@@ -33,6 +35,7 @@ pub struct LearningProps {
     pub user: Rc<UserState>,
     pub dispatch: Callback<UserDomainAction>,
     pub enrichment_service: Rc<EnrichmentService>,
+    pub plan_service: Rc<PlanService>,
 }
 
 fn get_tooltip(item: &LearningItem) -> Option<String> {
@@ -643,6 +646,7 @@ pub fn learning(props: &LearningProps) -> Html {
     let is_importing = use_state(|| false);
     let enrich_error = use_state(|| None::<String>);
     let show_create_plan = use_state(|| false);
+    let show_generator = use_state(|| false);
     let editing_plan_id = use_state(|| None::<Uuid>);
     let file_input_ref = use_node_ref();
 
@@ -933,8 +937,30 @@ pub fn learning(props: &LearningProps) -> Html {
                     >
                         {"← Back to All Plans"}
                     </button>
-                } else if *show_create_plan || editing_plan_id.is_some() {
-                    if let Some(dialect) = props.active_branch_dialect {
+
+                } else if *show_create_plan || editing_plan_id.is_some() || *show_generator {
+                    if *show_generator {
+                        <PlanGenerator 
+                            plan_service={props.plan_service.clone()}
+                            on_plan_generated={
+                                let dispatch = props.dispatch.clone();
+                                let enrichment_service = props.enrichment_service.clone();
+                                let show_generator = show_generator.clone();
+                                Callback::from(move |simple_plan| {
+                                    super::import_workflow::handle_generated_plan(
+                                        simple_plan,
+                                        dispatch.clone(),
+                                        enrichment_service.clone(),
+                                        show_generator.clone()
+                                    );
+                                })
+                            }
+                            on_cancel={
+                                let show_generator = show_generator.clone();
+                                Callback::from(move |_| show_generator.set(false))
+                            }
+                        />
+                    } else if let Some(dialect) = props.active_branch_dialect {
                         <PlanCreate
                             dialect={dialect}
                             plan_to_edit={plan_to_edit}
@@ -1001,6 +1027,16 @@ pub fn learning(props: &LearningProps) -> Html {
                                 }
                             >
                                 {"+ Create New Plan"}
+                            </button>
+                            <button
+                                class="generate-plan-button"
+                                style="background: var(--surface-muted); color: var(--ink); border: 1px solid rgba(0,0,0,0.1);"
+                                onclick={
+                                    let show_generator = show_generator.clone();
+                                    Callback::from(move |_| show_generator.set(true))
+                                }
+                            >
+                                {"✨ Generate with AI"}
                             </button>
                             <button
                                 class="import-plan-button"

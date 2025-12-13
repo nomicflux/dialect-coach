@@ -6,6 +6,7 @@ use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{UIState, UserStateGamificationExt};
 use crate::components::gamification::QuestList;
 use crate::services::enrichment_service::EnrichmentService;
+use crate::services::plan_service::PlanService;
 use branches::Branches;
 use dialect_coach_shared::Dialect;
 use dialect_coach_shared::UserState;
@@ -49,6 +50,7 @@ pub struct UtilitySidebarProps {
     pub learning_items: Vec<LearningItem>,
     pub active_branch_dialect: Option<Dialect>,
     pub enrichment_service: Rc<EnrichmentService>,
+    pub plan_service: Rc<PlanService>,
     pub on_delete_learning_item: Callback<Uuid>,
     pub on_undo_delete_learning_item: Callback<()>,
     pub deleted_learning_items_count: usize,
@@ -191,6 +193,7 @@ pub fn utility_sidebar(props: &UtilitySidebarProps) -> Html {
                             user={props.user.clone()}
                             dispatch={props.dispatch.clone()}
                             enrichment_service={props.enrichment_service.clone()}
+                            plan_service={props.plan_service.clone()}
                         />
                     },
                     SidebarTab::Quests => html! {

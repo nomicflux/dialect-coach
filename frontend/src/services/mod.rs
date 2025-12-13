@@ -15,3 +15,5 @@ pub use translation::TranslationService;
 pub use user_state_websocket::UserStateWebSocketService;
 pub use user_websocket::UserWebSocketService;
 pub use websocket::WebSocketService;
+pub mod plan_service;
+pub use plan_service::PlanService;
