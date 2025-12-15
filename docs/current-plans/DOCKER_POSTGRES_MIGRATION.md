@@ -135,6 +135,8 @@ pub async fn create_persistence() -> Result<Arc<dyn UserPersistence>> {
 
 ## Phase 3: Frontend Relative URLs
 
+**Status**: ✅ COMPLETE (already implemented in commit ccf20f57)
+
 **Goal**: Replace hardcoded localhost URLs with relative paths
 
 **Subagent**: kiss-code-generator
@@ -178,14 +180,21 @@ fn get_ws_url(path: &str) -> String {
 ```
 
 ### Code Style Checklist
-- [ ] Functions <20 lines
-- [ ] Helper functions are pure
-- [ ] Works in both dev (trunk serve) and production
+- [x] Functions <20 lines (get_base_url: 4 lines, get_ws_url: 7 lines)
+- [x] Helper functions are pure (no side effects)
+- [x] Works in both dev (trunk serve) and production
 
 ### Deliverables
-- Frontend uses relative URLs
-- WebSocket protocol auto-detects (ws/wss)
-- `trunk build` succeeds
+- [x] Frontend uses relative URLs (via get_base_url() and get_ws_url() helpers)
+- [x] WebSocket protocol auto-detects (ws/wss based on https detection)
+- [x] `trunk build` succeeds
+- [x] `cargo test --all` passes - 100% (319 tests passed)
+- [x] `cargo clippy` clean - zero warnings
+
+### Implementation Details
+- Helper functions added to frontend/src/app/app_state/app.rs (lines 201-214)
+- AppState::default() now generates URLs dynamically (lines 67-70)
+- All six services use relative URLs: WebSocket, UserState WS, User WS, CloudTTS, Translation, Enrichment
 
 ---
 
