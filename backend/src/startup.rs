@@ -10,7 +10,7 @@ use axum::{
     response::{Html, IntoResponse},
     routing::{delete, get, post},
 };
-use persistence::{SledPersistence, UserPersistence};
+use persistence::UserPersistence;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -54,9 +54,9 @@ pub fn init_agent(
 }
 
 pub async fn init_persistence() -> Result<Arc<dyn UserPersistence>> {
-    let db_path = persistence::get_db_path();
-    let user_persistence: Arc<dyn UserPersistence> =
-        Arc::new(SledPersistence::new(&db_path).context("Failed to create SledPersistence")?);
+    let user_persistence = persistence::create_persistence()
+        .await
+        .context("Failed to create persistence")?;
     user_persistence
         .initialize()
         .await

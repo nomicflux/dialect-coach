@@ -68,7 +68,9 @@ async fn main() -> Result<()> {
     let app = startup::build_router(state, tts_state);
 
     // Start server
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let bind_addr = std::env::var("BIND_ADDRESS")
+        .unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+    let addr: SocketAddr = bind_addr.parse()?;
     tracing::info!("Backend server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
