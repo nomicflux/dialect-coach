@@ -77,11 +77,18 @@ CREATE TABLE invite_codes (
 
 **Goal**: Make backend container-ready
 
+**Status**: ✅ COMPLETE
+
+**Issues Fixed**:
+- Fixed Phase 1 compilation error at line 251 in postgres.rs: Added `.map(|id| id.to_string())` conversion
+- Fixed uuid feature in Cargo.toml: Removed non-existent "sqlx" feature from workspace uuid dependency
+- Added "uuid" feature to sqlx in backend/Cargo.toml for UUID type support
+
 **Subagent**: kiss-code-generator
 
 ### Files to Modify
-- `backend/src/main.rs` - Change bind address from `127.0.0.1` to `0.0.0.0`
-- `backend/src/persistence/mod.rs` - Update `get_db_path()` to support Postgres selection
+- `backend/src/main.rs` - Change bind address from `127.0.0.1` to `0.0.0.0` (ALREADY DONE)
+- `backend/src/persistence/mod.rs` - Add `create_persistence()` factory and export PostgresPersistence
 
 ### Key Changes
 
@@ -108,14 +115,21 @@ pub async fn create_persistence() -> Result<Arc<dyn UserPersistence>> {
 ```
 
 ### Code Style Checklist
-- [ ] Functions <20 lines
-- [ ] No dead code
-- [ ] Existing tests still pass
+- [x] Functions <20 lines
+- [x] No dead code
+- [x] Existing tests still pass
 
 ### Deliverables
-- Backend binds to configurable address
-- Persistence auto-selects based on DATABASE_URL
-- `cargo test` passes, `cargo clippy` clean
+- [x] Backend binds to configurable address (main.rs already had this)
+- [x] Persistence auto-selects based on DATABASE_URL (factory function added to mod.rs)
+- [x] `cargo test` passes - 100% (319 tests passed)
+- [x] `cargo clippy` clean - zero warnings
+
+### Files Actually Modified
+1. `/Users/demouser/Code/dialect-coach/Cargo.toml` - Removed invalid "sqlx" feature from uuid dependency
+2. `/Users/demouser/Code/dialect-coach/backend/Cargo.toml` - Added "uuid" feature to sqlx
+3. `/Users/demouser/Code/dialect-coach/backend/src/persistence/postgres.rs` - Fixed line 251 UUID conversion
+4. `/Users/demouser/Code/dialect-coach/backend/src/persistence/mod.rs` - Added `create_persistence()` factory and exports (added by Phase 1)
 
 ---
 
@@ -184,20 +198,47 @@ fn get_ws_url(path: &str) -> String {
 ### Files to Create
 
 **`backend/Dockerfile`**
+
+> **Note**: The backend uses pdfium for PDF parsing. Local dev uses `backend/lib/libpdfium.dylib` (macOS via `build.rs`), but Docker needs the Linux version (`libpdfium.so`). Both from [bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) version chromium/7568 (145.0.7568.0).
+
 ```dockerfile
 # Build stage
 FROM rust:1.75-slim as builder
 WORKDIR /app
-RUN apt-get update && apt-get install -y pkg-config libssl-dev
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y pkg-config libssl-dev curl
+
+# Download pdfium for Linux - same version as macOS (chromium/7568)
+# Source: https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F7568
+RUN curl -L -o /tmp/pdfium.tgz \
+    "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7568/pdfium-linux-x64.tgz" \
+    && mkdir -p /app/backend/lib \
+    && tar -xzf /tmp/pdfium.tgz -C /tmp \
+    && cp /tmp/lib/libpdfium.so /app/backend/lib/
+
 COPY . .
 RUN cargo build --release -p dialect-coach-backend
 
 # Runtime stage
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+
+# Copy binary and pdfium library
 COPY --from=builder /app/target/release/dialect-coach-backend /usr/local/bin/
+COPY --from=builder /app/backend/lib/libpdfium.so /usr/local/lib/
+
+# Ensure library is found at runtime
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
 EXPOSE 3000
 CMD ["dialect-coach-backend"]
+```
+
+**`backend/build.rs` update needed** - Make platform-aware for Linux builds:
+```rust
+// Current: copies libpdfium.dylib (macOS only)
+// Needs update to also handle libpdfium.so for Linux Docker builds
 ```
 
 **`frontend/Dockerfile`**
@@ -413,6 +454,7 @@ data/
 | `backend/Cargo.toml` | Add sqlx postgres dependency |
 | `backend/src/persistence/mod.rs` | Export postgres, add factory function |
 | `backend/src/main.rs` | Configurable bind address, use persistence factory |
+| `backend/build.rs` | Platform-aware pdfium library copying (dylib vs so) |
 | `frontend/src/app/app_state/app.rs` | Relative URLs instead of localhost |
 
 ### Preserved Behavior

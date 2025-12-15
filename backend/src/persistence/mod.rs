@@ -1,12 +1,15 @@
 pub mod in_memory;
 pub mod sled;
+pub mod postgres;
 
 use anyhow::Result;
 use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use uuid::Uuid;
 
 pub use sled::SledPersistence;
+pub use postgres::PostgresPersistence;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UserRecord {
@@ -193,4 +196,14 @@ pub trait UserPersistence: Send + Sync {
     async fn list_invite_codes(&self) -> Result<Vec<InviteCode>>;
 
     async fn delete_invite_code(&self, code: &str) -> Result<()>;
+}
+
+pub async fn create_persistence() -> Result<Arc<dyn UserPersistence>> {
+    if let Ok(database_url) = std::env::var("DATABASE_URL") {
+        let pool = sqlx::PgPool::connect(&database_url).await?;
+        Ok(Arc::new(PostgresPersistence::new(pool)))
+    } else {
+        let db_path = get_db_path();
+        Ok(Arc::new(SledPersistence::new(&db_path)?))
+    }
 }
