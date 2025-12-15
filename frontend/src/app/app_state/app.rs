@@ -64,25 +64,26 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
+        let base_url = get_base_url();
+        let ws_url = get_ws_url("/ws");
+        let user_state_ws_url = get_ws_url("/ws/user_state");
+        let user_ws_url = get_ws_url("/ws/user");
+
         Self {
             session_id: None,
             connection_state: ConnectionState::Disconnected,
             is_loading: false,
             error_message: None,
             current_user: None,
-            ws_service: Rc::new(RefCell::new(WebSocketService::new(
-                "ws://localhost:3000/ws",
-            ))),
-            user_state_ws_service: Rc::new(RefCell::new(UserStateWebSocketService::new(
-                "ws://localhost:3000/ws/user_state",
-            ))),
-            user_ws_service: Rc::new(RefCell::new(UserWebSocketService::new(
-                "ws://localhost:3000/ws/user",
-            ))),
-            tts_service: Some(Rc::new(CloudTtsService::new("http://localhost:3000"))),
-            translation_service: Rc::new(TranslationService::new("http://localhost:3000")),
-            enrichment_service: Rc::new(EnrichmentService::new("http://localhost:3000")),
-            plan_service: Rc::new(PlanService::new("http://localhost:3000")),
+            ws_service: Rc::new(RefCell::new(WebSocketService::new(&ws_url))),
+            user_state_ws_service: Rc::new(RefCell::new(
+                UserStateWebSocketService::new(&user_state_ws_url),
+            )),
+            user_ws_service: Rc::new(RefCell::new(UserWebSocketService::new(&user_ws_url))),
+            tts_service: Some(Rc::new(CloudTtsService::new(&base_url))),
+            translation_service: Rc::new(TranslationService::new(&base_url)),
+            enrichment_service: Rc::new(EnrichmentService::new(&base_url)),
+            plan_service: Rc::new(PlanService::new(&base_url)),
             save_queue: Rc::new(PendingSaveQueue::new()),
             autoplay_enabled: false,
             rate_limit_state: RateLimitState::default(),
@@ -195,4 +196,19 @@ impl Reducible for AppState {
     fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
         self.apply_action(action).into()
     }
+}
+
+fn get_base_url() -> String {
+    web_sys::window()
+        .and_then(|w| w.location().origin().ok())
+        .unwrap_or_else(|| "http://localhost:3000".to_string())
+}
+
+fn get_ws_url(path: &str) -> String {
+    let base = get_base_url();
+    let ws_protocol = if base.starts_with("https") { "wss" } else { "ws" };
+    let host = base
+        .trim_start_matches("http://")
+        .trim_start_matches("https://");
+    format!("{}://{}{}", ws_protocol, host, path)
 }
