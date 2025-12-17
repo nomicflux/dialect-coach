@@ -60,6 +60,16 @@ pub fn add_learning_items_to_vec(
     items
 }
 
+pub fn merge_learning_items(
+    mut existing: Vec<LearningItem>,
+    new_items: Vec<LearningItem>,
+) -> Vec<LearningItem> {
+    for item in new_items {
+        push_unique(&mut existing, item);
+    }
+    existing
+}
+
 fn push_unique(items: &mut Vec<LearningItem>, item: LearningItem) {
     let new_id = get_learning_item_id(&item);
     if !items.iter().any(|i| get_learning_item_id(i) == new_id) {

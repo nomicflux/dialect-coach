@@ -277,3 +277,11 @@ pub fn on_delete_message_callback(
         dispatch.emit(UserDomainAction::Message(MessageAction::Delete(msg_id)));
     })
 }
+
+pub fn on_activate_step(dispatch: Callback<UserDomainAction>) -> Callback<Uuid> {
+    use crate::app::app_state::user::PlanAction;
+    Callback::from(move |plan_id: Uuid| {
+        info!("Activating step for plan: {}", plan_id);
+        dispatch.emit(UserDomainAction::Plan(PlanAction::ActivateStep(plan_id)));
+    })
+}

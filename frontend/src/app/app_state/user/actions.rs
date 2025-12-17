@@ -44,6 +44,7 @@ pub enum PlanAction {
     Delete(Uuid),
     SetActive(Option<Uuid>),
     AdvanceStep(Uuid),
+    ActivateStep(Uuid),
     Update(LanguagePlan),
 }
 

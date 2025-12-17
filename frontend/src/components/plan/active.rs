@@ -7,6 +7,7 @@ use yew::prelude::*;
 pub struct ActivePlanProps {
     pub plan: LanguagePlan,
     pub on_advance: Callback<uuid::Uuid>,
+    pub on_activate: Callback<uuid::Uuid>,
 }
 
 #[function_component(ActivePlan)]
@@ -45,7 +46,15 @@ pub fn active_plan(props: &ActivePlanProps) -> Html {
                         {render_plan_content(content)}
                     }
 
-                    if step.status == StepStatus::InProgress {
+                    if step.status == StepStatus::NotStarted {
+                        <button class="activate-step-btn" onclick={
+                            let on_activate = props.on_activate.clone();
+                            let plan_id = props.plan.id;
+                            Callback::from(move |_| on_activate.emit(plan_id))
+                        }>
+                            {"Activate Step"}
+                        </button>
+                    } else if step.status == StepStatus::InProgress {
                         <button class="advance-step-btn" onclick={on_advance}>
                             {"Mark Step Complete"}
                         </button>

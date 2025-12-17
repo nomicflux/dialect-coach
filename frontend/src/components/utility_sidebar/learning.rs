@@ -925,6 +925,13 @@ pub fn learning(props: &LearningProps) -> Html {
                                 dispatch.emit(UserDomainAction::Plan(PlanAction::AdvanceStep(id)));
                             })
                         }
+                        on_activate={
+                            use crate::components::utility_sidebar::UserDomainAction;
+                            let dispatch = props.dispatch.clone();
+                            Callback::from(move |id| {
+                                dispatch.emit(UserDomainAction::Plan(PlanAction::ActivateStep(id)));
+                            })
+                        }
                     />
                     <button
                         class="view-all-plans-btn"

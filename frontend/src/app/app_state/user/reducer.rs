@@ -165,6 +165,9 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
                 plan.advance_step();
             }
         }
+        ActivateStep(plan_id) => {
+            activate_step_items(next, plan_id);
+        }
         Update(updated_plan) => {
             if let Some(plan_idx) = next
                 .language_plans
@@ -318,6 +321,24 @@ fn item_has_score(item: &LearningItem, analysis: &AgentAnalysis) -> bool {
     }
 }
 
+fn activate_step_items(state: &mut UserState, plan_id: uuid::Uuid) {
+    if let Some(plan) = state.language_plans.iter_mut().find(|p| p.id == plan_id)
+        && let Some(step) = plan.steps.get(plan.current_step_index)
+        && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
+    {
+        // Add items to learning list (idempotent due to helper)
+        state.learning_items = merge_learning_items(
+            state.learning_items.clone(),
+            content.items.clone(),
+        );
+
+        // Update plan status
+        if plan.status == dialect_coach_shared::models::PlanStatus::NotStarted {
+            plan.start();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,4 +449,55 @@ mod tests {
         // Should have advanced
         assert_eq!(state.language_plans[0].current_step_index, 1);
     }
+
+    #[test]
+    fn test_activate_step_promotion() {
+         let mut state = UserState::new(Uuid::new_v4());
+        let dialect = Dialect::SpanishMexican;
+        state.selected_dialect = dialect;
+        let mut plan = LanguagePlan::new(
+            "Test Plan".to_string(),
+            dialect,
+            Some("Beginner".to_string()),
+            vec![],
+        );
+
+        let mistake = Mistake::new(
+            "mistake".to_string(),
+            "correction".to_string(),
+            MistakeCategory::SpellingError {
+                context: "ctx".to_string(),
+            },
+        );
+        let plan_item = LearningItem::new(LearningItemType::Mistake(mistake.clone()), dialect);
+
+        plan.steps.push(PlanStep::new(
+            1,
+            "Step 1".to_string(),
+            StepType::Learning {
+                content: PlanContent {
+                    items: vec![plan_item.clone()],
+                },
+            },
+            "Learn this".to_string(),
+        ));
+
+        state.language_plans.push(plan.clone());
+        state.active_plan_id = Some(plan.id);
+
+        // Initially no items
+        assert!(state.learning_items.is_empty());
+
+        // Activate
+        let action = PlanAction::ActivateStep(plan.id);
+        reduce_plan(&mut state, action);
+
+        // Verify items moved to learning_items and plan status updated
+        assert_eq!(state.learning_items.len(), 1);
+        assert_eq!(get_learning_item_id(&state.learning_items[0]), mistake.id);
+        
+        let updated_plan = state.language_plans.first().unwrap();
+        assert_eq!(updated_plan.status, dialect_coach_shared::models::PlanStatus::InProgress);
+    }
 }
+
