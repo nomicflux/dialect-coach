@@ -34,7 +34,7 @@ The prompts cannot be clarified to prevent every case of what not to do. Focus o
 Your deliverable will be the updated prompt, with commentary as appropriate for why the fixes are included.
 Do not format the prompt. Do not include any markdown for any reason."#;
 
-const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Beginner): Use very basic vocabulary and simple present tense. Short sentences only. Repeat key words. Speak slowly and clearly.";
+const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Beginner): Use very basic vocabulary and simple present tense. Short sentences only (one idea per sentence). Repeat key words. Speak slowly and clearly. If required vocabulary is complex, use very simple grammar.";
 const LEVEL_A2: &str = "LANGUAGE LEVEL A2 (Elementary): Use simple sentences and common vocabulary. Basic past and future tenses okay. Keep explanations brief and concrete.";
 const LEVEL_B1: &str = "LANGUAGE LEVEL B1 (Intermediate): Use standard vocabulary and grammar. Can introduce idioms with explanation. Normal conversational pace.";
 const LEVEL_B2: &str = "LANGUAGE LEVEL B2 (Upper Intermediate): Use varied vocabulary including some abstract concepts. Complex sentences okay. Can use idioms naturally.";

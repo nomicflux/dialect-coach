@@ -19,7 +19,7 @@ pub fn build_language_instruction(language_option: &Option<LanguageOption>) -> S
             "You must respond using only hiragana and katakana. Do not use kanji.".to_string()
         }
         Some(LanguageOption::Japanese(JapaneseScript::KanjiWithRuby)) => {
-            "You must respond using kanji with furigana. ONLY wrap kanji in ruby tags - do NOT wrap hiragana or katakana. Put the hiragana reading inside the <rt> tag. Example: 今日 becomes <ruby>今日<rt>きょう</rt></ruby>. Leave hiragana as-is: は remains は (not in ruby tags).".to_string()
+            "You must respond using kanji with furigana. ONLY wrap specific Kanji characters in ruby tags. NEVER wrap Hiragana, Katakana, or Okurigana (trailing hiragana). Examples: \n- Good: <ruby>私<rt>わたし</rt></ruby>は<ruby>食<rt>た</rt></ruby>べます\n- Bad (Wrapping Hiragana): <ruby>さむい<rt>さむい</rt></ruby>\n- Bad (Wrapping Okurigana): <ruby>飲んでいる<rt>のんでいる</rt></ruby>\n- Correct Okurigana handling: <ruby>飲<rt>の</rt></ruby>んでいる (only wrap the Kanji '飲')".to_string()
         }
         Some(LanguageOption::Japanese(JapaneseScript::Kanji)) => {
             "You must respond using standard kanji without annotations.".to_string()
@@ -86,7 +86,7 @@ mod tests {
         let option = Some(LanguageOption::Japanese(JapaneseScript::KanjiWithRuby));
         assert_eq!(
             build_language_instruction(&option),
-            "You must respond using kanji with furigana. ONLY wrap kanji in ruby tags - do NOT wrap hiragana or katakana. Put the hiragana reading inside the <rt> tag. Example: 今日 becomes <ruby>今日<rt>きょう</rt></ruby>. Leave hiragana as-is: は remains は (not in ruby tags)."
+            "You must respond using kanji with furigana. ONLY wrap specific Kanji characters in ruby tags. NEVER wrap Hiragana, Katakana, or Okurigana (trailing hiragana). Examples: \n- Good: <ruby>私<rt>わたし</rt></ruby>は<ruby>食<rt>た</rt></ruby>べます\n- Bad (Wrapping Hiragana): <ruby>さむい<rt>さむい</rt></ruby>\n- Bad (Wrapping Okurigana): <ruby>飲んでいる<rt>のんでいる</rt></ruby>\n- Correct Okurigana handling: <ruby>飲<rt>の</rt></ruby>んでいる (only wrap the Kanji '飲')"
         );
     }
 
