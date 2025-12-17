@@ -1,0 +1,9 @@
+target/
+frontend/dist/
+data/
+*.db
+.env
+.git/
+.fastembed_cache/
+corpus-data/
+corpus-downloads/

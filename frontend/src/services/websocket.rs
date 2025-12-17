@@ -378,3 +378,22 @@ impl Drop for WebSocketService {
         self.disconnect();
     }
 }
+
+/// Wait for WebSocket connection to be established
+pub async fn wait_for_connection(ws: &WebSocket) -> bool {
+    use gloo_net::websocket::State;
+    let mut attempt = 0;
+    loop {
+        match ws.state() {
+            State::Open => return true,
+            State::Closed | State::Closing => return false,
+            _ => {
+                if attempt >= 50 {
+                    return false;
+                }
+                gloo_timers::future::sleep(std::time::Duration::from_millis(100)).await;
+                attempt += 1;
+            }
+        }
+    }
+}

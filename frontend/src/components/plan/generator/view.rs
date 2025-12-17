@@ -1,16 +1,16 @@
+use super::Tab;
 use dialect_coach_shared::models::Dialect;
 use yew::prelude::*;
-use super::Tab;
 
 pub fn render_tabs(active_tab: &Tab, on_tab_click: &Callback<Tab>, disabled: bool) -> Html {
     html! {
         <div class="tabs">
-            <button 
+            <button
                 class={classes!("tab-button", if *active_tab == Tab::Text { "active" } else { "" })}
                 onclick={on_tab_click.reform(|_| Tab::Text)}
                 disabled={disabled}
             >{"Paste Text"}</button>
-            <button 
+            <button
                 class={classes!("tab-button", if *active_tab == Tab::File { "active" } else { "" })}
                 onclick={on_tab_click.reform(|_| Tab::File)}
                 disabled={disabled}
@@ -19,15 +19,11 @@ pub fn render_tabs(active_tab: &Tab, on_tab_click: &Callback<Tab>, disabled: boo
     }
 }
 
-pub fn render_text_tab(
-    text: &str,
-    on_change: Callback<InputEvent>,
-    disabled: bool,
-) -> Html {
+pub fn render_text_tab(text: &str, on_change: Callback<InputEvent>, disabled: bool) -> Html {
     html! {
         <div class="panel-field">
             <label>{"Paste Content (Article, Blog, Story)"}</label>
-            <textarea 
+            <textarea
                 class="generator-textarea"
                 placeholder="Paste the text you want to learn from here..."
                 value={text.to_string()}
@@ -43,8 +39,8 @@ pub fn render_file_tab(on_change: Callback<Event>, disabled: bool) -> Html {
     html! {
         <div class="panel-field">
             <label>{"Upload Document (PDF, HTML, TXT)"}</label>
-            <input 
-                type="file" 
+            <input
+                type="file"
                 accept=".txt,.html,.pdf"
                 onchange={on_change}
                 disabled={disabled}
@@ -82,15 +78,15 @@ pub fn render_buttons(
 ) -> Html {
     html! {
         <div class="form-buttons">
-            <button 
-                class={classes!("save-button", if is_loading { "loading" } else { "" })} 
+            <button
+                class={classes!("save-button", if is_loading { "loading" } else { "" })}
                 onclick={on_generate}
                 disabled={is_loading}
             >
                 {if is_loading { "Generating..." } else { "Generate Plan" }}
             </button>
-            <button 
-                class="cancel-button" 
+            <button
+                class="cancel-button"
                 onclick={on_cancel.reform(|_| ())}
                 disabled={is_loading}
             >

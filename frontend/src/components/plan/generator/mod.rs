@@ -1,12 +1,14 @@
 use crate::services::PlanService;
-use std::rc::Rc;
-use dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan;
 use dialect_coach_shared::models::Dialect;
+use dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan;
+use std::rc::Rc;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
 mod view;
-use view::{render_buttons, render_dialect_selector, render_file_tab, render_tabs, render_text_tab};
+use view::{
+    render_buttons, render_dialect_selector, render_file_tab, render_tabs, render_text_tab,
+};
 
 #[derive(Properties, PartialEq)]
 pub struct PlanGeneratorProps {
@@ -53,7 +55,7 @@ pub fn plan_generator(props: &PlanGeneratorProps) -> Html {
     html! {
         <div class="plan-generator">
             <h4 class="section-title">{"AI Plan Generator"}</h4>
-            
+
             {render_tabs(&active_tab, &on_tab_click, is_loading)}
 
             <div class="generator-content">

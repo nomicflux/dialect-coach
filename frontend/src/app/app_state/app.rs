@@ -7,13 +7,13 @@ use uuid::Uuid;
 use yew::prelude::*;
 
 use crate::services::enrichment_service::EnrichmentService;
+use crate::services::plan_service::PlanService;
 use crate::services::save_queue::PendingSaveQueue;
 use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
 use crate::services::user_state_websocket::UserStateWebSocketService;
 use crate::services::user_websocket::UserWebSocketService;
 use crate::services::websocket::{ConnectionState, WebSocketService};
-use crate::services::plan_service::PlanService;
 
 pub enum AppStateAction {
     SetLoading,
@@ -76,9 +76,9 @@ impl Default for AppState {
             error_message: None,
             current_user: None,
             ws_service: Rc::new(RefCell::new(WebSocketService::new(&ws_url))),
-            user_state_ws_service: Rc::new(RefCell::new(
-                UserStateWebSocketService::new(&user_state_ws_url),
-            )),
+            user_state_ws_service: Rc::new(RefCell::new(UserStateWebSocketService::new(
+                &user_state_ws_url,
+            ))),
             user_ws_service: Rc::new(RefCell::new(UserWebSocketService::new(&user_ws_url))),
             tts_service: Some(Rc::new(CloudTtsService::new(&base_url))),
             translation_service: Rc::new(TranslationService::new(&base_url)),
@@ -206,7 +206,11 @@ fn get_base_url() -> String {
 
 fn get_ws_url(path: &str) -> String {
     let base = get_base_url();
-    let ws_protocol = if base.starts_with("https") { "wss" } else { "ws" };
+    let ws_protocol = if base.starts_with("https") {
+        "wss"
+    } else {
+        "ws"
+    };
     let host = base
         .trim_start_matches("http://")
         .trim_start_matches("https://");

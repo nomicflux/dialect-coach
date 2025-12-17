@@ -54,46 +54,17 @@ impl UserWebSocketService {
     pub fn connect(&mut self) {
         info!("Connecting to user WebSocket at: {}", self.url);
 
-        let ws = match WebSocket::open(&self.url) {
-            Ok(ws) => ws,
-            Err(e) => {
-                error!("Failed to open user WebSocket: {:?}", e);
-                return;
-            }
-        };
-
-        let (mut write, mut read) = ws.split();
-        let (tx, mut rx) = futures_channel::mpsc::unbounded::<String>();
-        *self.sender.borrow_mut() = Some(tx);
-
-        let on_create = self.on_create_response.clone();
-        let on_signin = self.on_signin_response.clone();
-        let on_validate = self.on_validate_session_response.clone();
-        let on_open = self.on_open.clone();
-
-        // Spawn send task
-        spawn_local(async move {
-            while let Some(text) = rx.next().await {
-                if let Err(e) = write.send(WsMessage::Text(text)).await {
-                    error!("Failed to send user message: {:?}", e);
-                    break;
-                }
-            }
-        });
-
-        // Spawn receive task
-        spawn_local(async move {
-            info!("User WebSocket connection established");
-            on_open.emit(());
-
-            while let Some(msg) = read.next().await {
-                if let Ok(WsMessage::Text(text)) = msg {
-                    process_message(&text, &on_create, &on_signin, &on_validate);
-                }
-            }
-
-            info!("User WebSocket connection closed");
-        });
+        match WebSocket::open(&self.url) {
+            Ok(ws) => start_connection_tasks(
+                ws,
+                self.sender.clone(),
+                self.on_create_response.clone(),
+                self.on_signin_response.clone(),
+                self.on_validate_session_response.clone(),
+                self.on_open.clone(),
+            ),
+            Err(e) => error!("Failed to open user WebSocket: {:?}", e),
+        }
     }
 
     /// Create a new user
@@ -167,4 +138,44 @@ fn process_message(
             error!("Failed to parse UserMessage: {}", e);
         }
     }
+}
+
+fn start_connection_tasks(
+    ws: WebSocket,
+    sender_ref: Rc<RefCell<Option<futures_channel::mpsc::UnboundedSender<String>>>>,
+    on_create: Callback<Result<(User, String), String>>,
+    on_signin: Callback<Result<(User, String), String>>,
+    on_validate: Callback<Result<User, String>>,
+    on_open: Callback<()>,
+) {
+    spawn_local(async move {
+        use crate::services::websocket::wait_for_connection;
+        if !wait_for_connection(&ws).await {
+            error!("Failed to connect to user WebSocket");
+            return;
+        }
+
+        let (mut write, mut read) = ws.split();
+        let (tx, mut rx) = futures_channel::mpsc::unbounded::<String>();
+        *sender_ref.borrow_mut() = Some(tx);
+
+        spawn_local(async move {
+            while let Some(text) = rx.next().await {
+                if let Err(e) = write.send(WsMessage::Text(text)).await {
+                    error!("Failed to send user message: {:?}", e);
+                    break;
+                }
+            }
+        });
+
+        info!("User WebSocket connection established");
+        on_open.emit(());
+
+        while let Some(msg) = read.next().await {
+            if let Ok(WsMessage::Text(text)) = msg {
+                process_message(&text, &on_create, &on_signin, &on_validate);
+            }
+        }
+        info!("User WebSocket connection closed");
+    });
 }

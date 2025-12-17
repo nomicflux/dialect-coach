@@ -1,6 +1,6 @@
 pub mod in_memory;
-pub mod sled;
 pub mod postgres;
+pub mod sled;
 
 use anyhow::Result;
 use dialect_coach_shared::{InviteCode, UsageStats, User, UserState};
@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub use sled::SledPersistence;
 pub use postgres::PostgresPersistence;
+pub use sled::SledPersistence;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct UserRecord {

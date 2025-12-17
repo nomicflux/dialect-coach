@@ -58,46 +58,17 @@ impl UserStateWebSocketService {
     pub fn connect(&mut self) {
         info!("Connecting to user state WebSocket at: {}", self.url);
 
-        let ws = match WebSocket::open(&self.url) {
-            Ok(ws) => ws,
-            Err(e) => {
-                error!("Failed to open user state WebSocket: {:?}", e);
-                return;
-            }
-        };
-
-        let (mut write, mut read) = ws.split();
-        let (tx, mut rx) = futures_channel::mpsc::unbounded::<String>();
-        *self.sender.borrow_mut() = Some(tx);
-
-        let on_load = self.on_load_response.clone();
-        let on_save = self.on_save_response.clone();
-        let on_usage_stats_update = self.on_usage_stats_update.clone();
-        let on_open = self.on_open.clone();
-
-        // Spawn send task
-        spawn_local(async move {
-            while let Some(text) = rx.next().await {
-                if let Err(e) = write.send(WsMessage::Text(text)).await {
-                    error!("Failed to send user state message: {:?}", e);
-                    break;
-                }
-            }
-        });
-
-        // Spawn receive task
-        spawn_local(async move {
-            info!("User state WebSocket connection established");
-            on_open.emit(());
-
-            while let Some(msg) = read.next().await {
-                if let Ok(WsMessage::Text(text)) = msg {
-                    process_message(&text, &on_load, &on_save, &on_usage_stats_update);
-                }
-            }
-
-            info!("User state WebSocket connection closed");
-        });
+        match WebSocket::open(&self.url) {
+            Ok(ws) => start_connection_tasks(
+                ws,
+                self.sender.clone(),
+                self.on_load_response.clone(),
+                self.on_save_response.clone(),
+                self.on_usage_stats_update.clone(),
+                self.on_open.clone(),
+            ),
+            Err(e) => error!("Failed to open user state WebSocket: {:?}", e),
+        }
     }
 
     /// Save user state
@@ -216,4 +187,44 @@ fn log_usage_stats_update(usage_stats: &dialect_coach_shared::UsageStats) {
         usage_stats.tts_count(),
         usage_stats.tts_characters()
     );
+}
+
+fn start_connection_tasks(
+    ws: WebSocket,
+    sender_ref: Rc<RefCell<Option<futures_channel::mpsc::UnboundedSender<String>>>>,
+    on_load: Callback<Option<UserState>>,
+    on_save: Callback<Result<(), String>>,
+    on_usage_stats_update: Callback<dialect_coach_shared::UsageStats>,
+    on_open: Callback<()>,
+) {
+    spawn_local(async move {
+        use crate::services::websocket::wait_for_connection;
+        if !wait_for_connection(&ws).await {
+            error!("Failed to connect to user state WebSocket");
+            return;
+        }
+
+        let (mut write, mut read) = ws.split();
+        let (tx, mut rx) = futures_channel::mpsc::unbounded::<String>();
+        *sender_ref.borrow_mut() = Some(tx);
+
+        spawn_local(async move {
+            while let Some(text) = rx.next().await {
+                if let Err(e) = write.send(WsMessage::Text(text)).await {
+                    error!("Failed to send user state message: {:?}", e);
+                    break;
+                }
+            }
+        });
+
+        info!("User state WebSocket connection established");
+        on_open.emit(());
+
+        while let Some(msg) = read.next().await {
+            if let Ok(WsMessage::Text(text)) = msg {
+                process_message(&text, &on_load, &on_save, &on_usage_stats_update);
+            }
+        }
+        info!("User state WebSocket connection closed");
+    });
 }

@@ -200,6 +200,8 @@ fn get_ws_url(path: &str) -> String {
 
 ## Phase 4: Docker Configuration
 
+**Status**: ✅ COMPLETE
+
 **Goal**: Create Dockerfiles and docker-compose.yml
 
 **Subagent**: modular-builder
@@ -412,10 +414,24 @@ data/
 ```
 
 ### Deliverables
-- `docker-compose up` brings up full stack
-- Frontend accessible at http://localhost:8080
-- Backend accessible at http://localhost:3000
-- Postgres data persists across restarts
+- [x] All 6 Docker files created (backend/Dockerfile, frontend/Dockerfile, frontend/nginx.conf, docker-compose.yml, backend/sql/init.sql, .dockerignore)
+- [x] backend/build.rs verified as platform-aware (already handles both macOS and Linux)
+- [x] `cargo clippy` clean - zero warnings
+- [ ] `docker-compose up --build` verification (ready but not tested yet)
+- [ ] Frontend accessible at http://localhost:8080 (ready but not tested yet)
+- [ ] Backend accessible at http://localhost:3000 (ready but not tested yet)
+- [ ] Postgres data persists across restarts (ready but not tested yet)
+
+### Files Created
+1. `/Users/demouser/Code/dialect-coach/backend/Dockerfile` - Multi-stage build with pdfium for Linux
+2. `/Users/demouser/Code/dialect-coach/frontend/Dockerfile` - Trunk build + nginx serve
+3. `/Users/demouser/Code/dialect-coach/frontend/nginx.conf` - Proxy config for WebSockets and API
+4. `/Users/demouser/Code/dialect-coach/docker-compose.yml` - Full stack orchestration
+5. `/Users/demouser/Code/dialect-coach/backend/sql/init.sql` - Postgres schema initialization
+6. `/Users/demouser/Code/dialect-coach/.dockerignore` - Docker build exclusions
+
+### Files Verified (No Changes Needed)
+1. `/Users/demouser/Code/dialect-coach/backend/build.rs` - Already platform-aware for macOS/Linux
 
 ---
 

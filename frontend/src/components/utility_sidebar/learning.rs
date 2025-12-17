@@ -940,7 +940,7 @@ pub fn learning(props: &LearningProps) -> Html {
 
                 } else if *show_create_plan || editing_plan_id.is_some() || *show_generator {
                     if *show_generator {
-                        <PlanGenerator 
+                        <PlanGenerator
                             plan_service={props.plan_service.clone()}
                             on_plan_generated={
                                 let dispatch = props.dispatch.clone();

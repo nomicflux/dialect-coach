@@ -1,9 +1,9 @@
-use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::PlanAction;
+use crate::app::app_state::user::UserDomainAction;
 use crate::services::enrichment_service::EnrichmentService;
 use dialect_coach_shared::models::{
-    plan::{import::ImportLanguagePlan, LanguagePlan},
     EnrichRequest, PartialLearningItem,
+    plan::{LanguagePlan, import::ImportLanguagePlan},
 };
 use std::rc::Rc;
 use yew::prelude::*;
