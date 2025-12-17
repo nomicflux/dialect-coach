@@ -54,7 +54,6 @@ async fn main() -> Result<()> {
         qdrant,
         agent,
         embeddings,
-        session_histories: Arc::new(Mutex::new(HashMap::new())),
         user_persistence,
         auth_service,
         rate_limiter,

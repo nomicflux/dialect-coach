@@ -39,13 +39,6 @@ pub fn build_context_from_messages(messages: &[Message]) -> Vec<RigMessage> {
     messages.iter().map(convert_to_rig_message).collect()
 }
 
-pub async fn add_agent_to_history(state: &AppState, session_id: Uuid, agent_text: &str) {
-    let mut histories = state.session_histories.lock().await;
-    if let Some(history) = histories.get_mut(&session_id) {
-        history.push(format!("Agent: {}", agent_text));
-    }
-}
-
 pub fn create_agent_response_message(
     agent_response: AgentResponse,
     metadata: MessageMetadata,
@@ -55,18 +48,11 @@ pub fn create_agent_response_message(
 }
 
 pub async fn handle_agent_success(
-    state: &AppState,
+    _state: &AppState,
     parsed_msg: &Message,
     agent_response: AgentResponse,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), String> {
-    add_agent_to_history(
-        state,
-        parsed_msg.metadata.session_id,
-        &agent_response.response,
-    )
-    .await;
-
     let response_msg =
         create_agent_response_message(agent_response, parsed_msg.metadata.clone(), parsed_msg.id);
 

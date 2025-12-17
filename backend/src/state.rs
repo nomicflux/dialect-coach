@@ -15,7 +15,6 @@ pub struct AppState {
     pub qdrant: Arc<qdrant_service::QdrantService>,
     pub agent: Arc<agent_service::AgentService>,
     pub embeddings: Arc<embedding_service::EmbeddingService>,
-    pub session_histories: Arc<Mutex<HashMap<Uuid, Vec<String>>>>,
     pub user_persistence: Arc<dyn UserPersistence>,
     pub auth_service: Arc<dyn auth_service::AuthService>,
     pub rate_limiter: Arc<rate_limiter::service::RateLimiter>,
