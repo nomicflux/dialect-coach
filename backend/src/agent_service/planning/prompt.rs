@@ -38,7 +38,7 @@ pub fn build_planning_system_prompt_yaml(dialect: Dialect) -> String {
         
         # OUTPUT SCHEMA
         {}
-        title: \"Plan Title\" (e.g. \"Verbs with Con\")
+        title: \"Verbs with Con\"
         dialect: \"{}\"
         steps:
           - title: \"Part 1: Basic Usage\"
