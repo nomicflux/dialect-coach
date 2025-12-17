@@ -189,7 +189,6 @@ fn build_learning_params<'a>(
         dialect: params.dialect.dialect,
         formality: params.formality,
         teaching_mode: params.teaching_mode,
-        learning_goals: params.learning_goals,
         past_mistakes: params.past_mistakes,
         past_explained: params.past_explained,
         past_translated: params.past_translated,

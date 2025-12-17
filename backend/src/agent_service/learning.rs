@@ -22,7 +22,7 @@ pub struct LearningAgentParams<'a> {
     pub dialect: Dialect,
     pub formality: Formality,
     pub teaching_mode: TeachingMode,
-    pub learning_goals: &'a [dialect_coach_shared::LearningGoal],
+
     pub past_mistakes: &'a [Mistake],
     pub past_explained: &'a [Explained],
     pub past_translated: &'a [Translated],
@@ -341,18 +341,6 @@ No learning items for this mode."#
     }
 }
 
-fn format_learning_goals(goals: &[dialect_coach_shared::LearningGoal]) -> String {
-    if goals.is_empty() {
-        "None.".to_string()
-    } else {
-        goals
-            .iter()
-            .enumerate()
-            .map(|(i, learning_goal)| format!("{}. {}", i + 1, learning_goal.goal))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-}
 
 fn build_existing_items_section(params: &LearningAgentParams<'_>) -> String {
     let summary = format_learning_items_context(
@@ -383,11 +371,9 @@ fn build_learning_prompt(params: &LearningAgentParams<'_>) -> String {
 
     format!(
         "{}{}\
-        LEARNING GOALS:\n{}\n\n\
         PREVIOUS LEARNING ITEMS:\n{}\n",
         user_section,
         asst_section,
-        format_learning_goals(params.learning_goals),
         build_existing_items_section(params)
     )
 }
@@ -508,10 +494,6 @@ mod tests {
 
     #[test]
     fn test_build_learning_system_content_contains_directives() {
-        let goals = vec![dialect_coach_shared::LearningGoal {
-            goal: "Goal 1".to_string(),
-            dialect: Dialect::SpanishMexican,
-        }];
         let mistakes = vec![Mistake::new(
             "hablar".to_string(),
             "habla".to_string(),
@@ -536,7 +518,6 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Corrective,
-            learning_goals: &goals,
             past_mistakes: &mistakes,
             past_explained: &explained,
             past_translated: &translated,
@@ -552,10 +533,6 @@ mod tests {
 
     #[test]
     fn test_build_learning_prompt_includes_sections() {
-        let goals = vec![dialect_coach_shared::LearningGoal {
-            goal: "Goal 1".to_string(),
-            dialect: Dialect::SpanishMexican,
-        }];
         let mistakes = vec![Mistake::new(
             "hablar".to_string(),
             "habla".to_string(),
@@ -580,7 +557,6 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Corrective,
-            learning_goals: &goals,
             past_mistakes: &mistakes,
             past_explained: &explained,
             past_translated: &translated,
@@ -590,7 +566,7 @@ mod tests {
         let prompt = build_learning_prompt(&params);
         assert!(prompt.contains("LATEST USER MESSAGE"));
         assert!(prompt.contains("¿Cómo estás?"));
-        assert!(prompt.contains("Goal 1"));
+
         assert!(prompt.contains("hablar -> habla"));
     }
 
@@ -628,7 +604,6 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Explanatory,
-            learning_goals: &[],
             past_mistakes: &[],
             past_explained: &[],
             past_translated: &[],
@@ -650,7 +625,6 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Explanatory,
-            learning_goals: &[],
             past_mistakes: &[],
             past_explained: &explained,
             past_translated: &[],
@@ -670,7 +644,6 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Corrective,
-            learning_goals: &[],
             past_mistakes: &[],
             past_explained: &[],
             past_translated: &[],
@@ -692,7 +665,6 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Corrective,
-            learning_goals: &[],
             past_mistakes: &[],
             past_explained: &explained,
             past_translated: &[],
@@ -714,7 +686,6 @@ mod tests {
             dialect: Dialect::SpanishMexican,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Interleaved,
-            learning_goals: &[],
             past_mistakes: &[],
             past_explained: &explained,
             past_translated: &[],
