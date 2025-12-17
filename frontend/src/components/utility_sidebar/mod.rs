@@ -1,6 +1,7 @@
 pub mod branches;
 pub mod import_workflow;
 pub mod learning;
+pub mod learning_item;
 pub mod settings;
 use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{UIState, UserStateGamificationExt};

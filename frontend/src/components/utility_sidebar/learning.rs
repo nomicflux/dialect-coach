@@ -13,17 +13,9 @@ use dialect_coach_shared::{
 use std::rc::Rc;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
+use super::learning_item::render_learning_item;
 use web_sys::{Blob, HtmlAnchorElement, HtmlInputElement, Url};
 use yew::prelude::*;
-
-fn get_learning_item_id(item: &LearningItem) -> Uuid {
-    match &item.item {
-        LearningItemType::Mistake(m) => m.id,
-        LearningItemType::Explanation(e) => e.id,
-        LearningItemType::Translation(t) => t.id,
-        LearningItemType::Exploration(e) => e.id,
-    }
-}
 
 #[derive(Properties, PartialEq)]
 pub struct LearningProps {
@@ -38,23 +30,6 @@ pub struct LearningProps {
     pub plan_service: Rc<PlanService>,
 }
 
-fn get_tooltip(item: &LearningItem) -> Option<String> {
-    match &item.item {
-        LearningItemType::Mistake(m) => Some(m.mistake_category.to_string()),
-        LearningItemType::Explanation(e) => Some(e.explanation.clone()),
-        LearningItemType::Translation(t) => {
-            if let Some(context) = &t.context {
-                Some(format!(
-                    "Translation: {}\nContext: {}",
-                    t.translated_to, context
-                ))
-            } else {
-                Some(format!("Translation: {}", t.translated_to))
-            }
-        }
-        LearningItemType::Exploration(e) => Some(e.instructions_for_use.clone()),
-    }
-}
 
 fn has_active_dialect(dialect: Option<Dialect>) -> bool {
     dialect.is_some()
@@ -568,63 +543,101 @@ fn populate_fields(enriched_item: serde_json::Value, states: &FieldStates) {
     }
 }
 
-fn get_item_parts(item: &LearningItem) -> (String, String, &'static str) {
-    match &item.item {
-        LearningItemType::Mistake(m) => (
-            m.correction.clone(),
-            format!("Instead of: {}", m.specific_mistake),
-            "🛠️",
-        ),
-        LearningItemType::Explanation(e) => (e.new_phrase.clone(), e.explanation.clone(), "💡"),
-        LearningItemType::Translation(t) => {
-            (t.translated_to.clone(), t.translated_word.clone(), "🌐")
-        }
-        LearningItemType::Exploration(e) => {
-            (e.point_to_try.clone(), e.instructions_for_use.clone(), "🎯")
-        }
+
+fn render_still_learning_grouped(still_learning: Vec<&LearningItem>, on_delete: Callback<Uuid>) -> Html {
+    if still_learning.is_empty() {
+        return html! {};
     }
-}
 
-fn get_accent_color(item: &LearningItemType) -> &'static str {
-    match item {
-        LearningItemType::Mistake(_) => "var(--coral)",
-        LearningItemType::Explanation(_) => "var(--teal)",
-        LearningItemType::Translation(_) => "var(--yellow)",
-        LearningItemType::Exploration(_) => "var(--green)",
-    }
-}
+    let (mistakes, others): (Vec<_>, Vec<_>) = still_learning
+        .clone()
+        .into_iter()
+        .partition(|i| matches!(i.item, LearningItemType::Mistake(_)));
+    let (phrases, others): (Vec<_>, Vec<_>) = others
+        .into_iter()
+        .partition(|i| matches!(i.item, LearningItemType::Explanation(_)));
+    let (vocab, explorations): (Vec<_>, Vec<_>) = others
+        .into_iter()
+        .partition(|i| matches!(i.item, LearningItemType::Translation(_)));
 
-fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> Html {
-    let (title, subtitle, icon) = get_item_parts(item);
-    let tooltip = get_tooltip(item);
-    let accent_color = get_accent_color(&item.item);
-    let item_id = get_learning_item_id(item);
-    let score_pct = item.score;
-
-    // Subtle glass card style
     html! {
-        <li class="learning-card" style={format!("--accent-color: {}", accent_color)} title={tooltip}>
-            <div class="card-icon">{icon}</div>
-            <div class="card-content">
-                <div class="card-title">{title}</div>
-                <div class="card-subtitle">{subtitle}</div>
-            </div>
-            <div class="card-meta">
-                <div class="score-ring" style={format!("--score: {}%", score_pct)}>
-                     // Visual ring or text handled by CSS/SVG, or just simple text for now
-                    <span class="score-text">{format!("{}%", score_pct)}</span>
+        <div class="learning-section">
+            <h4 class="section-title">{"Still Learning"}</h4>
+            if !mistakes.is_empty() {
+                <div class="learning-subgroup">
+                    <h5 class="subgroup-title">{"🛠️ Fixes"}</h5>
+                    <ul class="learning-items">
+                        {for mistakes.into_iter().map(|item| render_learning_item(item, on_delete.clone()))}
+                    </ul>
                 </div>
+            }
+            if !phrases.is_empty() {
+                <div class="learning-subgroup">
+                    <h5 class="subgroup-title">{"💡 Phrases"}</h5>
+                    <ul class="learning-items">
+                        {for phrases.into_iter().map(|item| render_learning_item(item, on_delete.clone()))}
+                    </ul>
+                </div>
+            }
+            if !vocab.is_empty() {
+                <div class="learning-subgroup">
+                    <h5 class="subgroup-title">{"🌐 Vocabulary"}</h5>
+                    <ul class="learning-items">
+                        {for vocab.into_iter().map(|item| render_learning_item(item, on_delete.clone()))}
+                    </ul>
+                </div>
+            }
+            if !explorations.is_empty() {
+                <div class="learning-subgroup">
+                    <h5 class="subgroup-title">{"🎯 Exploration"}</h5>
+                    <ul class="learning-items">
+                        {for explorations.into_iter().map(|item| render_learning_item(item, on_delete.clone()))}
+                    </ul>
+                </div>
+            }
+        </div>
+    }
+}
+
+fn render_active_plan_section(
+    user: &Rc<UserState>,
+    dispatch: &Callback<UserDomainAction>,
+) -> Html {
+    if let Some(active_plan_id) = user.active_plan_id
+        && let Some(active_plan) = user.language_plans.iter().find(|p| p.id == active_plan_id)
+    {
+        html! {
+            <>
+                <ActivePlan
+                    plan={active_plan.clone()}
+                    on_advance={
+                        let dispatch = dispatch.clone();
+                        Callback::from(move |id| {
+                            dispatch.emit(UserDomainAction::Plan(PlanAction::AdvanceStep(id)));
+                        })
+                    }
+                    on_activate={
+                        let dispatch = dispatch.clone();
+                        Callback::from(move |id| {
+                            dispatch.emit(UserDomainAction::Plan(PlanAction::ActivateStep(id)));
+                        })
+                    }
+                />
                 <button
-                    class="card-delete-button"
-                    onclick={on_delete.reform(move |_| item_id)}
+                    class="view-all-plans-btn"
+                    onclick={
+                        let dispatch = dispatch.clone();
+                        Callback::from(move |_| {
+                            dispatch.emit(UserDomainAction::Plan(PlanAction::SetActive(None)));
+                        })
+                    }
                 >
-                    {"×"}
+                    {"← Back to All Plans"}
                 </button>
-            </div>
-            <div class="card-progress-line">
-                <div class="progress-fill" style={format!("width: {}%; background: {}", score_pct, accent_color)}></div>
-            </div>
-        </li>
+            </>
+        }
+    } else {
+        html! {}
     }
 }
 
@@ -900,51 +913,15 @@ pub fn learning(props: &LearningProps) -> Html {
                 </div>
             }
 
-            if !still_learning.is_empty() {
-                <div class="learning-section">
-                    <h4 class="section-title">{"Still Learning"}</h4>
-                    <ul class="learning-items">
-                        {for still_learning.iter().map(|item| render_learning_item(item, props.on_delete.clone()))}
-                    </ul>
-                </div>
-            }
+            {render_still_learning_grouped(still_learning.clone(), props.on_delete.clone())}
 
             if accomplishments.is_empty() && still_learning.is_empty() {
                 <p class="empty-message">{"No learning items yet. Start chatting to build your learning progress!"}</p>
             }
 
             <div class="plans-section">
-                if let Some(active_plan_id) = props.user.active_plan_id
-                    && let Some(active_plan) = props.user.language_plans.iter().find(|p| p.id == active_plan_id)
-                {
-                    <ActivePlan
-                        plan={active_plan.clone()}
-                        on_advance={
-                            let dispatch = props.dispatch.clone();
-                            Callback::from(move |id| {
-                                dispatch.emit(UserDomainAction::Plan(PlanAction::AdvanceStep(id)));
-                            })
-                        }
-                        on_activate={
-                            use crate::components::utility_sidebar::UserDomainAction;
-                            let dispatch = props.dispatch.clone();
-                            Callback::from(move |id| {
-                                dispatch.emit(UserDomainAction::Plan(PlanAction::ActivateStep(id)));
-                            })
-                        }
-                    />
-                    <button
-                        class="view-all-plans-btn"
-                        onclick={
-                            let dispatch = props.dispatch.clone();
-                            Callback::from(move |_| {
-                                dispatch.emit(UserDomainAction::Plan(PlanAction::SetActive(None)));
-                            })
-                        }
-                    >
-                        {"← Back to All Plans"}
-                    </button>
-
+                if props.user.active_plan_id.is_some() {
+                    {render_active_plan_section(&props.user, &props.dispatch)}
                 } else if *show_create_plan || editing_plan_id.is_some() || *show_generator {
                     if *show_generator {
                         <PlanGenerator
