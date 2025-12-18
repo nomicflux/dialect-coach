@@ -1,57 +1,53 @@
-# Build stage - runs on the host architecture (fast, stable)
-# We use $BUILDPLATFORM to avoid QEMU emulation during the heavy compilation step
-FROM --platform=$BUILDPLATFORM rust:1.92-slim as builder
-
+FROM lukemathwalker/cargo-chef:0.1.73-rust-1.92 AS chef
 WORKDIR /app
 
-# Install build dependencies and cross-compilation tools
-# gcc-x86-64-linux-gnu is required for linking the x64 binary on non-x64 hosts
-# We add amd64 architecture to install the target's OpenSSL headers (libssl-dev:amd64)
-RUN dpkg --add-architecture amd64 && apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    curl \
-    g++ \
+
+# Stage: Infrastructure
+# Purpose: Install heavy system dependencies. content-agnostic.
+# STRICT ISOLATION: This stage has NO COPY instructions. It cannot be invalidated by source changes.
+FROM lukemathwalker/cargo-chef:0.1.73-rust-1.92 AS infrastructure
+WORKDIR /app
+RUN dpkg --add-architecture amd64 && \
+    apt-get update && \
+    apt-get install -y \
     gcc-x86-64-linux-gnu \
     g++-x86-64-linux-gnu \
     libc6-dev-amd64-cross \
-    libssl-dev:amd64
+    libstdc++-12-dev-amd64-cross \
+    libssl-dev:amd64 \
+    pkg-config
 
-# Add the x64 target explicitly - this ensures we produce an x64 binary regardless of host
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc
+ENV PKG_CONFIG_ALLOW_CROSS=1
+ENV PKG_CONFIG_PATH_X86_64_UNKNOWN_LINUX_GNU=/usr/lib/x86_64-linux-gnu/pkgconfig
+ENV OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
+ENV OPENSSL_INCLUDE_DIR=/usr/include
+
 RUN rustup target add x86_64-unknown-linux-gnu
 
-# Configure cargo to use the correct linker for x64
-ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc
+# Stage: Planner
+# Purpose: Generate recipe.json (Volatile source code)
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Configure pkg-config to allow cross-compilation and find the x64 libraries
-ENV PKG_CONFIG_ALLOW_CROSS=1
-ENV PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig
-
-# Download pdfium for Linux x64 (Strictly Reproducible: Always x64)
-# Source: https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F7568
-RUN curl -L -o /tmp/pdfium.tgz \
-    "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7568/pdfium-linux-x64.tgz" \
-    && mkdir -p /app/backend/lib \
-    && tar -xzf /tmp/pdfium.tgz -C /tmp \
-    && cp /tmp/lib/libpdfium.so /app/backend/lib/
+# Stage: Builder
+# Purpose: Build dependencies and binary (Uses Infrastructure + Recipe)
+FROM infrastructure AS builder
+COPY --from=planner /app/recipe.json recipe.json
+# Cook dependencies
+RUN cargo chef cook --release --target x86_64-unknown-linux-gnu --recipe-path recipe.json -p dialect-coach-backend
 
 COPY . .
-# Limit parallel compilation to reduce memory usage
-ENV CARGO_BUILD_JOBS=2
-# Build specifically for the x64 target
-RUN cargo build --release --target x86_64-unknown-linux-gnu -p dialect-coach-backend
+# Build backend
+RUN cargo build --release --target x86_64-unknown-linux-gnu --bin backend
 
-# Runtime stage - Always x64
-FROM --platform=linux/amd64 debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
-
-# Copy binary from the x64 target directory
-COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/backend /usr/local/bin/
-COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/admin /usr/local/bin/
-COPY --from=builder /app/backend/lib/libpdfium.so /usr/local/lib/
-
-# Ensure library is found at runtime
-ENV LD_LIBRARY_PATH=/usr/local/lib
-
-EXPOSE 3000
-CMD ["backend"]
+# Stage: Runtime
+FROM --platform=linux/amd64 debian:bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/backend /usr/local/bin/dialect-coach-backend
+CMD ["dialect-coach-backend"]

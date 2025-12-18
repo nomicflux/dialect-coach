@@ -14,7 +14,6 @@ pub enum UIStateAction {
     ToggleDrawer,
     SetDrawerOpen(bool),
     ToggleLearningPanel,
-    ToggleUsageFooter,
     PushDeletedLearningItem(LearningItem),
     PopDeletedLearningItem,
     PushDeletedMessage(Message),
@@ -27,14 +26,13 @@ pub enum UIStateAction {
     ClearTranslateLoading { message_id: Uuid },
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Default)]
 pub struct UIState {
     pub panel_open: bool,
     pub translating_button: Option<String>,
     pub learning_panel_open: bool,
     pub drawer_open: bool,
     pub learning_panel_collapsed: bool,
-    pub usage_footer_collapsed: bool,
     pub deleted_learning_items: VecDeque<LearningItem>,
     pub deleted_messages: VecDeque<Message>,
     pub show_user_creation_page: bool,
@@ -42,23 +40,6 @@ pub struct UIState {
     pub translate_loading: HashSet<Uuid>,
 }
 
-impl Default for UIState {
-    fn default() -> Self {
-        Self {
-            panel_open: false,
-            translating_button: None,
-            learning_panel_open: false,
-            drawer_open: false,
-            learning_panel_collapsed: false,
-            usage_footer_collapsed: true,
-            deleted_learning_items: VecDeque::new(),
-            deleted_messages: VecDeque::new(),
-            show_user_creation_page: false,
-            explain_loading: HashSet::new(),
-            translate_loading: HashSet::new(),
-        }
-    }
-}
 
 impl UIState {
     pub fn apply_action(&self, action: UIStateAction) -> Self {
@@ -74,9 +55,6 @@ impl UIState {
             UIStateAction::SetDrawerOpen(open) => next.drawer_open = open,
             UIStateAction::ToggleLearningPanel => {
                 next.learning_panel_collapsed = !next.learning_panel_collapsed
-            }
-            UIStateAction::ToggleUsageFooter => {
-                next.usage_footer_collapsed = !next.usage_footer_collapsed
             }
             UIStateAction::PushDeletedLearningItem(item) => {
                 next.deleted_learning_items.push_back(item);

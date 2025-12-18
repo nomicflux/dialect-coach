@@ -24,7 +24,21 @@ body {
   overflow-x: hidden;
 }
 
-/* Noise overlay */
+/* Root element (where Yew mounts) */
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+:root {
+  --aurora-gradient: linear-gradient(135deg, #4ECDC4 0%, #A78BFA 50%, #FF6B6B 100%);
+  --aurora-glow: 0 0 30px rgba(78, 205, 196, 0.6), 0 0 60px rgba(167, 139, 250, 0.4);
+}
+
+/* Noise overlay - Texture */
 body::before {
   content: "";
   position: fixed;
@@ -33,38 +47,13 @@ body::before {
   width: 100%;
   height: 100%;
   background-image: var(--noise-texture);
-  opacity: 0.4;
-  /* Adjusted for visibility */
+  opacity: 0.05;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 0;
   mix-blend-mode: overlay;
 }
 
-/* Aurora Blobs */
-body::after {
-  content: "";
-  position: fixed;
-  top: -20vh;
-  left: -20vw;
-  width: 140vw;
-  height: 140vh;
-  background:
-    radial-gradient(circle at 20% 30%, var(--aurora-1), transparent 40%),
-    radial-gradient(circle at 80% 20%, var(--aurora-2), transparent 40%),
-    radial-gradient(circle at 50% 80%, var(--aurora-3), transparent 40%);
-  opacity: 0.15;
-  /* Subtle glow */
-  filter: blur(80px);
-  z-index: -1;
-  pointer-events: none;
-}
-
-/* Root element (where Yew mounts) */
-#app {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
+/* Global Aurora REMOVED - Moved to components */
 
 /* Typography */
 h1,

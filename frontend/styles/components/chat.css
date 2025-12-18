@@ -11,8 +11,8 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--s-2);
-  padding-left: 280px;
-  /* Safe zone for HUD */
+  /* Safe zone for Dynamic Island floating at top */
+  padding-top: 80px;
   padding-bottom: 140px;
   /* Floating Input buffer */
   scroll-behavior: smooth;
@@ -190,26 +190,34 @@
   font-size: var(--text-lg);
   line-height: 1.5;
   word-wrap: break-word;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  /* Glassmorphism */
-  backdrop-filter: blur(12px);
-  /* Slightly less blur than HUD/Input to keep text sharp */
-  -webkit-backdrop-filter: blur(12px);
-  border: var(--glass-border);
+  /* HIGH CONTRAST POP + AURORA GLOW */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(0);
+  /* Solid, no blur needed */
+  -webkit-backdrop-filter: blur(0);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 10;
+  /* Above Aurora */
 }
 
 .bubble--bot {
-  background: rgba(255, 107, 107, 0.15);
-  /* Coral Glass */
+  background: var(--surface);
+  /* Solid Surface */
   color: var(--ink);
   border-bottom-left-radius: var(--r-s);
+  border-left: 3px solid var(--coral);
+  box-shadow: 0 0 15px rgba(255, 107, 107, 0.2);
+  /* Coral Glow */
 }
 
 .bubble--user {
-  background: rgba(78, 205, 196, 0.15);
-  /* Teal Glass */
+  background: var(--surface);
+  /* Solid Surface (Dark Card) */
   color: var(--ink);
   border-bottom-right-radius: var(--r-s);
+  border-right: 3px solid var(--teal);
+  box-shadow: 0 0 15px rgba(78, 205, 196, 0.2);
+  /* Teal Glow */
 }
 
 /* Message header with author and actions */

@@ -1,15 +1,33 @@
-# Build stage
-FROM rust:1.92-slim as builder
-RUN rustup target add wasm32-unknown-unknown
-RUN cargo install trunk
+FROM lukemathwalker/cargo-chef:0.1.73-rust-1.92 AS chef
 WORKDIR /app
-COPY . .
-# Limit parallel compilation to reduce memory usage
-ENV CARGO_BUILD_JOBS=2
-RUN cd frontend && trunk build --release
 
-# Serve stage
-FROM nginx:alpine
+
+
+# Stage: Infrastructure
+FROM lukemathwalker/cargo-chef:0.1.73-rust-1.92 AS infrastructure
+WORKDIR /app
+RUN cargo install trunk
+RUN rustup target add wasm32-unknown-unknown
+
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM infrastructure AS builder
+# Trunk and target installed in infrastructure stage
+
+COPY --from=planner /app/recipe.json recipe.json
+# Install trunk and target in builder stage to ensure caching
+
+# Cook dependencies for frontend
+RUN cargo chef cook --release --target wasm32-unknown-unknown --recipe-path recipe.json -p dialect-coach-frontend
+
+COPY . .
+# Build frontend
+WORKDIR /app/frontend
+RUN trunk build --release
+
+FROM nginx:alpine AS runtime
 COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

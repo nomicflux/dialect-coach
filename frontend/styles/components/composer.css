@@ -14,17 +14,20 @@
   /* Prevent HUD overlap overlap */
   z-index: 100;
 
-  /* Glassmorphism */
-  background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  /* Solid Pop + Aurora Border */
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    var(--aurora-gradient) border-box;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
   border-radius: var(--r-xl);
-  border: var(--glass-border);
+  border: 2px solid transparent;
+  /* Wider border for effect */
   box-shadow:
-    0 10px 30px -5px rgba(0, 0, 0, 0.1),
-    0 4px 10px -2px rgba(0, 0, 0, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    0 15px 40px -5px rgba(0, 0, 0, 0.3),
+    0 8px 16px -2px rgba(0, 0, 0, 0.1),
+    var(--aurora-glow);
 }
 
 .composer-input {
@@ -47,7 +50,7 @@
 .composer-input:focus {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
-  background: var(--surface);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .composer-input::placeholder {

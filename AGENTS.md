@@ -30,6 +30,8 @@
 ## Environment & Security Notes
 - Store provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, Azure TTS, Qdrant) in a root `.env` that mirrors `DEVELOPER_GUIDE.md`; never commit secrets or corpus exports.
 - Treat resources inside `corpus-data/` and `corpus-downloads/` as licensed assets—share only processed outputs and keep raw sources in approved storage.
+- DO NOT use large blocks or entire files as TargetContent for editing tools. EVen the SLIGHTEST change to newlines and
+  formatting makes it impossible for the user to properly review changes.
 
 ## General Workflaw
 
@@ -80,6 +82,12 @@ A "Normal" environment is defined by **Strict Verification**.
 - **Kill False Confidence**: If you didn't run it, it doesn't work. Never say "This code works" without a passing test log.
 - **Kill Reality Denial**: If the User says "X is broken", X is broken. Do not argue. Do not hallucinate a different reality.
 
+## 7. VISUAL VERIFICATION (SPATIAL REASONING PROTOCOL)
+**"Look at this image to guide ABSOLUTELY ALL REASONING ABOUT SPATIAL LAYOUT."**
+-   **Code is Suspect**: If code and image seem to disagree, understanding of the code is wrong. The image is the truth.
+-   **Reasoning Direction**: Do not reason from Code -> Image (e.g., "Code says absolute, so it must be up"). Reason from Image -> Code (e.g., "Image shows overlap, so Code Understanding must be wrong").
+-   **Mandatory Alignment**: You must force your mental model of the code to align with the geometry visible in the screenshot. If your text-based model predicts "No Overlap" and the image shows "Overlap", your text-based model is hallucinations.
+
 ## I. THE 6 IMMUTABLE LAWS
 
 1.  **Hierarchy of Truth**: The User Prompt overrides ALL other signals.
@@ -88,6 +96,7 @@ A "Normal" environment is defined by **Strict Verification**.
 4.  **Default Deny**: Silence/Ambiguity = STOP. Permission must be explicit.
 5.  **Strict Verification**: Warnings are Errors. Tests are mandatory.
 6.  **Epistemic Humility**: Kill Arrogance. Trust User Facts. Verify Everything.
+7.  **Visual Truth**: Images > Code. Trust the Pixels.
 
 ## II. OPERATIONAL PROTOCOLS (TRIGGER -> ACTION)
 
@@ -99,6 +108,7 @@ A "Normal" environment is defined by **Strict Verification**.
 | **Compiler/Linter Warning** | **STOP & FIX**: Do not suppress. Do not commit. | Law #5 |
 | **Internal Thought: "I know better"**| **STOP**: Follow the Prompt exactly. | Law #6 |
 | **Internal Thought: "It should work"**| **TEST**: Prove it. | Law #6 |
+| **User Uploads Image** | **VISUAL PRIORITY**: Image overrides Code inference. | Law #7 |
 
 ## Record of Failures
 

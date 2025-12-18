@@ -5,7 +5,6 @@ use web_sys::KeyboardEvent;
 pub enum ShortcutAction {
     ToggleDrawer,
     ToggleLearningPanel,
-    ToggleUsageFooter,
     TogglePracticeSettings,
     ToggleAutoSpeak,
     ReplayLastMessage,
@@ -42,10 +41,6 @@ pub fn default_shortcuts() -> HashMap<ShortcutAction, KeyBinding> {
     map.insert(
         ShortcutAction::ToggleLearningPanel,
         KeyBinding::with_ctrl_shift("BracketRight"),
-    );
-    map.insert(
-        ShortcutAction::ToggleUsageFooter,
-        KeyBinding::with_ctrl_shift("KeyU"),
     );
     map.insert(
         ShortcutAction::TogglePracticeSettings,
@@ -96,7 +91,6 @@ pub fn accesskey_documentation() -> Vec<(&'static str, &'static str, &'static st
             "Ctrl+Shift+]",
             "Toggle learning panel",
         ),
-        ("ToggleUsageFooter", "Ctrl+Shift+U", "Toggle usage footer"),
         (
             "TogglePracticeSettings",
             "Ctrl+Shift+P",
@@ -136,10 +130,9 @@ mod tests {
     #[test]
     fn test_default_shortcuts_contains_all_actions() {
         let shortcuts = default_shortcuts();
-        assert_eq!(shortcuts.len(), 11);
+        assert_eq!(shortcuts.len(), 10);
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleDrawer));
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleLearningPanel));
-        assert!(shortcuts.contains_key(&ShortcutAction::ToggleUsageFooter));
         assert!(shortcuts.contains_key(&ShortcutAction::TogglePracticeSettings));
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleAutoSpeak));
         assert!(shortcuts.contains_key(&ShortcutAction::ReplayLastMessage));
@@ -166,13 +159,6 @@ mod tests {
         );
         assert_eq!(
             shortcuts
-                .get(&ShortcutAction::ToggleUsageFooter)
-                .unwrap()
-                .code,
-            "KeyU"
-        );
-        assert_eq!(
-            shortcuts
                 .get(&ShortcutAction::TogglePracticeSettings)
                 .unwrap()
                 .code,
@@ -190,12 +176,11 @@ mod tests {
     #[test]
     fn test_accesskey_documentation_contains_all_implemented() {
         let docs = accesskey_documentation();
-        assert_eq!(docs.len(), 11);
+        assert_eq!(docs.len(), 10);
 
         let keys: Vec<&str> = docs.iter().map(|(_, key, _)| *key).collect();
         assert!(keys.contains(&"Ctrl+Shift+["));
         assert!(keys.contains(&"Ctrl+Shift+]"));
-        assert!(keys.contains(&"Ctrl+Shift+U"));
         assert!(keys.contains(&"Ctrl+Shift+P"));
         assert!(keys.contains(&"Ctrl+Shift+A"));
         assert!(keys.contains(&"Ctrl+Shift+R"));

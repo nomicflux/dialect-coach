@@ -13,7 +13,7 @@ use crate::app::user_state_callbacks::{
     on_undo_message_callback,
 };
 use crate::components::study_drawer_content::DrawerTab;
-use crate::components::{ChatWindow, Drawer, InputBox, StudyDrawerContent, TranslationModal, VocabHud};
+use crate::components::{ChatWindow, Drawer, DynamicIsland, InputBox, StudyDrawerContent, TranslationModal};
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{
@@ -62,6 +62,10 @@ pub fn main_content(props: &MainContentProps) -> Html {
         None => return html! {},
     };
     let user_rc = Rc::new(us.clone());
+    let current_goal = us
+        .get_learning_goals_for_dialect(&us.selected_dialect)
+        .first()
+        .map(|&g| g.clone());
 
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();
@@ -168,9 +172,6 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             ShortcutAction::ToggleLearningPanel => {
                                 ui_state.dispatch(UIStateAction::ToggleLearningPanel);
                             }
-                            ShortcutAction::ToggleUsageFooter => {
-                                ui_state.dispatch(UIStateAction::ToggleUsageFooter);
-                            }
                             ShortcutAction::TogglePracticeSettings => {
                                 ui_state.dispatch(if ui_state.panel_open {
                                     UIStateAction::ClosePanel
@@ -248,8 +249,13 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_selection_translate={Some(on_selection_translate_click.clone())}
                     />
 
-                    <VocabHud
-                        items={get_filtered_items(us).into_iter().filter(|i| i.score < 100).collect::<Vec<_>>()}
+                    <DynamicIsland
+                        items={
+                            let items = get_filtered_items(us);
+                            gloo::console::log!("DynamicIsland items:", items.len());
+                            items
+                        }
+                        learning_goal={current_goal.clone()}
                     />
                     <InputBox
                         on_send={{
@@ -352,11 +358,13 @@ fn render_modal(
 }
 
 fn get_filtered_items(user_state: &UserState) -> Vec<LearningItem> {
-    user_state
+    let items = user_state
         .get_learning_items_for_dialect(&user_state.selected_dialect)
         .into_iter()
         .cloned()
-        .collect()
+        .collect::<Vec<_>>();
+    gloo::console::log!("get_filtered_items count:", items.len(), "for dialect:", user_state.selected_dialect.to_string());
+    items
 }
 
 fn get_filtered_goals(user_state: &UserState) -> Vec<LearningGoal> {

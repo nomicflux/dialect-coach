@@ -1,0 +1,190 @@
+/* Dynamic Island: Study HUD */
+
+.dynamic-island-container {
+    position: fixed;
+    bottom: var(--s-6);
+    left: var(--s-4);
+    /* Further left */
+    z-index: 600;
+    /* Above messages */
+    pointer-events: none;
+    /* Container doesn't block, but child does */
+    display: flex;
+    justify-content: flex-start;
+}
+
+.dynamic-island {
+    background:
+        linear-gradient(rgba(20, 20, 20, 0.95), rgba(20, 20, 20, 0.95)) padding-box,
+        var(--aurora-gradient) border-box;
+    border: 1px solid transparent;
+    /* Transparent for gradient border */
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), var(--aurora-glow);
+    border-radius: var(--r-l);
+    padding: var(--s-4);
+    pointer-events: auto;
+    /* Clickable */
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+    color: white;
+    width: 320px;
+    max-width: 90vw;
+    min-height: 120px;
+    height: auto;
+    /* Allow growth */
+    transition: all var(--dur-fast) var(--ease-emph);
+    /* overflow: hidden; Removed to allow text wrap growth if needed, though usually contained by padding */
+    /* Interaction affordance */
+    user-select: none;
+    -webkit-user-select: none;
+    /* Prevents double-click text selection interference */
+
+}
+
+/* Hover effect for interactivity */
+.dynamic-island:hover {
+    transform: scale(1.02);
+    border-color: var(--teal);
+    /* Highlight color */
+    box-shadow: 0 12px 48px rgba(78, 205, 196, 0.15);
+    /* Glow */
+}
+
+.island-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 10px var(--teal);
+    flex-shrink: 0;
+    animation: pulse 3s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+
+    100% {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+}
+
+.island-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.island-label {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.island-text {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: white;
+    white-space: normal;
+    /* Wrap text */
+    word-break: break-word;
+    /* Prevent overflow */
+    line-height: 1.4;
+}
+
+.island-controls {
+    display: flex;
+    gap: var(--s-2);
+    /* Hidden by default, shown on expand */
+    opacity: 0.5;
+    transition: opacity var(--dur-fast);
+}
+
+.dynamic-island:hover .island-controls {
+    opacity: 1;
+}
+
+/* Batched items list */
+.island-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    width: 100%;
+}
+
+.island-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--s-1);
+}
+
+.island-item {
+    padding: var(--s-2) var(--s-3);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--r-m);
+    display: flex;
+    justify-content: space-between;
+    /* To separate text and button */
+    align-items: center;
+    gap: var(--s-2);
+    font-size: var(--text-sm);
+    transition: background var(--dur-fast);
+}
+
+.island-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.island-text.large {
+    font-size: var(--text-lg);
+    font-weight: 600;
+}
+
+.island-plan-step {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    padding: var(--s-2);
+}
+
+.check-icon {
+    font-size: var(--text-xl);
+}
+
+.island-btn-small {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    opacity: 0;
+    /* Hidden until hover */
+    transition: opacity var(--dur-fast);
+}
+
+.island-item:hover .island-btn-small {
+    opacity: 1;
+}
+
+.island-btn-small:hover {
+    color: white;
+    transform: scale(1.1);
+}
+
+/* Light Theme Overrides */
+/* The island is usually dark, but if we want it light-themed: */
+/* For now, we keep it dark "status bar" style even in light mode for contrast */

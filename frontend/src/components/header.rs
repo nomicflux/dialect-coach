@@ -56,22 +56,39 @@ pub fn header(props: &HeaderProps) -> Html {
     html! {
         <header class="app-header">
             <div class="container">
-                <div>
+                {if app_state.current_user.is_some() {
+                    html! {
+                        <button
+                            class="btn-dashboard"
+                            onclick={{
+                                let ui_state = ui_state.clone();
+                                Callback::from(move |_| ui_state.dispatch(UIStateAction::ToggleDrawer))
+                            }}
+                        >
+                            <span class="btn-icon-text">{"☰"}</span>
+                            <span>{"Dashboard"}</span>
+                        </button>
+                    }
+                } else {
+                    html! {}
+                }}
+
+                <div class="header-center">
                     <h1 class="app-title">{"🎯 Dialect Coach"}</h1>
                     <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p>
                 </div>
 
                 <div class="user-section">
-                    <button
-                        class="btn-icon"
-                        onclick={{
-                            let ui_state = ui_state.clone();
-                            Callback::from(move |_| ui_state.dispatch(UIStateAction::ToggleDrawer))
+                    // Connection status
+                    <div class="connection-status">
+                        {match app_state.connection_state {
+                            ConnectionState::Connected => html! { <span class="status-connected">{"● Ready to chat!"}</span> },
+                            ConnectionState::Connecting => html! { <span class="status-connecting">{"⟳ Connecting..."}</span> },
+                            ConnectionState::Reconnecting => html! { <span class="status-reconnecting">{"⟳ Reconnecting..."}</span> },
+                            ConnectionState::Disconnected => html! { <span class="status-disconnected">{"○ Disconnected"}</span> },
+                            ConnectionState::Failed => html! { <span class="status-failed">{"✖ Connection Failed"}</span> },
                         }}
-                        title="Open Study Tools"
-                    >
-                        {"☰"}
-                    </button>
+                    </div>
                     {if let Some(user) = app_state.current_user.as_ref() {
                         if let Some(stats) = session.user.as_ref().map(|s| s.gamification_stats()) {
                             html! {
@@ -135,16 +152,7 @@ pub fn header(props: &HeaderProps) -> Html {
                     }}
                 </div>
 
-                // Connection status
-                <div class="connection-status">
-                    {match app_state.connection_state {
-                        ConnectionState::Connected => html! { <span class="status-connected">{"● Ready to chat!"}</span> },
-                        ConnectionState::Connecting => html! { <span class="status-connecting">{"⟳ Connecting..."}</span> },
-                        ConnectionState::Reconnecting => html! { <span class="status-reconnecting">{"⟳ Reconnecting..."}</span> },
-                        ConnectionState::Disconnected => html! { <span class="status-disconnected">{"○ Disconnected"}</span> },
-                        ConnectionState::Failed => html! { <span class="status-failed">{"✖ Connection Failed"}</span> },
-                    }}
-                </div>
+
 
                 // Error display - shown for both authenticated and unauthenticated states
                 {if let Some(err) = (app_state.error_message).as_ref() {

@@ -3,7 +3,6 @@ members = [
     "shared",
     "frontend",
     "backend",
-    "corpus-processor",
 ]
 resolver = "2"
 

@@ -20,6 +20,9 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      pull: false
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     env_file: .env
     environment:
       DATABASE_URL: postgres://dialect_coach:dialect_coach_dev@postgres:5432/dialect_coach
@@ -34,6 +37,9 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      pull: false
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     ports:
       - "8080:80"
     depends_on:
