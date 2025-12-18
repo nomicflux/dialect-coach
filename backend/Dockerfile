@@ -28,13 +28,15 @@ RUN rustup target add x86_64-unknown-linux-gnu
 # Stage: Planner
 # Purpose: Generate recipe.json (Volatile source code)
 FROM chef AS planner
-COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage: Builder
 # Purpose: Build dependencies and binary (Uses Infrastructure + Recipe)
 FROM infrastructure AS builder
 COPY --from=planner /app/recipe.json recipe.json
+
+COPY . .
+
 # Cook dependencies
 RUN cargo chef cook --release --target x86_64-unknown-linux-gnu --recipe-path recipe.json -p dialect-coach-backend
 
