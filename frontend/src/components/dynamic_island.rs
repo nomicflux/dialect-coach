@@ -63,7 +63,7 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
             if props.items.is_empty() {
                 render_empty_status()
             } else {
-                render_items(&props.items, uuids)
+                render_items(&props.items, uuids, state.clone())
             }
         }
     };
@@ -97,7 +97,8 @@ fn render_plan(goal: &LearningGoal) -> Html {
 
 fn render_items(
     all_items: &[LearningItem],
-    uuids: &[Uuid]
+    uuids: &[Uuid],
+    state: UseStateHandle<ViewState>,
 ) -> Html {
     html! {
         <div class="island-list">
@@ -106,15 +107,39 @@ fn render_items(
             </div>
             {for uuids.iter().filter_map(|uuid| {
                 find_item_by_uuid(all_items, *uuid)
-                    .map(render_single_item)
+                    .map(|item| render_single_item(item, state.clone(), all_items))
             })}
         </div>
     }
 }
 
-fn render_single_item(item: &LearningItem) -> Html {
+fn make_item_swap_callback(
+    id: Uuid,
+    state: UseStateHandle<ViewState>,
+    all_items: Vec<LearningItem>,
+) -> Callback<MouseEvent> {
+    Callback::from(move |e: MouseEvent| {
+        e.stop_propagation();
+        let new_state = match (*state).clone() {
+            ViewState::Items(current) => {
+                ViewState::Items(swap_one_uuid(&current, id, &all_items))
+            },
+            other => other,
+        };
+        state.set(new_state);
+    })
+}
+
+fn render_single_item(
+    item: &LearningItem,
+    state: UseStateHandle<ViewState>,
+    all_items: &[LearningItem],
+) -> Html {
+    let id = get_item_id(item);
+    let onclick = make_item_swap_callback(id, state, all_items.to_vec());
+
     html! {
-        <div class="island-item">
+        <div class="island-item" {onclick} title="Click to swap">
             <span class="island-text">{get_item_text(item)}</span>
         </div>
     }
@@ -154,6 +179,26 @@ fn pick_random_uuids(
 
 fn find_item_by_uuid(items: &[LearningItem], uuid: Uuid) -> Option<&LearningItem> {
     items.iter().find(|item| get_item_id(item) == uuid)
+}
+
+fn swap_one_uuid(
+    current: &[Uuid],
+    to_replace: Uuid,
+    all_items: &[LearningItem]
+) -> Vec<Uuid> {
+    let new_uuids = pick_random_uuids(all_items, 1, current);
+
+    if new_uuids.is_empty() {
+        return current.to_vec();
+    }
+
+    current.iter().map(|&id| {
+        if id == to_replace {
+            new_uuids[0]
+        } else {
+            id
+        }
+    }).collect()
 }
 
 fn get_item_text(item: &LearningItem) -> String {

@@ -419,8 +419,8 @@ None
 ## Implementation Status
 
 - [x] Phase 1: Data structures and helpers - COMPLETE (2025-12-18)
-- [ ] Phase 2: Fix container click handler
-- [ ] Phase 3: Add item click functionality
+- [x] Phase 2: Fix container click handler - COMPLETE (2025-12-18)
+- [x] Phase 3: Add item click functionality - COMPLETE (2025-12-18)
 - [ ] Phase 4: Update parent component
 - [ ] Phase 5: Integration testing
 
@@ -448,3 +448,69 @@ None
 - No dead code: PASS (except Phase 3 helper which is explicitly part of the plan)
 
 **Status**: PHASE 1 COMPLETE - Ready for Phase 2
+
+### Phase 2 Completion Details (2025-12-18)
+
+**Changes Made:**
+1. Fixed stale closure bug in `on_click_container` callback by:
+   - Cloning `state` and `items` OUTSIDE the `Callback::from`
+   - Reading current state value with `(*state).clone()` inside callback
+   - Matching on cloned value, not borrowed `*state`
+   - Calling `state.set()` once after computing new state
+
+**Verification:**
+- `cargo check`: PASS
+- `cargo test`: PASS (232/232 tests passed)
+- `cargo clippy`: PASS
+- Callback correctly implements pattern: clone values, compute state, set once
+
+**Status**: PHASE 2 COMPLETE - Ready for Phase 3
+
+### Phase 3 Completion Details (2025-12-18)
+
+**Changes Made:**
+1. Added `swap_one_uuid()` helper function (19 lines):
+   - Picks 1 random UUID not in current list
+   - Replaces specified UUID with new one
+   - Returns unchanged vector if no available items to swap
+
+2. Created `make_item_swap_callback()` helper (16 lines):
+   - Extracted click handler logic to keep `render_single_item` under 20 lines
+   - Implements proper closure pattern: captures id/state/items
+   - Uses `stop_propagation()` to prevent container toggle
+   - Follows same callback pattern as container handler
+
+3. Updated `render_single_item()` signature (14 lines):
+   - Added `state: UseStateHandle<ViewState>` parameter
+   - Added `all_items: &[LearningItem]` parameter
+   - Calls `make_item_swap_callback()` to create onclick handler
+   - Sets title="Click to swap" on div
+
+4. Updated `render_items()` signature (17 lines):
+   - Added `state: UseStateHandle<ViewState>` parameter
+   - Updated loop to pass `state.clone()` and `all_items` to `render_single_item`
+
+5. Updated main component render (line 66):
+   - Passes `state.clone()` to `render_items` call
+
+**Function Line Counts:**
+- `render_plan`: 11 lines
+- `render_items`: 17 lines
+- `make_item_swap_callback`: 16 lines
+- `render_single_item`: 14 lines
+- `render_empty_status`: 7 lines
+- `pick_random_uuids`: 20 lines
+- `find_item_by_uuid`: 3 lines
+- `swap_one_uuid`: 19 lines
+- `get_item_text`: 7 lines
+- `get_item_id`: 8 lines
+
+**Verification:**
+- `cargo check`: PASS (no compilation errors)
+- `cargo test`: PASS (232/232 tests passed)
+- `cargo clippy`: PASS (no warnings)
+- All functions under 20 lines: PASS
+- No dead code: PASS
+- Click handlers use correct closure pattern: PASS
+
+**Status**: PHASE 3 COMPLETE - Ready for Phase 4
