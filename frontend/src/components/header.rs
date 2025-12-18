@@ -62,6 +62,16 @@ pub fn header(props: &HeaderProps) -> Html {
                 </div>
 
                 <div class="user-section">
+                    <button
+                        class="btn-icon"
+                        onclick={{
+                            let ui_state = ui_state.clone();
+                            Callback::from(move |_| ui_state.dispatch(UIStateAction::ToggleDrawer))
+                        }}
+                        title="Open Study Tools"
+                    >
+                        {"☰"}
+                    </button>
                     {if let Some(user) = app_state.current_user.as_ref() {
                         if let Some(stats) = session.user.as_ref().map(|s| s.gamification_stats()) {
                             html! {

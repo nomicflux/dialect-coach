@@ -87,7 +87,6 @@ pub fn app() -> Html {
 
                 <main
                     class="app-main"
-                    data-sidebar-collapsed={if ui_state.sidebar_collapsed { "true" } else { "false" }}
                     data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
                 >
                     {if ui_state.show_user_creation_page {

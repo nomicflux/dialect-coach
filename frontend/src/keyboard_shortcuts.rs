@@ -3,7 +3,7 @@ use web_sys::KeyboardEvent;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ShortcutAction {
-    ToggleSidebar,
+    ToggleDrawer,
     ToggleLearningPanel,
     ToggleUsageFooter,
     TogglePracticeSettings,
@@ -36,7 +36,7 @@ impl KeyBinding {
 pub fn default_shortcuts() -> HashMap<ShortcutAction, KeyBinding> {
     let mut map = HashMap::new();
     map.insert(
-        ShortcutAction::ToggleSidebar,
+        ShortcutAction::ToggleDrawer,
         KeyBinding::with_ctrl_shift("BracketLeft"),
     );
     map.insert(
@@ -90,7 +90,7 @@ pub fn matches_binding(event: &KeyboardEvent, binding: &KeyBinding) -> bool {
 
 pub fn accesskey_documentation() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        ("ToggleSidebar", "Ctrl+Shift+[", "Toggle branch sidebar"),
+        ("ToggleDrawer", "Ctrl+Shift+[", "Toggle study drawer"),
         (
             "ToggleLearningPanel",
             "Ctrl+Shift+]",
@@ -118,9 +118,9 @@ mod tests {
 
     #[test]
     fn test_shortcut_action_equality() {
-        assert_eq!(ShortcutAction::ToggleSidebar, ShortcutAction::ToggleSidebar);
+        assert_eq!(ShortcutAction::ToggleDrawer, ShortcutAction::ToggleDrawer);
         assert_ne!(
-            ShortcutAction::ToggleSidebar,
+            ShortcutAction::ToggleDrawer,
             ShortcutAction::ToggleLearningPanel
         );
     }
@@ -137,7 +137,7 @@ mod tests {
     fn test_default_shortcuts_contains_all_actions() {
         let shortcuts = default_shortcuts();
         assert_eq!(shortcuts.len(), 11);
-        assert!(shortcuts.contains_key(&ShortcutAction::ToggleSidebar));
+        assert!(shortcuts.contains_key(&ShortcutAction::ToggleDrawer));
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleLearningPanel));
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleUsageFooter));
         assert!(shortcuts.contains_key(&ShortcutAction::TogglePracticeSettings));
@@ -154,7 +154,7 @@ mod tests {
     fn test_default_shortcuts_uses_correct_keys() {
         let shortcuts = default_shortcuts();
         assert_eq!(
-            shortcuts.get(&ShortcutAction::ToggleSidebar).unwrap().code,
+            shortcuts.get(&ShortcutAction::ToggleDrawer).unwrap().code,
             "BracketLeft"
         );
         assert_eq!(

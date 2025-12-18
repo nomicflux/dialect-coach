@@ -1,37 +1,39 @@
+pub mod branch_switcher_pill;
 pub mod chat_window;
+pub mod drawer;
+pub mod gamification;
 pub mod header;
 pub mod input_box;
 pub mod learning_goals_panel;
-
 pub mod main_content;
 pub mod message_bubble;
 pub mod plan;
-
-pub mod branch_switcher_pill;
 pub mod speech_controls;
+pub mod study_drawer_content;
 pub mod translate_selection_button;
 pub mod translation_modal;
 pub mod usage_footer;
 pub mod user_creation;
+pub mod utility_sidebar;
 pub mod vocab_hud;
 pub mod welcome_screen;
 
 pub use branch_switcher_pill::BranchSwitcherPill;
 pub use chat_window::ChatWindow;
+pub use drawer::Drawer;
+pub use gamification::FluencyBar;
+pub use gamification::QuestList;
+pub use gamification::StreakDisplay;
 pub use header::Header;
 pub use input_box::InputBox;
 pub use learning_goals_panel::LearningGoalsPanel;
-
 pub use main_content::MainContent;
 pub use message_bubble::MessageBubble;
-
 pub use speech_controls::SpeechControls;
+pub use study_drawer_content::StudyDrawerContent;
 pub use translate_selection_button::TranslateSelectionButton;
 pub use translation_modal::TranslationModal;
 pub use usage_footer::UsageFooter;
 pub use user_creation::UserCreation;
 pub use vocab_hud::VocabHud;
 pub use welcome_screen::WelcomeScreen;
-pub mod utility_sidebar;
-pub use utility_sidebar::UtilitySidebar;
-pub mod gamification;

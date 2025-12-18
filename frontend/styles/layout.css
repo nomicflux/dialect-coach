@@ -133,6 +133,26 @@
   background: var(--coral);
 }
 
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-s);
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--ink);
+  border: none;
+  font-size: var(--text-lg);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.btn-icon:hover {
+  background: var(--teal);
+  color: white;
+}
+
 /* Connection status indicator */
 .connection-status {
   display: flex;

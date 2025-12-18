@@ -1,0 +1,151 @@
+/* Drawer Component Styles */
+.drawer-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all var(--dur-med) var(--ease-out);
+}
+
+.drawer-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.drawer-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 90%;
+    max-width: 450px;
+    /* Slightly wider than the old sidebar */
+    background: var(--surface);
+    /* Default flat surface for contrast */
+    box-shadow: var(--shadow-float);
+    z-index: 1001;
+    transform: translateX(100%);
+    transition: transform var(--dur-med) var(--ease-emph);
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Glass effect for the panel if supported, gives it that premium feel */
+@supports (backdrop-filter: blur(20px)) {
+    .drawer-panel {
+        background: var(--surface-glass);
+        backdrop-filter: blur(var(--glass-blur));
+        border-left: var(--glass-border);
+    }
+}
+
+.drawer-backdrop.open .drawer-panel {
+    transform: translateX(0);
+}
+
+.drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--s-4);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.drawer-title {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+}
+
+.drawer-close-button {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r-pill);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+    background: transparent;
+    transition: all var(--dur-fast) var(--ease-out);
+    font-size: var(--text-lg);
+}
+
+.drawer-close-button:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--coral);
+    transform: rotate(90deg);
+}
+
+.drawer-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--s-4);
+}
+
+/* Drawer Content Specific Styles */
+.drawer-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.drawer-tabs {
+    display: flex;
+    width: 100%;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.02);
+    flex-shrink: 0;
+    margin-bottom: var(--s-3);
+    border-radius: var(--r-m);
+    overflow: hidden;
+    padding: var(--s-1);
+}
+
+.drawer-tab {
+    flex: 1;
+    padding: var(--s-2);
+    background: transparent;
+    border: none;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    text-align: center;
+    transition: all var(--dur-fast) var(--ease-out);
+    border-radius: var(--r-s);
+}
+
+.drawer-tab:hover {
+    color: var(--teal);
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.drawer-tab.active {
+    color: var(--teal);
+    background: var(--surface);
+    box-shadow: var(--shadow-button);
+}
+
+.drawer-tab-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Empty State Helper */
+.empty-state {
+    padding: var(--s-6) var(--s-4);
+    text-align: center;
+    color: var(--ink-soft);
+    font-style: italic;
+    font-size: var(--text-sm);
+}

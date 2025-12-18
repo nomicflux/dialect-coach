@@ -12,8 +12,8 @@ use crate::app::user_state_callbacks::{
     on_delete_learning_item_callback, on_delete_message_callback, on_switch_branch,
     on_undo_message_callback,
 };
-use crate::components::utility_sidebar::SidebarTab;
-use crate::components::{ChatWindow, InputBox, TranslationModal, UtilitySidebar, VocabHud};
+use crate::components::study_drawer_content::DrawerTab;
+use crate::components::{ChatWindow, Drawer, InputBox, StudyDrawerContent, TranslationModal, VocabHud};
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{
@@ -66,7 +66,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();
 
-    let sidebar_active_tab = use_state(|| SidebarTab::Branches);
+    let drawer_active_tab = use_state(|| DrawerTab::Branches);
     let modal_state = use_state(|| None::<TranslationModalState>);
 
     let on_close_modal = {
@@ -162,8 +162,8 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     if matches_binding(event, binding) {
                         event.prevent_default();
                         match action {
-                            ShortcutAction::ToggleSidebar => {
-                                ui_state.dispatch(UIStateAction::ToggleSidebar);
+                            ShortcutAction::ToggleDrawer => {
+                                ui_state.dispatch(UIStateAction::ToggleDrawer);
                             }
                             ShortcutAction::ToggleLearningPanel => {
                                 ui_state.dispatch(UIStateAction::ToggleLearningPanel);
@@ -268,13 +268,20 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     )}
                 </div>
 
-                // Utility Sidebar: Unified Right Panel
-                <UtilitySidebar
-                    is_collapsed={ui_state.sidebar_collapsed}
-                        active_tab={*sidebar_active_tab}
+                // Study Drawer: Replaces sidebar
+                <Drawer
+                    is_open={ui_state.drawer_open}
+                    on_close={{
+                        let ui_state = ui_state.clone();
+                        Callback::from(move |_| ui_state.dispatch(UIStateAction::ToggleDrawer))
+                    }}
+                    title="Study Tools"
+                >
+                    <StudyDrawerContent
+                        active_tab={*drawer_active_tab}
                         on_tab_change={{
-                            let sidebar_active_tab = sidebar_active_tab.clone();
-                            Callback::from(move |tab| sidebar_active_tab.set(tab))
+                            let drawer_active_tab = drawer_active_tab.clone();
+                            Callback::from(move |tab| drawer_active_tab.set(tab))
                         }}
                         user={user_rc.clone()}
                         dispatch={dispatch_domain.clone()}
@@ -288,7 +295,6 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_switch_branch={Some(on_switch_branch(dispatch_domain.clone()))}
                         on_delete_branch={Some(on_delete_branch(dispatch_domain.clone()))}
                         goal_input_ref={Some(goal_input_ref.clone())}
-                        // Learning Panel Props
                         learning_items={get_filtered_items(us)}
                         active_branch_dialect={Some(us.selected_dialect)}
                         enrichment_service={app_state.enrichment_service.clone()}
@@ -309,6 +315,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         }}
                         deleted_learning_items_count={ui_state.deleted_learning_items.len()}
                     />
+                </Drawer>
 
             {render_modal(&modal_state, &on_close_modal, &on_save_phrase)}
         </>
