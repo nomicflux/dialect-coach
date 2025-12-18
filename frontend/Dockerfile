@@ -4,8 +4,8 @@ WORKDIR /app
 
 
 # Stage: Infrastructure
-FROM lukemathwalker/cargo-chef:0.1.73-rust-1.92 AS infrastructure
-WORKDIR /app
+FROM chef AS infrastructure
+
 RUN cargo install trunk
 RUN rustup target add wasm32-unknown-unknown
 

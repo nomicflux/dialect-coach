@@ -1,10 +1,10 @@
-use dialect_coach_shared::models::{LearningGoal, LearningItem, LearningItemType};
+use dialect_coach_shared::models::{LearningItem, LearningItemType};
 use uuid::Uuid;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct DynamicIslandProps {
-    pub learning_goal: Option<LearningGoal>,
+    pub current_step_title: Option<String>,
     pub items: Vec<LearningItem>,
 }
 
@@ -43,20 +43,10 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
     // --- Render Logic ---
     let content = match &*state {
         ViewState::Plan => {
-            if let Some(goal) = &props.learning_goal {
-                render_plan(goal)
+            if let Some(step_title) = &props.current_step_title {
+                render_plan(step_title)
             } else {
-                // Fallback: If no plan, show items (calculate fresh random indices if needed for empty fallback)
-                // But generally better to transition state. For now, simple fallback render.
-                // We'll just render "Status" empty state if plan logic fails render.
-                if !props.items.is_empty() {
-                     // Since we don't have indices in Plan mode, we might need a default set?
-                     // Or force state transition on mount?
-                     // Simpler: Just render "Status" if no goal.
-                     render_empty_status()
-                } else {
-                     render_empty_status()
-                }
+                render_empty_status()
             }
         },
         ViewState::Items(uuids) => {
@@ -83,13 +73,13 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
 
 // --- Render Helpers ---
 
-fn render_plan(goal: &LearningGoal) -> Html {
+fn render_plan(step_title: &str) -> Html {
     html! {
         <div class="island-content">
-            <span class="island-label">{"Current Goal"}</span>
+            <span class="island-label">{"Current Learning Plan Step"}</span>
             <div class="island-plan-step">
                 <span class="check-icon">{"🎯"}</span>
-                <span class="island-text large">{&goal.goal}</span>
+                <span class="island-text large">{step_title}</span>
             </div>
         </div>
     }

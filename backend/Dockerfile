@@ -5,8 +5,8 @@ WORKDIR /app
 # Stage: Infrastructure
 # Purpose: Install heavy system dependencies. content-agnostic.
 # STRICT ISOLATION: This stage has NO COPY instructions. It cannot be invalidated by source changes.
-FROM lukemathwalker/cargo-chef:0.1.73-rust-1.92 AS infrastructure
-WORKDIR /app
+FROM chef AS infrastructure
+
 RUN dpkg --add-architecture amd64 && \
     apt-get update && \
     apt-get install -y \

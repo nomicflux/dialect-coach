@@ -62,10 +62,12 @@ pub fn main_content(props: &MainContentProps) -> Html {
         None => return html! {},
     };
     let user_rc = Rc::new(us.clone());
-    let current_goal = us
-        .get_learning_goals_for_dialect(&us.selected_dialect)
-        .first()
-        .map(|&g| g.clone());
+    let current_step_title = us
+        .language_plans
+        .iter()
+        .find(|p| Some(p.id) == us.active_plan_id)
+        .and_then(|plan| plan.steps.get(plan.current_step_index))
+        .map(|step| step.title.clone());
 
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();
@@ -255,7 +257,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             gloo::console::log!("DynamicIsland items:", items.len());
                             items
                         }
-                        learning_goal={current_goal.clone()}
+                        current_step_title={current_step_title.clone()}
                     />
                     <InputBox
                         on_send={{
