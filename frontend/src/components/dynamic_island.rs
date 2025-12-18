@@ -26,20 +26,17 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
         let items = props.items.clone();
 
         Callback::from(move |_: MouseEvent| {
-            // NOTE: No stop_propagation(), as user directed "Basic Wiring" focus
-
-            state.set(match *state {
+            let new_state = match (*state).clone() {
                 ViewState::Plan => {
-                    // Transition to Items -> Calculate UUIDs HERE
                     let count = 3.min(items.len());
                     let uuids = pick_random_uuids(&items, count, &[]);
                     ViewState::Items(uuids)
                 },
                 ViewState::Items(_) => {
-                    // Transition back to Plan
                     ViewState::Plan
                 }
-            });
+            };
+            state.set(new_state);
         })
     };
     
@@ -157,22 +154,6 @@ fn pick_random_uuids(
 
 fn find_item_by_uuid(items: &[LearningItem], uuid: Uuid) -> Option<&LearningItem> {
     items.iter().find(|item| get_item_id(item) == uuid)
-}
-
-fn swap_one_uuid(
-    current: &[Uuid],
-    to_replace: Uuid,
-    all_items: &[LearningItem],
-) -> Vec<Uuid> {
-    let replacement = pick_random_uuids(all_items, 1, current);
-    if replacement.is_empty() {
-        return current.to_vec();
-    }
-    let new_uuid = replacement[0];
-    current
-        .iter()
-        .map(|&uuid| if uuid == to_replace { new_uuid } else { uuid })
-        .collect()
 }
 
 fn get_item_text(item: &LearningItem) -> String {
