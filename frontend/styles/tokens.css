@@ -137,6 +137,17 @@
   --glass-blur: 24px;
   --glass-border: 1px solid rgba(255, 255, 255, 0.1);
   --surface-glass: rgba(255, 255, 255, 0.4);
+
+  /* Visual Polish Tokens */
+  --noise-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  --glow-border: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --glow-active: 0 0 20px rgba(78, 205, 196, 0.15), inset 0 0 0 1px rgba(78, 205, 196, 0.3);
+
+  /* Aurora Gradients */
+  --aurora-1: #4ECDC4;
+  --aurora-2: #A78BFA;
+  /* Purple */
+  --aurora-3: #FF6B6B;
 }
 
 /* Dark mode support */
@@ -152,6 +163,14 @@
     /* Dark Mode Glass */
     --surface-glass: rgba(20, 20, 20, 0.4);
     --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+
+    /* Dark Mode Aurora */
+    --aurora-1: #2C7A7B;
+    /* Darker Teal */
+    --aurora-2: #6B46C1;
+    /* Darker Purple */
+    --aurora-3: #C53030;
+    /* Darker Red */
 
     /* Adjust tints for dark mode to be visible but legible */
     /* using lower opacity to keep bg dark enough for light text */

@@ -1,5 +1,7 @@
 /* CSS Reset and Base Styles */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -18,6 +20,43 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Noise overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: var(--noise-texture);
+  opacity: 0.4;
+  /* Adjusted for visibility */
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: overlay;
+}
+
+/* Aurora Blobs */
+body::after {
+  content: "";
+  position: fixed;
+  top: -20vh;
+  left: -20vw;
+  width: 140vw;
+  height: 140vh;
+  background:
+    radial-gradient(circle at 20% 30%, var(--aurora-1), transparent 40%),
+    radial-gradient(circle at 80% 20%, var(--aurora-2), transparent 40%),
+    radial-gradient(circle at 50% 80%, var(--aurora-3), transparent 40%);
+  opacity: 0.15;
+  /* Subtle glow */
+  filter: blur(80px);
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* Root element (where Yew mounts) */
@@ -28,16 +67,29 @@ body {
 }
 
 /* Typography */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   margin: 0;
   font-weight: 600;
   line-height: 1.3;
   color: var(--ink);
 }
 
-h1 { font-size: var(--text-2xl); }
-h2 { font-size: var(--text-xl); }
-h3 { font-size: var(--text-lg); }
+h1 {
+  font-size: var(--text-2xl);
+}
+
+h2 {
+  font-size: var(--text-xl);
+}
+
+h3 {
+  font-size: var(--text-lg);
+}
 
 p {
   margin: 0 0 var(--s-4) 0;
@@ -64,14 +116,18 @@ a:hover {
 }
 
 /* Images and media */
-img, svg {
+img,
+svg {
   display: block;
   max-width: 100%;
   height: auto;
 }
 
 /* Form elements base styling */
-input, textarea, select, button {
+input,
+textarea,
+select,
+button {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
@@ -98,7 +154,8 @@ button {
 }
 
 /* Lists */
-ul, ol {
+ul,
+ol {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -138,6 +195,7 @@ ul, ol {
 
 /* Reduced motion support - critical for accessibility */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -146,7 +204,7 @@ ul, ol {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  
+
   /* Keep focus outline animations for accessibility */
   *:focus-visible {
     transition: outline var(--dur-fast) var(--ease-out) !important;
