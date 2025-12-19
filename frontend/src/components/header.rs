@@ -56,22 +56,8 @@ pub fn header(props: &HeaderProps) -> Html {
     html! {
         <header class="app-header">
             <div class="container">
-                {if app_state.current_user.is_some() {
-                    html! {
-                        <button
-                            class="btn-dashboard"
-                            onclick={{
-                                let ui_state = ui_state.clone();
-                                Callback::from(move |_| ui_state.dispatch(UIStateAction::ToggleDrawer))
-                            }}
-                        >
-                            <span class="btn-icon-text">{"☰"}</span>
-                            <span>{"Dashboard"}</span>
-                        </button>
-                    }
-                } else {
-                    html! {}
-                }}
+                // Dashboard button moved to separate component
+                <div class="header-left-spacer"></div>
 
                 <div class="header-center">
                     <h1 class="app-title">{"🎯 Dialect Coach"}</h1>

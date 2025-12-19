@@ -1,5 +1,6 @@
 pub mod branch_switcher_pill;
 pub mod chat_window;
+pub mod dashboard_button;
 pub mod drawer;
 pub mod gamification;
 pub mod header;
@@ -34,4 +35,5 @@ pub use translate_selection_button::TranslateSelectionButton;
 pub use translation_modal::TranslationModal;
 pub use user_creation::UserCreation;
 pub use dynamic_island::DynamicIsland;
+pub use dashboard_button::DashboardButton;
 pub use welcome_screen::WelcomeScreen;

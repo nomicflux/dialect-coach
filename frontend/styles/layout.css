@@ -170,36 +170,30 @@
   color: white;
 }
 
-.btn-dashboard {
-  position: fixed;
-  top: var(--s-4);
-  left: var(--s-4);
-  z-index: 200;
-  padding: var(--s-2) var(--s-3);
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--ink-faint);
-  border-radius: var(--r-pill);
-  display: flex;
+.app-header .container {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto) 1fr;
   align-items: center;
-  gap: var(--s-2);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--dur-fast) var(--ease-out);
-  box-shadow: var(--shadow-float);
+  gap: var(--s-8);
+  /* Increased gap for breathing room */
+  width: 100%;
 }
 
-.btn-dashboard:hover {
-  background: var(--teal);
-  color: white;
-  border-color: var(--teal);
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  justify-self: center;
+  grid-column: 2;
+  max-width: 100%;
 }
 
-.btn-icon-text {
-  font-size: var(--text-lg);
-  line-height: 1;
+.header-left-spacer {
+  grid-column: 1;
 }
+
+/* ... rest of existing CSS ... */
 
 /* Connection status indicator */
 .connection-status {

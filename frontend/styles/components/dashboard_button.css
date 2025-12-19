@@ -1,0 +1,77 @@
+/* Floating Dashboard Button - Glassmorphic Pill */
+.dashboard-float-container {
+    position: fixed;
+    top: var(--s-4);
+    left: var(--s-4);
+    z-index: 1000;
+    /* High z-index to stay above everything */
+}
+
+.btn-dashboard-float {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-4);
+
+    /* Glassmorphism Base */
+    background: rgba(var(--surface-rgb), 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--r-pill);
+
+    color: var(--ink);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+
+    /* Floating Effect */
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06),
+        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+
+    transition: all var(--dur-normal) var(--ease-out);
+
+    /* aurora glow hint */
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle inner glow/pulse */
+.btn-dashboard-float::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 50% 100%,
+            rgba(78, 205, 196, 0.15) 0%,
+            transparent 70%);
+    opacity: 0.6;
+    transition: opacity var(--dur-normal);
+}
+
+.btn-dashboard-float:hover {
+    transform: translateY(-2px);
+    background: rgba(var(--surface-rgb), 0.85);
+    box-shadow:
+        0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 4px 6px -2px rgba(0, 0, 0, 0.05),
+        0 0 0 1px rgba(78, 205, 196, 0.3) inset;
+    color: var(--teal);
+}
+
+.btn-dashboard-float:hover::before {
+    opacity: 1;
+}
+
+.btn-dashboard-float:active {
+    transform: translateY(0);
+}
+
+.dashboard-icon {
+    font-size: 1.25em;
+    line-height: 1;
+}

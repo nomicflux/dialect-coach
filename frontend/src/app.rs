@@ -19,7 +19,7 @@ pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 use log::{error, info};
 use yew::prelude::*;
 
-use crate::components::{Header, MainContent, UserCreation, WelcomeScreen};
+use crate::components::{DashboardButton, Header, MainContent, UserCreation, WelcomeScreen};
 use crate::hooks::use_debounced_save;
 
 use app_websocket_hooks::{use_chat_websocket, use_user_state_websocket, use_user_websocket};
@@ -79,6 +79,10 @@ pub fn app() -> Html {
 
     html! {
             <div class="app">
+                <DashboardButton
+                    app_state={app_state.clone()}
+                    ui_state={ui_state.clone()}
+                />
                 <Header
                     app_state={app_state.clone()}
                     ui_state={ui_state.clone()}
