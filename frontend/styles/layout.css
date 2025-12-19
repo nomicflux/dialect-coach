@@ -17,8 +17,8 @@
 
 /* Header - clean and minimal */
 .app-header {
-  background: rgba(17, 24, 39, 0.8);
-  /* Dark semi-transparent (var(--ink) approx) */
+  background: rgba(35, 40, 45, 0.9);
+  /* Lighter Neutral Grey for separation */
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);

@@ -5,23 +5,34 @@ pub fn aurora_branch_icon() -> Html {
     html! {
         <svg 
             class="icon-aurora-stream" 
-            viewBox="0 0 24 24" 
+            viewBox="0 0 60 40" 
+            width="60"
+            height="40"
             fill="none" 
-            stroke="currentColor" 
-            stroke-width="2.5" 
-            stroke-linecap="round" 
-            stroke-linejoin="round"
             xmlns="http://www.w3.org/2000/svg"
         >
-            // Main path fading straight ahead
-            <path d="M 4 21 L 4 14" opacity="0.7" />
+            <defs>
+                <linearGradient id="aurora-icon-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#4ECDC4;stop-opacity:1" />
+                    <stop offset="50%" style="stop-color:#A78BFA;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#FF6B6B;stop-opacity:1" />
+                </linearGradient>
+            </defs>
             
-            // The branching decision point (Neon Highway curve)
-            // Starts at bottom, curves smooth right
-            <path d="M 4 14 C 4 8, 10 4, 20 4" class="aurora-path-active" />
+            // faint guide line (optional, kept very subtle)
+            <path d="M 55 35 L 55 25" stroke="#4ECDC4" stroke-width="2" opacity="0.2" stroke-dasharray="2 2" />
             
-            // Arrow head for the branch
-            <path d="M 16 4 L 20 4 L 20 8" class="aurora-path-active" />
+            // THE NEON ROPE
+            // Smooth Quadratic Curve for physical flexibility look
+            // Starts bottom-right (55, 35), Control Point (25, 35), Ends top-left (15, 5)
+            <path 
+                d="M 55 35 Q 25 35 15 5" 
+                class="aurora-path-active" 
+                stroke="url(#aurora-icon-gradient)"
+                stroke-width="8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
         </svg>
     }
 }

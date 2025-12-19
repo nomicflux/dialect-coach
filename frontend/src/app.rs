@@ -79,10 +79,6 @@ pub fn app() -> Html {
 
     html! {
             <div class="app">
-                <DashboardButton
-                    app_state={app_state.clone()}
-                    ui_state={ui_state.clone()}
-                />
                 <Header
                     app_state={app_state.clone()}
                     ui_state={ui_state.clone()}
@@ -93,6 +89,10 @@ pub fn app() -> Html {
                     class="app-main"
                     data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
                 >
+                    <DashboardButton
+                        app_state={app_state.clone()}
+                        ui_state={ui_state.clone()}
+                    />
                     {if ui_state.show_user_creation_page {
                         html! {
                             <UserCreation

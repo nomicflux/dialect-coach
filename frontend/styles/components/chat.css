@@ -428,37 +428,63 @@
 }
 
 /* Branch point button - displayed under messages */
+/* Branch point button - PURE NEON PATH */
+/* Branch point button - PURE NEON ROPE IMPLEMENTATION */
 .branch-button {
-  margin: var(--s-2) 0 var(--s-2) calc(var(--avatar-size) + var(--s-3));
-  padding: var(--s-2) var(--s-3);
-  background: var(--surface-muted);
-  border: 1px solid var(--teal);
-  border-radius: var(--r-m);
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: 500;
+  /* Position adjustments for the larger rope */
+  margin: var(--s-2) 0 var(--s-2) calc(var(--avatar-size) + var(--s-3) - 35px);
+  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   display: inline-flex;
   align-items: center;
-  gap: var(--s-2);
   cursor: pointer;
-  transition: all var(--dur-fast) var(--ease-out);
+  /* Large container */
+  width: 60px;
+  height: 40px;
+  overflow: visible !important;
+  position: relative;
+  z-index: 5;
 }
 
+.branch-button:focus {
+  outline: none;
+}
+
+/* Base state: The Neon Rope */
+/* Note: Stroke color is handled by SVG Gradient. We control Width and Filter here. */
+.branch-button .icon-aurora-stream path {
+  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Visible Day Glow - casting colored light */
+  filter: drop-shadow(0 0 5px rgba(78, 205, 196, 0.6)) drop-shadow(0 0 10px rgba(167, 139, 250, 0.4));
+  transform-origin: center;
+}
+
+/* Hover: MAXIMUM OVERDRIVE GLOW */
+.branch-button:hover .icon-aurora-stream path {
+  stroke-width: 10 !important;
+  /* Swell the tube */
+  /* Triple Layer Colored Light */
+  filter: drop-shadow(0 0 8px rgba(78, 205, 196, 1.0)) drop-shadow(0 0 15px rgba(167, 139, 250, 0.8)) drop-shadow(0 0 30px rgba(255, 107, 107, 0.6));
+}
+
+/* Has Children: Even more intense Coral presence if needed, 
+   but the gradient already includes Coral. We emphasize the "Fire" aspect. */
+.branch-button--has-children .icon-aurora-stream path {
+  /* We can shift the hue filter to make the whole rope look "Hotter" */
+  filter: hue-rotate(-20deg) drop-shadow(0 0 5px rgba(255, 107, 107, 0.8));
+}
+
+.branch-button--has-children:hover .icon-aurora-stream path {
+  stroke-width: 11 !important;
+  filter: hue-rotate(-20deg) drop-shadow(0 0 8px rgba(255, 107, 107, 1.0)) drop-shadow(0 0 20px rgba(255, 230, 109, 0.8));
+}
+
+/* Physical Container Swell */
 .branch-button:hover {
-  background: var(--teal-tint);
-  border-color: var(--teal);
-  transform: translateY(-1px);
-}
-
-.branch-button--has-children {
-  border-color: var(--coral);
-  background: var(--coral-tint);
-}
-
-.branch-button--has-children:hover {
-  background: var(--coral);
-  color: white;
-  border-color: var(--coral);
+  transform: scale(1.1);
+  background: transparent !important;
 }
 
 /* Continue branch button */
