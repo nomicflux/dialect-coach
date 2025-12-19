@@ -1,5 +1,6 @@
 use yew::prelude::*;
-use crate::components::icons::AuroraBranchIcon;
+// Icon removed
+
 
 #[derive(Properties, PartialEq)]
 pub struct BranchSwitcherPillProps {
@@ -17,7 +18,8 @@ pub fn branch_switcher_pill(props: &BranchSwitcherPillProps) -> Html {
             onclick={move |_| onclick.emit(())}
             title="Switch Branch"
         >
-            <span class="branch-icon"><AuroraBranchIcon /></span>
+            // Icon placeholder if needed
+
             <span class="branch-name">{&props.branch_name}</span>
             <span class="chevron">{"›"}</span>
         </button>

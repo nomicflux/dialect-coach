@@ -428,64 +428,65 @@
 }
 
 /* Branch point button - displayed under messages */
-/* Branch point button - PURE NEON PATH */
-/* Branch point button - PURE NEON ROPE IMPLEMENTATION */
-.branch-button {
-  /* Position adjustments for the larger rope */
-  margin: var(--s-2) 0 var(--s-2) calc(var(--avatar-size) + var(--s-3) - 35px);
-  padding: 0;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  display: inline-flex;
-  align-items: center;
+
+/* Neon Rope Container: Absolute positioning to hang off the message */
+.neon-rope-container {
+  position: absolute;
+  /* Move it significantly to the left of the message bubble */
+  /* Assuming parent is the message row or bubble wrapper */
+  left: -60px;
+  bottom: -10px;
+  /* Hang slightly below */
+  width: 120px;
+  height: 80px;
+  z-index: 10;
   cursor: pointer;
-  /* Large container */
-  width: 60px;
-  height: 40px;
-  overflow: visible !important;
-  position: relative;
-  z-index: 5;
+  /* No box behavior */
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
 }
 
-.branch-button:focus {
-  outline: none;
+.neon-rope-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* Let the glow spill over */
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Base state: The Neon Rope */
-/* Note: Stroke color is handled by SVG Gradient. We control Width and Filter here. */
-.branch-button .icon-aurora-stream path {
-  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-  /* Visible Day Glow - casting colored light */
-  filter: drop-shadow(0 0 5px rgba(78, 205, 196, 0.6)) drop-shadow(0 0 10px rgba(167, 139, 250, 0.4));
-  transform-origin: center;
-}
-
-/* Hover: MAXIMUM OVERDRIVE GLOW */
-.branch-button:hover .icon-aurora-stream path {
-  stroke-width: 10 !important;
-  /* Swell the tube */
-  /* Triple Layer Colored Light */
-  filter: drop-shadow(0 0 8px rgba(78, 205, 196, 1.0)) drop-shadow(0 0 15px rgba(167, 139, 250, 0.8)) drop-shadow(0 0 30px rgba(255, 107, 107, 0.6));
-}
-
-/* Has Children: Even more intense Coral presence if needed, 
-   but the gradient already includes Coral. We emphasize the "Fire" aspect. */
-.branch-button--has-children .icon-aurora-stream path {
-  /* We can shift the hue filter to make the whole rope look "Hotter" */
-  filter: hue-rotate(-20deg) drop-shadow(0 0 5px rgba(255, 107, 107, 0.8));
-}
-
-.branch-button--has-children:hover .icon-aurora-stream path {
-  stroke-width: 11 !important;
-  filter: hue-rotate(-20deg) drop-shadow(0 0 8px rgba(255, 107, 107, 1.0)) drop-shadow(0 0 20px rgba(255, 230, 109, 0.8));
-}
-
-/* Physical Container Swell */
-.branch-button:hover {
+/* Hover Interaction: Swell the whole rope */
+.neon-rope-container:hover .neon-rope-svg {
   transform: scale(1.1);
-  background: transparent !important;
 }
+
+/* Target specific layers on hover for "Heat" effect */
+.neon-rope-container:hover .rope-glow {
+  opacity: 0.8;
+  filter: blur(6px);
+  /* Increasing blur radius via filter if possible, else reliance on opacity */
+  stroke-width: 16px;
+  /* Fatten the glow */
+  transition: all 0.3s ease-out;
+}
+
+.neon-rope-container:hover .rope-core {
+  stroke-width: 8px;
+  /* Fatten the tube */
+  filter: drop-shadow(0 0 10px white);
+  /* Add a white hot core glow */
+  transition: all 0.3s ease-out;
+}
+
+.neon-rope-container:hover .rope-highlight {
+  opacity: 1;
+  /* Sharpen the reflection */
+  stroke-width: 3px;
+  transition: all 0.3s ease-out;
+}
+
 
 /* Continue branch button */
 .continue-branch-container {
@@ -523,7 +524,7 @@
     transform: none;
   }
 
-  .branch-button:hover {
+  .neon-rope-container:hover .neon-rope-svg {
     transform: none;
   }
 }

@@ -1,5 +1,5 @@
 use crate::components::TranslateSelectionButton;
-use crate::components::icons::AuroraBranchIcon;
+use crate::components::icons::NeonRope;
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Language, LanguageOption, Message};
 use uuid::Uuid;
@@ -278,19 +278,11 @@ fn render_branch_button(
 ) -> Html {
     if let Some(callback) = on_create_branch {
         let cb = callback.clone();
-        let onclick = Callback::from(move |_| cb.emit(msg_id));
-        let title = if has_children {
-            "Branch from here (has existing branches)"
-        } else {
-            "Branch from here"
-        };
-        let class = if has_children {
-            "branch-button branch-button--has-children"
-        } else {
-            "branch-button"
-        };
+        let common_onclick = Callback::from(move |_| cb.emit(msg_id));
+        
+        // Use the new NeonRope component directly, which handles its own layout/container
         html! {
-            <button {class} {onclick} {title}><AuroraBranchIcon /></button>
+            <NeonRope on_click={common_onclick} has_children={has_children} />
         }
     } else {
         html! {}
