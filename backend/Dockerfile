@@ -1,33 +1,8 @@
-FROM lukemathwalker/cargo-chef:0.1.73-rust-1.92 AS chef
-WORKDIR /app
-
-
-# Stage: Infrastructure
-# Purpose: Install heavy system dependencies. content-agnostic.
-# STRICT ISOLATION: This stage has NO COPY instructions. It cannot be invalidated by source changes.
-FROM chef AS infrastructure
-
-RUN dpkg --add-architecture amd64 && \
-    apt-get update && \
-    apt-get install -y \
-    gcc-x86-64-linux-gnu \
-    g++-x86-64-linux-gnu \
-    libc6-dev-amd64-cross \
-    libstdc++-12-dev-amd64-cross \
-    libssl-dev:amd64 \
-    pkg-config
-
-ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc
-ENV PKG_CONFIG_ALLOW_CROSS=1
-ENV PKG_CONFIG_PATH_X86_64_UNKNOWN_LINUX_GNU=/usr/lib/x86_64-linux-gnu/pkgconfig
-ENV OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
-ENV OPENSSL_INCLUDE_DIR=/usr/include
-
-RUN rustup target add x86_64-unknown-linux-gnu
+# syntax=docker/dockerfile:1.4
+FROM dialect-coach-backend-infrastructure:0.1.0 AS base
 
 # Stage: Planner
-# Purpose: Generate recipe.json (Volatile source code)
-FROM chef AS planner
+FROM base AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY backend backend
 COPY shared shared
@@ -35,20 +10,15 @@ COPY frontend frontend
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage: Builder
-# Purpose: Build dependencies and binary (Uses Infrastructure + Recipe)
-FROM infrastructure AS builder
+FROM base AS builder
 COPY --from=planner /app/recipe.json recipe.json
-
-# Cook dependencies
-# FIREWALL: Source code is NOT copied yet. This layer is CACHED unless recipe.json changes.
 RUN cargo chef cook --release --target x86_64-unknown-linux-gnu --recipe-path recipe.json -p dialect-coach-backend
 
 COPY . .
-# Build backend
 RUN cargo build --release --target x86_64-unknown-linux-gnu --bin backend
 
-# Stage: Runtime
-FROM --platform=linux/amd64 debian:bookworm-slim AS runtime
+# Stage: Runtime (x86_64 to match the cross-compiled binary)
+FROM --platform=linux/amd64 debian:trixie-20251208-slim AS runtime
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \

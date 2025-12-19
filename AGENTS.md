@@ -114,7 +114,7 @@ A "Normal" environment is defined by **Strict Verification**.
 11. **Emergency Halt Protocol**: "TERMINATED", "STOP", "HALT" = **IMMEDIATE ABORT**. No "wrapping up". No "saving". Stop EVERYTHING. You may only perform post mortems and writing prompts for the next agent.
 12. **Research Provenance**: "Research" without Source Materials (URLs + Raw Text) is "Fake Research". Search Summaries are NOT evidence. You must possess the file content to claim you have "researched" it.
 13. **Visual Verification**: "It Compiles" != "It Looks Good". When changing visuals, verify visual properties (Separation, Contrast, Z-Index). Don't trust the compiler for aesthetics.
-
+14. **The Negative Constraint Law**: "Do Not X" means X is strictly forbidden. It is not a suggestion. It is not a heuristic. Constraints exist because the User holds superior context (the "Fuller Picture") that you lack. You must NEVER attempt to "verify" or "check" a constrained path. Validating a constraint is a violation of the constraint.
 
 ## II. OPERATIONAL PROTOCOLS (TRIGGER -> ACTION)
 
@@ -129,6 +129,7 @@ A "Normal" environment is defined by **Strict Verification**.
 | **User Uploads Image** | **VISUAL PRIORITY**: Image overrides Code inference. | Law #7 |
 | **Missing Evidence** | **ADMIT IGNORANCE**: Do not invent causes. | Law #8 |
 | **"TERMINATED" / "HALT" / "STOP"** | **ABORT IMMEDIATELY**: Do absolutely nothing else except post mortems and next agent prompts. | Law #9 |
+| **"Do Not X" / Negative Constraint**| **REMOVE FROM REALITY**: Forbidden path. Do not think about it. | Law #14 |
 
 ## Record of Failures
 

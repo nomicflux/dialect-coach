@@ -1,0 +1,15 @@
+debug = true
+
+[worker.oci]
+  enabled = true
+  gc = true
+  gckeepstorage = 50000 # 50GB
+
+[[worker.oci.gcpolicy]]
+  keepBytes = 53687091200 # 50GB
+  keepDuration = 172800 # 48h
+  filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
+
+[[worker.oci.gcpolicy]]
+  all = true
+  keepBytes = 107374182400 # 100GB

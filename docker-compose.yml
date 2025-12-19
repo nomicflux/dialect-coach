@@ -17,9 +17,7 @@ services:
       retries: 5
 
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    image: dialect-coach-backend:latest
     env_file: .env
     environment:
       DATABASE_URL: postgres://dialect_coach:dialect_coach_dev@postgres:5432/dialect_coach
@@ -31,9 +29,7 @@ services:
       - "3000:3000"
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
+    image: dialect-coach-frontend:latest
     ports:
       - "8080:80"
     depends_on:

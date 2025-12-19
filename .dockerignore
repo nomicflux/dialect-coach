@@ -1,7 +1,7 @@
 target/
 .git/
 .env
-.fastembed_cach/
+**/.fastembed_cache/
 frontend/node_modules/
 frontend/dist/
 corpus-processor/
