@@ -173,10 +173,21 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 2. **No "Trust Me"**: Do not ask the user to trust your summary. Show the evidence.
 3. **Completeness**: "Research Complete" means "I have the files on my disk". If you only have a browser tab summary, you are not done.
 
-## 2025-12-18: Visual Separation & Magnitude (Implementation Failure)
+## 2025-12-18: Visual Separation & Magnitude of Change
+- **When a user asks for "separation", "off the header", or "radical change", do not iterate with padding/margin adjustments.** Padding is invisible. Separation requires a change in layout context (e.g., Grid vs Flex) or physical placement (DOM order or Fixed Positioning outside the container). Incrementalism in the face of a demand for radical change destroys trust.
+- **Example**: Trying to fix a "cramped" flex header by adding 4px of gap, when the user wanted the elements to be entirely decoupled.
+- **Illusion of Progress**: Do not mistake "Writing Code" for "Changing the Outcome". If the user says "Nothing changed", your 4px adjustment was worthless. Pivot to a radical structural change immediately.
+- **Avoid Binary Overcorrection**: If a specific element (e.g., Dashboard Button) is misplaced relative to a container (Header), do not conclude the *Container* must be destroyed. Move the element.
 **Context**: User asked to separate a button from the header. I gave it `position: fixed` but it sat on top of the sticky header of the same color, looking identical. I also increased spacing slightly, which was invisible.
 **Mistake**: **Blind Implementation**. I assumed code separation (`App` vs `Header`) equals visual separation. It does not.
 **Lesson**:
 1.  **Visual Context Matters**: `position: fixed` on top of a background of the same color is invisible. You must ensure contrast or background removal.
 2.  **Magnitude of Change**: If a user says "Cramped," distinct structural changes are needed, not just increments.
 3.  **Verify the Look**: "It compiles" does not mean "It looks different."
+
+### Frontend: Design Tokens & Dark Mode
+- **Never assume the color of a semantic variable (e.g., `var(--ink)`) without checking the definitions**. In many systems (including this one), semantic tokens like "Ink" invert in dark mode (becoming White). Using them for backgrounds can lead to inverted, glaring UI elements.
+- **Action**: When building "Widgets" or elements that must maintain a specific look (e.g., "Dark Card") regardless of theme, either use explicit color values or tokens specifically designed for "Surfaces" (like `var(--surface)`), not text tokens.
+
+### Build Verification for Visuals
+- **A visual fix is not real until the code compiles.** Changes to CSS or Rust components will not appear if the build fails silently. Always run `cargo check` after making changes that affect component structure, even if you think it's "just a small tweak". 

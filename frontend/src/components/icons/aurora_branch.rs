@@ -8,13 +8,13 @@ pub fn aurora_branch_icon() -> Html {
             viewBox="0 0 24 24" 
             fill="none" 
             stroke="currentColor" 
-            stroke-width="2" 
+            stroke-width="2.5" 
             stroke-linecap="round" 
             stroke-linejoin="round"
             xmlns="http://www.w3.org/2000/svg"
         >
             // Main path fading straight ahead
-            <path d="M 4 21 L 4 14" opacity="0.5" />
+            <path d="M 4 21 L 4 14" opacity="0.7" />
             
             // The branching decision point (Neon Highway curve)
             // Starts at bottom, curves smooth right

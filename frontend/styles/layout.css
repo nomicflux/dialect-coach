@@ -17,10 +17,12 @@
 
 /* Header - clean and minimal */
 .app-header {
-  background: transparent;
-  /* Transparent to decouple from dashboard button */
-  /* Border removed to enhance open feel */
-  padding: var(--s-6) 0;
+  background: rgba(17, 24, 39, 0.8);
+  /* Dark semi-transparent (var(--ink) approx) */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: var(--s-4) 0;
   /* Increased padding */
   position: sticky;
   top: 0;
@@ -37,7 +39,10 @@
   grid-template-areas: "left center right";
   align-items: center;
   width: 100%;
-  padding: 0 var(--s-4);
+  max-width: none;
+  /* FORCE FULL WIDTH - NO CENTER COLUMN CONSTRAINT */
+  padding: 0 var(--s-8);
+  /* Push sides far apart */
   /* Ensure header stack on small screens */
   gap: var(--s-4);
 }
