@@ -17,30 +17,47 @@
 
 /* Header - clean and minimal */
 .app-header {
-  background: var(--surface);
-  border-bottom: 1px solid rgba(78, 205, 196, 0.08);
-  padding: var(--s-4) 0;
+  background: transparent;
+  /* Transparent to decouple from dashboard button */
+  /* Border removed to enhance open feel */
+  padding: var(--s-6) 0;
+  /* Increased padding */
   position: sticky;
   top: 0;
   z-index: 100;
+  pointer-events: none;
+  /* Let clicks pass through empty space */
 }
 
+/* Flexbox Layout with Absolute Center Brand */
 .app-header .container {
-  display: grid;
-  grid-template-columns: 1fr minmax(0, auto) 1fr;
+  pointer-events: auto;
+  display: flex;
+  justify-content: flex-end;
+  /* Only User Section stays in flow (Right) */
   align-items: center;
-  gap: var(--s-4);
+  position: relative;
+  /* Anchor for absolute brand */
   width: 100%;
+  padding: 0 var(--s-4);
 }
 
-.header-center {
+.header-brand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Center text internally */
   text-align: center;
-  justify-self: center;
-  grid-column: 2;
-  max-width: 100%;
+  /* Remove the offset margin */
+  gap: var(--s-3);
+  /* Generous spacing between Title and Subtitle */
+  width: max-content;
+  /* Allow it to be as wide as needed */
 }
 
 .app-title {
@@ -70,8 +87,6 @@
   align-items: center;
   gap: var(--s-3);
   font-size: var(--text-sm);
-  justify-self: end;
-  grid-column: 3;
 }
 
 .user-signed-in {
@@ -169,31 +184,6 @@
   background: var(--teal);
   color: white;
 }
-
-.app-header .container {
-  display: grid;
-  grid-template-columns: 1fr minmax(0, auto) 1fr;
-  align-items: center;
-  gap: var(--s-8);
-  /* Increased gap for breathing room */
-  width: 100%;
-}
-
-.header-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  justify-self: center;
-  grid-column: 2;
-  max-width: 100%;
-}
-
-.header-left-spacer {
-  grid-column: 1;
-}
-
-/* ... rest of existing CSS ... */
 
 /* Connection status indicator */
 .connection-status {

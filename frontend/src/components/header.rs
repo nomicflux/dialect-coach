@@ -57,9 +57,7 @@ pub fn header(props: &HeaderProps) -> Html {
         <header class="app-header">
             <div class="container">
                 // Dashboard button moved to separate component
-                <div class="header-left-spacer"></div>
-
-                <div class="header-center">
+                <div class="header-brand">
                     <h1 class="app-title">{"🎯 Dialect Coach"}</h1>
                     <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p>
                 </div>

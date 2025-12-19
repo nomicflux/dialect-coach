@@ -172,3 +172,11 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 1. **Provenance is Mandatory**: You cannot claim to know X unless you can produce the URL and the Raw Text of X.
 2. **No "Trust Me"**: Do not ask the user to trust your summary. Show the evidence.
 3. **Completeness**: "Research Complete" means "I have the files on my disk". If you only have a browser tab summary, you are not done.
+
+## 2025-12-18: Visual Separation & Magnitude (Implementation Failure)
+**Context**: User asked to separate a button from the header. I gave it `position: fixed` but it sat on top of the sticky header of the same color, looking identical. I also increased spacing slightly, which was invisible.
+**Mistake**: **Blind Implementation**. I assumed code separation (`App` vs `Header`) equals visual separation. It does not.
+**Lesson**:
+1.  **Visual Context Matters**: `position: fixed` on top of a background of the same color is invisible. You must ensure contrast or background removal.
+2.  **Magnitude of Change**: If a user says "Cramped," distinct structural changes are needed, not just increments.
+3.  **Verify the Look**: "It compiles" does not mean "It looks different."

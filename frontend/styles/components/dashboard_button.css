@@ -13,29 +13,30 @@
     gap: var(--s-2);
     padding: var(--s-2) var(--s-4);
 
-    /* Glassmorphism Base */
-    background: rgba(var(--surface-rgb), 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    /* High Contrast Widget Style */
+    background: var(--ink);
+    /* Solid Dark Background */
+    border: 2px solid var(--teal);
+    /* Strong Accent Border */
     border-radius: var(--r-pill);
 
-    color: var(--ink);
+    color: white;
+    /* High contrast text */
     font-size: var(--text-sm);
-    font-weight: 600;
+    font-weight: 700;
+    /* Bolder text */
     cursor: pointer;
 
-    /* Floating Effect */
-    box-shadow:
-        0 4px 6px -1px rgba(0, 0, 0, 0.1),
-        0 2px 4px -1px rgba(0, 0, 0, 0.06),
-        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    /* Strong Lift Shadow */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 
     transition: all var(--dur-normal) var(--ease-out);
 
-    /* aurora glow hint */
+    /* Hints */
     position: relative;
     overflow: hidden;
+    z-index: 1001;
+    /* Ensure top of stack */
 }
 
 /* Subtle inner glow/pulse */

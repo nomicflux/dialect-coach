@@ -113,6 +113,8 @@ A "Normal" environment is defined by **Strict Verification**.
 10. **Log Fixation Warning**: Do not demand logs as a crutch. Logs often cause "Information Overload" where agents fixate on irrelevant red herrings. You must be able to reason about the system structure and user-reported symptoms *first*. Logs are secondary to understanding the architecture.
 11. **Emergency Halt Protocol**: "TERMINATED", "STOP", "HALT" = **IMMEDIATE ABORT**. No "wrapping up". No "saving". Stop EVERYTHING. You may only perform post mortems and writing prompts for the next agent.
 12. **Research Provenance**: "Research" without Source Materials (URLs + Raw Text) is "Fake Research". Search Summaries are NOT evidence. You must possess the file content to claim you have "researched" it.
+13. **Visual Verification**: "It Compiles" != "It Looks Good". When changing visuals, verify visual properties (Separation, Contrast, Z-Index). Don't trust the compiler for aesthetics.
+
 
 ## II. OPERATIONAL PROTOCOLS (TRIGGER -> ACTION)
 
