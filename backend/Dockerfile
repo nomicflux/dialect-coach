@@ -28,6 +28,12 @@ RUN rustup target add x86_64-unknown-linux-gnu
 # Stage: Planner
 # Purpose: Generate recipe.json (Volatile source code)
 FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY backend backend
+COPY shared shared
+# INTENTIONAL DEVIATION FROM QDRANT: Selective Copy
+# We avoid `COPY . .` to ensure `frontend` changes do NOT invalidate the backend planner.
+# This strictly satisfies: "Non-relevant code changes should not require rebuilds."
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage: Builder
@@ -35,9 +41,8 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM infrastructure AS builder
 COPY --from=planner /app/recipe.json recipe.json
 
-COPY . .
-
 # Cook dependencies
+# FIREWALL: Source code is NOT copied yet. This layer is CACHED unless recipe.json changes.
 RUN cargo chef cook --release --target x86_64-unknown-linux-gnu --recipe-path recipe.json -p dialect-coach-backend
 
 COPY . .

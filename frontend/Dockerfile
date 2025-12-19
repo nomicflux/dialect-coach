@@ -10,6 +10,11 @@ RUN cargo install trunk
 RUN rustup target add wasm32-unknown-unknown
 
 FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY frontend frontend
+COPY shared shared
+# INTENTIONAL DEVIATION FROM QDRANT: Selective Copy
+# We avoid `COPY . .` to ensure `backend` changes do NOT invalidate the frontend planner.
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM infrastructure AS builder
@@ -18,7 +23,6 @@ FROM infrastructure AS builder
 COPY --from=planner /app/recipe.json recipe.json
 # Install trunk and target in builder stage to ensure caching
 
-COPY . .
 
 # Cook dependencies for frontend
 RUN cargo chef cook --release --target wasm32-unknown-unknown --recipe-path recipe.json -p dialect-coach-frontend
