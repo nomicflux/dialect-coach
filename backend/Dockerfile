@@ -31,9 +31,7 @@ FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY backend backend
 COPY shared shared
-# INTENTIONAL DEVIATION FROM QDRANT: Selective Copy
-# We avoid `COPY . .` to ensure `frontend` changes do NOT invalidate the backend planner.
-# This strictly satisfies: "Non-relevant code changes should not require rebuilds."
+COPY frontend frontend
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage: Builder

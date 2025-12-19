@@ -1,3 +1,4 @@
+use crate::components::utility_sidebar::learning_item::LearningItemState;
 use dialect_coach_shared::models::{LearningItem, LearningItemType};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -127,10 +128,13 @@ fn render_single_item(
 ) -> Html {
     let id = get_item_id(item);
     let onclick = make_item_swap_callback(id, state, all_items.to_vec());
+    let item_state = LearningItemState::from_score(item.score);
 
     html! {
-        <div class="island-item" {onclick} title="Click to swap">
+        <div class={classes!("island-item", item_state.css_class())} {onclick} title={format!("Click to swap • {} ({}%)", item_state.label(), item.score)}>
+            <span class="state-indicator">{item_state.icon()}</span>
             <span class="island-text">{get_item_text(item)}</span>
+            <span class="island-score">{format!("{}%", item.score)}</span>
         </div>
     }
 }

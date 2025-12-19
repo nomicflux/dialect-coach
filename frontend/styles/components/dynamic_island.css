@@ -142,11 +142,76 @@
     align-items: center;
     gap: var(--s-2);
     font-size: var(--text-sm);
-    transition: background var(--dur-fast);
+    transition: all var(--dur-fast);
+    border-left: 2px solid transparent;
 }
 
 .island-item:hover {
     background: rgba(255, 255, 255, 0.1);
+}
+
+/* State indicators for island items */
+.island-item .state-indicator {
+    font-size: 14px;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.island-item .island-score {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    flex-shrink: 0;
+}
+
+/* State-based styling for island items */
+.island-item.state-new {
+    border-left-color: rgba(255, 255, 255, 0.2);
+}
+
+.island-item.state-started {
+    border-left-color: rgba(100, 149, 237, 0.6);
+}
+
+.island-item.state-started .state-indicator {
+    color: rgba(100, 149, 237, 1);
+}
+
+.island-item.state-activated {
+    border-left-color: rgba(255, 193, 7, 0.7);
+}
+
+.island-item.state-activated .state-indicator {
+    color: rgba(255, 193, 7, 1);
+}
+
+.island-item.state-competent {
+    border-left-color: rgba(78, 205, 196, 0.8);
+}
+
+.island-item.state-competent .state-indicator {
+    color: rgba(78, 205, 196, 1);
+}
+
+.island-item.state-mastered {
+    border-left-color: rgba(0, 200, 83, 0.9);
+}
+
+.island-item.state-mastered .state-indicator {
+    color: rgba(0, 200, 83, 1);
+}
+
+.island-item.state-perfected {
+    border-left-color: rgba(255, 215, 0, 1);
+    background: rgba(255, 215, 0, 0.1);
+}
+
+.island-item.state-perfected .state-indicator {
+    color: rgba(255, 215, 0, 1);
+}
+
+.island-item.state-perfected .island-score {
+    color: rgba(255, 215, 0, 1);
 }
 
 .island-text.large {

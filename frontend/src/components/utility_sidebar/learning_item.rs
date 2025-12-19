@@ -4,6 +4,62 @@ use dialect_coach_shared::{
 use uuid::Uuid;
 use yew::prelude::*;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LearningItemState {
+    New,        // 0
+    Started,    // >0
+    Activated,  // >20
+    Competent,  // >50
+    Mastered,   // >80
+    Perfected,  // 100
+}
+
+impl LearningItemState {
+    pub fn from_score(score: u8) -> Self {
+        match score {
+            100..=u8::MAX => Self::Perfected,
+            81..=99 => Self::Mastered,
+            51..=80 => Self::Competent,
+            21..=50 => Self::Activated,
+            1..=20 => Self::Started,
+            0 => Self::New,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::New => "New",
+            Self::Started => "Started",
+            Self::Activated => "Activated",
+            Self::Competent => "Competent",
+            Self::Mastered => "Mastered",
+            Self::Perfected => "Perfected",
+        }
+    }
+
+    pub fn css_class(&self) -> &'static str {
+        match self {
+            Self::New => "state-new",
+            Self::Started => "state-started",
+            Self::Activated => "state-activated",
+            Self::Competent => "state-competent",
+            Self::Mastered => "state-mastered",
+            Self::Perfected => "state-perfected",
+        }
+    }
+
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::New => "◯",
+            Self::Started => "◔",
+            Self::Activated => "◑",
+            Self::Competent => "◕",
+            Self::Mastered => "⬤",
+            Self::Perfected => "★",
+        }
+    }
+}
+
 pub fn get_learning_item_id(item: &LearningItem) -> Uuid {
     match &item.item {
         LearningItemType::Mistake(m) => m.id,
@@ -63,10 +119,11 @@ pub fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> H
     let accent_color = get_accent_color(&item.item);
     let item_id = get_learning_item_id(item);
     let score_pct = item.score;
+    let state = LearningItemState::from_score(item.score);
 
     // Subtle glass card style
     html! {
-        <li class="learning-card" style={format!("--accent-color: {}", accent_color)} title={tooltip}>
+        <li class={classes!("learning-card", state.css_class())} style={format!("--accent-color: {}", accent_color)} title={tooltip}>
             <div class="card-icon">{icon}</div>
             <div class="card-content">
                 <div class="card-title">{title}</div>
@@ -74,8 +131,11 @@ pub fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> H
             </div>
             <div class="card-meta">
                 <div class="score-ring" style={format!("--score: {}%", score_pct)}>
-                     // Visual ring or text handled by CSS/SVG, or just simple text for now
                     <span class="score-text">{format!("{}%", score_pct)}</span>
+                </div>
+                <div class="state-badge" title={format!("{} ({}%)", state.label(), score_pct)}>
+                    <span class="state-icon">{state.icon()}</span>
+                    <span class="state-label">{state.label()}</span>
                 </div>
                 <button
                     class="card-delete-button"

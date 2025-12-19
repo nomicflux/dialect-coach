@@ -302,7 +302,7 @@ fn check_step_completion(state: &mut UserState) {
     {
         let all_passed = content.items.iter().all(|plan_item| {
             state.learning_items.iter().any(|item| {
-                get_learning_item_id(item) == get_learning_item_id(plan_item) && item.score >= 80
+                get_learning_item_id(item) == get_learning_item_id(plan_item) && item.score >= 50
             })
         });
 
@@ -412,7 +412,7 @@ mod tests {
         );
         let plan_item = LearningItem::new(LearningItemType::Mistake(mistake.clone()), dialect);
         let mut active_item = plan_item.clone();
-        active_item.score = 80;
+        active_item.score = 50;
 
         plan.steps.push(PlanStep::new(
             1,
