@@ -104,7 +104,7 @@ fn get_item_parts(item: &LearningItem) -> (String, String, &'static str) {
     }
 }
 
-fn get_accent_color(item: &LearningItemType) -> &'static str {
+pub fn get_accent_color(item: &LearningItemType) -> &'static str {
     match item {
         LearningItemType::Mistake(_) => "var(--coral)",
         LearningItemType::Explanation(_) => "var(--teal)",

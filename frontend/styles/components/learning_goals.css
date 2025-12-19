@@ -343,86 +343,108 @@
   color: var(--ink-soft);
 }
 
-/* State-based card styling */
+/* State-based card styling - intensity/glow variations */
+/* New: Low opacity, minimal glow */
 .learning-card.state-new {
-  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  opacity: 0.7;
+  filter: saturate(0.5);
 }
 
 .learning-card.state-new .state-badge {
   background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .learning-card.state-new .state-label {
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* Started: Slightly increased opacity and saturation */
 .learning-card.state-started {
-  border-left: 3px solid rgba(100, 149, 237, 0.5);
+  opacity: 0.8;
+  filter: saturate(0.7);
 }
 
 .learning-card.state-started .state-badge {
-  background: rgba(100, 149, 237, 0.15);
-  border-color: rgba(100, 149, 237, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .learning-card.state-started .state-label {
-  color: rgba(100, 149, 237, 0.9);
+  color: rgba(255, 255, 255, 0.5);
 }
 
+/* Activated: Normal opacity, normal saturation */
 .learning-card.state-activated {
-  border-left: 3px solid rgba(255, 193, 7, 0.6);
+  opacity: 0.9;
+  filter: saturate(1);
 }
 
 .learning-card.state-activated .state-badge {
-  background: rgba(255, 193, 7, 0.2);
-  border-color: rgba(255, 193, 7, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .learning-card.state-activated .state-label {
-  color: rgba(255, 193, 7, 1);
+  color: rgba(255, 255, 255, 0.6);
 }
 
+/* Competent: Full opacity, enhanced saturation, subtle glow */
 .learning-card.state-competent {
-  border-left: 3px solid rgba(78, 205, 196, 0.7);
+  opacity: 1;
+  filter: saturate(1.2) drop-shadow(0 0 4px var(--accent-color));
 }
 
 .learning-card.state-competent .state-badge {
-  background: rgba(78, 205, 196, 0.2);
-  border-color: rgba(78, 205, 196, 0.4);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .learning-card.state-competent .state-label {
-  color: rgba(78, 205, 196, 1);
+  color: rgba(255, 255, 255, 0.7);
 }
 
+/* Mastered: Full opacity, high saturation, medium glow */
 .learning-card.state-mastered {
-  border-left: 3px solid rgba(0, 200, 83, 0.8);
+  opacity: 1;
+  filter: saturate(1.4) brightness(1.05) drop-shadow(0 0 6px var(--accent-color));
 }
 
 .learning-card.state-mastered .state-badge {
-  background: rgba(0, 200, 83, 0.25);
-  border-color: rgba(0, 200, 83, 0.5);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .learning-card.state-mastered .state-label {
-  color: rgba(0, 200, 83, 1);
+  color: rgba(255, 255, 255, 0.8);
 }
 
+/* Perfected: Full everything, intense glow */
 .learning-card.state-perfected {
-  border-left: 3px solid rgba(255, 215, 0, 0.9);
-  background: rgba(255, 215, 0, 0.05);
+  opacity: 1;
+  filter: saturate(1.6) brightness(1.1) drop-shadow(0 0 10px var(--accent-color)) drop-shadow(0 0 20px var(--accent-color));
+  animation: perfected-pulse 2s ease-in-out infinite;
 }
 
 .learning-card.state-perfected .state-badge {
-  background: rgba(255, 215, 0, 0.3);
-  border-color: rgba(255, 215, 0, 0.6);
+  background: rgba(255, 215, 0, 0.2);
+  border-color: rgba(255, 215, 0, 0.4);
 }
 
 .learning-card.state-perfected .state-icon {
   color: rgba(255, 215, 0, 1);
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.8));
 }
 
 .learning-card.state-perfected .state-label {
   color: rgba(255, 215, 0, 1);
+}
+
+@keyframes perfected-pulse {
+  0%, 100% {
+    filter: saturate(1.6) brightness(1.1) drop-shadow(0 0 10px var(--accent-color)) drop-shadow(0 0 20px var(--accent-color));
+  }
+  50% {
+    filter: saturate(1.6) brightness(1.15) drop-shadow(0 0 15px var(--accent-color)) drop-shadow(0 0 30px var(--accent-color));
+  }
 }

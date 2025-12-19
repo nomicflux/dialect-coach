@@ -164,54 +164,70 @@
     flex-shrink: 0;
 }
 
-/* State-based styling for island items */
-.island-item.state-new {
-    border-left-color: rgba(255, 255, 255, 0.2);
-}
-
-.island-item.state-started {
-    border-left-color: rgba(100, 149, 237, 0.6);
-}
-
-.island-item.state-started .state-indicator {
-    color: rgba(100, 149, 237, 1);
-}
-
-.island-item.state-activated {
-    border-left-color: rgba(255, 193, 7, 0.7);
-}
-
-.island-item.state-activated .state-indicator {
-    color: rgba(255, 193, 7, 1);
-}
-
-.island-item.state-competent {
-    border-left-color: rgba(78, 205, 196, 0.8);
-}
-
-.island-item.state-competent .state-indicator {
-    color: rgba(78, 205, 196, 1);
-}
-
-.island-item.state-mastered {
-    border-left-color: rgba(0, 200, 83, 0.9);
-}
-
-.island-item.state-mastered .state-indicator {
-    color: rgba(0, 200, 83, 1);
-}
-
+/* State-based styling for island items - intensity/saturation variations */
+/* Border color is always the type's accent color */
+.island-item.state-new,
+.island-item.state-started,
+.island-item.state-activated,
+.island-item.state-competent,
+.island-item.state-mastered,
 .island-item.state-perfected {
-    border-left-color: rgba(255, 215, 0, 1);
-    background: rgba(255, 215, 0, 0.1);
+    border-left-color: var(--accent-color);
+}
+
+/* New: Low opacity, low saturation */
+.island-item.state-new {
+    opacity: 0.6;
+    filter: saturate(0.5);
+}
+
+/* Started: Slightly increased */
+.island-item.state-started {
+    opacity: 0.75;
+    filter: saturate(0.7);
+}
+
+/* Activated: Normal */
+.island-item.state-activated {
+    opacity: 0.9;
+    filter: saturate(1);
+}
+
+/* Competent: Enhanced saturation, subtle glow */
+.island-item.state-competent {
+    opacity: 1;
+    filter: saturate(1.2) drop-shadow(0 0 2px var(--accent-color));
+}
+
+/* Mastered: High saturation, medium glow */
+.island-item.state-mastered {
+    opacity: 1;
+    filter: saturate(1.4) brightness(1.05) drop-shadow(0 0 4px var(--accent-color));
+}
+
+/* Perfected: Maximum saturation, intense glow, gold star */
+.island-item.state-perfected {
+    opacity: 1;
+    filter: saturate(1.6) brightness(1.1) drop-shadow(0 0 6px var(--accent-color)) drop-shadow(0 0 12px var(--accent-color));
+    animation: island-perfected-pulse 2s ease-in-out infinite;
 }
 
 .island-item.state-perfected .state-indicator {
     color: rgba(255, 215, 0, 1);
+    filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.8));
 }
 
 .island-item.state-perfected .island-score {
     color: rgba(255, 215, 0, 1);
+}
+
+@keyframes island-perfected-pulse {
+    0%, 100% {
+        filter: saturate(1.6) brightness(1.1) drop-shadow(0 0 6px var(--accent-color)) drop-shadow(0 0 12px var(--accent-color));
+    }
+    50% {
+        filter: saturate(1.6) brightness(1.15) drop-shadow(0 0 8px var(--accent-color)) drop-shadow(0 0 16px var(--accent-color));
+    }
 }
 
 .island-text.large {
