@@ -29,35 +29,34 @@
   /* Let clicks pass through empty space */
 }
 
-/* Flexbox Layout with Absolute Center Brand */
+/* Robust Grid Layout */
 .app-header .container {
   pointer-events: auto;
-  display: flex;
-  justify-content: flex-end;
-  /* Only User Section stays in flow (Right) */
+  display: grid;
+  grid-template-columns: 1fr max-content 1fr;
+  grid-template-areas: "left center right";
   align-items: center;
-  position: relative;
-  /* Anchor for absolute brand */
   width: 100%;
   padding: 0 var(--s-4);
+  /* Ensure header stack on small screens */
+  gap: var(--s-4);
 }
 
 .header-brand {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  grid-area: center;
+  position: relative;
+  /* In-flow */
+  left: auto;
+  top: auto;
+  transform: none;
+  /* Reset absolute */
 
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Center text internally */
   text-align: center;
-  /* Remove the offset margin */
-  gap: var(--s-3);
-  /* Generous spacing between Title and Subtitle */
-  width: max-content;
-  /* Allow it to be as wide as needed */
+  margin: 0;
+  gap: var(--s-1);
 }
 
 .app-title {
@@ -83,6 +82,8 @@
 }
 
 .user-section {
+  grid-area: right;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: var(--s-3);

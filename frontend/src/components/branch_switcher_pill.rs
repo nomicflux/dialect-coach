@@ -1,3 +1,4 @@
+use yew::prelude::*;
 use crate::components::icons::AuroraBranchIcon;
 
 #[derive(Properties, PartialEq)]
