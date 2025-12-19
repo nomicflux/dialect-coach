@@ -13,6 +13,7 @@ pub mod speech_controls;
 pub mod study_drawer_content;
 pub mod translate_selection_button;
 pub mod translation_modal;
+pub mod icons;
 pub mod user_creation;
 pub mod utility_sidebar;
 pub mod dynamic_island;

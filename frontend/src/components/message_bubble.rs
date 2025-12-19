@@ -1,4 +1,5 @@
 use crate::components::TranslateSelectionButton;
+use crate::components::icons::AuroraBranchIcon;
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Language, LanguageOption, Message};
 use uuid::Uuid;
@@ -289,7 +290,7 @@ fn render_branch_button(
             "branch-button"
         };
         html! {
-            <button {class} {onclick} {title}>{"🌿"}</button>
+            <button {class} {onclick} {title}><AuroraBranchIcon /></button>
         }
     } else {
         html! {}
