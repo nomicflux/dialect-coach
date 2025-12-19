@@ -280,9 +280,12 @@ fn render_branch_button(
         let cb = callback.clone();
         let common_onclick = Callback::from(move |_| cb.emit(msg_id));
         
-        // Use the new NeonRope component directly, which handles its own layout/container
+        // Use the container pattern to handle interaction, matching the previous architecture
+        // This ensures the click is handled by a standard HTML element
         html! {
-            <NeonRope on_click={common_onclick} has_children={has_children} />
+            <div class="neon-rope-container" onclick={common_onclick}>
+                <NeonRope id={msg_id} has_children={has_children} />
+            </div>
         }
     } else {
         html! {}
@@ -393,7 +396,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     let font_class_name = font_class(&props.language_option);
 
     html! {
-        <>
+        <div style="position: relative; width: 100%;">
             <div class={msg_class}>
                 <div class={avatar_class}>{avatar_text}</div>
                 <div class={bubble_class}>
@@ -429,6 +432,6 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                     html! {}
                 }
             }
-        </>
+        </div>
     }
 }
