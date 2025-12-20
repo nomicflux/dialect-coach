@@ -44,5 +44,5 @@ pub use user::*;
 pub use user_state::*;
 pub use versioning::{
     CURRENT_USER_STATE_VERSION, CURRENT_USER_VERSION, Migration, UserStateV1, UserStateVersion,
-    UserV1, UserVersion, VersionedData, migrate_user_state_to_current, migrate_user_to_current,
+    UserVersion, VersionedData, migrate_user_state_to_current, migrate_user_to_current,
 };

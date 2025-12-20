@@ -5,8 +5,9 @@ use super::{User, UserState};
 /// Version identifier for User schema
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum UserVersion {
-    #[default]
     V1,
+    #[default]
+    V2Admin,
 }
 
 /// Version identifier for UserState schema
@@ -16,10 +17,16 @@ pub enum UserStateVersion {
     V1,
 }
 
-pub type UserV1 = User;
 pub type UserStateV1 = UserState;
 
-pub const CURRENT_USER_VERSION: UserVersion = UserVersion::V1;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserV1Data {
+    pub id: uuid::Uuid,
+    pub username: String,
+    pub email: String,
+}
+
+pub const CURRENT_USER_VERSION: UserVersion = UserVersion::V2Admin;
 pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V1;
 
 /// Generic wrapper for versioned data stored in sled
@@ -58,8 +65,14 @@ pub fn migrate_user_state_to_current(
     data
 }
 
-pub fn migrate_user_to_current(_from_version: UserVersion, data: UserV1) -> User {
-    data
+pub fn migrate_user_to_current(from_version: UserVersion, data: serde_json::Value) -> User {
+    match from_version {
+        UserVersion::V1 => {
+            let v1: UserV1Data = serde_json::from_value(data).expect("Valid V1 user data");
+            User::new_with_admin(v1.id, v1.username, v1.email, false)
+        }
+        UserVersion::V2Admin => serde_json::from_value(data).expect("Valid V2 user data"),
+    }
 }
 
 #[cfg(test)]
@@ -68,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_user_version_default() {
-        assert_eq!(UserVersion::default(), UserVersion::V1);
+        assert_eq!(UserVersion::default(), UserVersion::V2Admin);
     }
 
     #[test]
@@ -97,7 +110,7 @@ mod tests {
         let data = serde_json::json!({"id": "test-id", "name": "test"});
         let versioned = VersionedData::<UserVersion>::new(data.clone());
 
-        assert_eq!(versioned.version, UserVersion::V1);
+        assert_eq!(versioned.version, UserVersion::V2Admin);
         assert_eq!(versioned.data, data);
     }
 
@@ -314,7 +327,7 @@ mod tests {
 
         let json = serde_json::to_value(&user).unwrap();
         let actual_fields = extract_field_names(&json);
-        let expected_fields = vec!["email", "id", "username"];
+        let expected_fields = vec!["email", "id", "is_admin", "username"];
 
         assert!(
             actual_fields == expected_fields,
@@ -357,5 +370,30 @@ mod tests {
             expected_fields,
             actual_fields
         );
+    }
+
+    #[test]
+    fn test_migrate_user_v1_to_v2_admin() {
+        let v1_data = serde_json::json!({
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "username": "testuser",
+            "email": "test@example.com"
+        });
+        let user = migrate_user_to_current(UserVersion::V1, v1_data);
+        assert_eq!(user.username, "testuser");
+        assert!(!user.is_admin);
+    }
+
+    #[test]
+    fn test_migrate_user_v2_admin_passthrough() {
+        let v2_data = serde_json::json!({
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "username": "adminuser",
+            "email": "admin@example.com",
+            "is_admin": true
+        });
+        let user = migrate_user_to_current(UserVersion::V2Admin, v2_data);
+        assert_eq!(user.username, "adminuser");
+        assert!(user.is_admin);
     }
 }

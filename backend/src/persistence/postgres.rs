@@ -45,10 +45,12 @@ fn parse_user_from_row(r: &sqlx::postgres::PgRow) -> User {
     let id: Uuid = r.get("id");
     let username: String = r.get("username");
     let email: Option<String> = r.get("email");
+    let is_admin: bool = r.try_get("is_admin").unwrap_or(false);
     User {
         id,
         username,
         email: email.unwrap_or_default(),
+        is_admin,
     }
 }
 

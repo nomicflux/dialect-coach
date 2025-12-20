@@ -2,8 +2,8 @@ use super::{UserPersistence, UserRecord};
 use anyhow::{Result, anyhow};
 use dialect_coach_shared::{
     CURRENT_USER_STATE_VERSION, CURRENT_USER_VERSION, InviteCode, UsageStats, User, UserState,
-    UserStateV1, UserStateVersion, UserV1, UserVersion, VersionedData,
-    migrate_user_state_to_current, migrate_user_to_current,
+    UserStateV1, UserStateVersion, UserVersion, VersionedData, migrate_user_state_to_current,
+    migrate_user_to_current,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -66,9 +66,8 @@ fn deserialize_versioned_user_state(bytes: &[u8]) -> Result<UserState> {
 }
 
 fn serialize_versioned_user_record(user: &User, password_hash: &str) -> Result<Vec<u8>> {
-    let v1_user = UserV1::from(user.clone());
     let record = UserRecord {
-        user: v1_user,
+        user: user.clone(),
         password_hash: password_hash.to_string(),
     };
     let wrapper = VersionedData {
@@ -78,9 +77,15 @@ fn serialize_versioned_user_record(user: &User, password_hash: &str) -> Result<V
     Ok(serde_json::to_vec(&wrapper)?)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RawUserRecord {
+    user: serde_json::Value,
+    password_hash: String,
+}
+
 fn deserialize_versioned_user_record(bytes: &[u8]) -> Result<(User, String)> {
     let wrapper: VersionedData<UserVersion> = serde_json::from_slice(bytes)?;
-    let record: UserRecord = serde_json::from_value(wrapper.data)?;
+    let record: RawUserRecord = serde_json::from_value(wrapper.data)?;
     let user = migrate_user_to_current(wrapper.version, record.user);
     Ok((user, record.password_hash))
 }
