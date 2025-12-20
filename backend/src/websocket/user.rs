@@ -30,6 +30,7 @@ pub async fn handle_create_user(
     email: String,
     credentials: dialect_coach_shared::AuthCredentials,
     password: String,
+    _initial_settings: Option<dialect_coach_shared::InitialUserSettings>,
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
     tracing::info!("Creating user: {} with email {}", username, email);
