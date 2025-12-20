@@ -8,20 +8,25 @@ pub struct InviteCode {
     pub created_date: i64,
     pub used_by: Option<Uuid>,
     pub expiration: Option<i64>,
+    pub is_admin: bool,
 }
 
 impl InviteCode {
     pub fn new(code: String, expiration: Option<i64>) -> Self {
+        Self::new_with_admin(code, expiration, false)
+    }
+
+    pub fn new_with_admin(code: String, expiration: Option<i64>, is_admin: bool) -> Self {
         let created_date = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-
         Self {
             code,
             created_date,
             used_by: None,
             expiration,
+            is_admin,
         }
     }
 
@@ -58,6 +63,7 @@ mod tests {
         assert_eq!(invite.code, code);
         assert_eq!(invite.used_by, None);
         assert_eq!(invite.expiration, None);
+        assert_eq!(invite.is_admin, false);
     }
 
     #[test]
@@ -69,6 +75,7 @@ mod tests {
         assert_eq!(invite.code, code);
         assert_eq!(invite.expiration, Some(expiration));
         assert_eq!(invite.used_by, None);
+        assert_eq!(invite.is_admin, false);
     }
 
     #[test]
@@ -176,7 +183,8 @@ mod tests {
             "code": "ABC123",
             "created_date": 1700000000,
             "used_by": null,
-            "expiration": 9999999999
+            "expiration": 9999999999,
+            "is_admin": false
         }"#;
 
         let invite: InviteCode = serde_json::from_str(json).unwrap();
@@ -185,6 +193,7 @@ mod tests {
         assert_eq!(invite.created_date, 1700000000);
         assert_eq!(invite.used_by, None);
         assert_eq!(invite.expiration, Some(9999999999));
+        assert_eq!(invite.is_admin, false);
     }
 
     #[test]
@@ -193,5 +202,16 @@ mod tests {
         let cloned = invite.clone();
 
         assert_eq!(invite, cloned);
+    }
+
+    #[test]
+    fn test_new_with_admin() {
+        let code = "ADMIN123".to_string();
+        let invite = InviteCode::new_with_admin(code.clone(), Some(9999999999i64), true);
+
+        assert_eq!(invite.code, code);
+        assert_eq!(invite.is_admin, true);
+        assert_eq!(invite.used_by, None);
+        assert_eq!(invite.expiration, Some(9999999999i64));
     }
 }

@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS invite_codes (
     code TEXT PRIMARY KEY,
     created_date BIGINT NOT NULL,
     used_by UUID REFERENCES users(id),
-    expiration BIGINT
+    expiration BIGINT,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- Indexes

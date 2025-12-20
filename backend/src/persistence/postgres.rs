@@ -57,11 +57,13 @@ fn parse_invite_code_from_row(r: &sqlx::postgres::PgRow) -> InviteCode {
     let created_date: i64 = r.get("created_date");
     let used_by: Option<Uuid> = r.get("used_by");
     let expiration: Option<i64> = r.get("expiration");
+    let is_admin: bool = r.get("is_admin");
     InviteCode {
         code,
         created_date,
         used_by,
         expiration,
+        is_admin,
     }
 }
 
@@ -227,12 +229,13 @@ impl UserPersistence for PostgresPersistence {
 
     async fn create_invite_code(&self, invite_code: &InviteCode) -> Result<()> {
         sqlx::query(
-            "INSERT INTO invite_codes (code, created_date, used_by, expiration) VALUES ($1, $2, $3, $4)"
+            "INSERT INTO invite_codes (code, created_date, used_by, expiration, is_admin) VALUES ($1, $2, $3, $4, $5)"
         )
         .bind(&invite_code.code)
         .bind(invite_code.created_date)
         .bind(invite_code.used_by)
         .bind(invite_code.expiration)
+        .bind(invite_code.is_admin)
         .execute(&self.pool)
         .await?;
 
@@ -243,7 +246,7 @@ impl UserPersistence for PostgresPersistence {
         tracing::info!("Loading invite code: '{}'", code);
 
         let row = sqlx::query(
-            "SELECT code, created_date, used_by, expiration FROM invite_codes WHERE code = $1",
+            "SELECT code, created_date, used_by, expiration, is_admin FROM invite_codes WHERE code = $1",
         )
         .bind(code)
         .fetch_optional(&self.pool)
@@ -263,13 +266,14 @@ impl UserPersistence for PostgresPersistence {
 
     async fn save_invite_code(&self, invite_code: &InviteCode) -> Result<()> {
         sqlx::query(
-            "INSERT INTO invite_codes (code, created_date, used_by, expiration) VALUES ($1, $2, $3, $4)
-             ON CONFLICT (code) DO UPDATE SET used_by = $3, expiration = $4"
+            "INSERT INTO invite_codes (code, created_date, used_by, expiration, is_admin) VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (code) DO UPDATE SET used_by = $3, expiration = $4, is_admin = $5"
         )
         .bind(&invite_code.code)
         .bind(invite_code.created_date)
         .bind(invite_code.used_by)
         .bind(invite_code.expiration)
+        .bind(invite_code.is_admin)
         .execute(&self.pool)
         .await?;
 
@@ -277,7 +281,7 @@ impl UserPersistence for PostgresPersistence {
     }
 
     async fn list_invite_codes(&self) -> Result<Vec<InviteCode>> {
-        let rows = sqlx::query("SELECT code, created_date, used_by, expiration FROM invite_codes")
+        let rows = sqlx::query("SELECT code, created_date, used_by, expiration, is_admin FROM invite_codes")
             .fetch_all(&self.pool)
             .await?;
 

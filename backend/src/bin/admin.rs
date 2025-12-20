@@ -32,7 +32,10 @@ fn generate_invite(
     args: &[String],
 ) -> Result<()> {
     let expires_days = parse_expires_days(args)?;
-    let request = CreateInviteRequest { expires_days };
+    let request = CreateInviteRequest {
+        expires_days,
+        is_admin: None,
+    };
 
     let response = client
         .post(format!("{}/admin/api/invites", backend_url))
@@ -132,6 +135,7 @@ fn format_invite_response(invite: &InviteResponse) -> Result<()> {
     println!("Code: {}", invite.code);
     println!("Created: {}", format_timestamp(invite.created_at));
     println!("Expires: {}", format_expiration(invite.expires_at));
+    println!("Admin: {}", invite.is_admin);
     println!();
     Ok(())
 }
@@ -141,6 +145,7 @@ fn format_invite_list_item(item: &InviteListItem) -> Result<()> {
     println!("Created: {}", format_timestamp(item.created_at));
     println!("Expires: {}", format_expiration(item.expires_at));
     println!("Status: {}", item.status);
+    println!("Admin: {}", item.is_admin);
     println!();
     Ok(())
 }

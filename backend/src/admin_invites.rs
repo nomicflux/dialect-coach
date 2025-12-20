@@ -66,8 +66,9 @@ pub async fn create_invite(
     let expires_at = req
         .expires_days
         .map(|days| created_at + (days as i64 * 86400));
+    let is_admin = req.is_admin.unwrap_or(false);
 
-    let invite = InviteCode::new(code.clone(), expires_at);
+    let invite = InviteCode::new_with_admin(code.clone(), expires_at, is_admin);
 
     state
         .user_persistence
@@ -81,6 +82,7 @@ pub async fn create_invite(
             code,
             created_at,
             expires_at,
+            is_admin,
         }),
     ))
 }
@@ -108,6 +110,7 @@ pub async fn list_invites(
                 expires_at: invite.expiration,
                 used_at: invite.used_by.map(|_| invite.created_date),
                 status,
+                is_admin: invite.is_admin,
             }
         })
         .collect();
