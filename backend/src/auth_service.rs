@@ -101,7 +101,7 @@ impl AuthService for InviteCodeAuthService {
             .map_err(|e| anyhow::anyhow!("Password hashing failed: {}", e))?;
 
         let user = self
-            .create_and_persist_user(username, email, password_hash)
+            .create_and_persist_user(username, email, password_hash, invite.is_admin)
             .await?;
         self.mark_code_used(&mut invite, user.id).await?;
 
@@ -189,8 +189,9 @@ impl InviteCodeAuthService {
         username: String,
         email: String,
         password_hash: String,
+        is_admin: bool,
     ) -> Result<User, AuthError> {
-        let user = User::new(Uuid::new_v4(), username, email);
+        let user = User::new_with_admin(Uuid::new_v4(), username, email, is_admin);
         self.persistence
             .create_user(&user, password_hash)
             .await
