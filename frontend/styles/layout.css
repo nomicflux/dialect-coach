@@ -227,7 +227,7 @@
   flex-direction: column;
   /* Stacked layout, no fixed sidebar */
   height: calc(100vh - 60px);
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   width: 100%;
   padding: 0;
@@ -244,13 +244,12 @@
   max-width: var(--container-max);
   margin: 0 auto;
   padding: var(--s-4);
-  padding-left: 80px;
-  /* Space for Neon Rope (User Instruction) */
+  /* Space for Neon Rope handled by .chat-scroll padding now */
+  /* padding-left: 100px; padding-right: 100px; MOVED TO .chat-scroll */
   /* Background handled by body aurora */
   background: transparent;
-  /* FIX: Move scroll handling here so padding is part of the scroll view */
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* CHANGED: Allow rope glow to overflow, scroll handled by .chat-scroll */
+  overflow: visible;
   /* Ensure it has a height to scroll */
   height: 100%;
 }

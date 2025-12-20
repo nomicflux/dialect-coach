@@ -119,6 +119,8 @@ A "Normal" environment is defined by **Strict Verification**.
 12. **Research Provenance**: "Research" without Source Materials (URLs + Raw Text) is "Fake Research". Search Summaries are NOT evidence. You must possess the file content to claim you have "researched" it.
 13. **Visual Verification**: "It Compiles" != "It Looks Good". When changing visuals, verify visual properties (Separation, Contrast, Z-Index). Don't trust the compiler for aesthetics.
 14. **The Negative Constraint Law**: "Do Not X" means X is strictly forbidden. It is not a suggestion. It is not a heuristic. Constraints exist because the User holds superior context (the "Fuller Picture") that you lack. You must NEVER attempt to "verify" or "check" a constrained path. Validating a constraint is a violation of the constraint.
+15. **The Reality Check**: NEVER run a command based on memory of documentation or "global" system prompts. You must verify the target exists on disk (`ls`, `cat Cargo.toml`) immediately before running. Relying on "I recall reading" is hallucination.
+16. **Refactor Prohibition**: When asked to change a value, you must NOT change the surrounding code structure, syntax, or formatting. If a value is wrapped in special syntax (e.g. `@{...}`), you must preserve it character-for-character. Stripping syntax to make a "simple" change is unauthorized destruction of code.
 
 ## II. OPERATIONAL PROTOCOLS (TRIGGER -> ACTION)
 
@@ -138,6 +140,8 @@ A "Normal" environment is defined by **Strict Verification**.
 | **2 consecutive fix attempts failed** | **EMERGENCY BRAKE**: Stop coding. Switch to Diagnosis Mode. Announce switch. | Law #6 |
 | **UI/Rendering bug reported** | **DOM-FIRST**: Inspect Elements panel. Describe DOM state before reading code. | Law #7 |
 | **About to write "Therefore, the answer is..."** | **CONCLUSION TAX**: Check for Dispositive Evidence. If absent, write "I do not know." | Law #8 |
+| **Running a command from memory** | **STOP**: Check file system (`ls`, `cat`) to verify target exists. | Law #15 |
+| **Changing a value in complex syntax** | **SURGERY MODE**: Preserve wrappers/syntax exactly. Only change the specific value. | Law #16 |
 
 
 ## Record of Failures

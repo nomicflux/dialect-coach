@@ -1,5 +1,5 @@
 use crate::components::TranslateSelectionButton;
-use crate::components::icons::NeonRope;
+
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Language, LanguageOption, Message};
 use uuid::Uuid;
@@ -271,26 +271,7 @@ mod tests {
     }
 }
 
-fn render_branch_button(
-    on_create_branch: &Option<Callback<Uuid>>,
-    msg_id: Uuid,
-    has_children: bool,
-) -> Html {
-    if let Some(callback) = on_create_branch {
-        let cb = callback.clone();
-        let common_onclick = Callback::from(move |_| cb.emit(msg_id));
-        
-        // Use the container pattern to handle interaction, matching the previous architecture
-        // This ensures the click is handled by a standard HTML element
-        html! {
-            <div class="neon-rope-container" onclick={common_onclick}>
-                <NeonRope id={msg_id} has_children={has_children} />
-            </div>
-        }
-    } else {
-        html! {}
-    }
-}
+
 
 fn render_action_buttons(
     on_explain: &Option<Callback<Uuid>>,
@@ -394,9 +375,14 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
         get_css_classes(props.is_own_message);
     let lang = language_code(props.message.metadata.language);
     let font_class_name = font_class(&props.language_option);
+    let wrapper_class = if props.is_own_message {
+        "message-wrapper message-wrapper--user"
+    } else {
+        "message-wrapper message-wrapper--agent"
+    };
 
     html! {
-        <div style="position: relative; width: 100%;">
+        <div class={wrapper_class} style="position: relative; width: 100%;">
             <div class={msg_class}>
                 <div class={avatar_class}>{avatar_text}</div>
                 <div class={bubble_class}>
@@ -416,7 +402,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                     <div class="message-time">{props.message.metadata.timestamp.to_rfc3339()}</div>
                 </div>
             </div>
-            {render_branch_button(&props.on_create_branch, props.message.id, props.has_child_branches)}
+
             {
                 if let Some(selection) = &*selection_state {
                     html! {
