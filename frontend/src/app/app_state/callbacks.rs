@@ -45,9 +45,11 @@ pub fn on_user_state_load_response(
             // New user - create initial UserState
             if let Some(user) = app_state.current_user.as_ref() {
                 info!("No user state found for new user, creating initial state");
-                let new_state = UserState::new(user.id);
+                let initial_settings = app_state.pending_initial_settings.clone();
+                let new_state = UserState::with_initial_settings(user.id, initial_settings);
                 session.dispatch(SessionAction::UpdateUser(new_state.clone()));
                 app_state.dispatch(AppStateAction::NotifyTTSEnabled(new_state.tts_enabled));
+                app_state.dispatch(AppStateAction::StorePendingInitialSettings(None));
             } else {
                 error!(
                     "Backend returned no user state and no current user - this should not happen"

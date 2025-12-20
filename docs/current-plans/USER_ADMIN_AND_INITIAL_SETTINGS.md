@@ -648,7 +648,7 @@ let new_state = UserState::with_initial_settings(user.id, initial_settings);
 | 3 | Complete | 2025-12-19 | Backend admin flag handling |
 | 4 | Complete | 2025-12-19 | InitialUserSettings types |
 | 5 | Complete | 2025-12-19 | Backend settings flow |
-| 6 | Pending | | Frontend settings UI |
+| 6 | Complete | 2025-12-19 | Frontend settings UI |
 
 ---
 

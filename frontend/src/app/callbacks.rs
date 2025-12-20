@@ -3,7 +3,9 @@ use crate::app::app_state::{
     AppState, AppStateAction, MessageAction, SessionAction, SessionState, SettingsAction, UIState,
     UIStateAction,
 };
-use dialect_coach_shared::{AIActionRequest, AuthCredentials, UserMessageWithContext};
+use dialect_coach_shared::{
+    AIActionRequest, AuthCredentials, InitialUserSettings, UserMessageWithContext,
+};
 use log::{error, info};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -96,16 +98,26 @@ pub fn on_tts_toggle(
 pub fn on_create_user_click(
     app_state: UseReducerHandle<AppState>,
     _session: UseReducerHandle<SessionState>,
-) -> Callback<(String, String, String, String)> {
+) -> Callback<(String, String, String, String, Option<InitialUserSettings>)> {
     Callback::from(
-        move |(username, email, password, invite_code): (String, String, String, String)| {
+        move |(username, email, password, invite_code, initial_settings): (
+            String,
+            String,
+            String,
+            String,
+            Option<InitialUserSettings>,
+        )| {
             let credentials = AuthCredentials::InviteCode(invite_code);
+
+            app_state
+                .dispatch(AppStateAction::StorePendingInitialSettings(initial_settings.clone()));
 
             if let Err(e) = app_state.user_ws_service.borrow().create_user(
                 username,
                 email,
                 credentials,
                 password,
+                initial_settings,
             ) {
                 error!("Failed to create user: {}", e);
                 app_state.dispatch(AppStateAction::SetError(format!(

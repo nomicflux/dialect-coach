@@ -34,6 +34,7 @@ pub enum AppStateAction {
     SetResponseRateLimited(bool),
     SetAnalysisRateLimited(bool),
     SetTtsRateLimited(bool),
+    StorePendingInitialSettings(Option<dialect_coach_shared::InitialUserSettings>),
 }
 
 #[derive(Clone, Default)]
@@ -60,6 +61,7 @@ pub struct AppState {
     pub save_queue: Rc<PendingSaveQueue>,
     pub autoplay_enabled: bool,
     pub rate_limit_state: RateLimitState,
+    pub pending_initial_settings: Option<dialect_coach_shared::InitialUserSettings>,
 }
 
 impl Default for AppState {
@@ -87,6 +89,7 @@ impl Default for AppState {
             save_queue: Rc::new(PendingSaveQueue::new()),
             autoplay_enabled: false,
             rate_limit_state: RateLimitState::default(),
+            pending_initial_settings: None,
         }
     }
 }
@@ -184,6 +187,9 @@ impl AppState {
             }
             AppStateAction::SetTtsRateLimited(limited) => {
                 next.rate_limit_state.tts_limited = limited;
+            }
+            AppStateAction::StorePendingInitialSettings(settings) => {
+                next.pending_initial_settings = settings;
             }
         }
         next

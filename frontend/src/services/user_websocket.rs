@@ -1,4 +1,4 @@
-use dialect_coach_shared::{AuthCredentials, User, UserMessage};
+use dialect_coach_shared::{AuthCredentials, InitialUserSettings, User, UserMessage};
 use futures_util::{SinkExt, StreamExt};
 use gloo_net::websocket::{Message as WsMessage, futures::WebSocket};
 use log::{error, info};
@@ -74,12 +74,14 @@ impl UserWebSocketService {
         email: String,
         credentials: AuthCredentials,
         password: String,
+        initial_settings: Option<InitialUserSettings>,
     ) -> Result<(), String> {
         let msg = UserMessage::CreateUser {
             username,
             email,
             credentials,
             password,
+            initial_settings,
         };
         self.send_message(&msg)
     }
