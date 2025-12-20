@@ -1,10 +1,31 @@
 use super::{
-    AgentResponse, AuthCredentials, Dialect, Explained, Formality, Language, LanguageOption,
-    LearningGoal, Mistake, TeachingMode, UsageStats, User, UserGender, UserState,
+    AgentResponse, AuthCredentials, Dialect, Explained, Formality, Language, LanguageLevel,
+    LanguageOption, LearningGoal, Mistake, TeachingMode, UsageStats, User, UserGender,
+    UserState,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Initial settings for new user registration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InitialUserSettings {
+    pub language: Language,
+    pub dialect: Dialect,
+    pub level: LanguageLevel,
+    pub gender: UserGender,
+}
+
+impl Default for InitialUserSettings {
+    fn default() -> Self {
+        Self {
+            language: Language::Spanish,
+            dialect: Dialect::SpanishArgentinian,
+            level: LanguageLevel::B1,
+            gender: UserGender::NonBinary,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MessageContent {
@@ -320,6 +341,7 @@ pub enum UserMessage {
         email: String,
         credentials: AuthCredentials,
         password: String,
+        initial_settings: Option<InitialUserSettings>,
     },
     /// Response to create user request (Server → Client)
     /// Returns (User, JWT token) on success
@@ -338,6 +360,15 @@ pub enum UserMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_initial_user_settings_default() {
+        let settings = InitialUserSettings::default();
+        assert_eq!(settings.language, Language::Spanish);
+        assert_eq!(settings.dialect, Dialect::SpanishArgentinian);
+        assert_eq!(settings.level, LanguageLevel::B1);
+        assert_eq!(settings.gender, UserGender::NonBinary);
+    }
 
     fn test_metadata(session_id: Uuid) -> MessageMetadata {
         MessageMetadata::at_now(
@@ -667,6 +698,7 @@ mod tests {
             email: email.clone(),
             credentials: credentials.clone(),
             password: password.clone(),
+            initial_settings: None,
         };
 
         let json = serde_json::to_string(&msg).unwrap();
@@ -836,6 +868,7 @@ mod tests {
             email: email.clone(),
             credentials: credentials.clone(),
             password: password.clone(),
+            initial_settings: None,
         };
 
         let json = serde_json::to_string(&msg).unwrap();

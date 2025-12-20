@@ -646,7 +646,7 @@ let new_state = UserState::with_initial_settings(user.id, initial_settings);
 | 1 | Complete | 2025-12-19 | InviteCode admin flag + backend/persistence |
 | 2 | Complete | 2025-12-19 | User V2_Admin migration |
 | 3 | Complete | 2025-12-19 | Backend admin flag handling |
-| 4 | Pending | | InitialUserSettings types |
+| 4 | Complete | 2025-12-19 | InitialUserSettings types |
 | 5 | Pending | | Backend settings flow |
 | 6 | Pending | | Frontend settings UI |
 

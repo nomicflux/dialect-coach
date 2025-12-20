@@ -4,9 +4,10 @@ use uuid::Uuid;
 
 use super::dialect::dialect_features;
 use super::{
-    ConversationBranch, ConversationContext, Dialect, DialectWithFeatures, Formality, Language,
-    LanguageOption, LanguageOptions, LanguagePlan, LearningGoal, LearningItem, LearningItemType,
-    Message, MessageMetadata, PastLearningItems, TeachingMode, UsageStats,
+    ConversationBranch, ConversationContext, Dialect, DialectWithFeatures, Formality,
+    InitialUserSettings, Language, LanguageOption, LanguageOptions, LanguagePlan, LearningGoal,
+    LearningItem, LearningItemType, Message, MessageMetadata, PastLearningItems, TeachingMode,
+    UsageStats,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,24 +140,37 @@ impl UserState {
             .next()
             .unwrap_or(Dialect::SpanishArgentinian)
     }
-    pub fn new(user_id: Uuid) -> Self {
+
+    pub fn with_initial_settings(
+        user_id: Uuid,
+        initial_settings: Option<InitialUserSettings>,
+    ) -> Self {
         let initial_branch = ConversationBranch::new(None, None, None, None, vec![]);
         let initial_branch_id = initial_branch.id;
         let show_experimental_dialects = false;
-        let selected_language = Language::Spanish;
-        let selected_dialect =
-            Self::default_dialect_for_language(selected_language, show_experimental_dialects);
+
+        let (language, dialect, gender, dialect_levels) = match initial_settings {
+            Some(s) => {
+                let dl = DialectLevel::new(s.dialect, s.level);
+                (s.language, s.dialect, s.gender, vec![dl])
+            }
+            None => {
+                let lang = Language::Spanish;
+                let dial = Self::default_dialect_for_language(lang, show_experimental_dialects);
+                (lang, dial, UserGender::NonBinary, Vec::new())
+            }
+        };
 
         Self {
             user_id,
             learning_items: Vec::new(),
             conversation_history: Vec::new(),
             tts_enabled: false,
-            selected_language,
-            selected_dialect,
+            selected_language: language,
+            selected_dialect: dialect,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Immersive,
-            user_gender: UserGender::NonBinary,
+            user_gender: gender,
             active_branch_id: initial_branch_id,
             branches: vec![initial_branch],
             learning_goals: Vec::new(),
@@ -165,8 +179,12 @@ impl UserState {
             usage_stats: UsageStats::default(),
             language_options: LanguageOptions::default(),
             show_experimental_dialects,
-            dialect_levels: Vec::new(),
+            dialect_levels,
         }
+    }
+
+    pub fn new(user_id: Uuid) -> Self {
+        Self::with_initial_settings(user_id, None)
     }
 
     fn create_metadata(&self, session_id: Uuid) -> MessageMetadata {
@@ -469,8 +487,8 @@ impl UserState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ConversationBranch, Dialect, Formality, Language, LearningItem, Message, MessageMetadata,
-        TeachingMode, UserGender, UserState,
+        ConversationBranch, Dialect, Formality, InitialUserSettings, Language, LearningItem,
+        Message, MessageMetadata, TeachingMode, UserGender, UserState,
     };
     use uuid::Uuid;
 
@@ -490,6 +508,23 @@ mod tests {
 
     fn create_test_user_state() -> UserState {
         UserState::new(Uuid::new_v4())
+    }
+
+    #[test]
+    fn test_user_state_with_initial_settings() {
+        use super::LanguageLevel;
+        let settings = InitialUserSettings {
+            language: Language::Japanese,
+            dialect: Dialect::JapaneseTokyo,
+            level: LanguageLevel::A2,
+            gender: UserGender::Female,
+        };
+        let state = UserState::with_initial_settings(Uuid::new_v4(), Some(settings));
+        assert_eq!(state.selected_language, Language::Japanese);
+        assert_eq!(state.selected_dialect, Dialect::JapaneseTokyo);
+        assert_eq!(state.user_gender, UserGender::Female);
+        assert_eq!(state.dialect_levels.len(), 1);
+        assert_eq!(state.dialect_levels[0].level, LanguageLevel::A2);
     }
 
     fn create_test_mistake() -> Mistake {

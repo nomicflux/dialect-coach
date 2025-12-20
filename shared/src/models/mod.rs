@@ -33,7 +33,7 @@ pub use gamification::*;
 pub use language::*;
 pub use language_options::*;
 pub use learning_item::*;
-pub use message::*;
+pub use message::{InitialUserSettings, *};
 pub use partial_learning_item::*;
 pub use participant::*;
 pub use plan::*;
