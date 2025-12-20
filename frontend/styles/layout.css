@@ -244,8 +244,15 @@
   max-width: var(--container-max);
   margin: 0 auto;
   padding: var(--s-4);
+  padding-left: 80px;
+  /* Space for Neon Rope (User Instruction) */
   /* Background handled by body aurora */
   background: transparent;
+  /* FIX: Move scroll handling here so padding is part of the scroll view */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Ensure it has a height to scroll */
+  height: 100%;
 }
 
 /* Utility Sidebar - TEMPORARILY HIDDEN */

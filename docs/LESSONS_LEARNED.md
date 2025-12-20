@@ -165,6 +165,15 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 2. **Snippets are Lies**: Never use a search engine snippet as a confirmed fact. You must click through.
 3. **Broken Links = Lying**: Providing a broken link is proof you did not do the work. It is an immediate confidence destroyer.
 
+## 2025-12-19: The "Likely" Trap (Supposition Relapse)
+**Context**: After a successful empirical test proving a broken reference, I immediately guessed the cause ("Likely Safari Base Tag") without evidence.
+**Mistake**: **Supposition**. I presented a retrieved memory (common failure mode) as a diagnosed fact.
+**Lesson**:
+1.  **"Likely" is a Forbidden Word**: It bridges the gap between Knowledge and Ignorance with a guess. If you type "Likely", delete the sentence, and immediately distrust your own memory.
+2.  **Diagnosis Steps**: Fact -> Investigation -> Conclusion. You cannot jump from Fact to Conclusion.
+3.  **Placebo Code**: Writing a fix for a guessed problem is negligence. You must prove the problem exists before fixing it.
+
+
 ## 2025-12-18: Fake Research (The Provenance Failure)
 **Context**: I submitted an implementation plan based on search engine summaries (e.g., "Shuttle uses cargo-chef") without retrieving the actual Dockerfiles.
 **Mistake**: **Fake Work**. I defined "Research" as finding *references* to a pattern, rather than finding the *implementation* of the pattern.
@@ -199,4 +208,7 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 1.  **Negative Constraints are Absolute**: When a user says "Do not pursue X", X is dead. X does not exist.
 2.  **No "Just in Case"**: You cannot check a forbidden path "just to be sure". Checking it is the failure.
 3.  **Constraints = Superior Context**: The User forbids X because they possess the "Fuller Picture" (system goals, hidden blockers, or knowing X is a hack). In this incident, checking space was a hack. In general, a constraint is the User guiding you away from a local optimization that fails globally. Trust the User's map over your local view.
+
+## Effective Strategies (Positive Lessons)
+- **Empirical Hypothesis Testing**: When faced with ambiguous bugs (like "White rendering"), avoiding assumptions ("It is likely X") and instead creating targeted, observable experiments (changing a layer to Red) to isolate the cause is the only acceptable path. This binary search of the problem space builds trust and yields truth.
 

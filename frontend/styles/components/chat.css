@@ -9,8 +9,11 @@
 
 .chat-scroll {
   flex: 1;
-  overflow-y: auto;
+  flex: 1;
+  overflow: visible;
+  /* FIX: Allow rope to hang out */
   padding: var(--s-2);
+  /* padding-left handled by chat-canvas */
   /* Safe zone for Dynamic Island floating at top */
   padding-top: 80px;
   padding-bottom: 140px;

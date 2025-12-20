@@ -79,6 +79,7 @@ pub fn app() -> Html {
 
     html! {
             <div class="app">
+                <crate::components::icons::NeonAssets />
                 <Header
                     app_state={app_state.clone()}
                     ui_state={ui_state.clone()}
