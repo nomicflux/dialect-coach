@@ -32,9 +32,10 @@ fn generate_invite(
     args: &[String],
 ) -> Result<()> {
     let expires_days = parse_expires_days(args)?;
+    let is_admin = parse_is_admin(args);
     let request = CreateInviteRequest {
         expires_days,
-        is_admin: None,
+        is_admin: Some(is_admin),
     };
 
     let response = client
@@ -131,6 +132,10 @@ fn parse_expires_days(args: &[String]) -> Result<Option<u32>> {
     Ok(None)
 }
 
+fn parse_is_admin(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--admin")
+}
+
 fn format_invite_response(invite: &InviteResponse) -> Result<()> {
     println!("Code: {}", invite.code);
     println!("Created: {}", format_timestamp(invite.created_at));
@@ -191,7 +196,7 @@ fn handle_status_error(status: StatusCode, body: String) -> Result<()> {
 fn print_usage() -> Result<()> {
     println!("Dialect Coach Admin CLI\n");
     println!("Commands:");
-    println!("  generate-invite [--expires-days N]  Generate new invite code");
+    println!("  generate-invite [--expires-days N] [--admin]  Generate invite code");
     println!("  list-invites                        List all invite codes");
     println!("  delete-invite <code>                Delete an invite code");
     println!();

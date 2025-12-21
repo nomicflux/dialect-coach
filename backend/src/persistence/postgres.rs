@@ -72,7 +72,11 @@ fn parse_invite_code_from_row(r: &sqlx::postgres::PgRow) -> InviteCode {
 #[async_trait::async_trait]
 impl UserPersistence for PostgresPersistence {
     async fn initialize(&self) -> Result<()> {
-        tracing::info!("PostgreSQL persistence initialized");
+        sqlx::migrate!("./sql/migrations")
+            .run(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Migration failed: {}", e))?;
+        tracing::info!("PostgreSQL persistence initialized with migrations applied");
         Ok(())
     }
 
