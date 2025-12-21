@@ -212,3 +212,10 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 ## Effective Strategies (Positive Lessons)
 - **Empirical Hypothesis Testing**: When faced with ambiguous bugs (like "White rendering"), avoiding assumptions ("It is likely X") and instead creating targeted, observable experiments (changing a layer to Red) to isolate the cause is the only acceptable path. This binary search of the problem space builds trust and yields truth.
 
+## 2025-12-20: Environment Blindness (The "It Just Works" Fallacy)
+**Context**: User asked if a Docker command "would work". I said "Yes" because the binary was built. I failed to check if the required `ADMIN_TOKEN` environment variable was actually passed to the container in `docker-compose.yml` or documented in `.env.example`. It was not.
+**Mistake**: **Verification Gap**. I verified the *Artifact* (Binary) but not the *Context* (Environment). I assumed configuration existed because the code required it.
+**Lesson**:
+1. **Configuration Continuity**: You cannot claim a feature "works" until you have traced its configuration from Source (`.env`/`.env.example`) -> Pipeline (`docker-compose`) -> Runtime (`app`).
+2. **Missing = Broken**: If a variable is required by code but missing from `.env.example`, the system is broken by default. You must verify its existence, not assume it.
+

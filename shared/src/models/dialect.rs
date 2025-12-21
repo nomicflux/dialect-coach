@@ -256,7 +256,7 @@ impl Dialect {
         ]
     }
 
-    fn all_dialects_for_language(language: Language) -> Vec<Dialect> {
+    pub fn all_dialects_for_language(language: Language) -> Vec<Dialect> {
         match language {
             Language::Spanish => Self::all_spanish_dialects(),
             Language::Arabic => Self::all_arabic_dialects(),

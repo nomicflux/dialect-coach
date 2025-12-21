@@ -1,0 +1,248 @@
+/* User Creation Component Styles */
+
+.user-creation-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 80px);
+    /* Adjust for header if needed */
+    width: 100%;
+    padding: var(--s-4);
+    background: radial-gradient(circle at top right, var(--teal-tint), transparent 40%),
+        radial-gradient(circle at bottom left, var(--coral-tint), transparent 40%);
+}
+
+.user-creation-card {
+    background: var(--surface-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
+    border-radius: var(--r-xl);
+    padding: var(--s-8) var(--s-8);
+    width: 100%;
+    max-width: 480px;
+    box-shadow: var(--shadow-float);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-6);
+    animation: fadeIn var(--dur-slow) var(--ease-out);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.user-creation-card h2 {
+    color: var(--ink);
+    text-align: center;
+    margin-bottom: var(--s-2);
+    font-weight: 700;
+}
+
+.user-creation-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-4);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+}
+
+.form-label {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-left: var(--s-1);
+}
+
+/* Custom Input Styles */
+.input-field,
+.select-field {
+    width: 100%;
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-m);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--text-base);
+    transition: all var(--dur-fast) var(--ease-out);
+    appearance: none;
+    /* Remove default browser styling for select */
+}
+
+/* Input Wrapper for Toggles */
+.input-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.input-wrapper .input-field {
+    padding-right: 48px;
+    /* Space for the toggle button */
+}
+
+.toggle-visibility-btn {
+    position: absolute;
+    right: var(--s-2);
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--ink-soft);
+    padding: var(--s-1);
+    border-radius: var(--r-s);
+    transition: color var(--dur-fast), background-color var(--dur-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toggle-visibility-btn:hover {
+    color: var(--teal);
+    background-color: var(--teal-tint);
+}
+
+.toggle-visibility-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Add custom arrow for select */
+.select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.select-wrapper::after {
+    content: "▼";
+    font-size: 0.8em;
+    color: var(--ink-soft);
+    position: absolute;
+    right: var(--s-4);
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.input-field:focus,
+.select-field:focus {
+    outline: none;
+    border-color: var(--teal);
+    box-shadow: 0 0 0 3px var(--teal-tint);
+}
+
+.input-field::placeholder {
+    color: var(--ink-soft);
+    opacity: 0.7;
+}
+
+/* Checkbox Toggle Style */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    margin-top: var(--s-2);
+    cursor: pointer;
+    user-select: none;
+    padding: var(--s-2) 0;
+}
+
+.toggle-switch {
+    width: 44px;
+    height: 24px;
+    background: var(--surface-muted);
+    border-radius: var(--r-pill);
+    position: relative;
+    transition: background var(--dur-fast) var(--ease-out);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: var(--shadow-button);
+    transition: transform var(--dur-med) var(--ease-out);
+}
+
+input[type="checkbox"]:checked+.toggle-switch {
+    background: var(--teal);
+    border-color: var(--teal);
+}
+
+input[type="checkbox"]:checked+.toggle-switch::after {
+    transform: translateX(20px);
+}
+
+.checkbox-label {
+    font-size: var(--text-sm);
+    color: var(--ink);
+    font-weight: 500;
+}
+
+/* Button Styles */
+.btn-primary {
+    background: linear-gradient(135deg, var(--teal), var(--teal-rgb));
+    /* Fallback/Simple */
+    background: linear-gradient(135deg, var(--teal) 0%, #3dbcb3 100%);
+    color: white;
+    padding: var(--s-3) var(--s-6);
+    border-radius: var(--r-pill);
+    font-weight: 600;
+    font-size: var(--text-lg);
+    text-align: center;
+    border: none;
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+    box-shadow: var(--shadow-button);
+    margin-top: var(--s-4);
+    width: 100%;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-float);
+    filter: brightness(1.05);
+}
+
+.btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-primary:disabled {
+    background: var(--surface-muted);
+    color: var(--ink-soft);
+    cursor: not-allowed;
+    opacity: 0.7;
+    box-shadow: none;
+}
+
+/* Feedback message */
+.error-message {
+    color: var(--coral);
+    font-size: var(--text-sm);
+    text-align: center;
+    margin-top: var(--s-2);
+    min-height: 1.5em;
+    /* Prevent layout jump */
+}

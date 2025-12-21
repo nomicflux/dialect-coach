@@ -97,6 +97,7 @@ pub fn on_tts_toggle(
 
 pub fn on_create_user_click(
     app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>,
     _session: UseReducerHandle<SessionState>,
 ) -> Callback<(String, String, String, String, Option<InitialUserSettings>)> {
     Callback::from(
@@ -111,6 +112,8 @@ pub fn on_create_user_click(
 
             app_state
                 .dispatch(AppStateAction::StorePendingInitialSettings(initial_settings.clone()));
+            
+            ui_state.dispatch(UIStateAction::SetSignInLoading(true));
 
             if let Err(e) = app_state.user_ws_service.borrow().create_user(
                 username,
@@ -120,6 +123,7 @@ pub fn on_create_user_click(
                 initial_settings,
             ) {
                 error!("Failed to create user: {}", e);
+                ui_state.dispatch(UIStateAction::SetSignInLoading(false));
                 app_state.dispatch(AppStateAction::SetError(format!(
                     "Failed to create user: {}",
                     e
@@ -129,14 +133,19 @@ pub fn on_create_user_click(
     )
 }
 
-pub fn on_signin_click(app_state: UseReducerHandle<AppState>) -> Callback<(String, String)> {
+pub fn on_signin_click(
+    app_state: UseReducerHandle<AppState>, 
+    ui_state: UseReducerHandle<UIState>
+) -> Callback<(String, String)> {
     Callback::from(move |(username, password): (String, String)| {
+        ui_state.dispatch(UIStateAction::SetSignInLoading(true));
         if let Err(e) = app_state
             .user_ws_service
             .borrow()
             .sign_in(username, password)
         {
             error!("Failed to sign in: {}", e);
+            ui_state.dispatch(UIStateAction::SetSignInLoading(false));
             app_state.dispatch(AppStateAction::SetError(format!(
                 "Failed to sign in: {}",
                 e
@@ -156,11 +165,13 @@ pub fn on_user_create_response(
                 info!("User created successfully: {}", user.username);
                 crate::utils::cookies::set_session_token(&token);
                 ui_state.dispatch(UIStateAction::HideUserCreationPage);
+                ui_state.dispatch(UIStateAction::SetSignInLoading(false));
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
             }
             Err(e) => {
                 error!("Failed to create user: {}", e);
+                ui_state.dispatch(UIStateAction::SetSignInLoading(false));
                 app_state.dispatch(AppStateAction::SetError(format!("Create failed: {}", e)));
             }
         },
@@ -169,6 +180,7 @@ pub fn on_user_create_response(
 
 pub fn on_user_signin_response(
     app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>,
     _session: UseReducerHandle<SessionState>,
 ) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
     Callback::from(
@@ -176,12 +188,14 @@ pub fn on_user_signin_response(
             Ok((user, token)) => {
                 info!("Signed in successfully as: {}", user.username);
                 crate::utils::cookies::set_session_token(&token);
+                ui_state.dispatch(UIStateAction::SetSignInLoading(false));
                 // inputs cleared by component unmounting
                 app_state.dispatch(AppStateAction::SetUser(user.clone()));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
             }
             Err(e) => {
                 error!("Sign in failed: {}", e);
+                ui_state.dispatch(UIStateAction::SetSignInLoading(false));
                 app_state.dispatch(AppStateAction::SetError(format!("Sign in failed: {}", e)));
             }
         },

@@ -24,6 +24,7 @@ pub enum UIStateAction {
     ClearExplainLoading { message_id: Uuid },
     SetTranslateLoading { message_id: Uuid },
     ClearTranslateLoading { message_id: Uuid },
+    SetSignInLoading(bool),
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -38,6 +39,7 @@ pub struct UIState {
     pub show_user_creation_page: bool,
     pub explain_loading: HashSet<Uuid>,
     pub translate_loading: HashSet<Uuid>,
+    pub is_signing_in: bool,
 }
 
 
@@ -91,6 +93,9 @@ impl UIState {
             }
             UIStateAction::ClearTranslateLoading { message_id } => {
                 next.translate_loading.remove(&message_id);
+            }
+            UIStateAction::SetSignInLoading(loading) => {
+                next.is_signing_in = loading;
             }
         }
         next

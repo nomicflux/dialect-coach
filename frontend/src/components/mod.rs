@@ -17,6 +17,7 @@ pub mod icons;
 pub mod user_creation;
 pub mod utility_sidebar;
 pub mod dynamic_island;
+pub mod loading_screen;
 pub mod welcome_screen;
 
 pub use branch_switcher_pill::BranchSwitcherPill;
@@ -28,6 +29,7 @@ pub use gamification::StreakDisplay;
 pub use header::Header;
 pub use input_box::InputBox;
 pub use learning_goals_panel::LearningGoalsPanel;
+pub use loading_screen::LoadingScreen;
 pub use main_content::MainContent;
 pub use message_bubble::MessageBubble;
 pub use speech_controls::SpeechControls;
