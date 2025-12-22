@@ -488,7 +488,7 @@
   width: 100%;
   height: 100%;
   overflow: visible;
-  transition: filter 0.2s ease-out;
+  transition: filter 0.4s ease-in-out;
 }
 
 /* Hover Interaction: "Energize" the circuit */
@@ -498,15 +498,15 @@
 }
 
 .rope-glow {
-  transition: all 0.2s ease-out;
+  transition: all 0.4s ease-in-out;
 }
 
 .rope-core {
-  transition: all 0.2s ease-out;
+  transition: all 0.4s ease-in-out;
 }
 
 .rope-node {
-  transition: all 0.2s ease-out;
+  transition: all 0.4s ease-in-out;
 }
 
 
@@ -539,7 +539,7 @@
 /* Reveal forks */
 .rope-fork {
   opacity: 0;
-  transition: opacity 0.1s ease-out, transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  transition: opacity 0.4s ease-in-out, transform 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
   /* Origin at the Hub (50, 50) */
   transform-origin: 50px 50px;
   transform: scale(0);
@@ -552,11 +552,11 @@
 
 /* Specific delays for "sequential" deployment feel */
 .neon-rope-container:hover .rope-fork-up {
-  transition-delay: 0.05s;
+  transition-delay: 0.15s;
 }
 
 .neon-rope-container:hover .rope-fork-down {
-  transition-delay: 0.1s;
+  transition-delay: 0.3s;
 }
 
 /* Continue branch button */
