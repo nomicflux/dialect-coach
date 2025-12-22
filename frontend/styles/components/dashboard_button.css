@@ -1,6 +1,6 @@
 /* Floating Dashboard Button - Glassmorphic Pill */
 .dashboard-float-container {
-    position: absolute;
+    position: fixed;
     top: var(--s-4);
     /* Physically below the header bar (approx 64px + gap) */
     left: var(--s-4);
