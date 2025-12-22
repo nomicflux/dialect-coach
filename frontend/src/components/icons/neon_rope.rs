@@ -12,19 +12,33 @@ pub struct NeonRopeProps {
 
 #[function_component(NeonRope)]
 pub fn neon_rope(props: &NeonRopeProps) -> Html {
-    // Path that hooks UPWARD toward message at start, then flows outward
-    // Starts higher (y=30), curves down organically, ends with a hook for forking
-    let path_d = "M 100,30 C 85,35 70,55 50,50 C 30,45 15,40 5,25"; 
+    // ANGULAR PIPE DESIGN
+    // ViewBox: 0 0 160 100
+    // Start (under message): Right side, approx (150, 20)
+    // Flow: Down -> Diagonal -> Left
     
-    // Unique IDs to ensure this component's definitions don't clash with others
-    let gradient_id = format!("neon-gradient-{}", props.id);
-    let glow_filter_id = format!("neon-glow-{}", props.id);
+    // Main Trunk Path:
+    // M 150,20 (Start under bubble)
+    // L 150,40 (Vertical drop)
+    // L 140,50 (Chamfer turn)
+    // L 50,50  (Long horizontal run to hub)
+    let path_d = "M 150,20 L 150,40 L 140,50 L 50,50";
+    
+    // Fork Hub Node Center: 50,50
+    
+    // Upper Fork: 50,50 -> 40,40 -> 10,10
+    let fork_up_d = "M 50,50 L 40,40 L 10,10";
+    
+    // Lower Fork: 50,50 -> 40,60 -> 10,90
+    let fork_down_d = "M 50,50 L 40,60 L 10,90";
 
-    
-    // Apply horizontal flip for user messages (rope points right instead of left)
-    // Use translate to move content back into viewBox after flip
+    // Unique IDs
+    let gradient_id = format!("neon-circuit-grad-{}", props.id);
+    let glow_filter_id = format!("neon-circuit-glow-{}", props.id);
+
+    // Flip for user messages (User is on right sides)
     let transform = if props.is_user_message {
-        "scale(-1, 1) translate(-120, 0)"
+        "scale(-1, 1) translate(-160, 0)" // Flip across X, shift back by viewBox width
     } else {
         ""
     };
@@ -32,143 +46,127 @@ pub fn neon_rope(props: &NeonRopeProps) -> Html {
     html! {
         <svg 
             xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 120 80" 
+            viewBox="0 0 160 100" 
             class="neon-rope-svg neon-rope-forkable"
             preserveAspectRatio="xMidYMid meet"
             style="overflow: visible;" 
         >
             <defs>
-                 // Local Gradient: Teal -> Purple -> Coral
-                 // Note: SVG elements are case-sensitive. Using @{"tagName"} syntax to preserve casing.
-                <@{"linearGradient"} id={gradient_id.clone()} x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" style="stop-color:#4ECDC4;stop-opacity:1" />
-                    <stop offset="50%" style="stop-color:#A78BFA;stop-opacity:1" />
-                    <stop offset="100%" style="stop-color:#FF6B6B;stop-opacity:1" />
+                 // Local Gradient: Cyan -> Purple -> Magenta (Cyberpunk)
+                <@{"linearGradient"} id={gradient_id.clone()} x1="100%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#00FFFF;stop-opacity:1" /> // Cyan (Start/Message)
+                    <stop offset="50%" style="stop-color:#bf00ff;stop-opacity:1" /> // Purple
+                    <stop offset="100%" style="stop-color:#FF0080;stop-opacity:1" /> // Magenta (End/Fork)
                 </@>
                 
-                // Fork gradients: Both start from Teal (the rope end color)
-                <@{"linearGradient"} id={format!("fork-up-gradient-{}", props.id)} x1="100%" y1="100%" x2="0%" y2="0%">
-                    <stop offset="0%" style="stop-color:#4ECDC4;stop-opacity:1" />
-                    <stop offset="100%" style="stop-color:#06D6A0;stop-opacity:1" />
+                // Fork Gradients
+                <@{"linearGradient"} id={format!("fork-up-grad-{}", props.id)} x1="100%" y1="100%" x2="0%" y2="0%">
+                    <stop offset="0%" style="stop-color:#FF0080;stop-opacity:1" /> // Match Trunk End
+                    <stop offset="100%" style="stop-color:#00FFFF;stop-opacity:1" /> // Fade to Cyan
                 </@>
-                <@{"linearGradient"} id={format!("fork-down-gradient-{}", props.id)} x1="100%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" style="stop-color:#4ECDC4;stop-opacity:1" />
-                    <stop offset="100%" style="stop-color:#A78BFA;stop-opacity:1" />
+                <@{"linearGradient"} id={format!("fork-down-grad-{}", props.id)} x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#FF0080;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#bf00ff;stop-opacity:1" /> // Fade to Purple
                 </@>
                 
-                // Local Glow Filter: Blur + Source Merge for better intensity
+                // Tighter Glow Filter for "Pipe" look
                 <filter id={glow_filter_id.clone()} x="-50%" y="-50%" width="200%" height="200%">
-                        <@{"feGaussianBlur"} in="SourceGraphic" stdDeviation="0.02" result="coloredBlur" />
+                        // Less blur for focused "plasma" look
+                        <@{"feGaussianBlur"} in="SourceGraphic" stdDeviation="1.5" result="coloredBlur" />
+                        <@{"feColorMatrix"} in="coloredBlur" type="matrix" values="
+                            1 0 0 0 0
+                            0 1 0 0 0
+                            0 0 1 0 0
+                            0 0 0 2.5 0" result="boostedGlow" />
                         <@{"feMerge"}>
-                            <@{"feMergeNode"} in="coloredBlur" />
+                            <@{"feMergeNode"} in="boostedGlow" />
                             <@{"feMergeNode"} in="SourceGraphic" />
                         </@>
                 </filter>
             </defs>
 
             <g transform={transform}>
-                // Layer 1: Ambient Glow (References Local Filter & Gradient)
+                // --- MAIN TRUNK ---
+                
+                // Layer 1: Glow / Atmosphere
                 <path 
                     d={path_d} 
                     stroke={format!("url(#{})", gradient_id)} 
-                    stroke-width="12" 
+                    stroke-width="6" 
                     fill="none" 
                     stroke-linecap="round"
+                    stroke-linejoin="round"
                     filter={format!("url(#{})", glow_filter_id)}
-                    opacity="0.5"
+                    opacity="0.8"
                     class="rope-glow"
                 />
 
-                // Layer 2: The Physical Tube
+                // Layer 2: Core Pipe
                 <path 
                     d={path_d} 
                     stroke={format!("url(#{})", gradient_id)} 
-                    stroke-width="10" 
+                    stroke-width="3" 
                     fill="none" 
                     stroke-linecap="round"
+                    stroke-linejoin="round"
                     class="rope-core"
                 />
 
-                // Layer 3: Specular Highlight
-                <path 
-                    d={path_d} 
-                    stroke="white" 
-                    stroke-width="4" 
-                    fill="none" 
-                    stroke-linecap="round"
-                    opacity="0.4" 
-                    class="rope-highlight"
-                    transform="translate(-1, -1)"
-                />
+                // Nodes: Start, Turn, Junction
+                <circle cx="150" cy="20" r="3" fill="#00FFFF" class="rope-node" />
+                <circle cx="150" cy="40" r="2" fill="#bf00ff" class="rope-node" /> // Small joint
+                <circle cx="50" cy="50" r="4" fill="#FF0080" class="rope-node" /> // Main Hub
 
-                // Fork paths: Two diverging branches from the rope end
+                // --- FORKS ---
                 
                 // UPPER FORK
-                // Layer 1: Glow (Width 8)
                 <path 
-                    d="M 5,25 C 0,15 -5,5 -15,0"
-                    stroke={format!("url(#fork-up-gradient-{})", props.id)}
-                    stroke-width="8" 
+                    d={fork_up_d}
+                    stroke={format!("url(#fork-up-grad-{})", props.id)}
+                    stroke-width="5" 
                     fill="none" 
                     stroke-linecap="round"
+                    stroke-linejoin="round"
                     filter={format!("url(#{})", glow_filter_id)}
-                    opacity="0.5"
+                    opacity="0" // Hidden by default
                     class="rope-fork rope-fork-up rope-glow"
                 />
-                // Layer 2: Core (Width 6)
                 <path 
-                    d="M 5,25 C 0,15 -5,5 -15,0"
-                    stroke={format!("url(#fork-up-gradient-{})", props.id)}
-                    stroke-width="6" 
-                    fill="none" 
-                    stroke-linecap="round"
-                    class="rope-fork rope-fork-up rope-core"
-                />
-                // Layer 3: Highlight (Width 2, White)
-                <path 
-                    d="M 5,25 C 0,15 -5,5 -15,0"
-                    stroke="white" 
+                    d={fork_up_d}
+                    stroke={format!("url(#fork-up-grad-{})", props.id)}
                     stroke-width="2" 
                     fill="none" 
                     stroke-linecap="round"
-                    opacity="0.4"
-                    transform="translate(-0.5, -0.5)" 
-                    class="rope-fork rope-fork-up rope-highlight"
+                    stroke-linejoin="round"
+                    opacity="0" // Hidden by default
+                    class="rope-fork rope-fork-up rope-core"
                 />
+                 <circle cx="10" cy="10" r="3" fill="#00FFFF" class="rope-fork rope-fork-up rope-node" opacity="0" />
 
 
                 // LOWER FORK
-                // Layer 1: Glow (Width 8)
                 <path 
-                    d="M 5,25 C 0,35 -5,45 -15,50"
-                    stroke={format!("url(#fork-down-gradient-{})", props.id)}
-                    stroke-width="8" 
+                    d={fork_down_d}
+                    stroke={format!("url(#fork-down-grad-{})", props.id)}
+                    stroke-width="5" 
                     fill="none" 
                     stroke-linecap="round"
-                    filter={format!("url(#{})", glow_filter_id)}
-                     opacity="0.5"
+                    stroke-linejoin="round"
+                     filter={format!("url(#{})", glow_filter_id)}
+                    opacity="0"
                     class="rope-fork rope-fork-down rope-glow"
                 />
-                // Layer 2: Core (Width 6)
-                <path 
-                    d="M 5,25 C 0,35 -5,45 -15,50"
-                    stroke={format!("url(#fork-down-gradient-{})", props.id)}
-                    stroke-width="6" 
-                    fill="none" 
-                    stroke-linecap="round"
-                    class="rope-fork rope-fork-down rope-core"
-                />
-                // Layer 3: Highlight (Width 2, White)
-                <path 
-                    d="M 5,25 C 0,35 -5,45 -15,50"
-                    stroke="white" 
+                 <path 
+                    d={fork_down_d}
+                    stroke={format!("url(#fork-down-grad-{})", props.id)}
                     stroke-width="2" 
                     fill="none" 
                     stroke-linecap="round"
-                    opacity="0.4"
-                    transform="translate(-0.5, -0.5)"
-                    class="rope-fork rope-fork-down rope-highlight"
+                    stroke-linejoin="round"
+                    opacity="0"
+                    class="rope-fork rope-fork-down rope-core"
                 />
+                <circle cx="10" cy="90" r="3" fill="#bf00ff" class="rope-fork rope-fork-down rope-node" opacity="0" />
 
             </g>
         </svg>

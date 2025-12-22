@@ -464,8 +464,9 @@
 /* Neon Rope Container: Positioned within rope-row flow */
 .neon-rope-container {
   position: relative;
-  width: 120px;
-  height: 80px;
+  width: 160px;
+  /* Matched to new ViewBox */
+  height: 100px;
   cursor: pointer;
   pointer-events: auto;
   background: transparent;
@@ -473,87 +474,89 @@
   padding: 0;
   margin: 0;
   overflow: visible;
-  margin-left: -60px;
+  margin-left: -80px;
+  /* Centering adjustment */
 }
 
 /* User message ropes: extend to the right */
 .rope-row--user .neon-rope-container {
   margin-left: 0;
-  margin-right: -60px;
+  margin-right: -80px;
 }
 
 .neon-rope-svg {
   width: 100%;
   height: 100%;
   overflow: visible;
-  /* Let the glow spill over */
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: filter 0.2s ease-out;
 }
 
-/* Hover Interaction: Swell the whole rope */
+/* Hover Interaction: "Energize" the circuit */
 .neon-rope-container:hover .neon-rope-svg {
-  transform: scale(1.1);
+  /* Brighten the whole assembly */
+  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.4));
 }
 
-/* Target specific layers on hover for "Heat" effect */
-.neon-rope-container:hover .rope-glow {
-  opacity: 0.8;
-  transition: all 0.3s ease-out;
+.rope-glow {
+  transition: all 0.2s ease-out;
 }
 
+.rope-core {
+  transition: all 0.2s ease-out;
+}
+
+.rope-node {
+  transition: all 0.2s ease-out;
+}
+
+
+/* Heat up the core on hover */
 .neon-rope-container:hover .rope-core {
-  transition: all 0.3s ease-out;
+  stroke-width: 4px;
+  /* Slight thickening */
+  filter: drop-shadow(0 0 2px white);
 }
 
-.neon-rope-container:hover .rope-highlight {
+/* Intensify the glow path */
+.neon-rope-container:hover .rope-glow {
   opacity: 1;
-  /* Sharpen the reflection */
-  stroke-width: 3px;
-  transition: all 0.3s ease-out;
+  stroke-width: 8px;
 }
 
-/* Forking effect on hover - creates illusion of rope splitting */
+/* Nodes pulse slightly on hover */
+.neon-rope-container:hover .rope-node {
+  r: 5px;
+  /* Grow slightly */
+  fill: white;
+  /* "Hot" nodes */
+}
+
+/* Forking Logic */
 .neon-rope-forkable {
   position: relative;
 }
 
-.neon-rope-container:hover .neon-rope-forkable {
-  animation: fork-pulse 3s ease-in-out infinite;
-}
-
-@keyframes fork-pulse {
-
-  0%,
-  100% {
-    filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
-    transform: scale(1.1);
-  }
-
-  50% {
-    filter: drop-shadow(0 4px 8px rgba(78, 205, 196, 0.9)) drop-shadow(0 -4px 8px rgba(255, 107, 107, 0.9));
-    transform: scale(1.15);
-  }
-}
-
-/* Fork paths: Hidden by default, visible on hover with smooth transitions */
+/* Reveal forks */
 .rope-fork {
   opacity: 0;
-  transform: translateY(0) scale(0);
-  transform-origin: 5px 25px;
-  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+  transition: opacity 0.1s ease-out, transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  /* Origin at the Hub (50, 50) */
+  transform-origin: 50px 50px;
+  transform: scale(0);
 }
 
 .neon-rope-container:hover .rope-fork {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: scale(1);
 }
 
+/* Specific delays for "sequential" deployment feel */
 .neon-rope-container:hover .rope-fork-up {
-  transform: translateY(-8px) scale(1);
+  transition-delay: 0.05s;
 }
 
 .neon-rope-container:hover .rope-fork-down {
-  transform: translateY(8px) scale(1);
+  transition-delay: 0.1s;
 }
 
 /* Continue branch button */
