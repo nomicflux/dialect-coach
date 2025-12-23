@@ -1,6 +1,7 @@
 use super::dialect::Dialect;
 use super::{Explained, Exploratory, Mistake, Translated};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LearningItem {
@@ -16,6 +17,16 @@ impl LearningItem {
             item,
             score: 0,
             dialect,
+        }
+    }
+
+    /// Get the unique id from the inner item type
+    pub fn id(&self) -> Uuid {
+        match &self.item {
+            LearningItemType::Mistake(m) => m.id,
+            LearningItemType::Explanation(e) => e.id,
+            LearningItemType::Translation(t) => t.id,
+            LearningItemType::Exploration(e) => e.id,
         }
     }
 }

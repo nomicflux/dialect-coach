@@ -48,31 +48,31 @@ fn calculate_streak(state: &UserState) -> StreakStats {
 }
 
 fn derive_quests(state: &UserState) -> Vec<Quest> {
-    let mistakes = get_recent_mistakes(state);
-    mistakes
+    let mut items: Vec<_> = state.learning_items.iter().collect();
+    // Prefer lower-scored items (sort ascending by score)
+    items.sort_by_key(|item| item.score);
+
+    items
         .into_iter()
         .take(3)
-        .map(|(desc, completed, dialect)| Quest {
-            id: format!("quest_{}", desc.replace(" ", "_")), // Simple ID generation
-            description: format!("Fix: {}", desc),
-            completed,
-            dialect,
+        .map(|item| Quest {
+            id: format!("quest_{}", item.id()),
+            description: get_quest_description(item),
+            completed: item.score == 100,
+            dialect: item.dialect,
         })
         .collect()
 }
 
-fn get_recent_mistakes(state: &UserState) -> Vec<(String, bool, crate::models::Dialect)> {
-    state
-        .learning_items
-        .iter()
-        .filter_map(|item| {
-            if let LearningItemType::Mistake(ref m) = item.item {
-                Some((m.specific_mistake.clone(), item.score >= 10, item.dialect)) // Arbitrary completion threshold for now
-            } else {
-                None
-            }
-        })
-        .collect()
+fn get_quest_description(item: &crate::models::LearningItem) -> String {
+    match &item.item {
+        LearningItemType::Mistake(m) => format!("Fix: {}", m.specific_mistake),
+        LearningItemType::Explanation(e) => format!("Practice: {}", e.new_phrase),
+        LearningItemType::Translation(t) => {
+            format!("Review: {} → {}", t.translated_word, t.translated_to)
+        }
+        LearningItemType::Exploration(e) => format!("Try: {}", e.point_to_try),
+    }
 }
 
 fn get_user_activity_dates(state: &UserState) -> Vec<NaiveDate> {

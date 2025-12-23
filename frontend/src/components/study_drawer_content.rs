@@ -1,8 +1,8 @@
+use crate::app::app_state::UIState;
 use crate::app::app_state::user::UserDomainAction;
-use crate::app::app_state::{UIState, UserStateGamificationExt};
-use crate::components::gamification::QuestList;
 use crate::components::utility_sidebar::branches::Branches;
 use crate::components::utility_sidebar::learning::Learning;
+use crate::components::utility_sidebar::plan::PlanTab;
 use crate::components::utility_sidebar::settings::Settings;
 use crate::services::enrichment_service::EnrichmentService;
 use crate::services::plan_service::PlanService;
@@ -17,7 +17,7 @@ use yew::prelude::*;
 pub enum DrawerTab {
     Branches,
     Learning,
-    Quests,
+    Plan,
     Settings,
 }
 
@@ -71,22 +71,6 @@ fn render_tab_button(
     }
 }
 
-fn render_quests(user: &UserState, dialect: Option<Dialect>) -> Html {
-    let stats = user.gamification_stats();
-    let quests = stats
-        .quests
-        .iter()
-        .filter(|q| dialect == Some(q.dialect))
-        .cloned()
-        .collect::<Vec<_>>();
-
-    if !quests.is_empty() {
-        html! { <QuestList quests={quests} /> }
-    } else {
-        html! { <div class="empty-state">{"No quests available for this dialect."}</div> }
-    }
-}
-
 fn render_content(props: &StudyDrawerContentProps) -> Html {
     match props.active_tab {
         DrawerTab::Branches => html! {
@@ -94,12 +78,8 @@ fn render_content(props: &StudyDrawerContentProps) -> Html {
                 branches={props.branches.clone()}
                 active_branch_id={props.active_branch_id}
                 messages={props.messages.clone()}
-                learning_goals={props.learning_goals.clone()}
-                on_add_goal={props.on_add_goal.clone()}
-                on_delete_goal={props.on_delete_goal.clone()}
                 on_switch_branch={props.on_switch_branch.clone()}
                 on_delete_branch={props.on_delete_branch.clone()}
-                goal_input_ref={props.goal_input_ref.clone()}
             />
         },
         DrawerTab::Learning => html! {
@@ -112,13 +92,20 @@ fn render_content(props: &StudyDrawerContentProps) -> Html {
                 user={props.user.clone()}
                 dispatch={props.dispatch.clone()}
                 enrichment_service={props.enrichment_service.clone()}
-                plan_service={props.plan_service.clone()}
             />
         },
-        DrawerTab::Quests => html! {
-            <div class="drawer-section">
-                {render_quests(&props.user, props.active_branch_dialect)}
-            </div>
+        DrawerTab::Plan => html! {
+            <PlanTab
+                user={props.user.clone()}
+                dispatch={props.dispatch.clone()}
+                plan_service={props.plan_service.clone()}
+                enrichment_service={props.enrichment_service.clone()}
+                active_branch_dialect={props.active_branch_dialect}
+                learning_goals={props.learning_goals.clone()}
+                on_add_goal={props.on_add_goal.clone()}
+                on_delete_goal={props.on_delete_goal.clone()}
+                goal_input_ref={props.goal_input_ref.clone()}
+            />
         },
         DrawerTab::Settings => html! {
             <Settings
@@ -139,7 +126,7 @@ pub fn study_drawer_content(props: &StudyDrawerContentProps) -> Html {
             <div class="drawer-tabs">
                 {render_tab_button("Branches", DrawerTab::Branches, props.active_tab, on_change.clone())}
                 {render_tab_button("Learning", DrawerTab::Learning, props.active_tab, on_change.clone())}
-                {render_tab_button("Quests", DrawerTab::Quests, props.active_tab, on_change.clone())}
+                {render_tab_button("Plan", DrawerTab::Plan, props.active_tab, on_change.clone())}
                 {render_tab_button("Settings", DrawerTab::Settings, props.active_tab, on_change)}
             </div>
 

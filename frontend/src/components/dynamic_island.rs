@@ -1,5 +1,5 @@
 use crate::components::utility_sidebar::learning_item::{LearningItemState, get_accent_color};
-use dialect_coach_shared::models::{LearningItem, LearningItemType};
+use dialect_coach_shared::models::{LearningGoal, LearningItem, LearningItemType, Quest};
 use uuid::Uuid;
 use yew::prelude::*;
 
@@ -7,11 +7,16 @@ use yew::prelude::*;
 pub struct DynamicIslandProps {
     pub current_step_title: Option<String>,
     pub items: Vec<LearningItem>,
+    #[prop_or_default]
+    pub learning_goals: Vec<LearningGoal>,
+    #[prop_or_default]
+    pub quests: Vec<Quest>,
 }
 
 #[derive(PartialEq, Clone)]
 enum ViewState {
     Plan,
+    Goal,
     Items(Vec<Uuid>), // UUIDs of items to show
 }
 
@@ -25,37 +30,91 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
     let on_click_container = {
         let state = state.clone();
         let items = props.items.clone();
+        let has_plan = props.current_step_title.is_some();
+        let has_goals = !props.learning_goals.is_empty();
+        let has_items = !props.items.is_empty();
 
         Callback::from(move |_: MouseEvent| {
-            let new_state = match (*state).clone() {
-                ViewState::Plan => {
-                    let count = 3.min(items.len());
-                    let uuids = pick_random_uuids(&items, count, &[]);
-                    ViewState::Items(uuids)
-                }
-                ViewState::Items(_) => ViewState::Plan,
-            };
-            state.set(new_state);
+            let available = get_available_modes(has_plan, has_goals, has_items);
+
+            if available.is_empty() {
+                // No modes available, stay in current state
+                return;
+            }
+
+            let current = (*state).clone();
+            let current_mode = mode_from_view_state(&current);
+
+            if let Some(next_mode) = get_next_mode(current_mode, &available) {
+                let new_state = match next_mode {
+                    Mode::Plan => ViewState::Plan,
+                    Mode::Goal => ViewState::Goal,
+                    Mode::Items => {
+                        let count = 3.min(items.len());
+                        let uuids = pick_random_uuids(&items, count, &[]);
+                        ViewState::Items(uuids)
+                    }
+                };
+                state.set(new_state);
+            }
         })
     };
 
     // --- Render Logic ---
-    let content = match &*state {
-        ViewState::Plan => {
-            if let Some(step_title) = &props.current_step_title {
-                render_plan(step_title)
-            } else {
-                render_empty_status()
+    // Collect IDs of items shown as uncompleted quests (to avoid showing duplicates)
+    let quest_item_ids: Vec<_> = props
+        .quests
+        .iter()
+        .filter(|q| !q.completed)
+        .filter_map(|q| {
+            q.id.strip_prefix("quest_")
+                .and_then(|s| uuid::Uuid::parse_str(s).ok())
+        })
+        .collect();
+
+    let has_plan = props.current_step_title.is_some();
+    let has_goals = !props.learning_goals.is_empty();
+    // Items available for display = items not in uncompleted quests
+    let available_items: Vec<_> = props
+        .items
+        .iter()
+        .filter(|item| !quest_item_ids.contains(&item.id()))
+        .cloned()
+        .collect();
+    let has_items = !available_items.is_empty();
+    let available_modes = get_available_modes(has_plan, has_goals, has_items);
+
+    let content = if available_modes.is_empty() {
+        // No content available - show guidance
+        render_guidance_message()
+    } else {
+        match &*state {
+            ViewState::Plan => {
+                if let Some(step_title) = &props.current_step_title {
+                    render_plan(step_title)
+                } else {
+                    render_guidance_message()
+                }
             }
-        }
-        ViewState::Items(uuids) => {
-            if props.items.is_empty() {
-                render_empty_status()
-            } else {
-                render_items(&props.items, uuids, state.clone())
+            ViewState::Goal => {
+                if !props.learning_goals.is_empty() {
+                    render_goal(&props.learning_goals)
+                } else {
+                    render_guidance_message()
+                }
+            }
+            ViewState::Items(uuids) => {
+                if available_items.is_empty() {
+                    render_guidance_message()
+                } else {
+                    render_items(&available_items, uuids, state.clone())
+                }
             }
         }
     };
+
+    // Render quests above the main content if any undone quests exist
+    let quests_section = render_quests(&props.quests);
 
     html! {
         <div class="dynamic-island-container">
@@ -64,6 +123,7 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
                 onclick={on_click_container}
                 title="Click to toggle view"
             >
+                {quests_section}
                 {content}
             </div>
         </div>
@@ -136,16 +196,105 @@ fn render_single_item(
     }
 }
 
-fn render_empty_status() -> Html {
+fn render_quests(quests: &[Quest]) -> Html {
+    let undone: Vec<_> = quests.iter().filter(|q| !q.completed).collect();
+    if undone.is_empty() {
+        return html! {};
+    }
+
     html! {
-        <div class="island-content">
-            <span class="island-label">{"Status"}</span>
-            <span class="island-text">{"Ready for conversation"}</span>
+        <div class="island-quests">
+            <span class="island-label">{"Daily Focus"}</span>
+            {for undone.iter().map(|quest| {
+                html! {
+                    <div class="island-quest-item">
+                        <span class="quest-icon">{"🎯"}</span>
+                        <span class="island-text">{&quest.description}</span>
+                    </div>
+                }
+            })}
         </div>
     }
 }
 
-// --- Utilities ---
+fn render_goal(goals: &[LearningGoal]) -> Html {
+    if let Some(goal) = goals.first() {
+        html! {
+            <div class="island-content">
+                <span class="island-label">{"Learning Goal"}</span>
+                <div class="island-goal">
+                    <span class="goal-icon">{"🎯"}</span>
+                    <span class="island-text large">{&goal.goal}</span>
+                </div>
+            </div>
+        }
+    } else {
+        html! {}
+    }
+}
+
+fn render_guidance_message() -> Html {
+    html! {
+        <div class="island-content island-guidance">
+            <span class="island-label">{"Get Started"}</span>
+            <span class="island-text">{"Set goals and create plans to track progress. Start chatting to build learning items."}</span>
+        </div>
+    }
+}
+
+// --- Mode Cycling Utilities ---
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Mode {
+    Plan,
+    Goal,
+    Items,
+}
+
+fn get_available_modes(has_plan: bool, has_goals: bool, has_items: bool) -> Vec<Mode> {
+    let mut modes = Vec::new();
+    if has_plan {
+        modes.push(Mode::Plan);
+    }
+    if has_goals {
+        modes.push(Mode::Goal);
+    }
+    if has_items {
+        modes.push(Mode::Items);
+    }
+    modes
+}
+
+fn get_next_mode(current: Mode, available: &[Mode]) -> Option<Mode> {
+    if available.is_empty() {
+        return None;
+    }
+
+    // Find current mode's position in available modes
+    let current_idx = available.iter().position(|m| *m == current);
+
+    match current_idx {
+        Some(idx) => {
+            // Cycle to next available mode
+            let next_idx = (idx + 1) % available.len();
+            Some(available[next_idx])
+        }
+        None => {
+            // Current mode not in available modes, return first available
+            available.first().copied()
+        }
+    }
+}
+
+fn mode_from_view_state(state: &ViewState) -> Mode {
+    match state {
+        ViewState::Plan => Mode::Plan,
+        ViewState::Goal => Mode::Goal,
+        ViewState::Items(_) => Mode::Items,
+    }
+}
+
+// --- Other Utilities ---
 
 fn pick_random_uuids(items: &[LearningItem], count: usize, exclude: &[Uuid]) -> Vec<Uuid> {
     let mut available: Vec<Uuid> = items

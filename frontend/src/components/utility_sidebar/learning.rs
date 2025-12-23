@@ -1,10 +1,7 @@
 use super::learning_item::render_learning_item;
+use crate::app::app_state::LearningAction;
 use crate::app::app_state::user::UserDomainAction;
-use crate::app::app_state::{LearningAction, PlanAction};
-use crate::components::plan::generator::PlanGenerator;
-use crate::components::plan::{ActivePlan, PlanCreate, PlanList};
 use crate::services::enrichment_service::EnrichmentService;
-use crate::services::plan_service::PlanService;
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::{
     Dialect, EnrichRequest, Explained, Exploratory, LearningItem, LearningItemType, Mistake,
@@ -13,8 +10,6 @@ use dialect_coach_shared::{
 };
 use std::rc::Rc;
 use uuid::Uuid;
-use wasm_bindgen::JsCast;
-use web_sys::{Blob, HtmlAnchorElement, HtmlInputElement, Url};
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -27,7 +22,6 @@ pub struct LearningProps {
     pub user: Rc<UserState>,
     pub dispatch: Callback<UserDomainAction>,
     pub enrichment_service: Rc<EnrichmentService>,
-    pub plan_service: Rc<PlanService>,
 }
 
 fn has_active_dialect(dialect: Option<Dialect>) -> bool {
@@ -600,45 +594,6 @@ fn render_still_learning_grouped(
     }
 }
 
-fn render_active_plan_section(user: &Rc<UserState>, dispatch: &Callback<UserDomainAction>) -> Html {
-    if let Some(active_plan_id) = user.active_plan_id
-        && let Some(active_plan) = user.language_plans.iter().find(|p| p.id == active_plan_id)
-    {
-        html! {
-            <>
-                <ActivePlan
-                    plan={active_plan.clone()}
-                    on_advance={
-                        let dispatch = dispatch.clone();
-                        Callback::from(move |id| {
-                            dispatch.emit(UserDomainAction::Plan(PlanAction::AdvanceStep(id)));
-                        })
-                    }
-                    on_activate={
-                        let dispatch = dispatch.clone();
-                        Callback::from(move |id| {
-                            dispatch.emit(UserDomainAction::Plan(PlanAction::ActivateStep(id)));
-                        })
-                    }
-                />
-                <button
-                    class="view-all-plans-btn"
-                    onclick={
-                        let dispatch = dispatch.clone();
-                        Callback::from(move |_| {
-                            dispatch.emit(UserDomainAction::Plan(PlanAction::SetActive(None)));
-                        })
-                    }
-                >
-                    {"← Back to All Plans"}
-                </button>
-            </>
-        }
-    } else {
-        html! {}
-    }
-}
-
 #[function_component(Learning)]
 pub fn learning(props: &LearningProps) -> Html {
     let form_expanded = use_state(|| false);
@@ -654,12 +609,7 @@ pub fn learning(props: &LearningProps) -> Html {
     let point_to_try = use_state(String::new);
     let instructions = use_state(String::new);
     let enriching = use_state(|| false);
-    let is_importing = use_state(|| false);
     let enrich_error = use_state(|| None::<String>);
-    let show_create_plan = use_state(|| false);
-    let show_generator = use_state(|| false);
-    let editing_plan_id = use_state(|| None::<Uuid>);
-    let file_input_ref = use_node_ref();
 
     let fields = FormFields {
         mistake: specific_mistake.clone(),
@@ -673,15 +623,6 @@ pub fn learning(props: &LearningProps) -> Html {
         point: point_to_try.clone(),
         instructions: instructions.clone(),
     };
-
-    let plan_to_edit = editing_plan_id.as_ref().and_then(|id| {
-        props
-            .user
-            .language_plans
-            .iter()
-            .find(|p| p.id == *id)
-            .cloned()
-    });
 
     let clear_fields = create_clear_fields_callback(ClearStates {
         mistake: specific_mistake.clone(),
@@ -697,93 +638,6 @@ pub fn learning(props: &LearningProps) -> Html {
     });
 
     let clear_all = create_clear_all_callback(selected_type.clone(), clear_fields.clone());
-
-    let on_export_plan = {
-        let user = props.user.clone();
-        Callback::from(move |plan_id: Uuid| {
-            let Some(plan) = user.language_plans.iter().find(|p| p.id == plan_id) else {
-                return;
-            };
-
-            match serde_yaml::to_string(plan) {
-                Ok(yaml) => {
-                    let parts = js_sys::Array::new();
-                    parts.push(&wasm_bindgen::JsValue::from_str(&yaml));
-                    let properties = web_sys::BlobPropertyBag::new();
-                    properties.set_type("application/x-yaml");
-
-                    if let Ok(blob) = Blob::new_with_str_sequence_and_options(&parts, &properties)
-                        && let Ok(url) = Url::create_object_url_with_blob(&blob)
-                        && let Some(window) = web_sys::window()
-                        && let Some(document) = window.document()
-                        && let Ok(anchor) = document.create_element("a")
-                        && let Ok(anchor) = anchor.dyn_into::<HtmlAnchorElement>()
-                    {
-                        anchor.set_href(&url);
-                        anchor.set_download(&format!("{}.yaml", plan.title));
-                        anchor.click();
-                        let _ = Url::revoke_object_url(&url);
-                    }
-                }
-                Err(e) => gloo::console::error!("Failed to serialize plan", e.to_string()),
-            }
-        })
-    };
-
-    let on_import_click = {
-        let file_input_ref = file_input_ref.clone();
-        Callback::from(move |_| {
-            if let Some(input) = file_input_ref.cast::<HtmlInputElement>() {
-                input.click();
-            }
-        })
-    };
-
-    let on_file_change = {
-        let file_input_ref = file_input_ref.clone();
-        let dispatch = props.dispatch.clone();
-        let enrichment_service = props.enrichment_service.clone();
-        let is_importing = is_importing.clone();
-        Callback::from(move |_e: Event| {
-            if let Some(input) = file_input_ref.cast::<HtmlInputElement>()
-                && let Some(files) = input.files()
-                && let Some(file) = files.get(0)
-            {
-                let dispatch = dispatch.clone();
-                let enrichment_service = enrichment_service.clone();
-                let is_importing = is_importing.clone();
-
-                is_importing.set(true);
-
-                wasm_bindgen_futures::spawn_local(async move {
-                    let promise = file.text();
-                    let future = wasm_bindgen_futures::JsFuture::from(promise);
-                    match future.await {
-                        Ok(text_val) => {
-                            if let Some(text) = text_val.as_string() {
-                                let result = super::import_workflow::process_imported_text(
-                                    text,
-                                    enrichment_service,
-                                )
-                                .await;
-                                match result {
-                                    Ok(plan) => {
-                                        dispatch
-                                            .emit(UserDomainAction::Plan(PlanAction::Add(plan)));
-                                    }
-                                    Err(e) => gloo::console::error!("Import failed", e),
-                                }
-                            }
-                        }
-                        Err(e) => gloo::console::error!("Failed to read file", e),
-                    }
-                    is_importing.set(false);
-                });
-                // Reset input value so same file can be selected again if needed
-                input.set_value("");
-            }
-        })
-    };
 
     let on_save = {
         let selected_type = selected_type.clone();
@@ -885,18 +739,6 @@ pub fn learning(props: &LearningProps) -> Html {
 
     let on_cancel = clear_all;
 
-    let filtered_plans = if let Some(dialect) = props.active_branch_dialect {
-        props
-            .user
-            .language_plans
-            .iter()
-            .filter(|p| p.dialect == dialect)
-            .cloned()
-            .collect()
-    } else {
-        Vec::new()
-    };
-
     let (accomplishments, still_learning): (Vec<_>, Vec<_>) =
         props.items.iter().partition(|item| item.score == 100);
 
@@ -917,128 +759,6 @@ pub fn learning(props: &LearningProps) -> Html {
                 <p class="empty-message">{"No learning items yet. Start chatting to build your learning progress!"}</p>
             }
 
-            <div class="plans-section">
-                if props.user.active_plan_id.is_some() {
-                    {render_active_plan_section(&props.user, &props.dispatch)}
-                } else if *show_create_plan || editing_plan_id.is_some() || *show_generator {
-                    if *show_generator {
-                        <PlanGenerator
-                            plan_service={props.plan_service.clone()}
-                            on_plan_generated={
-                                let dispatch = props.dispatch.clone();
-                                let enrichment_service = props.enrichment_service.clone();
-                                let show_generator = show_generator.clone();
-                                Callback::from(move |simple_plan| {
-                                    super::import_workflow::handle_generated_plan(
-                                        simple_plan,
-                                        dispatch.clone(),
-                                        enrichment_service.clone(),
-                                        show_generator.clone()
-                                    );
-                                })
-                            }
-                            on_cancel={
-                                let show_generator = show_generator.clone();
-                                Callback::from(move |_| show_generator.set(false))
-                            }
-                        />
-                    } else if let Some(dialect) = props.active_branch_dialect {
-                        <PlanCreate
-                            dialect={dialect}
-                            plan_to_edit={plan_to_edit}
-                            on_create={
-                                let dispatch = props.dispatch.clone();
-                                let show_create_plan = show_create_plan.clone();
-                                let editing_plan_id = editing_plan_id.clone();
-                                Callback::from(move |plan: dialect_coach_shared::models::LanguagePlan| {
-                                    if editing_plan_id.is_some() {
-                                        dispatch.emit(UserDomainAction::Plan(PlanAction::Update(plan)));
-                                    } else {
-                                        dispatch.emit(UserDomainAction::Plan(PlanAction::Add(plan)));
-                                    }
-                                    show_create_plan.set(false);
-                                    editing_plan_id.set(None);
-                                })
-                            }
-                            on_cancel={
-                                let show_create_plan = show_create_plan.clone();
-                                let editing_plan_id = editing_plan_id.clone();
-                                Callback::from(move |_| {
-                                    show_create_plan.set(false);
-                                    editing_plan_id.set(None);
-                                })
-                            }
-                            enrichment_service={props.enrichment_service.clone()}
-                        />
-                    }
-                } else {
-                    <PlanList
-                        plans={filtered_plans} // Use the pre-calculated filtered list
-                        active_plan_id={props.user.active_plan_id}
-                        on_select_plan={
-                            let dispatch = props.dispatch.clone();
-                            Callback::from(move |id| {
-                                dispatch.emit(UserDomainAction::Plan(PlanAction::SetActive(id)));
-                            })
-                        }
-                        on_delete_plan={
-                            let dispatch = props.dispatch.clone();
-                            Callback::from(move |id| {
-                                dispatch.emit(UserDomainAction::Plan(PlanAction::Delete(id)));
-                            })
-                        }
-                        on_edit_plan={
-                            let editing_plan_id = editing_plan_id.clone();
-                            Callback::from(move |id| {
-                                editing_plan_id.set(Some(id));
-                            })
-                        }
-                        on_export_plan={on_export_plan}
-                    />
-                    if has_active_dialect(props.active_branch_dialect) {
-                        <div class="plan-list-actions" style="display: flex; gap: var(--s-2);">
-                            <button
-                                class="create-plan-button"
-                                onclick={
-                                    let show_create_plan = show_create_plan.clone();
-                                    let editing_plan_id = editing_plan_id.clone();
-                                    Callback::from(move |_| {
-                                        editing_plan_id.set(None);
-                                        show_create_plan.set(true)
-                                    })
-                                }
-                            >
-                                {"+ Create New Plan"}
-                            </button>
-                            <button
-                                class="generate-plan-button"
-                                style="background: var(--surface-muted); color: var(--ink); border: 1px solid rgba(0,0,0,0.1);"
-                                onclick={
-                                    let show_generator = show_generator.clone();
-                                    Callback::from(move |_| show_generator.set(true))
-                                }
-                            >
-                                {"✨ Generate with AI"}
-                            </button>
-                            <button
-                                class="import-plan-button"
-                                onclick={on_import_click}
-                                disabled={*is_importing}
-                                style="background: var(--surface-muted); color: var(--ink); border: 1px solid rgba(0,0,0,0.1);"
-                            >
-                                {if *is_importing { "Importing..." } else { "Import Plan" }}
-                            </button>
-                            <input
-                                type="file"
-                                accept=".yaml,.yml"
-                                ref={file_input_ref}
-                                style="display: none;"
-                                onchange={on_file_change}
-                            />
-                        </div>
-                    }
-                }
-            </div>
             <hr class="learning-divider" />
 
             {render_add_item_form(FormRenderProps {

@@ -6,6 +6,7 @@ use crate::app::app_state::callbacks::on_replay_message;
 use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{
     AppState, LearningAction, SessionAction, SessionState, SettingsAction, UIState, UIStateAction,
+    UserStateGamificationExt,
 };
 use crate::app::user_state_callbacks::{
     on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
@@ -260,6 +261,14 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             items
                         }
                         current_step_title={current_step_title.clone()}
+                        learning_goals={get_filtered_goals(us)}
+                        quests={
+                            let stats = us.gamification_stats();
+                            stats.quests.iter()
+                                .filter(|q| q.dialect == us.selected_dialect)
+                                .cloned()
+                                .collect::<Vec<_>>()
+                        }
                     />
                     <InputBox
                         on_send={{
