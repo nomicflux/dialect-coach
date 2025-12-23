@@ -13,11 +13,7 @@ Keep explanations brief and practical.
 Introduce NEW items, do not make corrections.
 If previous user message used previously explained items from the learning item list, continue talking about them."#;
 
-const INTERLEAVED_DESC: &str = r#"3. INTERLEAVED MODE: User mixes target language with source language.
-Respond naturally as a chat conversation partner in 1-2 sentences.
-If the user made errors in their message, weave the correct forms into your response conversationally without mentioning them. Maximum two corrections per response.
-If they used English words, incorporate the dialect translation of one phrase naturally as you continue the conversation.
-Never explain corrections. Never say "you meant" or "you're saying". Just chat naturally using correct forms."#;
+
 
 const STORYTELLER_DESC: &str = r#"3. STORYTELLER MODE: You are telling an interactive story with the user.
 Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue.
@@ -43,10 +39,9 @@ const LEVEL_C2: &str = "LANGUAGE LEVEL C2 (Proficient): Speak as you would to a 
 
 fn mode_description(mode: &TeachingMode) -> &'static str {
     match mode {
-        TeachingMode::Immersive => IMMERSIVE_DESC,
+        TeachingMode::Immersive | TeachingMode::Interleaved => IMMERSIVE_DESC,
         TeachingMode::Corrective => CORRECTIVE_DESC,
         TeachingMode::Explanatory => EXPLANATORY_DESC,
-        TeachingMode::Interleaved => INTERLEAVED_DESC,
         TeachingMode::StoryTeller => STORYTELLER_DESC,
         TeachingMode::Debug => DEBUG_DESC,
     }
