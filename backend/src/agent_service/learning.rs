@@ -87,8 +87,7 @@ fn should_skip_learning_call(params: &LearningAgentParams<'_>) -> bool {
         return false;
     }
 
-    // Skip for modes that generate limited items
-    // Continue for Interleaved (user-controlled)
+    // Skip for modes that generate limited items when total >= 10
     matches!(
         params.teaching_mode,
         TeachingMode::Corrective | TeachingMode::Explanatory | TeachingMode::StoryTeller
@@ -202,7 +201,7 @@ impl LearningAgent {
     }
 
     fn skip_mode(mode: &TeachingMode) -> bool {
-        matches!(mode, TeachingMode::Immersive | TeachingMode::Debug)
+        matches!(mode, TeachingMode::Immersive | TeachingMode::Interleaved | TeachingMode::Debug)
     }
 }
 
@@ -232,7 +231,7 @@ fn build_learning_system_content(
         params.dialect.name(),
         params.formality.name(),
         lang_section,
-        learning_mode_context(&params.teaching_mode, &params.dialect, &params.formality),
+        learning_mode_context(&params.teaching_mode),
         JSON_OUTPUT_INSTRUCTION,
         learning_output_format_spec(&params.teaching_mode, limits)
     )
@@ -240,8 +239,6 @@ fn build_learning_system_content(
 
 fn learning_mode_context(
     teaching_mode: &TeachingMode,
-    dialect: &Dialect,
-    formality: &Formality,
 ) -> String {
     match teaching_mode {
         TeachingMode::Corrective => {
@@ -268,15 +265,6 @@ fn learning_mode_context(
             - New vocabulary, idioms, or cultural context introduced in the previous assistanjt message\n\
             - Only noteworthy items worth remembering\n\n".to_string()
         }
-        TeachingMode::Interleaved => {
-            format!(
-                "# WHAT TO LOG\n\
-                - English words/phrases from the user's message that needed translation\n\
-                - Translations must be in {} at {} formality\n\n",
-                dialect.name(),
-                formality.name()
-            )
-        }
         TeachingMode::StoryTeller => {
             r#"# WHAT TO LOG\n\
             - New language patterns or linguistic features user should practice from the previous assistant message\n\
@@ -284,7 +272,7 @@ fn learning_mode_context(
             - All points MUST be SPECIFIC LINGUSTIC FEATURES.
             "#.to_string()
         }
-        TeachingMode::Immersive | TeachingMode::Debug => String::new(),
+        TeachingMode::Immersive | TeachingMode::Interleaved | TeachingMode::Debug => String::new(),
     }
 }
 
@@ -320,11 +308,6 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
                 limits.max_explained
             )
         }
-        TeachingMode::Interleaved => r#"{
-  "translated": [{"translated_word": "<source word>", "translated_to": "<dialect translation>"}]
-}
-- Return {"translated": []} when nothing required translating"#
-            .to_string(),
         TeachingMode::StoryTeller => {
             format!(
                 r#"{{
@@ -335,7 +318,7 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
                 limits.max_exploratory
             )
         }
-        TeachingMode::Immersive | TeachingMode::Debug => r#"{}
+        TeachingMode::Immersive | TeachingMode::Interleaved | TeachingMode::Debug => r#"{}
 No learning items for this mode."#
             .to_string(),
     }
@@ -357,7 +340,7 @@ fn build_existing_items_section(params: &LearningAgentParams<'_>) -> String {
 
 fn build_learning_prompt(params: &LearningAgentParams<'_>) -> String {
     let (user_section, asst_section) = match params.teaching_mode {
-        TeachingMode::Corrective | TeachingMode::Interleaved => (
+        TeachingMode::Corrective => (
             format!("LATEST USER MESSAGE:\n{}\n\n", params.user_message),
             String::new(),
         ),
@@ -673,24 +656,5 @@ mod tests {
         assert!(should_skip_learning_call(&params));
     }
 
-    #[test]
-    fn test_should_not_skip_learning_call_at_10_interleaved() {
-        let mut explained = Vec::new();
-        for i in 0..10 {
-            explained.push(Explained::new(format!("test{}", i), "test".to_string()));
-        }
-        let params = LearningAgentParams {
-            user_message: "test",
-            assistant_response: "test",
-            dialect: Dialect::SpanishMexican,
-            formality: Formality::Informal,
-            teaching_mode: TeachingMode::Interleaved,
-            past_mistakes: &[],
-            past_explained: &explained,
-            past_translated: &[],
-            past_exploratory: &[],
-            language_option: &None,
-        };
-        assert!(!should_skip_learning_call(&params)); // Interleaved continues
-    }
+
 }
