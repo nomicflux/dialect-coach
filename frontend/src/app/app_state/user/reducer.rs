@@ -154,16 +154,20 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
         }
         SetActive(plan_id) => {
             next.active_plan_id = plan_id;
-            if let Some(pid) = plan_id
-                && let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == pid)
-            {
-                plan.start();
+            if let Some(pid) = plan_id {
+                if let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == pid) {
+                    plan.start();
+                }
+                // Activate the current step's items when plan becomes active
+                activate_step_items(next, pid);
             }
         }
         AdvanceStep(plan_id) => {
             if let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == plan_id) {
                 plan.advance_step();
             }
+            // Activate the new step's items after advancing
+            activate_step_items(next, plan_id);
         }
         ActivateStep(plan_id) => {
             activate_step_items(next, plan_id);

@@ -78,12 +78,11 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
         Callback::from(move |_| {
             let new_val = !*show_experimental;
             show_experimental.set(new_val);
-            if !new_val {
-                 if let Some(d) = *selected_dialect {
-                     if dialect_features(d).is_experimental {
-                         selected_dialect.set(None);
-                     }
-                 }
+            if !new_val
+                && let Some(d) = *selected_dialect
+                && dialect_features(d).is_experimental
+            {
+                selected_dialect.set(None);
             }
         })
     };
@@ -170,7 +169,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
             if let (Some(lang), Some(dialect)) = (*selected_language, *selected_dialect) {
                  let settings = InitialUserSettings {
                     language: lang,
-                    dialect: dialect,
+                    dialect,
                     level: *selected_level,
                     gender: *selected_gender,
                 };
