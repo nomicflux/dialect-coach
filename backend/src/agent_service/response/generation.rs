@@ -1,4 +1,5 @@
 use super::*;
+use crate::agent_service::translation::{TranslationAgent, TranslationAgentParams, TranslationAgentOutput};
 use anyhow::{Context, Result};
 use dialect_coach_shared::{AgentUsage, PastLearningItems};
 use rig::completion::Message as RigMessage;
@@ -13,7 +14,7 @@ use super::parsing::{
 };
 use super::system_content::build_system_content;
 
-use crate::agent_service::learning::{LearningAgent, LearningAgentParams};
+use crate::agent_service::learning::{LearningAgent, LearningAgentParams, LearningAgentOutput};
 use crate::agent_service::provider::CompletionRequest;
 use crate::agent_service::retry::{
     RetryContext, build_retry_response_preamble, retry_completion_call,
@@ -27,14 +28,39 @@ impl ResponseContext {
         parsed_response: dialect_coach_shared::AgentResponse,
     ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
         let assistant_response = parsed_response.response.clone();
+
+        // Call mode-specific learning agent
         let learning_agent = LearningAgent::new(self.learning_agent.clone());
         let learning_params = build_learning_params(params, &assistant_response);
-        let (result, usage) = learning_agent
+        let (learning_result, learning_usage) = learning_agent
             .generate_learning_items(&learning_params)
             .await;
-        match result {
-            Ok(output) => Ok((apply_learning_output(parsed_response, output), usage)),
-            Err(e) => Err(e),
+
+        // Call translation agent for all non-debug modes
+        let (translation_result, translation_usage) = if params.teaching_mode != TeachingMode::Debug {
+            let translation_agent = TranslationAgent::new(self.learning_agent.clone());
+            let translation_params = TranslationAgentParams {
+                user_message: params.user_message,
+                dialect: params.dialect.dialect,
+                formality: params.formality,
+                past_translated: params.past_translated,
+                language_option: params.language_option,
+            };
+            translation_agent.generate_translations(&translation_params).await
+        } else {
+            (Ok(TranslationAgentOutput::empty()), Vec::new())
+        };
+
+        // Merge results
+        let mut all_usage = learning_usage;
+        all_usage.extend(translation_usage);
+
+        match (learning_result, translation_result) {
+            (Ok(learning_output), Ok(translation_output)) => {
+                let merged = merge_learning_outputs(learning_output, translation_output);
+                Ok((apply_learning_output(parsed_response, merged), all_usage))
+            }
+            (Err(e), _) | (_, Err(e)) => Err(e),
         }
     }
 
@@ -471,4 +497,16 @@ fn log_provider_error(ctx: &ResponseContext, e: &anyhow::Error) {
         error = %error_text,
         "Provider completion failed before response parsing"
     );
+}
+
+fn merge_learning_outputs(
+    learning: LearningAgentOutput,
+    translation: TranslationAgentOutput,
+) -> LearningAgentOutput {
+    LearningAgentOutput {
+        mistakes: learning.mistakes,
+        explained: learning.explained,
+        translated: translation.translated,
+        exploratory: learning.exploratory,
+    }
 }
