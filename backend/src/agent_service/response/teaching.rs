@@ -1,19 +1,17 @@
 use super::config::tokens_per_mode;
 use dialect_coach_shared::{LanguageLevel, TeachingMode};
 
-const IMMERSIVE_DESC: &str = "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections.";
+const IMMERSIVE_DESC: &str = "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally as you continue the conversation.";
 
 const CORRECTIVE_DESC: &str = r#"3. CORRECTIVE MODE: Respond naturally, warmly but concisely (hard limit of 1-2 short sentences).
 If and only if the user made mistakes in their previous message, include some corrected versions as a gentle guide.
 Otherwise, continue the conversation naturally while naturally incorporating learning items.
-Inclusion of corrections and items is limited to what fits within the 1-2 sentence limit."#;
+Inclusion of corrections and items is limited to what fits within the 1-2 sentence limit. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally."#;
 
 const EXPLANATORY_DESC: &str = r#"3. EXPLANATORY MODE: Respond naturally and curiously (2-3 sentences). Introduce NEW vocabulary, idioms, or culturally interesting expressions.
 Keep explanations brief and practical.
 Introduce NEW items, do not make corrections.
-If previous user message used previously explained items from the learning item list, continue talking about them."#;
-
-
+If previous user message used previously explained items from the learning item list, continue talking about them. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally."#;
 
 const STORYTELLER_DESC: &str = r#"3. STORYTELLER MODE: You are telling an interactive story with the user.
 Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue.
@@ -21,7 +19,7 @@ Keeping the story flow is important. Improvise. Go with the flow. Do not be dida
 Do not explain what you are doing. Just tell the story. Keep the flow immersive.
 Keep your story evocative yet brief (2-4 sentences); you are telling this story together with the user.
 Do not correct the user in your message or explain linguistic constructs. If the user makes mistakes, show correct usage without explanation and naturally within the story.
-Use elements from previous messages."#;
+Use elements from previous messages. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally into the story."#;
 
 const DEBUG_DESC: &str = r#"3. DEBUG MODE: Answer in English with clear, brief explanations. The user is debugging an issue.
 You are a prompt engineer.
@@ -39,7 +37,7 @@ const LEVEL_C2: &str = "LANGUAGE LEVEL C2 (Proficient): Speak as you would to a 
 
 fn mode_description(mode: &TeachingMode) -> &'static str {
     match mode {
-        TeachingMode::Immersive | TeachingMode::Interleaved => IMMERSIVE_DESC,
+        TeachingMode::Immersive => IMMERSIVE_DESC,
         TeachingMode::Corrective => CORRECTIVE_DESC,
         TeachingMode::Explanatory => EXPLANATORY_DESC,
         TeachingMode::StoryTeller => STORYTELLER_DESC,

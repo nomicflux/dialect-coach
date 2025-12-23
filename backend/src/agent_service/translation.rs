@@ -4,9 +4,11 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use super::language_instructions::build_language_instruction;
-use super::provider::{CompletionAgent, CompletionRequest, ANTHROPIC_PROVIDER};
+use super::provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionRequest};
 use super::retry::retry_completion_call;
-use super::util::{JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, normalize_json_response};
+use super::util::{
+    JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, normalize_json_response,
+};
 
 #[derive(Debug, Clone)]
 pub struct TranslationAgentParams<'a> {
@@ -24,7 +26,9 @@ pub struct TranslationAgentOutput {
 
 impl TranslationAgentOutput {
     pub fn empty() -> Self {
-        Self { translated: Vec::new() }
+        Self {
+            translated: Vec::new(),
+        }
     }
 }
 
@@ -32,8 +36,8 @@ fn calculate_max_translated(past_count: usize) -> u8 {
     if past_count == 0 { 2 } else { 1 }
 }
 
-fn should_skip_translation(past_translated: &[Translated]) -> bool {
-    past_translated.len() >= 20
+fn should_skip_translation(_past_translated: &[Translated]) -> bool {
+    false // Never skip translation logic
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,13 +59,23 @@ impl TranslationAgent {
         &self,
         params: &TranslationAgentParams<'_>,
     ) -> (Result<TranslationAgentOutput>, Vec<AgentUsage>) {
+        tracing::debug!(
+            "TranslationAgent: generate_translations called for dialect: {}",
+            params.dialect
+        );
         if should_skip_translation(params.past_translated) {
+            tracing::debug!(
+                "TranslationAgent: Skipping due to item limit ({})",
+                params.past_translated.len()
+            );
             return (Ok(TranslationAgentOutput::empty()), Vec::new());
         }
 
         let max_translated = calculate_max_translated(params.past_translated.len());
         let system_content = build_translation_system_content(params, max_translated);
+        tracing::debug!("Translation Agent System Content:\n{}", system_content);
         let prompt = build_translation_prompt(params);
+        tracing::debug!("Translation Agent Prompt:\n{}", prompt);
 
         let mut history = Vec::new();
         if self.agent.provider() == ANTHROPIC_PROVIDER {
@@ -78,13 +92,16 @@ impl TranslationAgent {
 
         let (result, usage) = retry_completion_call(self.agent.as_ref(), &request, 3).await;
         match result {
-            Ok(response) => match try_parse_translation_output(&response) {
-                Ok(output) => {
-                    log_translation_success(&output);
-                    (Ok(output), usage)
+            Ok(response) => {
+                tracing::debug!("Translation Agent Raw Response:\n{}", response);
+                match try_parse_translation_output(&response) {
+                    Ok(output) => {
+                        log_translation_success(&output);
+                        (Ok(output), usage)
+                    }
+                    Err(e) => (Err(e), usage),
                 }
-                Err(e) => (Err(e), usage),
-            },
+            }
             Err(e) => (Err(e), usage),
         }
     }
@@ -108,7 +125,6 @@ Target dialect: {} at {} formality.{}
 # CRITICAL: FOREIGN IMPORTS WARNING
 Do NOT translate English words that are commonly used as loanwords in this dialect.
 Examples of words to KEEP in English:
-- Technical terms (computer, internet, software, email)
 - Brand names and proper nouns
 - Words that have been adopted into the dialect with no native equivalent
 - Words the dialect commonly uses in English form
@@ -138,7 +154,8 @@ fn build_translation_prompt(params: &TranslationAgentParams<'_>) -> String {
     let past_section = if params.past_translated.is_empty() {
         "No previous translations.".to_string()
     } else {
-        params.past_translated
+        params
+            .past_translated
             .iter()
             .map(|t| format!("{} -> {}", t.translated_word, t.translated_to))
             .collect::<Vec<_>>()
@@ -147,15 +164,16 @@ fn build_translation_prompt(params: &TranslationAgentParams<'_>) -> String {
 
     format!(
         "USER MESSAGE:\n{}\n\nPREVIOUS TRANSLATIONS:\n{}",
-        params.user_message,
-        past_section
+        params.user_message, past_section
     )
 }
 
 fn try_parse_translation_output(response: &str) -> Result<TranslationAgentOutput> {
     let normalized = normalize_json_response(response);
     let parsed: RawTranslationOutput = serde_json::from_str(&normalized)?;
-    Ok(TranslationAgentOutput { translated: parsed.translated })
+    Ok(TranslationAgentOutput {
+        translated: parsed.translated,
+    })
 }
 
 fn log_translation_success(output: &TranslationAgentOutput) {
@@ -176,7 +194,7 @@ mod tests {
         let items: Vec<Translated> = (0..20)
             .map(|i| Translated::new(format!("word{}", i), format!("trans{}", i), None))
             .collect();
-        assert!(should_skip_translation(&items));
+        assert!(!should_skip_translation(&items));
     }
 
     #[test]

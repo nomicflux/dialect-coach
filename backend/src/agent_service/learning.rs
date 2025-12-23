@@ -201,7 +201,7 @@ impl LearningAgent {
     }
 
     fn skip_mode(mode: &TeachingMode) -> bool {
-        matches!(mode, TeachingMode::Immersive | TeachingMode::Interleaved | TeachingMode::Debug)
+        matches!(mode, TeachingMode::Immersive | TeachingMode::Debug)
     }
 }
 
@@ -237,9 +237,7 @@ fn build_learning_system_content(
     )
 }
 
-fn learning_mode_context(
-    teaching_mode: &TeachingMode,
-) -> String {
+fn learning_mode_context(teaching_mode: &TeachingMode) -> String {
     match teaching_mode {
         TeachingMode::Corrective => {
             "# COMMUNICATION ERROR DETECTION\n\
@@ -272,7 +270,7 @@ fn learning_mode_context(
             - All points MUST be SPECIFIC LINGUSTIC FEATURES.
             "#.to_string()
         }
-        TeachingMode::Immersive | TeachingMode::Interleaved | TeachingMode::Debug => String::new(),
+        TeachingMode::Immersive | TeachingMode::Debug => String::new(),
     }
 }
 
@@ -318,7 +316,7 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
                 limits.max_exploratory
             )
         }
-        TeachingMode::Immersive | TeachingMode::Interleaved | TeachingMode::Debug => r#"{}
+        TeachingMode::Immersive | TeachingMode::Debug => r#"{}
 No learning items for this mode."#
             .to_string(),
     }
@@ -655,6 +653,4 @@ mod tests {
         };
         assert!(should_skip_learning_call(&params));
     }
-
-
 }

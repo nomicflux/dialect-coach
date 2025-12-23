@@ -602,14 +602,12 @@ pub struct DialectConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TeachingMode {
-    #[serde(rename = "immersive")]
+    #[serde(rename = "immersive", alias = "interleaved")]
     Immersive,
     #[serde(rename = "corrective")]
     Corrective,
     #[serde(rename = "explanatory")]
     Explanatory,
-    #[serde(rename = "interleaved")]
-    Interleaved,
     #[serde(rename = "storyteller")]
     StoryTeller,
     #[serde(rename = "debug")]

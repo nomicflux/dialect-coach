@@ -126,7 +126,6 @@ pub fn settings(props: &SettingsProps) -> Html {
                             <option value="immersive" selected={us.teaching_mode == TeachingMode::Immersive}>{"Immersive"}</option>
                             <option value="corrective" selected={us.teaching_mode == TeachingMode::Corrective}>{"Corrective"}</option>
                             <option value="explanatory" selected={us.teaching_mode == TeachingMode::Explanatory}>{"Explanatory"}</option>
-                            <option value="interleaved" selected={us.teaching_mode == TeachingMode::Interleaved}>{"Interleaved"}</option>
                             <option value="storyteller" selected={us.teaching_mode == TeachingMode::StoryTeller}>{"Story Teller"}</option>
                             <option value="debug" selected={us.teaching_mode == TeachingMode::Debug}>{"Debug"}</option>
                         </select>

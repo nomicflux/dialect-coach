@@ -129,8 +129,7 @@ pub fn cycle_teaching_mode(current: TeachingMode) -> TeachingMode {
     match current {
         TeachingMode::Immersive => TeachingMode::Corrective,
         TeachingMode::Corrective => TeachingMode::Explanatory,
-        TeachingMode::Explanatory => TeachingMode::Interleaved,
-        TeachingMode::Interleaved => TeachingMode::StoryTeller,
+        TeachingMode::Explanatory => TeachingMode::StoryTeller,
         TeachingMode::StoryTeller => TeachingMode::Debug,
         TeachingMode::Debug => TeachingMode::Immersive,
     }

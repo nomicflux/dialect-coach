@@ -701,10 +701,6 @@ fn test_cycle_teaching_mode() {
     );
     assert_eq!(
         cycle_teaching_mode(TeachingMode::Explanatory),
-        TeachingMode::Interleaved
-    );
-    assert_eq!(
-        cycle_teaching_mode(TeachingMode::Interleaved),
         TeachingMode::StoryTeller
     );
     assert_eq!(

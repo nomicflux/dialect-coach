@@ -1,5 +1,7 @@
 use super::*;
-use crate::agent_service::translation::{TranslationAgent, TranslationAgentParams, TranslationAgentOutput};
+use crate::agent_service::translation::{
+    TranslationAgent, TranslationAgentOutput, TranslationAgentParams,
+};
 use anyhow::{Context, Result};
 use dialect_coach_shared::{AgentUsage, PastLearningItems};
 use rig::completion::Message as RigMessage;
@@ -14,7 +16,7 @@ use super::parsing::{
 };
 use super::system_content::build_system_content;
 
-use crate::agent_service::learning::{LearningAgent, LearningAgentParams, LearningAgentOutput};
+use crate::agent_service::learning::{LearningAgent, LearningAgentOutput, LearningAgentParams};
 use crate::agent_service::provider::CompletionRequest;
 use crate::agent_service::retry::{
     RetryContext, build_retry_response_preamble, retry_completion_call,
@@ -37,7 +39,8 @@ impl ResponseContext {
             .await;
 
         // Call translation agent for all non-debug modes
-        let (translation_result, translation_usage) = if params.teaching_mode != TeachingMode::Debug {
+        let (translation_result, translation_usage) = if params.teaching_mode != TeachingMode::Debug
+        {
             let translation_agent = TranslationAgent::new(self.learning_agent.clone());
             let translation_params = TranslationAgentParams {
                 user_message: params.user_message,
@@ -46,7 +49,9 @@ impl ResponseContext {
                 past_translated: params.past_translated,
                 language_option: params.language_option,
             };
-            translation_agent.generate_translations(&translation_params).await
+            translation_agent
+                .generate_translations(&translation_params)
+                .await
         } else {
             (Ok(TranslationAgentOutput::empty()), Vec::new())
         };

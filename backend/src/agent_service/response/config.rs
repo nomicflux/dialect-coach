@@ -2,7 +2,7 @@ use dialect_coach_shared::TeachingMode;
 
 pub(crate) fn temperature_for_mode(mode: &TeachingMode) -> f64 {
     match mode {
-        TeachingMode::Immersive | TeachingMode::Interleaved => 0.3,
+        TeachingMode::Immersive => 0.3,
         TeachingMode::Corrective => 0.4,
         TeachingMode::Explanatory => 0.5,
         TeachingMode::StoryTeller => 1.0,
@@ -12,7 +12,7 @@ pub(crate) fn temperature_for_mode(mode: &TeachingMode) -> f64 {
 
 pub(crate) fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
     match teaching_mode {
-        TeachingMode::Immersive | TeachingMode::Interleaved => 256,
+        TeachingMode::Immersive => 256,
         TeachingMode::Corrective => 512,
         TeachingMode::Explanatory => 512,
         TeachingMode::StoryTeller => 1024,

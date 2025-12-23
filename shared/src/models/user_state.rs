@@ -290,7 +290,6 @@ impl UserState {
             TeachingMode::Immersive => "Immersive",
             TeachingMode::Corrective => "Corrective",
             TeachingMode::Explanatory => "Explanatory",
-            TeachingMode::Interleaved => "Interleaved",
             TeachingMode::StoryTeller => "Storyteller",
             TeachingMode::Debug => "Debug",
         }
