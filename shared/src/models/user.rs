@@ -45,7 +45,12 @@ mod tests {
     #[test]
     fn test_user_new_with_admin() {
         let id = Uuid::new_v4();
-        let user = User::new_with_admin(id, "admin".to_string(), "admin@example.com".to_string(), true);
+        let user = User::new_with_admin(
+            id,
+            "admin".to_string(),
+            "admin@example.com".to_string(),
+            true,
+        );
 
         assert_eq!(user.id, id);
         assert!(user.is_admin);

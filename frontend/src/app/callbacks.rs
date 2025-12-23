@@ -110,9 +110,10 @@ pub fn on_create_user_click(
         )| {
             let credentials = AuthCredentials::InviteCode(invite_code);
 
-            app_state
-                .dispatch(AppStateAction::StorePendingInitialSettings(initial_settings.clone()));
-            
+            app_state.dispatch(AppStateAction::StorePendingInitialSettings(
+                initial_settings.clone(),
+            ));
+
             ui_state.dispatch(UIStateAction::SetSignInLoading(true));
 
             if let Err(e) = app_state.user_ws_service.borrow().create_user(
@@ -134,8 +135,8 @@ pub fn on_create_user_click(
 }
 
 pub fn on_signin_click(
-    app_state: UseReducerHandle<AppState>, 
-    ui_state: UseReducerHandle<UIState>
+    app_state: UseReducerHandle<AppState>,
+    ui_state: UseReducerHandle<UIState>,
 ) -> Callback<(String, String)> {
     Callback::from(move |(username, password): (String, String)| {
         ui_state.dispatch(UIStateAction::SetSignInLoading(true));

@@ -78,7 +78,11 @@ fn render_rope(
 ) -> Html {
     if let Some(cb) = on_create_branch.clone() {
         let onclick = Callback::from(move |_: MouseEvent| cb.emit(msg_id));
-        let row_class = if is_own { "rope-row--user" } else { "rope-row--agent" };
+        let row_class = if is_own {
+            "rope-row--user"
+        } else {
+            "rope-row--agent"
+        };
         html! {
             <div class={classes!("rope-row", row_class)}>
                 <div class="neon-rope-container" onclick={onclick}>

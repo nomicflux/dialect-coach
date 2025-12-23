@@ -232,7 +232,11 @@ pub fn use_user_websocket(
             ui_state.clone(),
             session.clone(),
         ));
-        ws.set_on_signin_response(on_user_signin_response(app_state.clone(), ui_state.clone(), session.clone()));
+        ws.set_on_signin_response(on_user_signin_response(
+            app_state.clone(),
+            ui_state.clone(),
+            session.clone(),
+        ));
         ws.set_on_validate_session_response(on_validate_session_response(
             app_state.clone(),
             session.clone(),

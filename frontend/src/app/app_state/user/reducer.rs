@@ -331,10 +331,8 @@ fn activate_step_items(state: &mut UserState, plan_id: uuid::Uuid) {
         && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
     {
         // Add items to learning list (idempotent due to helper)
-        state.learning_items = merge_learning_items(
-            state.learning_items.clone(),
-            content.items.clone(),
-        );
+        state.learning_items =
+            merge_learning_items(state.learning_items.clone(), content.items.clone());
 
         // Update plan status
         if plan.status == dialect_coach_shared::models::PlanStatus::NotStarted {
@@ -456,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_activate_step_promotion() {
-         let mut state = UserState::new(Uuid::new_v4());
+        let mut state = UserState::new(Uuid::new_v4());
         let dialect = Dialect::SpanishMexican;
         state.selected_dialect = dialect;
         let mut plan = LanguagePlan::new(
@@ -499,9 +497,11 @@ mod tests {
         // Verify items moved to learning_items and plan status updated
         assert_eq!(state.learning_items.len(), 1);
         assert_eq!(get_learning_item_id(&state.learning_items[0]), mistake.id);
-        
+
         let updated_plan = state.language_plans.first().unwrap();
-        assert_eq!(updated_plan.status, dialect_coach_shared::models::PlanStatus::InProgress);
+        assert_eq!(
+            updated_plan.status,
+            dialect_coach_shared::models::PlanStatus::InProgress
+        );
     }
 }
-

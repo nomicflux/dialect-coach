@@ -1,3 +1,4 @@
+use super::learning_item::render_learning_item;
 use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{LearningAction, PlanAction};
 use crate::components::plan::generator::PlanGenerator;
@@ -13,7 +14,6 @@ use dialect_coach_shared::{
 use std::rc::Rc;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
-use super::learning_item::render_learning_item;
 use web_sys::{Blob, HtmlAnchorElement, HtmlInputElement, Url};
 use yew::prelude::*;
 
@@ -29,7 +29,6 @@ pub struct LearningProps {
     pub enrichment_service: Rc<EnrichmentService>,
     pub plan_service: Rc<PlanService>,
 }
-
 
 fn has_active_dialect(dialect: Option<Dialect>) -> bool {
     dialect.is_some()
@@ -543,8 +542,10 @@ fn populate_fields(enriched_item: serde_json::Value, states: &FieldStates) {
     }
 }
 
-
-fn render_still_learning_grouped(still_learning: Vec<&LearningItem>, on_delete: Callback<Uuid>) -> Html {
+fn render_still_learning_grouped(
+    still_learning: Vec<&LearningItem>,
+    on_delete: Callback<Uuid>,
+) -> Html {
     if still_learning.is_empty() {
         return html! {};
     }
@@ -599,10 +600,7 @@ fn render_still_learning_grouped(still_learning: Vec<&LearningItem>, on_delete: 
     }
 }
 
-fn render_active_plan_section(
-    user: &Rc<UserState>,
-    dispatch: &Callback<UserDomainAction>,
-) -> Html {
+fn render_active_plan_section(user: &Rc<UserState>, dispatch: &Callback<UserDomainAction>) -> Html {
     if let Some(active_plan_id) = user.active_plan_id
         && let Some(active_plan) = user.language_plans.iter().find(|p| p.id == active_plan_id)
     {

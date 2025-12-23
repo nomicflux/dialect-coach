@@ -12,7 +12,7 @@ pub fn neon_assets() -> Html {
                     <stop offset="50%" style="stop-color:#A78BFA;stop-opacity:1" />
                     <stop offset="100%" style="stop-color:#FF6B6B;stop-opacity:1" />
                 </@>
-                
+
                 // Global Glow Filter
                 <filter id="global-neon-glow" x="-50%" y="-50%" width="200%" height="200%">
                      <@{"feGaussianBlur"} in="SourceGraphic" stdDeviation="4" />

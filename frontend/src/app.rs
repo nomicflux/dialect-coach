@@ -19,7 +19,9 @@ pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 use log::{error, info};
 use yew::prelude::*;
 
-use crate::components::{DashboardButton, Header, MainContent, UserCreation, WelcomeScreen, LoadingScreen};
+use crate::components::{
+    DashboardButton, Header, LoadingScreen, MainContent, UserCreation, WelcomeScreen,
+};
 use crate::hooks::use_debounced_save;
 
 use app_websocket_hooks::{use_chat_websocket, use_user_state_websocket, use_user_websocket};
@@ -78,46 +80,46 @@ pub fn app() -> Html {
     }
 
     html! {
-            <div class="app">
-                <crate::components::icons::NeonAssets />
-                <Header
+        <div class="app">
+            <crate::components::icons::NeonAssets />
+            <Header
+                app_state={app_state.clone()}
+                ui_state={ui_state.clone()}
+                session={session.clone()}
+            />
+
+            <main
+                class="app-main"
+                data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
+            >
+                <DashboardButton
                     app_state={app_state.clone()}
                     ui_state={ui_state.clone()}
-                    session={session.clone()}
                 />
-
-                <main
-                    class="app-main"
-                    data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
-                >
-                    <DashboardButton
-                        app_state={app_state.clone()}
-                        ui_state={ui_state.clone()}
-                    />
-                    {if ui_state.is_signing_in {
-                        html! { <LoadingScreen /> }
-                    } else if ui_state.show_user_creation_page {
-                        html! {
-                            <UserCreation
-                                app_state={app_state.clone()}
-                                ui_state={ui_state.clone()}
-                                session={session.clone()}
-                            />
-                        }
-                    } else if session.user.is_some() {
-                        html! {
-                            <MainContent
-                                app_state={app_state.clone()}
-                                ui_state={ui_state.clone()}
-                                session={session.clone()}
-                            />
-                        }
-                    } else {
-                        html! {
-                            <WelcomeScreen />
-                        }
-                    }}
-                </main>
-            </div>
-        }
+                {if ui_state.is_signing_in {
+                    html! { <LoadingScreen /> }
+                } else if ui_state.show_user_creation_page {
+                    html! {
+                        <UserCreation
+                            app_state={app_state.clone()}
+                            ui_state={ui_state.clone()}
+                            session={session.clone()}
+                        />
+                    }
+                } else if session.user.is_some() {
+                    html! {
+                        <MainContent
+                            app_state={app_state.clone()}
+                            ui_state={ui_state.clone()}
+                            session={session.clone()}
+                        />
+                    }
+                } else {
+                    html! {
+                        <WelcomeScreen />
+                    }
+                }}
+            </main>
+        </div>
+    }
 }

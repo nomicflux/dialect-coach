@@ -341,7 +341,6 @@ No learning items for this mode."#
     }
 }
 
-
 fn build_existing_items_section(params: &LearningAgentParams<'_>) -> String {
     let summary = format_learning_items_context(
         params.past_mistakes,

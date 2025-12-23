@@ -18,7 +18,7 @@ enum ViewState {
 #[function_component(DynamicIsland)]
 pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
     let state = use_state(|| ViewState::Plan);
-    
+
     // --- Interaction Logic (Basic Reactive Wiring) ---
     // The handler does ONE thing: transition the state.
     // Logic is consolidated here. No splitting state updates.
@@ -32,15 +32,13 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
                     let count = 3.min(items.len());
                     let uuids = pick_random_uuids(&items, count, &[]);
                     ViewState::Items(uuids)
-                },
-                ViewState::Items(_) => {
-                    ViewState::Plan
                 }
+                ViewState::Items(_) => ViewState::Plan,
             };
             state.set(new_state);
         })
     };
-    
+
     // --- Render Logic ---
     let content = match &*state {
         ViewState::Plan => {
@@ -49,7 +47,7 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
             } else {
                 render_empty_status()
             }
-        },
+        }
         ViewState::Items(uuids) => {
             if props.items.is_empty() {
                 render_empty_status()
@@ -61,8 +59,8 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
 
     html! {
         <div class="dynamic-island-container">
-            <div 
-                class="dynamic-island" 
+            <div
+                class="dynamic-island"
                 onclick={on_click_container}
                 title="Click to toggle view"
             >
@@ -112,9 +110,7 @@ fn make_item_swap_callback(
     Callback::from(move |e: MouseEvent| {
         e.stop_propagation();
         let new_state = match (*state).clone() {
-            ViewState::Items(current) => {
-                ViewState::Items(swap_one_uuid(&current, id, &all_items))
-            },
+            ViewState::Items(current) => ViewState::Items(swap_one_uuid(&current, id, &all_items)),
             other => other,
         };
         state.set(new_state);
@@ -151,11 +147,7 @@ fn render_empty_status() -> Html {
 
 // --- Utilities ---
 
-fn pick_random_uuids(
-    items: &[LearningItem],
-    count: usize,
-    exclude: &[Uuid],
-) -> Vec<Uuid> {
+fn pick_random_uuids(items: &[LearningItem], count: usize, exclude: &[Uuid]) -> Vec<Uuid> {
     let mut available: Vec<Uuid> = items
         .iter()
         .map(get_item_id)
@@ -176,24 +168,17 @@ fn find_item_by_uuid(items: &[LearningItem], uuid: Uuid) -> Option<&LearningItem
     items.iter().find(|item| get_item_id(item) == uuid)
 }
 
-fn swap_one_uuid(
-    current: &[Uuid],
-    to_replace: Uuid,
-    all_items: &[LearningItem]
-) -> Vec<Uuid> {
+fn swap_one_uuid(current: &[Uuid], to_replace: Uuid, all_items: &[LearningItem]) -> Vec<Uuid> {
     let new_uuids = pick_random_uuids(all_items, 1, current);
 
     if new_uuids.is_empty() {
         return current.to_vec();
     }
 
-    current.iter().map(|&id| {
-        if id == to_replace {
-            new_uuids[0]
-        } else {
-            id
-        }
-    }).collect()
+    current
+        .iter()
+        .map(|&id| if id == to_replace { new_uuids[0] } else { id })
+        .collect()
 }
 
 fn get_item_text(item: &LearningItem) -> String {

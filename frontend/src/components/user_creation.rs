@@ -1,8 +1,7 @@
 use crate::app::app_callbacks::on_create_user_click;
 use crate::app::app_state::{AppState, SessionState, UIState};
 use dialect_coach_shared::models::{
-    Dialect, InitialUserSettings, Language, LanguageLevel, UserGender,
-    dialect_features,
+    Dialect, InitialUserSettings, Language, LanguageLevel, UserGender, dialect_features,
 };
 use yew::prelude::*;
 
@@ -21,21 +20,25 @@ impl PartialEq for UserCreationProps {
 
 #[function_component(UserCreation)]
 pub fn user_creation(props: &UserCreationProps) -> Html {
-    let UserCreationProps { app_state, ui_state, session } = props;
+    let UserCreationProps {
+        app_state,
+        ui_state,
+        session,
+    } = props;
 
     let username = use_state(String::new);
     let email = use_state(String::new);
     let invite_code = use_state(String::new);
     let password = use_state(String::new);
     let password_confirm = use_state(String::new);
-    
+
     // Visibility toggles
     let show_password = use_state(|| false);
     let show_invite_code = use_state(|| false);
-    
+
     // State for filtering
     let show_experimental = use_state(|| false);
-    
+
     // Selection state
     let selected_language = use_state::<Option<Language>, _>(|| None);
     let selected_dialect = use_state::<Option<Dialect>, _>(|| None);
@@ -53,7 +56,9 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                 } else {
                     // Check if language has ANY non-experimental dialects
                     let dialects = Dialect::all_dialects_for_language(lang);
-                    dialects.into_iter().any(|d| !dialect_features(d).is_experimental)
+                    dialects
+                        .into_iter()
+                        .any(|d| !dialect_features(d).is_experimental)
                 }
             })
             .collect::<Vec<_>>()
@@ -62,7 +67,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
     let available_dialects = {
         if let Some(lang) = *selected_language {
             let show_exp = *show_experimental;
-             Dialect::all_dialects_for_language(lang)
+            Dialect::all_dialects_for_language(lang)
                 .into_iter()
                 .filter(|&d| show_exp || !dialect_features(d).is_experimental)
                 .collect::<Vec<_>>()
@@ -86,7 +91,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
             }
         })
     };
-    
+
     let toggle_password_visibility = {
         let show_password = show_password.clone();
         Callback::from(move |e: MouseEvent| {
@@ -98,7 +103,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
     let toggle_invite_visibility = {
         let show_invite_code = show_invite_code.clone();
         Callback::from(move |e: MouseEvent| {
-             e.prevent_default();
+            e.prevent_default();
             show_invite_code.set(!*show_invite_code);
         })
     };
@@ -139,15 +144,15 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
             }
         })
     };
-    
+
     let passwords_match = *password == *password_confirm;
-    
-    let can_submit = !username.is_empty() 
-        && !email.is_empty() 
-        && !password.is_empty() 
+
+    let can_submit = !username.is_empty()
+        && !email.is_empty()
+        && !password.is_empty()
         && passwords_match
         && !invite_code.is_empty()
-        && selected_language.is_some() 
+        && selected_language.is_some()
         && selected_dialect.is_some();
 
     let on_submit = {
@@ -167,7 +172,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
 
         Callback::from(move |_| {
             if let (Some(lang), Some(dialect)) = (*selected_language, *selected_dialect) {
-                 let settings = InitialUserSettings {
+                let settings = InitialUserSettings {
                     language: lang,
                     dialect,
                     level: *selected_level,
@@ -183,7 +188,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
             }
         })
     };
-    
+
     // SVG Icons
     let eye_icon = html! {
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -191,7 +196,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
             <circle cx="12" cy="12" r="3"></circle>
         </svg>
     };
-    
+
     let eye_off_icon = html! {
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
@@ -203,7 +208,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
         <div class="user-creation-page">
             <div class="user-creation-card">
                 <h2>{"Create Your Account"}</h2>
-                
+
                 <div class="user-creation-form">
                     <div class="form-group">
                         <input
@@ -238,7 +243,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                             }
                         />
                     </div>
-                    
+
                     <div class="form-group">
                         <div class="input-wrapper">
                              <input
@@ -260,7 +265,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                             </button>
                         </div>
                     </div>
-                    
+
                      <div class="form-group">
                         <div class="input-wrapper">
                              <input
@@ -278,9 +283,9 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                                 }
                             />
                             // Shared toggle with main password for UX simplicity or independent?
-                            // Usually shared or independent. Let's make it follow the main toggle for now, 
-                            // or we can add another toggle. 
-                            // The request said "Fields should have option to show content". 
+                            // Usually shared or independent. Let's make it follow the main toggle for now,
+                            // or we can add another toggle.
+                            // The request said "Fields should have option to show content".
                             // Let's reuse the same toggle button logic for simplicity of UI density.
                              <button class="toggle-visibility-btn" onclick={toggle_password_visibility}>
                                 {if *show_password { eye_off_icon.clone() } else { eye_icon.clone() }}
@@ -317,11 +322,11 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
 
                     <div class="form-group">
                         <label class="checkbox-group">
-                            <input 
-                                type="checkbox" 
+                            <input
+                                type="checkbox"
                                 checked={*show_experimental}
                                 onclick={on_toggle_experimental}
-                                style="opacity: 0; position: absolute;" 
+                                style="opacity: 0; position: absolute;"
                             />
                             <div class="toggle-switch"></div>
                             <span class="checkbox-label">{"Show Experimental Dialects"}</span>
@@ -425,14 +430,14 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                         </div>
                     </div>
 
-                    <button 
-                        class="btn btn-primary" 
+                    <button
+                        class="btn btn-primary"
                         onclick={on_submit}
                         disabled={!can_submit}
                     >
                         {"Create Account"}
                     </button>
-                    
+
                     if !can_submit {
                          <div class="error-message">
                              {if !passwords_match && !password.is_empty() && !password_confirm.is_empty() {

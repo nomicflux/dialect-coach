@@ -42,7 +42,6 @@ pub struct UIState {
     pub is_signing_in: bool,
 }
 
-
 impl UIState {
     pub fn apply_action(&self, action: UIStateAction) -> Self {
         let mut next = self.clone();

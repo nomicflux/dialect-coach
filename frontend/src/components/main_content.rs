@@ -13,7 +13,9 @@ use crate::app::user_state_callbacks::{
     on_undo_message_callback,
 };
 use crate::components::study_drawer_content::DrawerTab;
-use crate::components::{ChatWindow, Drawer, DynamicIsland, InputBox, StudyDrawerContent, TranslationModal};
+use crate::components::{
+    ChatWindow, Drawer, DynamicIsland, InputBox, StudyDrawerContent, TranslationModal,
+};
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{
@@ -365,7 +367,12 @@ fn get_filtered_items(user_state: &UserState) -> Vec<LearningItem> {
         .into_iter()
         .cloned()
         .collect::<Vec<_>>();
-    gloo::console::log!("get_filtered_items count:", items.len(), "for dialect:", user_state.selected_dialect.to_string());
+    gloo::console::log!(
+        "get_filtered_items count:",
+        items.len(),
+        "for dialect:",
+        user_state.selected_dialect.to_string()
+    );
     items
 }
 

@@ -50,7 +50,8 @@ pub fn header(props: &HeaderProps) -> Html {
         let username = signin_username.clone();
         let password = signin_password.clone();
         Callback::from(move |_: MouseEvent| {
-            on_signin_click(app_state.clone(), ui_state.clone()).emit(((*username).clone(), (*password).clone()));
+            on_signin_click(app_state.clone(), ui_state.clone())
+                .emit(((*username).clone(), (*password).clone()));
         })
     };
 

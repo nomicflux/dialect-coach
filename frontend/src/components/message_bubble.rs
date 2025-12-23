@@ -271,8 +271,6 @@ mod tests {
     }
 }
 
-
-
 fn render_action_buttons(
     on_explain: &Option<Callback<Uuid>>,
     msg_id: Uuid,

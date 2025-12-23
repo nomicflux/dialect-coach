@@ -1,4 +1,4 @@
-pub mod neon_rope;
 pub mod neon_assets;
-pub use neon_rope::NeonRope;
+pub mod neon_rope;
 pub use neon_assets::NeonAssets;
+pub use neon_rope::NeonRope;

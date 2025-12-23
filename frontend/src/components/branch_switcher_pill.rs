@@ -1,7 +1,6 @@
 use yew::prelude::*;
 // Icon removed
 
-
 #[derive(Properties, PartialEq)]
 pub struct BranchSwitcherPillProps {
     pub branch_name: AttrValue,

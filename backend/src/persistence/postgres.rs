@@ -287,9 +287,11 @@ impl UserPersistence for PostgresPersistence {
     }
 
     async fn list_invite_codes(&self) -> Result<Vec<InviteCode>> {
-        let rows = sqlx::query("SELECT code, created_date, used_by, expiration, is_admin FROM invite_codes")
-            .fetch_all(&self.pool)
-            .await?;
+        let rows = sqlx::query(
+            "SELECT code, created_date, used_by, expiration, is_admin FROM invite_codes",
+        )
+        .fetch_all(&self.pool)
+        .await?;
 
         Ok(rows
             .into_iter()

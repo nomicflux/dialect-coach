@@ -1,17 +1,15 @@
-use dialect_coach_shared::{
-    LearningItem, LearningItemType,
-};
+use dialect_coach_shared::{LearningItem, LearningItemType};
 use uuid::Uuid;
 use yew::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LearningItemState {
-    New,        // 0
-    Started,    // >0
-    Activated,  // >20
-    Competent,  // >50
-    Mastered,   // >80
-    Perfected,  // 100
+    New,       // 0
+    Started,   // >0
+    Activated, // >20
+    Competent, // >50
+    Mastered,  // >80
+    Perfected, // 100
 }
 
 impl LearningItemState {
