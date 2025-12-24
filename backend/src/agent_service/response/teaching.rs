@@ -42,6 +42,7 @@ fn mode_description(mode: &TeachingMode) -> &'static str {
         TeachingMode::Explanatory => EXPLANATORY_DESC,
         TeachingMode::StoryTeller => STORYTELLER_DESC,
         TeachingMode::Debug => DEBUG_DESC,
+        TeachingMode::ErrorFinding => IMMERSIVE_DESC,
     }
 }
 

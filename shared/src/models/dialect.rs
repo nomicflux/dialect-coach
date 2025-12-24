@@ -612,6 +612,8 @@ pub enum TeachingMode {
     StoryTeller,
     #[serde(rename = "debug")]
     Debug,
+    #[serde(rename = "error_finding")]
+    ErrorFinding,
 }
 
 impl Default for DialectConfig {

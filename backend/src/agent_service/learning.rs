@@ -201,7 +201,7 @@ impl LearningAgent {
     }
 
     fn skip_mode(mode: &TeachingMode) -> bool {
-        matches!(mode, TeachingMode::Immersive | TeachingMode::Debug)
+        matches!(mode, TeachingMode::Immersive | TeachingMode::Debug | TeachingMode::ErrorFinding)
     }
 }
 
@@ -270,7 +270,7 @@ fn learning_mode_context(teaching_mode: &TeachingMode) -> String {
             - All points MUST be SPECIFIC LINGUSTIC FEATURES.
             "#.to_string()
         }
-        TeachingMode::Immersive | TeachingMode::Debug => String::new(),
+        TeachingMode::Immersive | TeachingMode::Debug | TeachingMode::ErrorFinding => String::new(),
     }
 }
 
@@ -316,7 +316,7 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
                 limits.max_exploratory
             )
         }
-        TeachingMode::Immersive | TeachingMode::Debug => r#"{}
+        TeachingMode::Immersive | TeachingMode::Debug | TeachingMode::ErrorFinding => r#"{}
 No learning items for this mode."#
             .to_string(),
     }

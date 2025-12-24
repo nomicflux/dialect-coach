@@ -127,6 +127,7 @@ pub fn settings(props: &SettingsProps) -> Html {
                             <option value="corrective" selected={us.teaching_mode == TeachingMode::Corrective}>{"Corrective"}</option>
                             <option value="explanatory" selected={us.teaching_mode == TeachingMode::Explanatory}>{"Explanatory"}</option>
                             <option value="storyteller" selected={us.teaching_mode == TeachingMode::StoryTeller}>{"Story Teller"}</option>
+                            <option value="error_finding" selected={us.teaching_mode == TeachingMode::ErrorFinding}>{"Find Agent Errors"}</option>
                             <option value="debug" selected={us.teaching_mode == TeachingMode::Debug}>{"Debug"}</option>
                         </select>
                     </div>

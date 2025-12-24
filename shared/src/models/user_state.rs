@@ -291,6 +291,7 @@ impl UserState {
             TeachingMode::Corrective => "Corrective",
             TeachingMode::Explanatory => "Explanatory",
             TeachingMode::StoryTeller => "Storyteller",
+            TeachingMode::ErrorFinding => "Find AI Errors",
             TeachingMode::Debug => "Debug",
         }
     }
