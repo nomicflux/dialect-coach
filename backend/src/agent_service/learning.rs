@@ -201,7 +201,10 @@ impl LearningAgent {
     }
 
     fn skip_mode(mode: &TeachingMode) -> bool {
-        matches!(mode, TeachingMode::Immersive | TeachingMode::Debug | TeachingMode::ErrorFinding)
+        matches!(
+            mode,
+            TeachingMode::Immersive | TeachingMode::Debug | TeachingMode::ErrorFinding
+        )
     }
 }
 

@@ -401,6 +401,7 @@ fn should_check_analysis_limit(
     }
     teaching_mode != dialect_coach_shared::TeachingMode::Immersive
         && teaching_mode != dialect_coach_shared::TeachingMode::Debug
+        && teaching_mode != dialect_coach_shared::TeachingMode::ErrorFinding
 }
 
 pub async fn check_rate_limits(

@@ -76,6 +76,7 @@ pub fn on_teaching_mode_change(dispatch: Callback<UserDomainAction>) -> Callback
                 "corrective" => TeachingMode::Corrective,
                 "explanatory" => TeachingMode::Explanatory,
                 "storyteller" => TeachingMode::StoryTeller,
+                "error_finding" => TeachingMode::ErrorFinding,
                 "debug" => TeachingMode::Debug,
                 _ => TeachingMode::Immersive,
             };
