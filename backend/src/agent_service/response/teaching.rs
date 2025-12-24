@@ -28,6 +28,12 @@ The prompts cannot be clarified to prevent every case of what not to do. Focus o
 Your deliverable will be the updated prompt, with commentary as appropriate for why the fixes are included.
 Do not format the prompt. Do not include any markdown for any reason."#;
 
+const ERROR_FINDING_DESC: &str = r#"3. ERROR FINDING MODE: Chat naturally and conversationally.
+You MUST intentionally include 1-3 grammatical/vocabulary/spelling errors that are common mistakes made by English speakers learning this language.
+Do NOT acknowledge or point out your errors. Speak as if they are natural (the user must discover them).
+If the user corrects your error, respond positively and encouragingly.
+Never reveal you are making intentional errors. Keep responses brief (1-2 sentences)."#;
+
 const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Beginner): Use very basic vocabulary and simple present tense. Short sentences only (one idea per sentence). Repeat key words. Speak slowly and clearly. If required vocabulary is complex, use very simple grammar.";
 const LEVEL_A2: &str = "LANGUAGE LEVEL A2 (Elementary): Use simple sentences and common vocabulary. Basic past and future tenses okay. Keep explanations brief and concrete.";
 const LEVEL_B1: &str = "LANGUAGE LEVEL B1 (Intermediate): Use standard vocabulary and grammar. Can introduce idioms with explanation. Normal conversational pace.";
@@ -42,7 +48,7 @@ fn mode_description(mode: &TeachingMode) -> &'static str {
         TeachingMode::Explanatory => EXPLANATORY_DESC,
         TeachingMode::StoryTeller => STORYTELLER_DESC,
         TeachingMode::Debug => DEBUG_DESC,
-        TeachingMode::ErrorFinding => IMMERSIVE_DESC,
+        TeachingMode::ErrorFinding => ERROR_FINDING_DESC,
     }
 }
 

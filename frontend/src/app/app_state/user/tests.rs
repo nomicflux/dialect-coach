@@ -705,6 +705,10 @@ fn test_cycle_teaching_mode() {
     );
     assert_eq!(
         cycle_teaching_mode(TeachingMode::StoryTeller),
+        TeachingMode::ErrorFinding
+    );
+    assert_eq!(
+        cycle_teaching_mode(TeachingMode::ErrorFinding),
         TeachingMode::Debug
     );
     assert_eq!(

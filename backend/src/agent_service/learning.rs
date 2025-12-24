@@ -83,11 +83,11 @@ fn should_skip_learning_call(params: &LearningAgentParams<'_>) -> bool {
         + params.past_translated.len()
         + params.past_exploratory.len();
 
-    if total_items < 10 {
+    if total_items < 100 {
         return false;
     }
 
-    // Skip for modes that generate limited items when total >= 10
+    // Skip for modes that generate limited items when total >= 100
     matches!(
         params.teaching_mode,
         TeachingMode::Corrective | TeachingMode::Explanatory | TeachingMode::StoryTeller
@@ -143,9 +143,14 @@ impl LearningAgent {
             return (Ok(LearningAgentOutput::empty()), Vec::new());
         }
 
+        // ErrorFinding mode: analyze how user handled intentional errors
+        if params.teaching_mode == TeachingMode::ErrorFinding {
+            return self.generate_error_finding_items(params).await;
+        }
+
         if should_skip_learning_call(params) {
             tracing::info!(
-                "Skipping learning agent call - {} total items (≥10)",
+                "Skipping learning agent call - {} total items (≥100)",
                 params.past_mistakes.len()
                     + params.past_explained.len()
                     + params.past_translated.len()
@@ -200,12 +205,94 @@ impl LearningAgent {
         }
     }
 
-    fn skip_mode(mode: &TeachingMode) -> bool {
-        matches!(
-            mode,
-            TeachingMode::Immersive | TeachingMode::Debug | TeachingMode::ErrorFinding
-        )
+    async fn generate_error_finding_items(
+        &self,
+        params: &LearningAgentParams<'_>,
+    ) -> (Result<LearningAgentOutput>, Vec<AgentUsage>) {
+        let (result, usage) = self.call_error_finding_agent(params).await;
+        match result {
+            Ok(mistakes) => (
+                Ok(LearningAgentOutput {
+                    mistakes,
+                    explained: Vec::new(),
+                    translated: Vec::new(),
+                    exploratory: Vec::new(),
+                }),
+                usage,
+            ),
+            Err(e) => (Err(e), usage),
+        }
     }
+
+    async fn call_error_finding_agent(
+        &self,
+        params: &LearningAgentParams<'_>,
+    ) -> (Result<Vec<Mistake>>, Vec<AgentUsage>) {
+        let limits = calculate_learning_limits(params);
+        let system_content = build_learning_system_content(params, &limits);
+        let prompt = build_error_finding_prompt(params);
+        let history = self.build_prefill_history();
+
+        let request = CompletionRequest {
+            preamble: &system_content,
+            prompt: &prompt,
+            history: &history,
+            max_tokens: 512,
+            temperature: 0.5,
+        };
+
+        let (result, usage) = retry_completion_call(self.agent.as_ref(), &request, 3).await;
+        match result {
+            Ok(response) => {
+                tracing::info!("ErrorFinding raw response: {}", response);
+                (parse_error_finding_output(&response), usage)
+            }
+            Err(e) => (Err(e.context("Failed to get error finding items")), usage),
+        }
+    }
+
+    fn build_prefill_history(&self) -> Vec<RigMessage> {
+        if self.agent.provider() == super::provider::ANTHROPIC_PROVIDER {
+            vec![create_prefilled_assistant_message()]
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn skip_mode(mode: &TeachingMode) -> bool {
+        matches!(mode, TeachingMode::Immersive | TeachingMode::Debug)
+    }
+}
+
+fn parse_error_finding_output(response: &str) -> Result<Vec<Mistake>> {
+    use super::error_finding::{ErrorFindingLearningOutput, score_for_handling};
+
+    let normalized = normalize_json_response(response);
+    let output: ErrorFindingLearningOutput = serde_json::from_str(&normalized).map_err(|e| {
+        tracing::warn!("Failed to parse ErrorFinding output: {}", e);
+        anyhow::anyhow!("ErrorFinding parse failed: {}", e)
+    })?;
+
+    let mistakes = output
+        .handled_errors
+        .into_iter()
+        .map(|discovered| {
+            let score = score_for_handling(&discovered.handling);
+            tracing::info!(
+                "ErrorFinding: '{}' handled as {:?}, score {}",
+                discovered.error_form,
+                discovered.handling,
+                score
+            );
+            Mistake::new(
+                discovered.error_form,
+                discovered.correct_form,
+                discovered.error_category,
+            )
+        })
+        .collect();
+
+    Ok(mistakes)
 }
 
 fn build_learning_system_content(
@@ -273,7 +360,23 @@ fn learning_mode_context(teaching_mode: &TeachingMode) -> String {
             - All points MUST be SPECIFIC LINGUSTIC FEATURES.
             "#.to_string()
         }
-        TeachingMode::Immersive | TeachingMode::Debug | TeachingMode::ErrorFinding => String::new(),
+        TeachingMode::Immersive | TeachingMode::Debug => String::new(),
+        TeachingMode::ErrorFinding => {
+            "# ERROR FINDING ANALYSIS\n\
+            1. Analyze the PREVIOUS ASSISTANT MESSAGE for grammatical/vocabulary/spelling errors.\n\
+            2. For each error you find, check if the user EXPLICITLY addressed it in their response.\n\
+            3. DEFINITION OF 'ADDRESSED' (Include ALL of these):\n\
+               - Explicit Correction: User points out the error.\n\
+               - Contextual Correction: User uses the correct form of the word or phrase (verb conjugation, etc).\n\
+               - Repeat Error: User repeats the EXACT error. (This counts as addressed, score 0).\n\
+               - Different Error: User tries to use the word but makes a DIFFERENT error. (This counts as addressed, score 5).\n\
+            4. IGNORE errors that the user COMPLETELY IGNORED. If the user continued the conversation without using the word/concept at all, it is IGNORED.\n\
+            5. Classify handling for ADDRESSED errors only:\n\
+               - 'corrected': User fixed the error (Explicit or Contextual) -> Score 10\n\
+               - 'same_error': User repeated the error exactly -> Score 0\n\
+               - 'different_error': User tried to use the word but failed differently -> Score 5\n\
+            6. STRICTLY FILTER OUT IGNORED ERRORS. Do not include them in the output.\n\n".to_string()
+        }
     }
 }
 
@@ -319,8 +422,22 @@ Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error
                 limits.max_exploratory
             )
         }
-        TeachingMode::Immersive | TeachingMode::Debug | TeachingMode::ErrorFinding => r#"{}
+        TeachingMode::Immersive | TeachingMode::Debug => r#"{}
 No learning items for this mode."#
+            .to_string(),
+        TeachingMode::ErrorFinding => r#"{
+  "handled_errors": [
+    {
+      "error_form": "<what assistant said wrong>",
+      "correct_form": "<correct version>",
+      "handling": "<corrected|same_error|different_error>",
+      "error_category": {"type": "<category>", "context": "<brief>"}  
+    }
+  ]
+}
+Categories: spelling_error, vocabulary_error, grammar_error, dialect_usage_error, other
+- INCLUDE ONLY errors where the user made an explicit attempt to correct or use the word.
+- EXCLUDE errors the user ignored."#
             .to_string(),
     }
 }
@@ -358,6 +475,15 @@ fn build_learning_prompt(params: &LearningAgentParams<'_>) -> String {
         user_section,
         asst_section,
         build_existing_items_section(params)
+    )
+}
+
+fn build_error_finding_prompt(params: &LearningAgentParams<'_>) -> String {
+    format!(
+        "PREVIOUS ASSISTANT MESSAGE:\n{}\n\n\
+        LATEST USER MESSAGE:\n{}\n\n\
+        Analyze the assistant's message for errors. REPORT ONLY ERRORS THAT THE USER EXPLICITLY ADDRESSED (corrected or repeated).",
+        params.assistant_response, params.user_message
     )
 }
 
@@ -637,9 +763,9 @@ mod tests {
     }
 
     #[test]
-    fn test_should_skip_learning_call_at_10_corrective() {
+    fn test_should_skip_learning_call_at_100_corrective() {
         let mut explained = Vec::new();
-        for i in 0..10 {
+        for i in 0..100 {
             explained.push(Explained::new(format!("test{}", i), "test".to_string()));
         }
         let params = LearningAgentParams {

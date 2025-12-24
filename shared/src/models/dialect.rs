@@ -610,10 +610,10 @@ pub enum TeachingMode {
     Explanatory,
     #[serde(rename = "storyteller")]
     StoryTeller,
-    #[serde(rename = "debug")]
-    Debug,
     #[serde(rename = "error_finding")]
     ErrorFinding,
+    #[serde(rename = "debug")]
+    Debug,
 }
 
 impl Default for DialectConfig {

@@ -7,7 +7,7 @@ pub(crate) fn temperature_for_mode(mode: &TeachingMode) -> f64 {
         TeachingMode::Explanatory => 0.5,
         TeachingMode::StoryTeller => 1.0,
         TeachingMode::Debug => 0.1,
-        TeachingMode::ErrorFinding => 0.3,
+        TeachingMode::ErrorFinding => 0.5,
     }
 }
 
@@ -18,7 +18,7 @@ pub(crate) fn tokens_per_mode(teaching_mode: &TeachingMode) -> u64 {
         TeachingMode::Explanatory => 512,
         TeachingMode::StoryTeller => 1024,
         TeachingMode::Debug => 1024,
-        TeachingMode::ErrorFinding => 256,
+        TeachingMode::ErrorFinding => 512,
     }
 }
 

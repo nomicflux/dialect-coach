@@ -29,32 +29,20 @@ impl ResponseContext {
         params: &GenerateResponseParams<'_>,
         parsed_response: dialect_coach_shared::AgentResponse,
     ) -> Result<(dialect_coach_shared::AgentResponse, Vec<AgentUsage>)> {
-        let assistant_response = parsed_response.response.clone();
+        let assistant_response = match Self::get_learning_analysis_target(params, &parsed_response)
+        {
+            Some(response) => response,
+            None => return Ok((parsed_response, Vec::new())),
+        };
 
-        // Call mode-specific learning agent
-        let learning_agent = LearningAgent::new(self.learning_agent.clone());
-        let learning_params = build_learning_params(params, &assistant_response);
-        let (learning_result, learning_usage) = learning_agent
-            .generate_learning_items(&learning_params)
+        // Generate learning items
+        let (learning_result, learning_usage) = self
+            .generate_learning_content(params, &assistant_response)
             .await;
 
-        // Call translation agent for all non-debug modes
-        let (translation_result, translation_usage) = if params.teaching_mode != TeachingMode::Debug
-        {
-            let translation_agent = TranslationAgent::new(self.learning_agent.clone());
-            let translation_params = TranslationAgentParams {
-                user_message: params.user_message,
-                dialect: params.dialect.dialect,
-                formality: params.formality,
-                past_translated: params.past_translated,
-                language_option: params.language_option,
-            };
-            translation_agent
-                .generate_translations(&translation_params)
-                .await
-        } else {
-            (Ok(TranslationAgentOutput::empty()), Vec::new())
-        };
+        // Generate translations
+        let (translation_result, translation_usage) =
+            self.generate_translation_content(params).await;
 
         // Merge results
         let mut all_usage = learning_usage;
@@ -67,6 +55,55 @@ impl ResponseContext {
             }
             (Err(e), _) | (_, Err(e)) => Err(e),
         }
+    }
+
+    fn get_learning_analysis_target(
+        params: &GenerateResponseParams<'_>,
+        parsed_response: &dialect_coach_shared::AgentResponse,
+    ) -> Option<String> {
+        if params.teaching_mode == TeachingMode::ErrorFinding {
+            params
+                .conversation_history
+                .iter()
+                .rev()
+                .find(|m| matches!(m, RigMessage::Assistant { .. }))
+                .map(crate::agent_service::util::get_message_text)
+        } else {
+            Some(parsed_response.response.clone())
+        }
+    }
+
+    async fn generate_learning_content(
+        &self,
+        params: &GenerateResponseParams<'_>,
+        assistant_response: &str,
+    ) -> (Result<LearningAgentOutput>, Vec<AgentUsage>) {
+        let learning_agent = LearningAgent::new(self.learning_agent.clone());
+        let learning_params = build_learning_params(params, assistant_response);
+        learning_agent
+            .generate_learning_items(&learning_params)
+            .await
+    }
+
+    async fn generate_translation_content(
+        &self,
+        params: &GenerateResponseParams<'_>,
+    ) -> (Result<TranslationAgentOutput>, Vec<AgentUsage>) {
+        if params.teaching_mode == TeachingMode::Debug {
+            return (Ok(TranslationAgentOutput::empty()), Vec::new());
+        }
+
+        let translation_agent = TranslationAgent::new(self.learning_agent.clone());
+        let translation_params = TranslationAgentParams {
+            user_message: params.user_message,
+            dialect: params.dialect.dialect,
+            formality: params.formality,
+            past_translated: params.past_translated,
+            language_option: params.language_option,
+        };
+        translation_agent
+            .generate_translations(&translation_params)
+            .await
     }
 
     async fn handle_successful_completion(

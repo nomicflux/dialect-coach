@@ -20,6 +20,15 @@ impl LearningItem {
         }
     }
 
+    /// Create a new learning item with a specified initial score
+    pub fn with_score(item: LearningItemType, dialect: Dialect, score: u8) -> Self {
+        Self {
+            item,
+            score,
+            dialect,
+        }
+    }
+
     /// Get the unique id from the inner item type
     pub fn id(&self) -> Uuid {
         match &self.item {
