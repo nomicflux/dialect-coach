@@ -21,7 +21,7 @@ pub struct TranslationAgentParams<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TranslationAgentOutput {
-    pub translated: Vec<Translated>,
+    pub translated: Vec<(Translated, u8)>,
 }
 
 impl TranslationAgentOutput {
@@ -172,7 +172,7 @@ fn try_parse_translation_output(response: &str) -> Result<TranslationAgentOutput
     let normalized = normalize_json_response(response);
     let parsed: RawTranslationOutput = serde_json::from_str(&normalized)?;
     Ok(TranslationAgentOutput {
-        translated: parsed.translated,
+        translated: parsed.translated.into_iter().map(|t| (t, 0)).collect(),
     })
 }
 

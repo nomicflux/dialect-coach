@@ -2,7 +2,7 @@ use super::{UserPersistence, UserRecord};
 use anyhow::{Result, anyhow};
 use dialect_coach_shared::{
     CURRENT_USER_STATE_VERSION, CURRENT_USER_VERSION, InviteCode, UsageStats, User, UserState,
-    UserStateV1, UserStateVersion, UserVersion, VersionedData, migrate_user_state_to_current,
+    UserStateVersion, UserVersion, VersionedData, migrate_user_state_to_current,
     migrate_user_to_current,
 };
 use serde::{Deserialize, Serialize};
@@ -51,18 +51,18 @@ fn deserialize_from_json<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> Result<T
 }
 
 fn serialize_versioned_user_state(state: &UserState) -> Result<Vec<u8>> {
-    let v1_data = UserStateV1::from(state.clone());
     let wrapper = VersionedData {
         version: CURRENT_USER_STATE_VERSION,
-        data: serde_json::to_value(v1_data)?,
+        data: serde_json::to_value(state)?,
     };
     Ok(serde_json::to_vec(&wrapper)?)
 }
 
 fn deserialize_versioned_user_state(bytes: &[u8]) -> Result<UserState> {
     let wrapper: VersionedData<UserStateVersion> = serde_json::from_slice(bytes)?;
-    let v1_data: UserStateV1 = serde_json::from_value(wrapper.data)?;
-    Ok(migrate_user_state_to_current(wrapper.version, v1_data))
+    // Pass raw JSON to migration, deserialize after
+    migrate_user_state_to_current(wrapper.version, wrapper.data)
+        .map_err(|e| anyhow::anyhow!("Migration failed: {}", e))
 }
 
 fn serialize_versioned_user_record(user: &User, password_hash: &str) -> Result<Vec<u8>> {

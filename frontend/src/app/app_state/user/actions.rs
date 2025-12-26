@@ -18,10 +18,10 @@ pub enum MessageAction {
 #[derive(Clone, PartialEq, Debug)]
 pub enum LearningAction {
     AddItems(
-        Vec<Mistake>,
-        Vec<Explained>,
-        Vec<Translated>,
-        Vec<Exploratory>,
+        Vec<(Mistake, u8)>,
+        Vec<(Explained, u8)>,
+        Vec<(Translated, u8)>,
+        Vec<(Exploratory, u8)>,
     ),
     UpdateScores(AgentAnalysis),
     DeleteItem(Uuid),

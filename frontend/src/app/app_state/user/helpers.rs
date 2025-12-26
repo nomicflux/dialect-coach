@@ -27,34 +27,34 @@ pub fn get_learning_item_id(item: &LearningItem) -> Uuid {
 
 pub fn add_learning_items_to_vec(
     mut items: Vec<LearningItem>,
-    mistakes: Vec<Mistake>,
-    explained: Vec<Explained>,
-    translated: Vec<Translated>,
-    exploratory: Vec<Exploratory>,
+    mistakes: Vec<(Mistake, u8)>,
+    explained: Vec<(Explained, u8)>,
+    translated: Vec<(Translated, u8)>,
+    exploratory: Vec<(Exploratory, u8)>,
     dialect: Dialect,
 ) -> Vec<LearningItem> {
-    for mistake in mistakes {
+    for (mistake, score) in mistakes {
         push_unique(
             &mut items,
-            LearningItem::new(LearningItemType::Mistake(mistake), dialect),
+            LearningItem::with_score(LearningItemType::Mistake(mistake), dialect, score),
         );
     }
-    for expl in explained {
+    for (expl, score) in explained {
         push_unique(
             &mut items,
-            LearningItem::new(LearningItemType::Explanation(expl), dialect),
+            LearningItem::with_score(LearningItemType::Explanation(expl), dialect, score),
         );
     }
-    for trans in translated {
+    for (trans, score) in translated {
         push_unique(
             &mut items,
-            LearningItem::new(LearningItemType::Translation(trans), dialect),
+            LearningItem::with_score(LearningItemType::Translation(trans), dialect, score),
         );
     }
-    for explor in exploratory {
+    for (explor, score) in exploratory {
         push_unique(
             &mut items,
-            LearningItem::new(LearningItemType::Exploration(explor), dialect),
+            LearningItem::with_score(LearningItemType::Exploration(explor), dialect, score),
         );
     }
     items
@@ -265,7 +265,7 @@ mod tests {
 
         // Try adding the same mistake again
         let result =
-            add_learning_items_to_vec(items, vec![mistake], vec![], vec![], vec![], dialect);
+            add_learning_items_to_vec(items, vec![(mistake, 0)], vec![], vec![], vec![], dialect);
 
         assert_eq!(result.len(), 1, "Should not add duplicate item");
         assert_eq!(

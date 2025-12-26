@@ -13,8 +13,9 @@ pub enum UserVersion {
 /// Version identifier for UserState schema
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum UserStateVersion {
-    #[default]
     V1,
+    #[default]
+    V2ScoredItems,
 }
 
 pub type UserStateV1 = UserState;
@@ -27,7 +28,7 @@ pub struct UserV1Data {
 }
 
 pub const CURRENT_USER_VERSION: UserVersion = UserVersion::V2Admin;
-pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V1;
+pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V2ScoredItems;
 
 /// Generic wrapper for versioned data stored in sled
 /// Stores the version enum and raw JSON data separately.
@@ -53,16 +54,140 @@ impl<V: Default> VersionedData<V> {
     }
 }
 
-pub trait Migration<From, To> {
-    fn migrate_forward(from: From) -> To;
-    fn migrate_backward(to: To) -> From;
+/// Migration function type for UserState JSON migrations
+pub type UserStateMigrationFn = fn(serde_json::Value) -> serde_json::Value;
+
+/// A single atomic migration step
+pub struct UserStateMigrationStep {
+    pub from: UserStateVersion,
+    pub to: UserStateVersion,
+    pub forward: UserStateMigrationFn,
+    pub backward: UserStateMigrationFn,
+}
+
+/// Registry of all UserState migrations - each entry is an atomic step
+pub const USER_STATE_MIGRATIONS: &[UserStateMigrationStep] = &[
+    UserStateMigrationStep {
+        from: UserStateVersion::V1,
+        to: UserStateVersion::V2ScoredItems,
+        forward: v1_to_v2_forward,
+        backward: v1_to_v2_backward,
+    },
+    // Future migrations go here as new entries
+];
+
+// ============ V1 → V2 Migration Functions ============
+
+fn v1_to_v2_forward(mut data: serde_json::Value) -> serde_json::Value {
+    tracing::debug!("V1→V2 migration: starting forward migration");
+    wrap_learning_items_in_conversation_history(&mut data);
+    data
+}
+
+fn v1_to_v2_backward(mut data: serde_json::Value) -> serde_json::Value {
+    tracing::debug!("V1→V2 migration: starting backward migration");
+    unwrap_learning_items_in_conversation_history(&mut data);
+    data
+}
+
+fn wrap_learning_items_in_conversation_history(data: &mut serde_json::Value) {
+    let history = match data.get_mut("conversation_history").and_then(|v| v.as_array_mut()) {
+        Some(h) => h,
+        None => {
+            tracing::debug!("V1→V2 migration: no conversation_history found");
+            return;
+        }
+    };
+
+    tracing::debug!("V1→V2 migration: processing {} messages", history.len());
+    let mut wrapped_count = 0;
+
+    for msg in history {
+        // Path: msg["content"]["AgentMessage"]["content"] = AgentResponse
+        if let Some(agent_response) = msg
+            .get_mut("content")
+            .and_then(|c| c.get_mut("AgentMessage"))
+            .and_then(|am| am.get_mut("content"))
+        {
+            wrap_items_with_scores(agent_response);
+            wrapped_count += 1;
+        }
+    }
+
+    tracing::debug!("V1→V2 migration: wrapped items in {} agent messages", wrapped_count);
+}
+
+fn unwrap_learning_items_in_conversation_history(data: &mut serde_json::Value) {
+    let history = match data.get_mut("conversation_history").and_then(|v| v.as_array_mut()) {
+        Some(h) => h,
+        None => {
+            tracing::debug!("V2→V1 migration: no conversation_history found");
+            return;
+        }
+    };
+
+    tracing::debug!("V2→V1 migration: processing {} messages", history.len());
+
+    for msg in history {
+        // Path: msg["content"]["AgentMessage"]["content"] = AgentResponse
+        if let Some(agent_response) = msg
+            .get_mut("content")
+            .and_then(|c| c.get_mut("AgentMessage"))
+            .and_then(|am| am.get_mut("content"))
+        {
+            unwrap_items_from_scores(agent_response);
+        }
+    }
+}
+
+fn wrap_items_with_scores(response: &mut serde_json::Value) {
+    for field in ["mistakes", "explained", "translated", "exploratory"] {
+        if let Some(items) = response.get_mut(field).and_then(|v| v.as_array_mut()) {
+            if items.is_empty() {
+                continue;
+            }
+            tracing::debug!("V1→V2 migration: wrapping {} {} items", items.len(), field);
+            let wrapped: Vec<serde_json::Value> = items
+                .drain(..)
+                .map(|item| serde_json::json!([item, 0]))
+                .collect();
+            *items = wrapped;
+        }
+    }
+}
+
+fn unwrap_items_from_scores(response: &mut serde_json::Value) {
+    for field in ["mistakes", "explained", "translated", "exploratory"] {
+        if let Some(items) = response.get_mut(field).and_then(|v| v.as_array_mut()) {
+            let unwrapped: Vec<serde_json::Value> = items
+                .drain(..)
+                .filter_map(|tuple| tuple.as_array().and_then(|arr| arr.first().cloned()))
+                .collect();
+            *items = unwrapped;
+        }
+    }
+}
+
+// ============ Migration Runner ============
+
+/// Run all migrations from given version to current, using the registry
+pub fn run_user_state_migrations(
+    mut version: UserStateVersion,
+    mut data: serde_json::Value,
+) -> serde_json::Value {
+    while let Some(step) = USER_STATE_MIGRATIONS.iter().find(|m| m.from == version) {
+        data = (step.forward)(data);
+        version = step.to;
+    }
+    data
 }
 
 pub fn migrate_user_state_to_current(
-    _from_version: UserStateVersion,
-    data: UserStateV1,
-) -> UserState {
-    data
+    from_version: UserStateVersion,
+    data: serde_json::Value,
+) -> Result<UserState, serde_json::Error> {
+    let migrated = run_user_state_migrations(from_version, data);
+    serde_json::from_value(migrated)
 }
 
 pub fn migrate_user_to_current(from_version: UserVersion, data: serde_json::Value) -> User {
@@ -86,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_user_state_version_default() {
-        assert_eq!(UserStateVersion::default(), UserStateVersion::V1);
+        assert_eq!(UserStateVersion::default(), UserStateVersion::V2ScoredItems);
     }
 
     #[test]
@@ -119,7 +244,7 @@ mod tests {
         let data = serde_json::json!({"user_id": "test-id", "learning_items": []});
         let versioned = VersionedData::<UserStateVersion>::new(data.clone());
 
-        assert_eq!(versioned.version, UserStateVersion::V1);
+        assert_eq!(versioned.version, UserStateVersion::V2ScoredItems);
         assert_eq!(versioned.data, data);
     }
 
@@ -234,77 +359,108 @@ mod tests {
         assert_eq!(deserialized, versioned);
     }
 
-    #[derive(Debug, Clone, PartialEq)]
-    struct TestDataV1 {
-        name: String,
-        count: u32,
-    }
+    // ============ Registry-Based Migration Tests ============
 
-    #[derive(Debug, Clone, PartialEq)]
-    struct TestDataV2 {
-        name: String,
-        count: u32,
-        is_active: bool,
-    }
+    #[test]
+    fn test_v1_to_v2_forward_wraps_items() {
+        // JSON structure matches Message serialization: content.AgentMessage.content
+        let v1_data = serde_json::json!({
+            "conversation_history": [{
+                "id": "msg-1",
+                "parent_id": null,
+                "metadata": {},
+                "content": {
+                    "AgentMessage": {
+                        "content": {
+                            "response": "test",
+                            "mistakes": [{"id": "1", "specific_mistake": "err"}],
+                            "explained": [{"id": "2", "new_phrase": "phrase"}]
+                        }
+                    }
+                }
+            }]
+        });
 
-    struct TestMigration;
+        let v2_data = super::v1_to_v2_forward(v1_data);
 
-    impl Migration<TestDataV1, TestDataV2> for TestMigration {
-        fn migrate_forward(from: TestDataV1) -> TestDataV2 {
-            TestDataV2 {
-                name: from.name,
-                count: from.count,
-                is_active: false,
-            }
-        }
+        let history = v2_data["conversation_history"].as_array().unwrap();
+        let agent_response = &history[0]["content"]["AgentMessage"]["content"];
+        let mistakes = agent_response["mistakes"].as_array().unwrap();
+        let explained = agent_response["explained"].as_array().unwrap();
 
-        fn migrate_backward(to: TestDataV2) -> TestDataV1 {
-            TestDataV1 {
-                name: to.name,
-                count: to.count,
-            }
-        }
+        // Should be wrapped as [item, 0]
+        assert!(mistakes[0].as_array().is_some());
+        assert_eq!(mistakes[0][1], 0);
+        assert!(explained[0].as_array().is_some());
+        assert_eq!(explained[0][1], 0);
     }
 
     #[test]
-    fn test_migration_forward() {
-        let v1 = TestDataV1 {
-            name: "test".to_string(),
-            count: 42,
-        };
+    fn test_v1_to_v2_backward_unwraps_items() {
+        let v2_data = serde_json::json!({
+            "conversation_history": [{
+                "id": "msg-1",
+                "parent_id": null,
+                "metadata": {},
+                "content": {
+                    "AgentMessage": {
+                        "content": {
+                            "response": "test",
+                            "mistakes": [[{"id": "1", "specific_mistake": "err"}, 5]]
+                        }
+                    }
+                }
+            }]
+        });
 
-        let v2 = TestMigration::migrate_forward(v1.clone());
+        let v1_data = super::v1_to_v2_backward(v2_data);
 
-        assert_eq!(v2.name, v1.name);
-        assert_eq!(v2.count, v1.count);
-        assert!(!v2.is_active);
+        let history = v1_data["conversation_history"].as_array().unwrap();
+        let agent_response = &history[0]["content"]["AgentMessage"]["content"];
+        let mistakes = agent_response["mistakes"].as_array().unwrap();
+
+        // Should be unwrapped to just item
+        assert!(mistakes[0].as_object().is_some());
+        assert_eq!(mistakes[0]["id"], "1");
     }
 
     #[test]
-    fn test_migration_backward() {
-        let v2 = TestDataV2 {
-            name: "test".to_string(),
-            count: 42,
-            is_active: true,
-        };
+    fn test_run_migrations_v1_to_current() {
+        let v1_data = serde_json::json!({
+            "user_id": "test",
+            "conversation_history": [{
+                "id": "msg-1",
+                "content": {
+                    "AgentMessage": {
+                        "content": {
+                            "mistakes": [{"id": "1"}]
+                        }
+                    }
+                }
+            }]
+        });
 
-        let v1 = TestMigration::migrate_backward(v2.clone());
+        let result = super::run_user_state_migrations(super::UserStateVersion::V1, v1_data);
 
-        assert_eq!(v1.name, v2.name);
-        assert_eq!(v1.count, v2.count);
+        let history = result["conversation_history"].as_array().unwrap();
+        let agent_response = &history[0]["content"]["AgentMessage"]["content"];
+        let mistakes = agent_response["mistakes"].as_array().unwrap();
+        assert!(mistakes[0].as_array().is_some()); // Wrapped as tuple
     }
 
     #[test]
-    fn test_migration_roundtrip() {
-        let original_v1 = TestDataV1 {
-            name: "roundtrip".to_string(),
-            count: 100,
-        };
+    fn test_run_migrations_current_version_no_change() {
+        let v2_data = serde_json::json!({
+            "user_id": "test",
+            "conversation_history": []
+        });
 
-        let v2 = TestMigration::migrate_forward(original_v1.clone());
-        let back_to_v1 = TestMigration::migrate_backward(v2);
+        let result = super::run_user_state_migrations(
+            super::UserStateVersion::V2ScoredItems,
+            v2_data.clone(),
+        );
 
-        assert_eq!(original_v1, back_to_v1);
+        assert_eq!(result, v2_data); // No change for current version
     }
 
     fn extract_field_names(value: &serde_json::Value) -> Vec<String> {

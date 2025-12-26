@@ -92,7 +92,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
             move |(target, english, context): (String, String, String)| {
                 let translated = Translated::new(english, target, Some(context));
                 session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
-                    LearningAction::AddItems(vec![], vec![], vec![translated], vec![]),
+                    LearningAction::AddItems(vec![], vec![], vec![(translated, 0)], vec![]),
                 )));
                 modal_state.set(None);
             },

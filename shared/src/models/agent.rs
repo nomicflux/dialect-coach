@@ -314,10 +314,10 @@ impl Default for AgentAnalysis {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AgentResponse {
     pub response: String,
-    pub mistakes: Option<Vec<Mistake>>,
-    pub explained: Option<Vec<Explained>>,
-    pub translated: Option<Vec<Translated>>,
-    pub exploratory: Option<Vec<Exploratory>>,
+    pub mistakes: Option<Vec<(Mistake, u8)>>,
+    pub explained: Option<Vec<(Explained, u8)>>,
+    pub translated: Option<Vec<(Translated, u8)>>,
+    pub exploratory: Option<Vec<(Exploratory, u8)>>,
     pub analysis: Option<AgentAnalysis>,
 }
 
@@ -487,13 +487,13 @@ mod tests {
     #[test]
     fn test_agent_response_serialization_with_mistakes() {
         let mut response = AgentResponse::from("Hello");
-        response.mistakes = Some(vec![Mistake::new(
+        response.mistakes = Some(vec![(Mistake::new(
             "hablar".to_string(),
             "habla".to_string(),
             MistakeCategory::SpellingError {
                 context: "habla".to_string(),
             },
-        )]);
+        ), 0)]);
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"mistakes\""));
@@ -503,10 +503,10 @@ mod tests {
     #[test]
     fn test_agent_response_serialization_with_explained() {
         let mut response = AgentResponse::from("Hello");
-        response.explained = Some(vec![Explained::new(
+        response.explained = Some(vec![(Explained::new(
             "órale".to_string(),
             "Mexican slang".to_string(),
-        )]);
+        ), 0)]);
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"explained\""));
@@ -530,7 +530,7 @@ mod tests {
         let json = format!(
             r#"{{
             "response": "Hello",
-            "mistakes": [{{
+            "mistakes": [[{{
                 "id": "{}",
                 "specific_mistake": "hablar",
                 "correction": "habla",
@@ -538,12 +538,12 @@ mod tests {
                     "type": "spelling_error",
                     "context": "habla"
                 }}
-            }}],
-            "explained": [{{
+            }}, 0]],
+            "explained": [[{{
                 "id": "{}",
                 "new_phrase": "órale",
                 "explanation": "Mexican slang"
-            }}]
+            }}, 0]]
         }}"#,
             test_id, test_id2
         );
@@ -552,14 +552,11 @@ mod tests {
 
         assert_eq!(response.response, "Hello");
         assert_eq!(response.mistakes.as_ref().unwrap().len(), 1);
-        assert_eq!(
-            response.mistakes.as_ref().unwrap()[0].specific_mistake,
-            "hablar"
-        );
-        assert_eq!(response.mistakes.as_ref().unwrap()[0].id, test_id);
+        assert_eq!(response.mistakes.as_ref().unwrap()[0].0.specific_mistake, "hablar");
+        assert_eq!(response.mistakes.as_ref().unwrap()[0].0.id, test_id);
         assert_eq!(response.explained.as_ref().unwrap().len(), 1);
-        assert_eq!(response.explained.as_ref().unwrap()[0].new_phrase, "órale");
-        assert_eq!(response.explained.as_ref().unwrap()[0].id, test_id2);
+        assert_eq!(response.explained.as_ref().unwrap()[0].0.new_phrase, "órale");
+        assert_eq!(response.explained.as_ref().unwrap()[0].0.id, test_id2);
     }
 
     #[test]
@@ -883,11 +880,11 @@ mod tests {
     #[test]
     fn test_agent_response_with_translated() {
         let mut response = AgentResponse::from("Hello");
-        response.translated = Some(vec![Translated::new(
+        response.translated = Some(vec![(Translated::new(
             "hello".to_string(),
             "hola".to_string(),
             None,
-        )]);
+        ), 0)]);
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"translated\""));
@@ -898,10 +895,10 @@ mod tests {
     #[test]
     fn test_agent_response_with_exploratory() {
         let mut response = AgentResponse::from("Try this");
-        response.exploratory = Some(vec![Exploratory::new(
+        response.exploratory = Some(vec![(Exploratory::new(
             "Use subjunctive mood".to_string(),
             "Try 'Si fuera rico'".to_string(),
-        )]);
+        ), 0)]);
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"exploratory\""));
@@ -919,27 +916,27 @@ mod tests {
         let json = format!(
             r#"{{
             "response": "Hello",
-            "mistakes": [{{
+            "mistakes": [[{{
                 "id": "{}",
                 "specific_mistake": "hablar",
                 "correction": "habla",
                 "mistake_category": {{"type": "spelling_error", "context": "habla"}}
-            }}],
-            "explained": [{{
+            }}, 0]],
+            "explained": [[{{
                 "id": "{}",
                 "new_phrase": "órale",
                 "explanation": "Mexican slang"
-            }}],
-            "translated": [{{
+            }}, 0]],
+            "translated": [[{{
                 "id": "{}",
                 "translated_word": "hello",
                 "translated_to": "hola"
-            }}],
-            "exploratory": [{{
+            }}, 0]],
+            "exploratory": [[{{
                 "id": "{}",
                 "point_to_try": "Use subjunctive",
                 "instructions_for_use": "Try it"
-            }}]
+            }}, 0]]
         }}"#,
             mistake_id, explained_id, translated_id, exploratory_id
         );
@@ -950,7 +947,7 @@ mod tests {
         assert_eq!(response.explained.as_ref().unwrap().len(), 1);
         assert_eq!(response.translated.as_ref().unwrap().len(), 1);
         assert_eq!(response.exploratory.as_ref().unwrap().len(), 1);
-        assert_eq!(response.translated.as_ref().unwrap()[0].id, translated_id);
-        assert_eq!(response.exploratory.as_ref().unwrap()[0].id, exploratory_id);
+        assert_eq!(response.translated.as_ref().unwrap()[0].0.id, translated_id);
+        assert_eq!(response.exploratory.as_ref().unwrap()[0].0.id, exploratory_id);
     }
 }

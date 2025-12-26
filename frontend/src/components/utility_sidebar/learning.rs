@@ -180,7 +180,7 @@ fn dispatch_learning_item(
             let item =
                 create_mistake_from_form(&fields.mistake, &fields.correction, &fields.category);
             dispatch.emit(UserDomainAction::Learning(LearningAction::AddItems(
-                vec![item],
+                vec![(item, 0)],
                 vec![],
                 vec![],
                 vec![],
@@ -190,7 +190,7 @@ fn dispatch_learning_item(
             let item = create_explanation_from_form(&fields.phrase, &fields.explanation);
             dispatch.emit(UserDomainAction::Learning(LearningAction::AddItems(
                 vec![],
-                vec![item],
+                vec![(item, 0)],
                 vec![],
                 vec![],
             )));
@@ -201,7 +201,7 @@ fn dispatch_learning_item(
             dispatch.emit(UserDomainAction::Learning(LearningAction::AddItems(
                 vec![],
                 vec![],
-                vec![item],
+                vec![(item, 0)],
                 vec![],
             )));
         }
@@ -211,7 +211,7 @@ fn dispatch_learning_item(
                 vec![],
                 vec![],
                 vec![],
-                vec![item],
+                vec![(item, 0)],
             )));
         }
         _ => {}

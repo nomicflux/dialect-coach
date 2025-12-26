@@ -32,10 +32,10 @@ pub struct LearningAgentParams<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LearningAgentOutput {
-    pub mistakes: Vec<Mistake>,
-    pub explained: Vec<Explained>,
-    pub translated: Vec<Translated>,
-    pub exploratory: Vec<Exploratory>,
+    pub mistakes: Vec<(Mistake, u8)>,
+    pub explained: Vec<(Explained, u8)>,
+    pub translated: Vec<(Translated, u8)>,
+    pub exploratory: Vec<(Exploratory, u8)>,
 }
 
 impl LearningAgentOutput {
@@ -109,10 +109,10 @@ struct RawLearningAgentOutput {
 impl From<RawLearningAgentOutput> for LearningAgentOutput {
     fn from(raw: RawLearningAgentOutput) -> Self {
         Self {
-            mistakes: raw.mistakes,
-            explained: raw.explained,
-            translated: raw.translated,
-            exploratory: raw.exploratory,
+            mistakes: raw.mistakes.into_iter().map(|m| (m, 0)).collect(),
+            explained: raw.explained.into_iter().map(|e| (e, 0)).collect(),
+            translated: raw.translated.into_iter().map(|t| (t, 0)).collect(),
+            exploratory: raw.exploratory.into_iter().map(|x| (x, 0)).collect(),
         }
     }
 }
@@ -227,7 +227,7 @@ impl LearningAgent {
     async fn call_error_finding_agent(
         &self,
         params: &LearningAgentParams<'_>,
-    ) -> (Result<Vec<Mistake>>, Vec<AgentUsage>) {
+    ) -> (Result<Vec<(Mistake, u8)>>, Vec<AgentUsage>) {
         let limits = calculate_learning_limits(params);
         let system_content = build_learning_system_content(params, &limits);
         let prompt = build_error_finding_prompt(params);
@@ -264,7 +264,7 @@ impl LearningAgent {
     }
 }
 
-fn parse_error_finding_output(response: &str) -> Result<Vec<Mistake>> {
+fn parse_error_finding_output(response: &str) -> Result<Vec<(Mistake, u8)>> {
     use super::error_finding::{ErrorFindingLearningOutput, score_for_handling};
 
     let normalized = normalize_json_response(response);
@@ -284,11 +284,12 @@ fn parse_error_finding_output(response: &str) -> Result<Vec<Mistake>> {
                 discovered.handling,
                 score
             );
-            Mistake::new(
+            let mistake = Mistake::new(
                 discovered.error_form,
                 discovered.correct_form,
                 discovered.error_category,
-            )
+            );
+            (mistake, score)
         })
         .collect();
 
