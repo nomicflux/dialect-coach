@@ -134,12 +134,13 @@ impl UserPersistence for PostgresPersistence {
         }
 
         let result = sqlx::query(
-            "INSERT INTO users (id, username, email, password_hash) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO users (id, username, email, password_hash, is_admin) VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(user.id)
         .bind(&user.username)
         .bind(&user.email)
         .bind(&password_hash)
+        .bind(user.is_admin)
         .execute(&self.pool)
         .await;
 
@@ -160,11 +161,12 @@ impl UserPersistence for PostgresPersistence {
     }
 
     async fn load_user_by_username(&self, username: &str) -> Result<Option<(User, String)>> {
-        let row =
-            sqlx::query("SELECT id, username, email, password_hash FROM users WHERE username = $1")
-                .bind(username)
-                .fetch_optional(&self.pool)
-                .await?;
+        let row = sqlx::query(
+            "SELECT id, username, email, password_hash, is_admin FROM users WHERE username = $1",
+        )
+        .bind(username)
+        .fetch_optional(&self.pool)
+        .await?;
 
         let result = row.map(|r| {
             let user = parse_user_from_row(&r);
@@ -181,7 +183,7 @@ impl UserPersistence for PostgresPersistence {
     }
 
     async fn load_user_by_id(&self, user_id: Uuid) -> Result<Option<User>> {
-        let row = sqlx::query("SELECT id, username, email FROM users WHERE id = $1")
+        let row = sqlx::query("SELECT id, username, email, is_admin FROM users WHERE id = $1")
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await?;

@@ -202,8 +202,15 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 ));
                             }
                             ShortcutAction::CycleTeachingMode => {
+                                let is_admin = app_state
+                                    .current_user
+                                    .as_ref()
+                                    .map(|u| u.is_admin)
+                                    .unwrap_or(false);
                                 session.dispatch(SessionAction::Domain(
-                                    UserDomainAction::Settings(SettingsAction::CycleTeachingMode),
+                                    UserDomainAction::Settings(SettingsAction::CycleTeachingMode(
+                                        is_admin,
+                                    )),
                                 ));
                             }
                             ShortcutAction::CycleFormality => {
@@ -303,6 +310,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             Callback::from(move |tab| drawer_active_tab.set(tab))
                         }}
                         user={user_rc.clone()}
+                        is_admin={app_state.current_user.as_ref().map(|u| u.is_admin).unwrap_or(false)}
                         dispatch={dispatch_domain.clone()}
                         ui_state={ui_state.clone()}
                         branches={us.branches.clone()}

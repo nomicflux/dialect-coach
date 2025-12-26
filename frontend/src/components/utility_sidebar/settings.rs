@@ -14,6 +14,7 @@ use yew::prelude::*;
 #[derive(Properties)]
 pub struct SettingsProps {
     pub user: Rc<UserState>,
+    pub is_admin: bool,
     pub dispatch: Callback<UserDomainAction>,
     pub ui_state: UseReducerHandle<UIState>,
 }
@@ -21,6 +22,7 @@ pub struct SettingsProps {
 impl PartialEq for SettingsProps {
     fn eq(&self, other: &Self) -> bool {
         self.user == other.user
+            && self.is_admin == other.is_admin
             && self.dispatch == other.dispatch
             && self.ui_state == other.ui_state
     }
@@ -55,6 +57,7 @@ fn render_experimental_dialects_toggle(
 pub fn settings(props: &SettingsProps) -> Html {
     let SettingsProps {
         user,
+        is_admin,
         dispatch,
         ui_state: _,
     } = props;
@@ -128,7 +131,11 @@ pub fn settings(props: &SettingsProps) -> Html {
                             <option value="explanatory" selected={us.teaching_mode == TeachingMode::Explanatory}>{"Explanatory"}</option>
                             <option value="storyteller" selected={us.teaching_mode == TeachingMode::StoryTeller}>{"Story Teller"}</option>
                             <option value="error_finding" selected={us.teaching_mode == TeachingMode::ErrorFinding}>{"Find Agent Errors"}</option>
-                            <option value="debug" selected={us.teaching_mode == TeachingMode::Debug}>{"Debug"}</option>
+                            {if *is_admin {
+                                html! { <option value="debug" selected={us.teaching_mode == TeachingMode::Debug}>{"Debug"}</option> }
+                            } else {
+                                html! {}
+                            }}
                         </select>
                     </div>
 

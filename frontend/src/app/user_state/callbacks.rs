@@ -142,10 +142,13 @@ pub fn on_formality_cycle(dispatch: Callback<UserDomainAction>) -> Callback<()> 
     })
 }
 
-pub fn on_teaching_mode_cycle(dispatch: Callback<UserDomainAction>) -> Callback<()> {
+pub fn on_teaching_mode_cycle(
+    is_admin: bool,
+    dispatch: Callback<UserDomainAction>,
+) -> Callback<()> {
     Callback::from(move |_| {
         dispatch.emit(UserDomainAction::Settings(
-            SettingsAction::CycleTeachingMode,
+            SettingsAction::CycleTeachingMode(is_admin),
         ));
     })
 }

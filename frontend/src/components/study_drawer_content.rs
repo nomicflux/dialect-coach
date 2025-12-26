@@ -25,7 +25,8 @@ pub enum DrawerTab {
 pub struct StudyDrawerContentProps {
     pub active_tab: DrawerTab,
     pub on_tab_change: Callback<DrawerTab>,
-    pub user: Rc<UserState>,                  // Strict prop
+    pub user: Rc<UserState>, // Strict prop
+    pub is_admin: bool,
     pub dispatch: Callback<UserDomainAction>, // Strict prop
     pub ui_state: UseReducerHandle<UIState>,
     pub branches: Vec<ConversationBranch>,
@@ -110,6 +111,7 @@ fn render_content(props: &StudyDrawerContentProps) -> Html {
         DrawerTab::Settings => html! {
             <Settings
                 user={props.user.clone()}
+                is_admin={props.is_admin}
                 dispatch={props.dispatch.clone()}
                 ui_state={props.ui_state.clone()}
             />

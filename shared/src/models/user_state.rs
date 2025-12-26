@@ -96,6 +96,8 @@ pub struct UserState {
     pub language_options: LanguageOptions,
     pub show_experimental_dialects: bool,
     pub dialect_levels: Vec<DialectLevel>,
+    #[serde(default)]
+    pub is_admin: bool,
 }
 
 impl UserState {
@@ -180,6 +182,7 @@ impl UserState {
             language_options: LanguageOptions::default(),
             show_experimental_dialects,
             dialect_levels,
+            is_admin: false,
         }
     }
 

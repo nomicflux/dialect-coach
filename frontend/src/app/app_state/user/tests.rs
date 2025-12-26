@@ -692,27 +692,27 @@ fn test_cycle_formality() {
 #[test]
 fn test_cycle_teaching_mode() {
     assert_eq!(
-        cycle_teaching_mode(TeachingMode::Immersive),
+        cycle_teaching_mode(TeachingMode::Immersive, true),
         TeachingMode::Corrective
     );
     assert_eq!(
-        cycle_teaching_mode(TeachingMode::Corrective),
+        cycle_teaching_mode(TeachingMode::Corrective, true),
         TeachingMode::Explanatory
     );
     assert_eq!(
-        cycle_teaching_mode(TeachingMode::Explanatory),
+        cycle_teaching_mode(TeachingMode::Explanatory, true),
         TeachingMode::StoryTeller
     );
     assert_eq!(
-        cycle_teaching_mode(TeachingMode::StoryTeller),
+        cycle_teaching_mode(TeachingMode::StoryTeller, true),
         TeachingMode::ErrorFinding
     );
     assert_eq!(
-        cycle_teaching_mode(TeachingMode::ErrorFinding),
+        cycle_teaching_mode(TeachingMode::ErrorFinding, true),
         TeachingMode::Debug
     );
     assert_eq!(
-        cycle_teaching_mode(TeachingMode::Debug),
+        cycle_teaching_mode(TeachingMode::Debug, true),
         TeachingMode::Immersive
     );
 }
@@ -746,7 +746,7 @@ fn test_cycle_teaching_mode_action() {
     let mut state = UserState::new(Uuid::new_v4());
     state.teaching_mode = TeachingMode::Immersive;
 
-    let action = UserStateAction::Settings(SettingsAction::CycleTeachingMode);
+    let action = UserStateAction::Settings(SettingsAction::CycleTeachingMode(true));
     state = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(state.teaching_mode, TeachingMode::Corrective);

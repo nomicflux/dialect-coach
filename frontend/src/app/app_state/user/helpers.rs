@@ -125,13 +125,19 @@ pub fn cycle_formality(current: Formality) -> Formality {
     }
 }
 
-pub fn cycle_teaching_mode(current: TeachingMode) -> TeachingMode {
+pub fn cycle_teaching_mode(current: TeachingMode, is_admin: bool) -> TeachingMode {
     match current {
         TeachingMode::Immersive => TeachingMode::Corrective,
         TeachingMode::Corrective => TeachingMode::Explanatory,
         TeachingMode::Explanatory => TeachingMode::StoryTeller,
         TeachingMode::StoryTeller => TeachingMode::ErrorFinding,
-        TeachingMode::ErrorFinding => TeachingMode::Debug,
+        TeachingMode::ErrorFinding => {
+            if is_admin {
+                TeachingMode::Debug
+            } else {
+                TeachingMode::Immersive
+            }
+        }
         TeachingMode::Debug => TeachingMode::Immersive,
     }
 }
@@ -272,5 +278,29 @@ mod tests {
             get_learning_item_id(&result[0]),
             get_learning_item_id(&item)
         );
+    }
+
+    #[test]
+    fn test_cycle_teaching_mode_admin() {
+        // Admin should be able to access Debug mode
+        let current = TeachingMode::ErrorFinding;
+        let next = cycle_teaching_mode(current, true);
+        assert_eq!(next, TeachingMode::Debug);
+
+        // From Debug, should cycle back to Immersive
+        let next = cycle_teaching_mode(TeachingMode::Debug, true);
+        assert_eq!(next, TeachingMode::Immersive);
+    }
+
+    #[test]
+    fn test_cycle_teaching_mode_non_admin() {
+        // Non-admin should skip Debug mode (ErrorFinding -> Immersive)
+        let current = TeachingMode::ErrorFinding;
+        let next = cycle_teaching_mode(current, false);
+        assert_eq!(next, TeachingMode::Immersive);
+
+        // If somehow in Debug mode (e.g. legacy state), should recover to Immersive
+        let next = cycle_teaching_mode(TeachingMode::Debug, false);
+        assert_eq!(next, TeachingMode::Immersive);
     }
 }

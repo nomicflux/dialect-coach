@@ -460,7 +460,14 @@ pub fn prepare_user_state_for_save(user_state: &mut UserState) {
 
 pub async fn load_user_state_response(state: &AppState, user_id: Uuid) -> UserStateMessage {
     match state.user_persistence.load(user_id).await {
-        Ok(user_state) => create_load_response(user_id, user_state),
+        Ok(Some(mut user_state)) => {
+            // Populate is_admin from user record
+            if let Ok(Some(user)) = state.user_persistence.load_user_by_id(user_id).await {
+                user_state.is_admin = user.is_admin;
+            }
+            create_load_response(user_id, Some(user_state))
+        }
+        Ok(None) => create_load_response(user_id, None),
         Err(e) => {
             tracing::error!(user_id = %user_id, "Failed to load user state: {}", e);
             UserStateMessage::LoadResponse(None)

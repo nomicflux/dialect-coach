@@ -62,7 +62,7 @@ pub enum SettingsAction {
     ToggleExperimentalDialects,
     CycleDialect,
     CycleFormality,
-    CycleTeachingMode,
+    CycleTeachingMode(bool),
 }
 
 #[derive(Clone, PartialEq, Debug)]

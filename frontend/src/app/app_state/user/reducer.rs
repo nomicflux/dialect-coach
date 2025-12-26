@@ -246,8 +246,8 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
         CycleFormality => {
             next.formality = cycle_formality(next.formality);
         }
-        CycleTeachingMode => {
-            next.teaching_mode = cycle_teaching_mode(next.teaching_mode);
+        CycleTeachingMode(is_admin) => {
+            next.teaching_mode = cycle_teaching_mode(next.teaching_mode, is_admin);
         }
         SetArabicScript(script) => {
             next.language_options.arabic_script = script;
