@@ -91,7 +91,10 @@ fn v1_to_v2_backward(mut data: serde_json::Value) -> serde_json::Value {
 }
 
 fn wrap_learning_items_in_conversation_history(data: &mut serde_json::Value) {
-    let history = match data.get_mut("conversation_history").and_then(|v| v.as_array_mut()) {
+    let history = match data
+        .get_mut("conversation_history")
+        .and_then(|v| v.as_array_mut())
+    {
         Some(h) => h,
         None => {
             tracing::debug!("V1→V2 migration: no conversation_history found");
@@ -114,11 +117,17 @@ fn wrap_learning_items_in_conversation_history(data: &mut serde_json::Value) {
         }
     }
 
-    tracing::debug!("V1→V2 migration: wrapped items in {} agent messages", wrapped_count);
+    tracing::debug!(
+        "V1→V2 migration: wrapped items in {} agent messages",
+        wrapped_count
+    );
 }
 
 fn unwrap_learning_items_in_conversation_history(data: &mut serde_json::Value) {
-    let history = match data.get_mut("conversation_history").and_then(|v| v.as_array_mut()) {
+    let history = match data
+        .get_mut("conversation_history")
+        .and_then(|v| v.as_array_mut())
+    {
         Some(h) => h,
         None => {
             tracing::debug!("V2→V1 migration: no conversation_history found");
@@ -551,5 +560,262 @@ mod tests {
         let user = migrate_user_to_current(UserVersion::V2Admin, v2_data);
         assert_eq!(user.username, "adminuser");
         assert!(user.is_admin);
+    }
+
+    // ============ Migration Guard Tests ============
+    // These tests ensure migration integrity and prevent future bugs.
+    // If you're reading this because a test failed, follow the instructions carefully.
+
+    #[test]
+    fn test_migrations_form_sequential_chain() {
+        // GUARD: Migrations must form a sequential chain with no gaps.
+        // Each migration's `to` must match the next migration's `from`.
+        //
+        // If this test fails, you have broken the migration chain.
+        // Fix: Ensure your new migration connects properly to existing ones.
+
+        let migrations = super::USER_STATE_MIGRATIONS;
+
+        if migrations.is_empty() {
+            // If no migrations, the only valid version is the current one
+            return;
+        }
+
+        // Check that migrations chain together
+        for i in 0..migrations.len() - 1 {
+            assert_eq!(
+                migrations[i].to,
+                migrations[i + 1].from,
+                "Migration chain broken between step {} and step {}. \
+                Migration {} goes to {:?} but migration {} starts from {:?}",
+                i,
+                i + 1,
+                i,
+                migrations[i].to,
+                i + 1,
+                migrations[i + 1].from
+            );
+        }
+
+        // The last migration must end at the current version
+        let last = migrations.last().unwrap();
+        assert_eq!(
+            last.to, CURRENT_USER_STATE_VERSION,
+            "Last migration does not end at CURRENT_USER_STATE_VERSION. \
+            Last migration ends at {:?} but current version is {:?}",
+            last.to, CURRENT_USER_STATE_VERSION
+        );
+    }
+
+    #[test]
+    fn test_migrations_start_from_oldest_version() {
+        // GUARD: The first migration must start from V1 (the oldest version).
+        //
+        // If this test fails, you may have removed a migration or misordered them.
+
+        let migrations = super::USER_STATE_MIGRATIONS;
+
+        if migrations.is_empty() {
+            panic!(
+                "No migrations defined! If you changed UserState structure, \
+                you MUST add a migration. See UserStateMigrationStep."
+            );
+        }
+
+        assert_eq!(
+            migrations[0].from,
+            UserStateVersion::V1,
+            "First migration must start from V1. Got {:?}",
+            migrations[0].from
+        );
+    }
+
+    #[test]
+    fn test_v1_to_v2_with_real_message_structure() {
+        // GUARD: Test migration with REAL serialized structures, not hand-crafted JSON.
+        // This ensures the migration handles actual Message/AgentResponse serialization.
+        //
+        // If this test fails after changing Message or AgentResponse:
+        // 1. Check that the migration path matches the actual JSON structure
+        // 2. The path is: msg["content"]["AgentMessage"]["content"]
+        // 3. Update the migration if the serialization structure changed
+
+        use crate::models::agent::{AgentResponse, Explained, Mistake, MistakeCategory};
+        use crate::models::{Dialect, Formality, Language, Message, MessageMetadata, TeachingMode};
+
+        // Create a REAL AgentResponse with learning items
+        let mistake = Mistake::new(
+            "hablar".to_string(),
+            "habla".to_string(),
+            MistakeCategory::SpellingError {
+                context: "test".to_string(),
+            },
+        );
+        let explained = Explained::new("órale".to_string(), "slang".to_string());
+
+        // Create AgentResponse with V2 format (tuples)
+        let agent_response = AgentResponse {
+            response: "Test response".to_string(),
+            mistakes: Some(vec![(mistake.clone(), 5)]),
+            explained: Some(vec![(explained.clone(), 0)]),
+            translated: None,
+            exploratory: None,
+            analysis: None,
+        };
+
+        // Create a real Message
+        let metadata = MessageMetadata::at_now(
+            Formality::Informal,
+            TeachingMode::Immersive,
+            Language::Spanish,
+            Dialect::SpanishMexican,
+            uuid::Uuid::new_v4(),
+        );
+        let message = Message::agent_message(agent_response, metadata, None);
+
+        // Serialize the real message
+        let msg_json = serde_json::to_value(&message).unwrap();
+
+        // Create V1 format by DOWNGRADING: unwrap tuples to just items
+        let mut v1_msg_json = msg_json.clone();
+        if let Some(content) = v1_msg_json
+            .get_mut("content")
+            .and_then(|c| c.get_mut("AgentMessage"))
+            .and_then(|am| am.get_mut("content"))
+        {
+            // Downgrade mistakes from [[item, score], ...] to [item, ...]
+            if let Some(items) = content.get_mut("mistakes").and_then(|v| v.as_array_mut()) {
+                let downgraded: Vec<serde_json::Value> = items
+                    .drain(..)
+                    .filter_map(|tuple| tuple.as_array().and_then(|arr| arr.first().cloned()))
+                    .collect();
+                *items = downgraded;
+            }
+            if let Some(items) = content.get_mut("explained").and_then(|v| v.as_array_mut()) {
+                let downgraded: Vec<serde_json::Value> = items
+                    .drain(..)
+                    .filter_map(|tuple| tuple.as_array().and_then(|arr| arr.first().cloned()))
+                    .collect();
+                *items = downgraded;
+            }
+        }
+
+        // Create V1 UserState with the downgraded message
+        let v1_data = serde_json::json!({
+            "user_id": uuid::Uuid::new_v4().to_string(),
+            "conversation_history": [v1_msg_json],
+            "learning_items": [],
+            "branches": [],
+            "active_branch_id": uuid::Uuid::nil().to_string(),
+        });
+
+        // Run migration V1 → V2
+        let v2_data = super::run_user_state_migrations(UserStateVersion::V1, v1_data);
+
+        // Verify: the migration should have wrapped items as tuples
+        let history = v2_data["conversation_history"].as_array().unwrap();
+        let agent_resp = &history[0]["content"]["AgentMessage"]["content"];
+        let mistakes = agent_resp["mistakes"].as_array().unwrap();
+
+        assert!(
+            mistakes[0].as_array().is_some(),
+            "Migration failed to wrap mistakes as tuples. \
+            Expected [[item, score], ...] but got something else. \
+            Check that migration path matches: msg[\"content\"][\"AgentMessage\"][\"content\"]"
+        );
+    }
+
+    #[test]
+    fn test_agent_response_structure_snapshot() {
+        // GUARD: Detect changes to AgentResponse that require migration.
+        //
+        // If this test fails, you changed AgentResponse's serialized structure.
+        // YOU MUST ADD A MIGRATION before updating the expected fields below.
+        //
+        // Steps to fix:
+        // 1. Add a new UserStateVersion variant (e.g., V3NewField)
+        // 2. Add a new migration entry to USER_STATE_MIGRATIONS
+        // 3. Implement the forward/backward migration functions
+        // 4. Update CURRENT_USER_STATE_VERSION
+        // 5. Update the expected_fields below
+        //
+        // DO NOT just update expected_fields without adding a migration!
+        // Existing user data will fail to load.
+
+        use crate::models::agent::AgentResponse;
+
+        let response = AgentResponse {
+            response: "test".to_string(),
+            mistakes: None,
+            explained: None,
+            translated: None,
+            exploratory: None,
+            analysis: None,
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        let actual_fields = extract_field_names(&json);
+        let expected_fields = vec![
+            "analysis",
+            "explained",
+            "exploratory",
+            "mistakes",
+            "response",
+            "translated",
+        ];
+
+        assert!(
+            actual_fields == expected_fields,
+            "STRUCTURE CHANGE DETECTED in AgentResponse!\n\n\
+            Expected fields: {:?}\n\
+            Actual fields:   {:?}\n\n\
+            TO FIX THIS TEST:\n\
+            1. Add new UserStateVersion variant (e.g., V3YourChange)\n\
+            2. Add migration entry to USER_STATE_MIGRATIONS array\n\
+            3. Implement forward/backward functions that transform the JSON\n\
+            4. Update CURRENT_USER_STATE_VERSION constant\n\
+            5. Update this test's expected_fields\n\n\
+            IMPORTANT: The migration must handle:\n\
+            - conversation_history[].content.AgentMessage.content\n\
+            See existing v1_to_v2_forward for an example.",
+            expected_fields,
+            actual_fields
+        );
+    }
+
+    #[test]
+    fn test_migration_roundtrip_preserves_data() {
+        // GUARD: Forward then backward migration should preserve data.
+        //
+        // If this test fails, your migration loses data during roundtrip.
+
+        let original = serde_json::json!({
+            "user_id": "test",
+            "conversation_history": [{
+                "id": "msg-1",
+                "content": {
+                    "AgentMessage": {
+                        "content": {
+                            "response": "hello",
+                            "mistakes": [{"id": "m1", "specific_mistake": "err"}]
+                        }
+                    }
+                }
+            }]
+        });
+
+        // V1 → V2 → V1 should preserve data
+        let v2 = super::v1_to_v2_forward(original.clone());
+        let back_to_v1 = super::v1_to_v2_backward(v2);
+
+        // Verify mistakes are back in original format
+        let history = back_to_v1["conversation_history"].as_array().unwrap();
+        let mistakes = &history[0]["content"]["AgentMessage"]["content"]["mistakes"];
+
+        assert!(
+            mistakes[0].as_object().is_some(),
+            "Migration roundtrip failed: mistakes should be unwrapped to objects"
+        );
+        assert_eq!(mistakes[0]["id"], "m1");
     }
 }

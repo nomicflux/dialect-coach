@@ -1,8 +1,8 @@
 use super::UserPersistence;
 use anyhow::{Result, anyhow};
 use dialect_coach_shared::{
-    CURRENT_USER_STATE_VERSION, InviteCode, UsageStats, User, UserState,
-    UserStateVersion, VersionedData, migrate_user_state_to_current,
+    CURRENT_USER_STATE_VERSION, InviteCode, UsageStats, User, UserState, UserStateVersion,
+    VersionedData, migrate_user_state_to_current,
 };
 use serde_json::Value as JsonValue;
 use sqlx::Row;

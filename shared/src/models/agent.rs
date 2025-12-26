@@ -487,13 +487,16 @@ mod tests {
     #[test]
     fn test_agent_response_serialization_with_mistakes() {
         let mut response = AgentResponse::from("Hello");
-        response.mistakes = Some(vec![(Mistake::new(
-            "hablar".to_string(),
-            "habla".to_string(),
-            MistakeCategory::SpellingError {
-                context: "habla".to_string(),
-            },
-        ), 0)]);
+        response.mistakes = Some(vec![(
+            Mistake::new(
+                "hablar".to_string(),
+                "habla".to_string(),
+                MistakeCategory::SpellingError {
+                    context: "habla".to_string(),
+                },
+            ),
+            0,
+        )]);
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"mistakes\""));
@@ -503,10 +506,10 @@ mod tests {
     #[test]
     fn test_agent_response_serialization_with_explained() {
         let mut response = AgentResponse::from("Hello");
-        response.explained = Some(vec![(Explained::new(
-            "órale".to_string(),
-            "Mexican slang".to_string(),
-        ), 0)]);
+        response.explained = Some(vec![(
+            Explained::new("órale".to_string(), "Mexican slang".to_string()),
+            0,
+        )]);
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"explained\""));
@@ -552,10 +555,16 @@ mod tests {
 
         assert_eq!(response.response, "Hello");
         assert_eq!(response.mistakes.as_ref().unwrap().len(), 1);
-        assert_eq!(response.mistakes.as_ref().unwrap()[0].0.specific_mistake, "hablar");
+        assert_eq!(
+            response.mistakes.as_ref().unwrap()[0].0.specific_mistake,
+            "hablar"
+        );
         assert_eq!(response.mistakes.as_ref().unwrap()[0].0.id, test_id);
         assert_eq!(response.explained.as_ref().unwrap().len(), 1);
-        assert_eq!(response.explained.as_ref().unwrap()[0].0.new_phrase, "órale");
+        assert_eq!(
+            response.explained.as_ref().unwrap()[0].0.new_phrase,
+            "órale"
+        );
         assert_eq!(response.explained.as_ref().unwrap()[0].0.id, test_id2);
     }
 
@@ -880,11 +889,10 @@ mod tests {
     #[test]
     fn test_agent_response_with_translated() {
         let mut response = AgentResponse::from("Hello");
-        response.translated = Some(vec![(Translated::new(
-            "hello".to_string(),
-            "hola".to_string(),
-            None,
-        ), 0)]);
+        response.translated = Some(vec![(
+            Translated::new("hello".to_string(), "hola".to_string(), None),
+            0,
+        )]);
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"translated\""));
@@ -895,10 +903,13 @@ mod tests {
     #[test]
     fn test_agent_response_with_exploratory() {
         let mut response = AgentResponse::from("Try this");
-        response.exploratory = Some(vec![(Exploratory::new(
-            "Use subjunctive mood".to_string(),
-            "Try 'Si fuera rico'".to_string(),
-        ), 0)]);
+        response.exploratory = Some(vec![(
+            Exploratory::new(
+                "Use subjunctive mood".to_string(),
+                "Try 'Si fuera rico'".to_string(),
+            ),
+            0,
+        )]);
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"exploratory\""));
@@ -948,6 +959,9 @@ mod tests {
         assert_eq!(response.translated.as_ref().unwrap().len(), 1);
         assert_eq!(response.exploratory.as_ref().unwrap().len(), 1);
         assert_eq!(response.translated.as_ref().unwrap()[0].0.id, translated_id);
-        assert_eq!(response.exploratory.as_ref().unwrap()[0].0.id, exploratory_id);
+        assert_eq!(
+            response.exploratory.as_ref().unwrap()[0].0.id,
+            exploratory_id
+        );
     }
 }
