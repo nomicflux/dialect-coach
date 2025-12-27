@@ -55,7 +55,7 @@ pub enum LanguageOption {
 }
 
 /// Options container for all language-specific settings
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LanguageOptions {
     pub arabic_script: ArabicScript,
     pub japanese_script: JapaneseScript,

@@ -1,14 +1,16 @@
 use crate::components::utility_sidebar::learning_item::{LearningItemState, get_accent_color};
 use dialect_coach_shared::models::{LearningGoal, LearningItem, LearningItemType, Quest};
+use std::rc::Rc;
+use std::sync::Arc;
 use uuid::Uuid;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct DynamicIslandProps {
     pub current_step_title: Option<String>,
-    pub items: Vec<LearningItem>,
+    pub items: Rc<Vec<LearningItem>>,
     #[prop_or_default]
-    pub learning_goals: Vec<LearningGoal>,
+    pub learning_goals: Arc<Vec<LearningGoal>>,
     #[prop_or_default]
     pub quests: Vec<Quest>,
 }
@@ -29,7 +31,7 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
     // Logic is consolidated here. No splitting state updates.
     let on_click_container = {
         let state = state.clone();
-        let items = props.items.clone();
+        let items = props.items.clone(); // Rc clone
         let has_plan = props.current_step_title.is_some();
         let has_goals = !props.learning_goals.is_empty();
         let has_items = !props.items.is_empty();

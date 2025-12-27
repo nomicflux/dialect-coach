@@ -186,6 +186,7 @@ mod tests {
     use crate::models::{Dialect, Formality, Language, Message, MessageMetadata, TeachingMode};
     use crate::models::{LearningItem, LearningItemType, Mistake};
     use chrono::Duration;
+    use std::sync::Arc;
     use uuid::Uuid;
 
     fn mock_metadata(timestamp: DateTime<Utc>) -> MessageMetadata {
@@ -207,7 +208,7 @@ mod tests {
         let mut state = UserState::new(Uuid::new_v4());
 
         for _ in 0..5 {
-            state.conversation_history.push(Message::user_message(
+            Arc::make_mut(&mut state.conversation_history).push(Message::user_message(
                 "msg".into(),
                 mock_metadata(yesterday),
                 None,
@@ -215,7 +216,7 @@ mod tests {
         }
 
         for _ in 0..5 {
-            state.conversation_history.push(Message::user_message(
+            Arc::make_mut(&mut state.conversation_history).push(Message::user_message(
                 "msg".into(),
                 mock_metadata(today),
                 None,
@@ -231,7 +232,7 @@ mod tests {
         let today = Utc::now();
         let mut state = UserState::new(Uuid::new_v4());
         for _ in 0..4 {
-            state.conversation_history.push(Message::user_message(
+            Arc::make_mut(&mut state.conversation_history).push(Message::user_message(
                 "msg".into(),
                 mock_metadata(today),
                 None,
@@ -245,7 +246,7 @@ mod tests {
     #[test]
     fn test_derive_quests() {
         let mut state = UserState::new(Uuid::new_v4());
-        state.learning_items.push(LearningItem::new(
+        Arc::make_mut(&mut state.learning_items).push(LearningItem::new(
             LearningItemType::Mistake(Mistake::new(
                 "error1".to_string(),
                 "corr1".to_string(),

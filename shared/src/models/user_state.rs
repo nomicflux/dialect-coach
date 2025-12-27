@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use super::dialect::dialect_features;
@@ -64,7 +65,7 @@ impl LanguageLevel {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DialectLevel {
     pub dialect: Dialect,
     pub level: LanguageLevel,
@@ -76,11 +77,11 @@ impl DialectLevel {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserState {
     pub user_id: Uuid,
-    pub learning_items: Vec<LearningItem>,
-    pub conversation_history: Vec<Message>,
+    pub learning_items: Arc<Vec<LearningItem>>,
+    pub conversation_history: Arc<Vec<Message>>,
     pub tts_enabled: bool,
     pub selected_language: Language,
     pub selected_dialect: Dialect,
@@ -88,9 +89,9 @@ pub struct UserState {
     pub teaching_mode: TeachingMode,
     pub user_gender: UserGender,
     pub active_branch_id: Uuid,
-    pub branches: Vec<ConversationBranch>,
-    pub learning_goals: Vec<LearningGoal>,
-    pub language_plans: Vec<LanguagePlan>,
+    pub branches: Arc<Vec<ConversationBranch>>,
+    pub learning_goals: Arc<Vec<LearningGoal>>,
+    pub language_plans: Arc<Vec<LanguagePlan>>,
     pub active_plan_id: Option<Uuid>,
     pub usage_stats: UsageStats,
     pub language_options: LanguageOptions,
@@ -165,8 +166,8 @@ impl UserState {
 
         Self {
             user_id,
-            learning_items: Vec::new(),
-            conversation_history: Vec::new(),
+            learning_items: Arc::new(Vec::new()),
+            conversation_history: Arc::new(Vec::new()),
             tts_enabled: false,
             selected_language: language,
             selected_dialect: dialect,
@@ -174,9 +175,9 @@ impl UserState {
             teaching_mode: TeachingMode::Immersive,
             user_gender: gender,
             active_branch_id: initial_branch_id,
-            branches: vec![initial_branch],
-            learning_goals: Vec::new(),
-            language_plans: Vec::new(),
+            branches: Arc::new(vec![initial_branch]),
+            learning_goals: Arc::new(Vec::new()),
+            language_plans: Arc::new(Vec::new()),
             active_plan_id: None,
             usage_stats: UsageStats::default(),
             language_options: LanguageOptions::default(),
@@ -377,8 +378,11 @@ impl UserState {
             .collect();
 
         let migrated = !migrations.is_empty();
-        for (idx, message_ids) in migrations {
-            self.branches[idx].message_ids = message_ids;
+        if migrated {
+            let branches = Arc::make_mut(&mut self.branches);
+            for (idx, message_ids) in migrations {
+                branches[idx].message_ids = message_ids;
+            }
         }
         migrated
     }
@@ -407,12 +411,12 @@ impl UserState {
     fn reset_branches_to_root(&mut self) {
         let branch = ConversationBranch::new(None, None, None, None, vec![]);
         self.active_branch_id = branch.id;
-        self.branches = vec![branch];
+        self.branches = Arc::new(vec![branch]);
     }
 
     fn find_leaf_message_ids(&self) -> Vec<Uuid> {
         let mut parents = HashSet::new();
-        for msg in &self.conversation_history {
+        for msg in self.conversation_history.iter() {
             if let Some(parent) = msg.parent_id {
                 parents.insert(parent);
             }
@@ -461,7 +465,7 @@ impl UserState {
 
         let active_branch_id = self.select_active_branch(&branches);
         self.active_branch_id = active_branch_id;
-        self.branches = branches;
+        self.branches = Arc::new(branches);
     }
 
     fn select_active_branch(&self, branches: &[ConversationBranch]) -> Uuid {
@@ -493,6 +497,7 @@ mod tests {
         ConversationBranch, Dialect, Formality, InitialUserSettings, Language, LearningItem,
         Message, MessageMetadata, TeachingMode, UserGender, UserState,
     };
+    use std::sync::Arc;
     use uuid::Uuid;
 
     use crate::models::agent::Mistake;
@@ -570,7 +575,7 @@ mod tests {
     fn test_conversation_history_in_user_state() {
         let mut state = create_test_user_state();
         let msg = create_test_message();
-        state.conversation_history.push(msg.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg.clone());
 
         assert_eq!(state.conversation_history.len(), 1);
         assert_eq!(state.conversation_history[0].id, msg.id);
@@ -625,11 +630,10 @@ mod tests {
     fn test_get_active_branch_messages_single() {
         let mut state = create_test_user_state();
         let msg = Message::user_message("test".to_string(), test_metadata(Uuid::new_v4()), None);
-        state.conversation_history.push(msg.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg.clone());
 
         // Set the branch's leaf to this message
-        if let Some(branch) = state
-            .branches
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
             .iter_mut()
             .find(|b| b.id == state.active_branch_id)
         {
@@ -648,25 +652,24 @@ mod tests {
 
         // Create a chain: A → B → C
         let msg_a = Message::user_message("A".to_string(), test_metadata(Uuid::new_v4()), None);
-        state.conversation_history.push(msg_a.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_a.clone());
 
         let msg_b = Message::user_message(
             "B".to_string(),
             test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
-        state.conversation_history.push(msg_b.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_b.clone());
 
         let msg_c = Message::user_message(
             "C".to_string(),
             test_metadata(Uuid::new_v4()),
             Some(msg_b.id),
         );
-        state.conversation_history.push(msg_c.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_c.clone());
 
         // Set the branch's leaf to msg_c
-        if let Some(branch) = state
-            .branches
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
             .iter_mut()
             .find(|b| b.id == state.active_branch_id)
         {
@@ -691,14 +694,14 @@ mod tests {
 
         // Create main path: A → B
         let msg_a = Message::user_message("A".to_string(), test_metadata(Uuid::new_v4()), None);
-        state.conversation_history.push(msg_a.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_a.clone());
 
         let msg_b = Message::user_message(
             "B".to_string(),
             test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
-        state.conversation_history.push(msg_b.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_b.clone());
 
         // Create alternative path from A: A → X
         let msg_x = Message::user_message(
@@ -706,11 +709,10 @@ mod tests {
             test_metadata(Uuid::new_v4()),
             Some(msg_a.id),
         );
-        state.conversation_history.push(msg_x.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_x.clone());
 
         // Set active branch leaf to B (so path is A → B, not A → X)
-        if let Some(branch) = state
-            .branches
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
             .iter_mut()
             .find(|b| b.id == state.active_branch_id)
         {
@@ -743,13 +745,14 @@ mod tests {
             Some(msg_b.id),
         );
 
-        state.conversation_history.push(msg_a.clone());
-        state.conversation_history.push(msg_b.clone());
-        state.conversation_history.push(msg_c.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_a.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_b.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg_c.clone());
 
         // Simulate old data: branch has leaf_message_id but empty message_ids
-        state.branches[0].leaf_message_id = Some(msg_c.id);
-        state.branches[0].message_ids = vec![]; // Simulate old data format
+        let branch = &mut Arc::make_mut(&mut state.branches)[0];
+        branch.leaf_message_id = Some(msg_c.id);
+        branch.message_ids = vec![]; // Simulate old data format
 
         // Run migration
         let migrated = state.migrate_branch_message_ids();
@@ -786,7 +789,7 @@ mod tests {
             vec![],
         );
         let branch_id = branch.id;
-        state.branches.push(branch);
+        Arc::make_mut(&mut state.branches).push(branch);
 
         let child_branches = state.get_child_branches(message_id);
         assert_eq!(child_branches.len(), 1);
@@ -805,7 +808,7 @@ mod tests {
             vec![],
         );
         let branch_id = branch.id;
-        state.branches.push(branch);
+        Arc::make_mut(&mut state.branches).push(branch);
 
         let root = state.find_branch_root(branch_id);
         assert_eq!(root, Some(parent_msg_id));
@@ -823,8 +826,8 @@ mod tests {
     fn test_rebuild_branches_from_history_creates_branch() {
         let mut state = create_test_user_state();
         let msg = create_test_message();
-        state.conversation_history.push(msg.clone());
-        state.branches.clear();
+        Arc::make_mut(&mut state.conversation_history).push(msg.clone());
+        Arc::make_mut(&mut state.branches).clear();
         state.active_branch_id = Uuid::new_v4();
 
         let rebuilt = state.rebuild_branches_from_history();
@@ -840,9 +843,9 @@ mod tests {
     fn test_get_active_branch_messages_fallbacks_to_existing_branch() {
         let mut state = create_test_user_state();
         let msg = create_test_message();
-        state.conversation_history.push(msg.clone());
+        Arc::make_mut(&mut state.conversation_history).push(msg.clone());
 
-        if let Some(branch) = state.branches.first_mut() {
+        if let Some(branch) = Arc::make_mut(&mut state.branches).first_mut() {
             branch.message_ids = vec![msg.id];
             branch.leaf_message_id = Some(msg.id);
         }

@@ -7,7 +7,7 @@ pub type ExplainedId = uuid::Uuid;
 pub type TranslatedId = uuid::Uuid;
 pub type ExploratoryId = uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MistakeCategory {
     SpellingError { context: String },
@@ -50,7 +50,7 @@ struct MistakeHelper {
     mistake_category: MistakeCategory,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Mistake {
     pub id: MistakeId,
     pub specific_mistake: String,
@@ -109,7 +109,7 @@ struct ExplainedHelper {
     explanation: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Explained {
     pub id: ExplainedId,
     pub new_phrase: String,
@@ -160,7 +160,7 @@ struct TranslatedHelper {
     context: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Translated {
     pub id: TranslatedId,
     pub translated_word: String,
@@ -212,7 +212,7 @@ struct ExploratoryHelper {
     instructions_for_use: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Exploratory {
     pub id: ExploratoryId,
     pub point_to_try: String,
@@ -285,7 +285,7 @@ impl<'de> Deserialize<'de> for LearningItemScore {
 }
 
 /// Analysis of user's progress on mistakes and explanations
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentAnalysis {
     pub mistake_scores: HashMap<MistakeId, LearningItemScore>,
     pub explained_scores: HashMap<ExplainedId, LearningItemScore>,
@@ -311,7 +311,7 @@ impl Default for AgentAnalysis {
 }
 
 /// Response from the AI agent service
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentResponse {
     pub response: String,
     pub mistakes: Option<Vec<(Mistake, u8)>>,

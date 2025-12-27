@@ -34,13 +34,20 @@ pub fn drawer(props: &DrawerProps) -> Html {
     let open_class = if props.is_open { "open" } else { "" };
 
     html! {
-        <div class={classes!("drawer-backdrop", open_class)} onclick={on_close.clone()}>
-            <div class="drawer-panel" onclick={on_panel}>
+        <>
+            <div
+                class={classes!("drawer-backdrop", open_class)}
+                onclick={on_close.clone()}
+            />
+            <div
+                class={classes!("drawer-panel", open_class)}
+                onclick={on_panel}
+            >
                 {render_header(&props.title, on_close)}
                 <div class="drawer-content">
                     { for props.children.iter() }
                 </div>
             </div>
-        </div>
+        </>
     }
 }

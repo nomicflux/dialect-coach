@@ -3,7 +3,7 @@ use super::{Explained, Exploratory, Mistake, Translated};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LearningItem {
     pub item: LearningItemType,
     pub score: u8,
@@ -40,7 +40,7 @@ impl LearningItem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LearningItemType {
     Mistake(Mistake),
     Explanation(Explained),
@@ -48,7 +48,7 @@ pub enum LearningItemType {
     Exploration(Exploratory),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LearningGoal {
     pub goal: String,
     pub dialect: Dialect,

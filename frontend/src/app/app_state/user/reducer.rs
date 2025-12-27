@@ -8,6 +8,7 @@ use dialect_coach_shared::{AgentAnalysis, LearningItem, LearningItemType};
 
 pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
     use MessageAction::*;
+    use std::sync::Arc;
     match action {
         Add(mut msg) => {
             let current_leaf = next
@@ -19,10 +20,9 @@ pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
             msg.parent_id = current_leaf;
             let new_msg_id = msg.id;
             let msg_dialect = msg.metadata.dialect;
-            next.conversation_history.push(msg);
+            Arc::make_mut(&mut next.conversation_history).push(msg);
 
-            if let Some(branch) = next
-                .branches
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
                 .iter_mut()
                 .find(|b| b.id == next.active_branch_id)
             {
@@ -35,57 +35,69 @@ pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
             }
         }
         Delete(id) => {
-            next.conversation_history = delete_message(next.conversation_history.clone(), id);
-            next.branches = remove_message_from_branches(next.branches.clone(), id);
+            next.conversation_history =
+                Arc::new(delete_message((*next.conversation_history).clone(), id));
+            next.branches = Arc::new(remove_message_from_branches((*next.branches).clone(), id));
         }
         UndoDelete(msg) => {
-            next.conversation_history =
-                undo_delete_message(next.conversation_history.clone(), msg.clone());
-            next.branches = restore_message_to_branch(next.branches.clone(), &msg);
+            next.conversation_history = Arc::new(undo_delete_message(
+                (*next.conversation_history).clone(),
+                msg.clone(),
+            ));
+            next.branches = Arc::new(restore_message_to_branch((*next.branches).clone(), &msg));
         }
     }
 }
 
 pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
     use LearningAction::*;
+    use std::sync::Arc;
     match action {
         AddItems(mistakes, explained, translated, exploratory) => {
-            next.learning_items = add_learning_items_to_vec(
-                next.learning_items.clone(),
+            next.learning_items = Arc::new(add_learning_items_to_vec(
+                (*next.learning_items).clone(),
                 mistakes,
                 explained,
                 translated,
                 exploratory,
                 next.selected_dialect,
-            );
+            ));
         }
         UpdateScores(analysis) => {
-            next.learning_items = apply_score_updates(next.learning_items.clone(), &analysis);
+            next.learning_items = Arc::new(apply_score_updates(
+                (*next.learning_items).clone(),
+                &analysis,
+            ));
             promote_plan_items(next, &analysis);
             check_step_completion(next);
         }
         DeleteItem(id) => {
-            next.learning_items = delete_learning_item(next.learning_items.clone(), id);
+            next.learning_items =
+                Arc::new(delete_learning_item((*next.learning_items).clone(), id));
         }
         UndoDeleteItem(item) => {
-            next.learning_items = undo_delete_learning_item(next.learning_items.clone(), item);
+            next.learning_items = Arc::new(undo_delete_learning_item(
+                (*next.learning_items).clone(),
+                item,
+            ));
         }
         AddGoal(goal) => {
-            next.learning_goals = add_learning_goal(next.learning_goals.clone(), goal);
+            next.learning_goals = Arc::new(add_learning_goal((*next.learning_goals).clone(), goal));
         }
         DeleteGoal(index) => {
-            next.learning_goals = delete_learning_goal(next.learning_goals.clone(), index);
+            next.learning_goals =
+                Arc::new(delete_learning_goal((*next.learning_goals).clone(), index));
         }
     }
 }
 
 pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
     use BranchAction::*;
+    use std::sync::Arc;
     match action {
         Create(message_id) => {
             // Update the current branch's parent_message_id if it's None
-            if let Some(current_branch) = next
-                .branches
+            if let Some(current_branch) = Arc::make_mut(&mut next.branches)
                 .iter_mut()
                 .find(|b| b.id == next.active_branch_id)
                 && current_branch.parent_message_id.is_none()
@@ -112,7 +124,7 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 message_ids,
             );
             let new_branch_id = new_branch.id;
-            next.branches.push(new_branch);
+            Arc::make_mut(&mut next.branches).push(new_branch);
             next.active_branch_id = new_branch_id;
             sync_to_active_branch(next);
         }
@@ -121,7 +133,7 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
             sync_to_active_branch(next);
         }
         Delete(branch_id) => {
-            next.branches.retain(|b| b.id != branch_id);
+            Arc::make_mut(&mut next.branches).retain(|b| b.id != branch_id);
 
             if next.active_branch_id == branch_id {
                 next.active_branch_id = next
@@ -133,7 +145,10 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
             }
         }
         Rename(branch_id, name) => {
-            if let Some(branch) = next.branches.iter_mut().find(|b| b.id == branch_id) {
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == branch_id)
+            {
                 branch.name = Some(name);
             }
         }
@@ -142,12 +157,13 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
 
 pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
     use PlanAction::*;
+    use std::sync::Arc;
     match action {
         Add(plan) => {
-            next.language_plans.push(plan);
+            Arc::make_mut(&mut next.language_plans).push(plan);
         }
         Delete(plan_id) => {
-            next.language_plans.retain(|p| p.id != plan_id);
+            Arc::make_mut(&mut next.language_plans).retain(|p| p.id != plan_id);
             if next.active_plan_id == Some(plan_id) {
                 next.active_plan_id = None;
             }
@@ -155,7 +171,10 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
         SetActive(plan_id) => {
             next.active_plan_id = plan_id;
             if let Some(pid) = plan_id {
-                if let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == pid) {
+                if let Some(plan) = Arc::make_mut(&mut next.language_plans)
+                    .iter_mut()
+                    .find(|p| p.id == pid)
+                {
                     plan.start();
                 }
                 // Activate the current step's items when plan becomes active
@@ -163,7 +182,10 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
             }
         }
         AdvanceStep(plan_id) => {
-            if let Some(plan) = next.language_plans.iter_mut().find(|p| p.id == plan_id) {
+            if let Some(plan) = Arc::make_mut(&mut next.language_plans)
+                .iter_mut()
+                .find(|p| p.id == plan_id)
+            {
                 plan.advance_step();
             }
             // Activate the new step's items after advancing
@@ -183,7 +205,7 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
                     updated_plan.title,
                     updated_plan.id
                 );
-                next.language_plans[plan_idx] = updated_plan;
+                Arc::make_mut(&mut next.language_plans)[plan_idx] = updated_plan;
             } else {
                 log::error!(
                     "Failed to update plan: Plan not found with ID {}",
@@ -275,6 +297,7 @@ pub(crate) fn apply_user_state_action(state: &UserState, action: UserStateAction
 }
 
 fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
+    use std::sync::Arc;
     if let Some(plan) = state
         .language_plans
         .iter()
@@ -290,15 +313,15 @@ fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
                 .any(|i| get_learning_item_id(i) == id)
                 && item_has_score(item, analysis)
             {
-                state.learning_items.push(item.clone());
+                Arc::make_mut(&mut state.learning_items).push(item.clone());
             }
         }
     }
 }
 
 fn check_step_completion(state: &mut UserState) {
-    if let Some(plan) = state
-        .language_plans
+    use std::sync::Arc;
+    if let Some(plan) = Arc::make_mut(&mut state.language_plans)
         .iter_mut()
         .find(|p| Some(p.id) == state.active_plan_id)
         && let Some(step) = plan.steps.get(plan.current_step_index)
@@ -326,13 +349,18 @@ fn item_has_score(item: &LearningItem, analysis: &AgentAnalysis) -> bool {
 }
 
 fn activate_step_items(state: &mut UserState, plan_id: uuid::Uuid) {
-    if let Some(plan) = state.language_plans.iter_mut().find(|p| p.id == plan_id)
+    use std::sync::Arc;
+    if let Some(plan) = Arc::make_mut(&mut state.language_plans)
+        .iter_mut()
+        .find(|p| p.id == plan_id)
         && let Some(step) = plan.steps.get(plan.current_step_index)
         && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
     {
         // Add items to learning list (idempotent due to helper)
-        state.learning_items =
-            merge_learning_items(state.learning_items.clone(), content.items.clone());
+        state.learning_items = Arc::new(merge_learning_items(
+            (*state.learning_items).clone(),
+            content.items.clone(),
+        ));
 
         // Update plan status
         if plan.status == dialect_coach_shared::models::PlanStatus::NotStarted {
@@ -346,6 +374,7 @@ mod tests {
     use super::*;
     use dialect_coach_shared::models::{LearningItemScore, MistakeCategory};
     use dialect_coach_shared::{Dialect, LanguagePlan, Mistake, PlanContent, PlanStep, StepType};
+    use std::sync::Arc;
     use uuid::Uuid;
 
     #[test]
@@ -379,7 +408,7 @@ mod tests {
             "Learn this".to_string(),
         ));
 
-        state.language_plans.push(plan.clone());
+        Arc::make_mut(&mut state.language_plans).push(plan.clone());
         state.active_plan_id = Some(plan.id);
 
         let mut analysis = AgentAnalysis::default();
@@ -435,9 +464,9 @@ mod tests {
             "Next Step".to_string(),
         ));
 
-        state.language_plans.push(plan.clone());
+        Arc::make_mut(&mut state.language_plans).push(plan.clone());
         state.active_plan_id = Some(plan.id);
-        state.learning_items.push(active_item);
+        Arc::make_mut(&mut state.learning_items).push(active_item);
 
         // Verification: current index should be 0
         assert_eq!(state.language_plans[0].current_step_index, 0);
@@ -484,7 +513,7 @@ mod tests {
             "Learn this".to_string(),
         ));
 
-        state.language_plans.push(plan.clone());
+        Arc::make_mut(&mut state.language_plans).push(plan.clone());
         state.active_plan_id = Some(plan.id);
 
         // Initially no items

@@ -74,7 +74,7 @@ impl UserStateWebSocketService {
     /// Save user state
     pub fn save_user_state(&self, user_state: &UserState) -> Result<(), String> {
         // DEBUG: Log plans being saved
-        for plan in &user_state.language_plans {
+        for plan in user_state.language_plans.iter() {
             info!("Frontend saving plan: {} (id: {})", plan.title, plan.id);
         }
         let msg = UserStateMessage::Save(user_state.clone());

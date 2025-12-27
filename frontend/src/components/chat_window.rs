@@ -6,6 +6,8 @@ use uuid::Uuid;
 use web_sys::{HtmlElement, MouseEvent};
 use yew::prelude::*;
 
+use crate::utils::perf::PerfGuard;
+
 use super::MessageBubble;
 use super::icons::NeonRope;
 
@@ -170,6 +172,7 @@ fn render_continue_button(on_continue_branch: &Option<Callback<Uuid>>, last_msg_
 
 #[function_component(ChatWindow)]
 pub fn chat_window(props: &ChatWindowProps) -> Html {
+    let _render_guard = PerfGuard::new("ChatWindow::render");
     let chat_container_ref = use_node_ref();
 
     // Auto-scroll to bottom when new messages arrive

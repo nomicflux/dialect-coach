@@ -6,17 +6,11 @@ use crate::components::gamification::{FluencyBar, StreakDisplay};
 use crate::services::websocket::ConnectionState;
 use yew::prelude::*;
 
-#[derive(Properties)]
+#[derive(Properties, PartialEq)]
 pub struct HeaderProps {
     pub app_state: UseReducerHandle<AppState>,
     pub ui_state: UseReducerHandle<UIState>,
     pub session: UseReducerHandle<SessionState>,
-}
-
-impl PartialEq for HeaderProps {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
 }
 
 fn render_create_button(ui_state: &UseReducerHandle<UIState>) -> Html {

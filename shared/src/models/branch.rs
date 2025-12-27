@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::models::Dialect;
 
 /// A branch in the conversation tree
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConversationBranch {
     pub id: Uuid,
     pub parent_message_id: Option<Uuid>,

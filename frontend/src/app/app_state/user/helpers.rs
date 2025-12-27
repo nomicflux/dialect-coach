@@ -4,6 +4,7 @@ use dialect_coach_shared::{
     AgentAnalysis, Explained, Exploratory, LearningGoal, LearningItem, LearningItemType, Mistake,
     Translated, UserState,
 };
+use std::sync::Arc;
 use uuid::Uuid;
 
 pub trait UserStateGamificationExt {
@@ -234,7 +235,7 @@ pub fn delete_learning_goal(mut goals: Vec<LearningGoal>, index: usize) -> Vec<L
 pub fn create_new_branch_for_language(state: &mut UserState) {
     let new_branch = ConversationBranch::new(None, None, None, None, vec![]);
     let new_branch_id = new_branch.id;
-    state.branches.push(new_branch);
+    Arc::make_mut(&mut state.branches).push(new_branch);
     state.active_branch_id = new_branch_id;
 }
 

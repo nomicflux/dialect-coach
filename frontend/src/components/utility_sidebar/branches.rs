@@ -1,12 +1,14 @@
 use dialect_coach_shared::models::{ConversationBranch, Message};
+
+use std::sync::Arc;
 use uuid::Uuid;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct BranchesProps {
-    pub branches: Vec<ConversationBranch>,
+    pub branches: Arc<Vec<ConversationBranch>>,
     pub active_branch_id: Uuid,
-    pub messages: Vec<Message>,
+    pub messages: Arc<Vec<Message>>,
     #[prop_or_default]
     pub on_switch_branch: Option<Callback<Uuid>>,
     #[prop_or_default]

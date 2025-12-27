@@ -33,21 +33,24 @@
     z-index: 1001;
     transform: translateX(100%);
     transition: transform var(--dur-med) var(--ease-emph);
+    will-change: transform;
     display: flex;
     flex-direction: column;
     border-left: 1px solid rgba(255, 255, 255, 0.1);
+    visibility: visible;
+    /* Ensure it stays painted */
 }
 
-/* Glass effect for the panel if supported, gives it that premium feel */
+/* Glass effect for the panel if supported */
 @supports (backdrop-filter: blur(20px)) {
     .drawer-panel {
         background: var(--surface-glass);
-        backdrop-filter: blur(var(--glass-blur));
+        backdrop-filter: blur(12px);
         border-left: var(--glass-border);
     }
 }
 
-.drawer-backdrop.open .drawer-panel {
+.drawer-panel.open {
     transform: translateX(0);
 }
 

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct UsageStats {
     #[serde(default)]
     pub response_events: Vec<AgentUsage>,
@@ -99,7 +99,7 @@ pub struct AgentUsageStats {
     pub analysis_usage: Vec<AgentUsage>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AgentUsage {
     pub timestamp: i64,
     pub input_tokens: u64,
@@ -128,7 +128,7 @@ impl AgentUsage {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TtsUsage {
     pub timestamp: i64,
     pub characters: u64,

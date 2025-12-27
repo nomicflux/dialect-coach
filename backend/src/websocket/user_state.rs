@@ -46,7 +46,7 @@ async fn handle_save_user_state(
     tx: &mpsc::UnboundedSender<String>,
 ) -> Result<(), ()> {
     // DEBUG: Log plans received for save
-    for plan in &user_state.language_plans {
+    for plan in user_state.language_plans.iter() {
         tracing::info!(
             "Backend received plan to save: {} (id: {})",
             plan.title,

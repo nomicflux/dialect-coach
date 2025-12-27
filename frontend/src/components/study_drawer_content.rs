@@ -1,4 +1,3 @@
-use crate::app::app_state::UIState;
 use crate::app::app_state::user::UserDomainAction;
 use crate::components::utility_sidebar::branches::Branches;
 use crate::components::utility_sidebar::learning::Learning;
@@ -6,10 +5,12 @@ use crate::components::utility_sidebar::plan::PlanTab;
 use crate::components::utility_sidebar::settings::Settings;
 use crate::services::enrichment_service::EnrichmentService;
 use crate::services::plan_service::PlanService;
+use crate::utils::perf::PerfGuard;
 use dialect_coach_shared::Dialect;
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::{ConversationBranch, LearningGoal, LearningItem, Message};
 use std::rc::Rc;
+use std::sync::Arc;
 use uuid::Uuid;
 use yew::prelude::*;
 
@@ -28,11 +29,10 @@ pub struct StudyDrawerContentProps {
     pub user: Rc<UserState>, // Strict prop
     pub is_admin: bool,
     pub dispatch: Callback<UserDomainAction>, // Strict prop
-    pub ui_state: UseReducerHandle<UIState>,
-    pub branches: Vec<ConversationBranch>,
+    pub branches: Arc<Vec<ConversationBranch>>,
     pub active_branch_id: Uuid,
-    pub messages: Vec<Message>,
-    pub learning_goals: Vec<LearningGoal>,
+    pub messages: Arc<Vec<Message>>,
+    pub learning_goals: Arc<Vec<LearningGoal>>,
     pub on_add_goal: Callback<String>,
     pub on_delete_goal: Callback<usize>,
     #[prop_or_default]
@@ -41,7 +41,7 @@ pub struct StudyDrawerContentProps {
     pub on_delete_branch: Option<Callback<Uuid>>,
     #[prop_or_default]
     pub goal_input_ref: Option<NodeRef>,
-    pub learning_items: Vec<LearningItem>,
+    pub learning_items: Rc<Vec<LearningItem>>,
     pub active_branch_dialect: Option<Dialect>,
     pub enrichment_service: Rc<EnrichmentService>,
     pub plan_service: Rc<PlanService>,
@@ -72,8 +72,11 @@ fn render_tab_button(
     }
 }
 
-fn render_content(props: &StudyDrawerContentProps) -> Html {
-    match props.active_tab {
+#[function_component(StudyDrawerContent)]
+pub fn study_drawer_content(props: &StudyDrawerContentProps) -> Html {
+    let _render_guard = PerfGuard::new("StudyDrawerContent::render");
+
+    let content = match props.active_tab {
         DrawerTab::Branches => html! {
             <Branches
                 branches={props.branches.clone()}
@@ -97,15 +100,15 @@ fn render_content(props: &StudyDrawerContentProps) -> Html {
         },
         DrawerTab::Plan => html! {
             <PlanTab
+                learning_goals={(*props.learning_goals).clone()}
+                on_add_goal={props.on_add_goal.clone()}
+                on_delete_goal={props.on_delete_goal.clone()}
+                goal_input_ref={props.goal_input_ref.clone()}
                 user={props.user.clone()}
                 dispatch={props.dispatch.clone()}
                 plan_service={props.plan_service.clone()}
                 enrichment_service={props.enrichment_service.clone()}
                 active_branch_dialect={props.active_branch_dialect}
-                learning_goals={props.learning_goals.clone()}
-                on_add_goal={props.on_add_goal.clone()}
-                on_delete_goal={props.on_delete_goal.clone()}
-                goal_input_ref={props.goal_input_ref.clone()}
             />
         },
         DrawerTab::Settings => html! {
@@ -113,27 +116,20 @@ fn render_content(props: &StudyDrawerContentProps) -> Html {
                 user={props.user.clone()}
                 is_admin={props.is_admin}
                 dispatch={props.dispatch.clone()}
-                ui_state={props.ui_state.clone()}
             />
         },
-    }
-}
-
-#[function_component(StudyDrawerContent)]
-pub fn study_drawer_content(props: &StudyDrawerContentProps) -> Html {
-    let on_change = props.on_tab_change.clone();
+    };
 
     html! {
-        <div class="drawer-layout">
-            <div class="drawer-tabs">
-                {render_tab_button("Branches", DrawerTab::Branches, props.active_tab, on_change.clone())}
-                {render_tab_button("Learning", DrawerTab::Learning, props.active_tab, on_change.clone())}
-                {render_tab_button("Plan", DrawerTab::Plan, props.active_tab, on_change.clone())}
-                {render_tab_button("Settings", DrawerTab::Settings, props.active_tab, on_change)}
+        <div class="study-drawer-content">
+            <div class="study-tabs">
+                {render_tab_button("Branches", DrawerTab::Branches, props.active_tab, props.on_tab_change.clone())}
+                {render_tab_button("Learning", DrawerTab::Learning, props.active_tab, props.on_tab_change.clone())}
+                {render_tab_button("Plan", DrawerTab::Plan, props.active_tab, props.on_tab_change.clone())}
+                {render_tab_button("Settings", DrawerTab::Settings, props.active_tab, props.on_tab_change.clone())}
             </div>
-
-            <div class="drawer-tab-content">
-                {render_content(props)}
+            <div class="study-tab-content">
+                {content}
             </div>
         </div>
     }

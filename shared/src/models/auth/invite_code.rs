@@ -63,7 +63,7 @@ mod tests {
         assert_eq!(invite.code, code);
         assert_eq!(invite.used_by, None);
         assert_eq!(invite.expiration, None);
-        assert_eq!(invite.is_admin, false);
+        assert!(!invite.is_admin);
     }
 
     #[test]
@@ -75,7 +75,7 @@ mod tests {
         assert_eq!(invite.code, code);
         assert_eq!(invite.expiration, Some(expiration));
         assert_eq!(invite.used_by, None);
-        assert_eq!(invite.is_admin, false);
+        assert!(!invite.is_admin);
     }
 
     #[test]
@@ -193,7 +193,7 @@ mod tests {
         assert_eq!(invite.created_date, 1700000000);
         assert_eq!(invite.used_by, None);
         assert_eq!(invite.expiration, Some(9999999999));
-        assert_eq!(invite.is_admin, false);
+        assert!(!invite.is_admin);
     }
 
     #[test]
@@ -210,7 +210,7 @@ mod tests {
         let invite = InviteCode::new_with_admin(code.clone(), Some(9999999999i64), true);
 
         assert_eq!(invite.code, code);
-        assert_eq!(invite.is_admin, true);
+        assert!(invite.is_admin);
         assert_eq!(invite.used_by, None);
         assert_eq!(invite.expiration, Some(9999999999i64));
     }

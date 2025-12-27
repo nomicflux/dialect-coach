@@ -14,7 +14,7 @@ use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct LearningProps {
-    pub items: Vec<LearningItem>,
+    pub items: Rc<Vec<LearningItem>>,
     pub on_delete: Callback<Uuid>,
     pub on_undo: Callback<()>,
     pub deleted_count: usize,

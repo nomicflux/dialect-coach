@@ -5,7 +5,7 @@ use super::learning_item::LearningItem;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LanguagePlan {
     pub id: Uuid,
     pub title: String,
@@ -17,7 +17,7 @@ pub struct LanguagePlan {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanStep {
     pub id: Uuid,
     pub step_number: usize,
@@ -29,12 +29,12 @@ pub struct PlanStep {
     pub completed_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct PlanContent {
     pub items: Vec<LearningItem>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepType {
     Learning { content: PlanContent },
     Review { review_step_ids: Vec<Uuid> },

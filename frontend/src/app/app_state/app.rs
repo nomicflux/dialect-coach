@@ -37,7 +37,7 @@ pub enum AppStateAction {
     StorePendingInitialSettings(Option<dialect_coach_shared::InitialUserSettings>),
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct RateLimitState {
     pub response_limited: bool,
     pub analysis_limited: bool,
@@ -62,6 +62,31 @@ pub struct AppState {
     pub autoplay_enabled: bool,
     pub rate_limit_state: RateLimitState,
     pub pending_initial_settings: Option<dialect_coach_shared::InitialUserSettings>,
+}
+
+impl PartialEq for AppState {
+    fn eq(&self, other: &Self) -> bool {
+        self.session_id == other.session_id
+            && self.connection_state == other.connection_state
+            && self.is_loading == other.is_loading
+            && self.error_message == other.error_message
+            && self.current_user == other.current_user
+            && Rc::ptr_eq(&self.ws_service, &other.ws_service)
+            && Rc::ptr_eq(&self.user_state_ws_service, &other.user_state_ws_service)
+            && Rc::ptr_eq(&self.user_ws_service, &other.user_ws_service)
+            && match (&self.tts_service, &other.tts_service) {
+                (Some(a), Some(b)) => Rc::ptr_eq(a, b),
+                (None, None) => true,
+                _ => false,
+            }
+            && Rc::ptr_eq(&self.translation_service, &other.translation_service)
+            && Rc::ptr_eq(&self.enrichment_service, &other.enrichment_service)
+            && Rc::ptr_eq(&self.plan_service, &other.plan_service)
+            && Rc::ptr_eq(&self.save_queue, &other.save_queue)
+            && self.autoplay_enabled == other.autoplay_enabled
+            && self.rate_limit_state == other.rate_limit_state
+            && self.pending_initial_settings == other.pending_initial_settings
+    }
 }
 
 impl Default for AppState {

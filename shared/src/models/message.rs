@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Initial settings for new user registration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InitialUserSettings {
     pub language: Language,
     pub dialect: Dialect,
@@ -26,7 +26,7 @@ impl Default for InitialUserSettings {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MessageContent {
     UserMessage { content: String },
     AgentMessage { content: Box<AgentResponse> },
@@ -97,7 +97,7 @@ pub struct TranslateResponse {
 }
 
 /// A message in a chat session
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Message {
     pub id: Uuid,
     pub parent_id: Option<Uuid>,
@@ -112,7 +112,7 @@ impl Message {
 }
 
 /// Metadata associated with a message
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MessageMetadata {
     pub formality: Formality,
     pub teaching_mode: TeachingMode,

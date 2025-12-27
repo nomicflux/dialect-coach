@@ -107,7 +107,7 @@ impl UserPersistence for SledPersistence {
         tree.insert(key.as_bytes(), value)?;
 
         // DEBUG: Log plans written to disk
-        for plan in &clean.language_plans {
+        for plan in clean.language_plans.iter() {
             tracing::info!("Sled persisting plan: {} (id: {})", plan.title, plan.id);
         }
 

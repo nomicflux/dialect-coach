@@ -320,6 +320,7 @@ mod tests {
     fn test_build_system_content_with_active_plan() {
         use dialect_coach_shared::models::Dialect;
         use dialect_coach_shared::models::UserState;
+        use std::sync::Arc;
         use uuid::Uuid;
 
         let mut content = PlanContent::default();
@@ -347,7 +348,7 @@ mod tests {
         );
 
         let mut state = UserState::new(Uuid::new_v4());
-        state.language_plans.push(plan.clone());
+        Arc::make_mut(&mut state.language_plans).push(plan.clone());
         state.active_plan_id = Some(plan.id);
 
         // Act

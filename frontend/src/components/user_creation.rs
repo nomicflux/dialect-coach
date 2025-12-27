@@ -5,17 +5,11 @@ use dialect_coach_shared::models::{
 };
 use yew::prelude::*;
 
-#[derive(Properties)]
+#[derive(Properties, PartialEq)]
 pub struct UserCreationProps {
     pub app_state: UseReducerHandle<AppState>,
     pub ui_state: UseReducerHandle<UIState>,
     pub session: UseReducerHandle<SessionState>,
-}
-
-impl PartialEq for UserCreationProps {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
 }
 
 #[function_component(UserCreation)]

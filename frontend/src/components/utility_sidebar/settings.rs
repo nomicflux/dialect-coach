@@ -1,5 +1,5 @@
+use crate::app::app_state::SettingsAction;
 use crate::app::app_state::user::UserDomainAction;
-use crate::app::app_state::{SettingsAction, UIState};
 use crate::app::user_state_callbacks::{
     on_arabic_script_change, on_dialect_change, on_formality_change, on_japanese_script_change,
     on_language_change, on_language_level_change, on_teaching_mode_change, on_user_gender_change,
@@ -16,7 +16,6 @@ pub struct SettingsProps {
     pub user: Rc<UserState>,
     pub is_admin: bool,
     pub dispatch: Callback<UserDomainAction>,
-    pub ui_state: UseReducerHandle<UIState>,
 }
 
 impl PartialEq for SettingsProps {
@@ -24,7 +23,6 @@ impl PartialEq for SettingsProps {
         self.user == other.user
             && self.is_admin == other.is_admin
             && self.dispatch == other.dispatch
-            && self.ui_state == other.ui_state
     }
 }
 
@@ -59,7 +57,6 @@ pub fn settings(props: &SettingsProps) -> Html {
         user,
         is_admin,
         dispatch,
-        ui_state: _,
     } = props;
 
     let us = user;

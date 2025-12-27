@@ -3,15 +3,13 @@ use crate::app::app_callbacks::{
 };
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
-use crate::app::app_state::user::UserDomainAction;
+use crate::app::app_state::user::{BranchAction, UserDomainAction};
 use crate::app::app_state::{
     AppState, LearningAction, SessionAction, SessionState, SettingsAction, UIState, UIStateAction,
     UserStateGamificationExt,
 };
 use crate::app::user_state_callbacks::{
-    on_add_goal, on_create_branch, on_delete_branch, on_delete_goal,
-    on_delete_learning_item_callback, on_delete_message_callback, on_switch_branch,
-    on_undo_message_callback,
+    on_create_branch, on_delete_message_callback, on_undo_message_callback,
 };
 use crate::components::study_drawer_content::DrawerTab;
 use crate::components::{
@@ -19,11 +17,12 @@ use crate::components::{
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
-use dialect_coach_shared::models::{
-    LearningGoal, LearningItem, PhraseTranslation, Translated, UserState,
-};
+use crate::utils::perf::PerfGuard;
+use dialect_coach_shared::models::{LearningGoal, PhraseTranslation, Translated};
+
 use gloo::events::EventListener;
 use std::rc::Rc;
+use std::sync::Arc;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use yew::prelude::*;
@@ -39,17 +38,11 @@ pub enum TranslationModalState {
     },
 }
 
-#[derive(Properties)]
+#[derive(Properties, PartialEq)]
 pub struct MainContentProps {
     pub app_state: UseReducerHandle<AppState>,
     pub ui_state: UseReducerHandle<UIState>,
     pub session: UseReducerHandle<SessionState>,
-}
-
-impl PartialEq for MainContentProps {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
 }
 
 #[function_component(MainContent)]
@@ -60,11 +53,20 @@ pub fn main_content(props: &MainContentProps) -> Html {
         session,
     } = props;
 
-    let us = match session.user.as_ref() {
-        Some(s) => s,
+    // Performance measurement - logs to console when PERF_LOG=true in localStorage
+    let _render_guard = PerfGuard::new("MainContent::render");
+
+    // Memoize the UserState Rc to avoid deep cloning on every render (e.g. when UI state changes).
+    // Dependencies: session (if session changes, we likely have new user struture).
+    let user_rc = use_memo(session.clone(), |session| {
+        session.user.as_ref().map(|u| Rc::new(u.clone()))
+    });
+
+    let us = match user_rc.as_ref() {
+        Some(u) => u.clone(),
         None => return html! {},
     };
-    let user_rc = Rc::new(us.clone());
+
     let current_step_title = us
         .language_plans
         .iter()
@@ -77,6 +79,38 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     let drawer_active_tab = use_state(|| DrawerTab::Branches);
     let modal_state = use_state(|| None::<TranslationModalState>);
+
+    // Memoize filtered items to avoid iterating/cloning on every render
+    let filtered_items = use_memo(us.clone(), |user| {
+        let items = user
+            .get_learning_items_for_dialect(&user.selected_dialect)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        gloo::console::log!(
+            "get_filtered_items count:",
+            items.len(),
+            "for dialect:",
+            user.selected_dialect.to_string()
+        );
+        items
+    });
+
+    // Memoize filtered goals
+    let filtered_goals = use_memo(us.clone(), |user| {
+        let goals = user
+            .get_learning_goals_for_dialect(&user.selected_dialect)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        Arc::new(goals)
+    });
+
+    // Memoize branches Rc to prevent new pointer on every render
+    let branches_rc = use_memo(us.clone(), |user| user.branches.clone());
+
+    // Memoize messages Rc to prevent new pointer on every render
+    let messages_rc = use_memo(us.clone(), |user| user.conversation_history.clone());
 
     let on_close_modal = {
         let modal_state = modal_state.clone();
@@ -149,12 +183,72 @@ pub fn main_content(props: &MainContentProps) -> Html {
         )
     };
 
-    let dispatch_domain = {
-        let session = session.clone();
-        Callback::from(move |action: UserDomainAction| {
-            session.dispatch(SessionAction::Domain(action));
-        })
-    };
+    let dispatch_domain = use_callback(session.clone(), |action: UserDomainAction, session| {
+        session.dispatch(SessionAction::Domain(action));
+    });
+
+    let on_add_goal = use_callback(
+        (us.clone(), dispatch_domain.clone()),
+        |goal: String, (us, dispatch)| {
+            if !goal.trim().is_empty() {
+                dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(
+                    LearningGoal {
+                        goal,
+                        dialect: us.selected_dialect,
+                    },
+                )));
+            }
+        },
+    );
+
+    let on_delete_goal = use_callback(dispatch_domain.clone(), |index: usize, dispatch| {
+        dispatch.emit(UserDomainAction::Learning(LearningAction::DeleteGoal(
+            index,
+        )));
+    });
+
+    let on_switch_branch = use_callback(dispatch_domain.clone(), |id: Uuid, dispatch| {
+        dispatch.emit(UserDomainAction::Branch(BranchAction::Switch(id)));
+    });
+
+    let on_delete_branch = use_callback(dispatch_domain.clone(), |id: Uuid, dispatch| {
+        dispatch.emit(UserDomainAction::Branch(BranchAction::Delete(id)));
+    });
+
+    let on_drawer_close = use_callback(ui_state.clone(), |_, ui_state| {
+        ui_state.dispatch(UIStateAction::ToggleDrawer);
+    });
+
+    let on_tab_change = use_callback(
+        drawer_active_tab.clone(),
+        |tab: DrawerTab, drawer_active_tab| {
+            drawer_active_tab.set(tab);
+        },
+    );
+
+    let on_delete_learning_item = use_callback(
+        (ui_state.clone(), us.clone(), dispatch_domain.clone()),
+        |id: Uuid, (ui_state, us, dispatch)| {
+            if let Some(item) = us.learning_items.iter().find(|i| i.id() == id) {
+                dispatch.emit(UserDomainAction::Learning(LearningAction::DeleteItem(
+                    item.id(),
+                )));
+                ui_state.dispatch(UIStateAction::PushDeletedLearningItem(item.clone()));
+            }
+        },
+    );
+
+    let on_undo_delete_learning_item = use_callback(
+        (ui_state.clone(), session.clone()),
+        |_, (ui_state, session)| {
+            if let Some(item) = ui_state.deleted_learning_items.back() {
+                session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
+                    LearningAction::UndoDeleteItem(item.clone()),
+                )));
+                ui_state.dispatch(UIStateAction::PopDeletedLearningItem);
+            }
+        },
+    );
 
     {
         let ui_state = ui_state.clone();
@@ -162,7 +256,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
         let session = session.clone();
         let chat_input_ref = chat_input_ref.clone();
         // let goal_input_ref = goal_input_ref.clone();
-        use_effect_with(session.clone(), move |_| {
+        use_effect_with((), move |_| {
             let shortcuts = default_shortcuts();
             let window = web_sys::window().unwrap();
             let listener = EventListener::new(&window, "keydown", move |event| {
@@ -248,10 +342,10 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 <div class="chat-canvas">
 
                     <ChatWindow
-                        user={user_rc.clone()}
+                        user={us.clone()}
                         is_loading={app_state.is_loading}
                         on_replay_message={Some(on_replay_message(app_state.clone()))}
-                        on_delete_message={Some(on_delete_message_callback(ui_state.clone(), user_rc.clone(), dispatch_domain.clone()))}
+                        on_delete_message={Some(on_delete_message_callback(ui_state.clone(), us.clone(), dispatch_domain.clone()))}
                         on_create_branch={Some(on_create_branch(dispatch_domain.clone()))}
                         on_auto_start={Some(on_auto_start(app_state.clone(), session.clone()))}
                         on_continue_branch={Some(on_continue_branch(app_state.clone(), session.clone()))}
@@ -262,13 +356,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     />
 
                     <DynamicIsland
-                        items={
-                            let items = get_filtered_items(us);
-                            gloo::console::log!("DynamicIsland items:", items.len());
-                            items
-                        }
+                        items={filtered_items.clone()}
                         current_step_title={current_step_title.clone()}
-                        learning_goals={get_filtered_goals(us)}
+                        learning_goals={(*filtered_goals).clone()}
                         quests={
                             let stats = us.gamification_stats();
                             stats.quests.iter()
@@ -294,52 +384,32 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     )}
                 </div>
 
-                // Study Drawer: Replaces sidebar
                 <Drawer
                     is_open={ui_state.drawer_open}
-                    on_close={{
-                        let ui_state = ui_state.clone();
-                        Callback::from(move |_| ui_state.dispatch(UIStateAction::ToggleDrawer))
-                    }}
+                    on_close={on_drawer_close}
                     title="Study Tools"
                 >
                     <StudyDrawerContent
                         active_tab={*drawer_active_tab}
-                        on_tab_change={{
-                            let drawer_active_tab = drawer_active_tab.clone();
-                            Callback::from(move |tab| drawer_active_tab.set(tab))
-                        }}
-                        user={user_rc.clone()}
+                        on_tab_change={on_tab_change}
+                        user={us.clone()}
                         is_admin={app_state.current_user.as_ref().map(|u| u.is_admin).unwrap_or(false)}
                         dispatch={dispatch_domain.clone()}
-                        ui_state={ui_state.clone()}
-                        branches={us.branches.clone()}
+                        branches={(*branches_rc).clone()}
                         active_branch_id={us.active_branch_id}
-                        messages={us.conversation_history.clone()}
-                        learning_goals={get_filtered_goals(us)}
-                        on_add_goal={on_add_goal(user_rc.clone(), dispatch_domain.clone())}
-                        on_delete_goal={on_delete_goal(dispatch_domain.clone())}
-                        on_switch_branch={Some(on_switch_branch(dispatch_domain.clone()))}
-                        on_delete_branch={Some(on_delete_branch(dispatch_domain.clone()))}
+                        messages={(*messages_rc).clone()}
+                        learning_goals={(*filtered_goals).clone()}
+                        on_add_goal={on_add_goal}
+                        on_delete_goal={on_delete_goal}
+                        on_switch_branch={Some(on_switch_branch)}
+                        on_delete_branch={Some(on_delete_branch)}
                         goal_input_ref={Some(goal_input_ref.clone())}
-                        learning_items={get_filtered_items(us)}
+                        learning_items={filtered_items.clone()}
                         active_branch_dialect={Some(us.selected_dialect)}
                         enrichment_service={app_state.enrichment_service.clone()}
                         plan_service={app_state.plan_service.clone()}
-                        on_delete_learning_item={on_delete_learning_item_callback(ui_state.clone(), user_rc.clone(), dispatch_domain.clone())}
-                        on_undo_delete_learning_item={{
-                            let ui_state = ui_state.clone();
-                            let session = session.clone();
-                            let deleted_items = ui_state.deleted_learning_items.clone();
-                            Callback::from(move |_| {
-                                if let Some(item) = deleted_items.back() {
-                                    session.dispatch(SessionAction::Domain(UserDomainAction::Learning(LearningAction::UndoDeleteItem(
-                                        item.clone(),
-                                    ))));
-                                    ui_state.dispatch(UIStateAction::PopDeletedLearningItem);
-                                }
-                            })
-                        }}
+                        on_delete_learning_item={on_delete_learning_item}
+                        on_undo_delete_learning_item={on_undo_delete_learning_item}
                         deleted_learning_items_count={ui_state.deleted_learning_items.len()}
                     />
                 </Drawer>
@@ -376,27 +446,4 @@ fn render_modal(
         },
         None => html! {},
     }
-}
-
-fn get_filtered_items(user_state: &UserState) -> Vec<LearningItem> {
-    let items = user_state
-        .get_learning_items_for_dialect(&user_state.selected_dialect)
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    gloo::console::log!(
-        "get_filtered_items count:",
-        items.len(),
-        "for dialect:",
-        user_state.selected_dialect.to_string()
-    );
-    items
-}
-
-fn get_filtered_goals(user_state: &UserState) -> Vec<LearningGoal> {
-    user_state
-        .get_learning_goals_for_dialect(&user_state.selected_dialect)
-        .into_iter()
-        .cloned()
-        .collect()
 }

@@ -515,6 +515,7 @@ mod tests {
             "conversation_history",
             "dialect_levels",
             "formality",
+            "is_admin",
             "language_options",
             "language_plans",
             "learning_goals",

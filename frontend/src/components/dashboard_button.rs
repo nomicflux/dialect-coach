@@ -1,16 +1,10 @@
 use crate::app::app_state::{AppState, UIState, UIStateAction};
 use yew::prelude::*;
 
-#[derive(Properties)]
+#[derive(Properties, PartialEq)]
 pub struct DashboardButtonProps {
     pub app_state: UseReducerHandle<AppState>,
     pub ui_state: UseReducerHandle<UIState>,
-}
-
-impl PartialEq for DashboardButtonProps {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
 }
 
 #[function_component(DashboardButton)]
