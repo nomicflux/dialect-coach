@@ -109,16 +109,8 @@ pub fn on_language_level_change(
 ) -> Callback<Event> {
     Callback::from(move |e: Event| {
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let level = match select.value().as_str() {
-                "a1" => LanguageLevel::A1,
-                "a2" => LanguageLevel::A2,
-                "b1" => LanguageLevel::B1,
-                "b2" => LanguageLevel::B2,
-                "c1" => LanguageLevel::C1,
-                "c2" => LanguageLevel::C2,
-                "a25" => LanguageLevel::A2,
-                _ => LanguageLevel::B1,
-            };
+            let level = LanguageLevel::from_id(&select.value())
+                .unwrap_or_else(|| LanguageLevel::default_for_language(user.selected_language));
             let dialect = user.selected_dialect;
             dispatch.emit(UserDomainAction::Settings(SettingsAction::UpdateLevel(
                 dialect, level,

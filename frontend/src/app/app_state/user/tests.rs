@@ -4,7 +4,7 @@ use dialect_coach_shared::models::MessageMetadata;
 use dialect_coach_shared::models::{
     ConversationBranch, Dialect, Formality, Language, TeachingMode,
 };
-use dialect_coach_shared::{LanguageLevel, Message, UsageStats, UserState};
+use dialect_coach_shared::{CefrLevel, LanguageLevel, Message, UsageStats, UserState};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -831,12 +831,12 @@ fn test_update_language_level_action() {
 
     let action = UserStateAction::Settings(SettingsAction::UpdateLevel(
         Dialect::SpanishMexican,
-        LanguageLevel::C1,
+        LanguageLevel::Cefr(CefrLevel::C1),
     ));
     let updated = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(
         updated.get_level_for_dialect(&Dialect::SpanishMexican),
-        LanguageLevel::C1
+        LanguageLevel::Cefr(CefrLevel::C1)
     );
 }

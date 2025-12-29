@@ -1,6 +1,7 @@
 use super::{
-    AgentResponse, AuthCredentials, Dialect, Explained, Formality, Language, LanguageLevel,
-    LanguageOption, LearningGoal, Mistake, TeachingMode, UsageStats, User, UserGender, UserState,
+    AgentResponse, AuthCredentials, CefrLevel, Dialect, Explained, Formality, Language,
+    LanguageLevel, LanguageOption, LearningGoal, Mistake, TeachingMode, UsageStats, User,
+    UserGender, UserState,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -20,7 +21,7 @@ impl Default for InitialUserSettings {
         Self {
             language: Language::Spanish,
             dialect: Dialect::SpanishArgentinian,
-            level: LanguageLevel::B1,
+            level: LanguageLevel::Cefr(CefrLevel::B1),
             gender: UserGender::NonBinary,
         }
     }
@@ -365,7 +366,7 @@ mod tests {
         let settings = InitialUserSettings::default();
         assert_eq!(settings.language, Language::Spanish);
         assert_eq!(settings.dialect, Dialect::SpanishArgentinian);
-        assert_eq!(settings.level, LanguageLevel::B1);
+        assert_eq!(settings.level, LanguageLevel::Cefr(CefrLevel::B1));
         assert_eq!(settings.gender, UserGender::NonBinary);
     }
 

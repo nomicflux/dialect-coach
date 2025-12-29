@@ -19,7 +19,7 @@ pub enum UserGender {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum LanguageLevel {
+pub enum CefrLevel {
     A1,
     A2,
     #[default]
@@ -29,7 +29,7 @@ pub enum LanguageLevel {
     C2,
 }
 
-impl LanguageLevel {
+impl CefrLevel {
     pub fn name(&self) -> &'static str {
         match self {
             Self::A1 => "A1 - Beginner",
@@ -61,6 +61,129 @@ impl LanguageLevel {
             "c1" => Some(Self::C1),
             "c2" => Some(Self::C2),
             _ => None,
+        }
+    }
+
+    pub fn all() -> Vec<Self> {
+        vec![Self::A1, Self::A2, Self::B1, Self::B2, Self::C1, Self::C2]
+    }
+
+    pub fn to_jlpt(&self) -> JlptLevel {
+        match self {
+            Self::A1 => JlptLevel::N5,
+            Self::A2 => JlptLevel::N4,
+            Self::B1 => JlptLevel::N3,
+            Self::B2 => JlptLevel::N2,
+            Self::C1 | Self::C2 => JlptLevel::N1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum JlptLevel {
+    N5,
+    N4,
+    #[default]
+    N3,
+    N2,
+    N1,
+}
+
+impl JlptLevel {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::N5 => "N5 - Beginner",
+            Self::N4 => "N4 - Elementary",
+            Self::N3 => "N3 - Intermediate",
+            Self::N2 => "N2 - Upper Intermediate",
+            Self::N1 => "N1 - Advanced",
+        }
+    }
+
+    pub fn id(&self) -> &'static str {
+        match self {
+            Self::N5 => "n5",
+            Self::N4 => "n4",
+            Self::N3 => "n3",
+            Self::N2 => "n2",
+            Self::N1 => "n1",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "n5" => Some(Self::N5),
+            "n4" => Some(Self::N4),
+            "n3" => Some(Self::N3),
+            "n2" => Some(Self::N2),
+            "n1" => Some(Self::N1),
+            _ => None,
+        }
+    }
+
+    pub fn all() -> Vec<Self> {
+        vec![Self::N5, Self::N4, Self::N3, Self::N2, Self::N1]
+    }
+
+    pub fn to_cefr(&self) -> CefrLevel {
+        match self {
+            Self::N5 => CefrLevel::A1,
+            Self::N4 => CefrLevel::A2,
+            Self::N3 => CefrLevel::B1,
+            Self::N2 => CefrLevel::B2,
+            Self::N1 => CefrLevel::C1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LanguageLevel {
+    Cefr(CefrLevel),
+    Jlpt(JlptLevel),
+}
+
+impl Default for LanguageLevel {
+    fn default() -> Self {
+        Self::Cefr(CefrLevel::B1)
+    }
+}
+
+impl LanguageLevel {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Cefr(level) => level.name(),
+            Self::Jlpt(level) => level.name(),
+        }
+    }
+
+    pub fn id(&self) -> &'static str {
+        match self {
+            Self::Cefr(level) => level.id(),
+            Self::Jlpt(level) => level.id(),
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        if let Some(cefr) = CefrLevel::from_id(id) {
+            return Some(Self::Cefr(cefr));
+        }
+        if let Some(jlpt) = JlptLevel::from_id(id) {
+            return Some(Self::Jlpt(jlpt));
+        }
+        None
+    }
+
+    pub fn for_language(language: Language) -> Vec<Self> {
+        match language {
+            Language::Japanese => JlptLevel::all().into_iter().map(Self::Jlpt).collect(),
+            _ => CefrLevel::all().into_iter().map(Self::Cefr).collect(),
+        }
+    }
+
+    pub fn default_for_language(language: Language) -> Self {
+        match language {
+            Language::Japanese => Self::Jlpt(JlptLevel::default()),
+            _ => Self::Cefr(CefrLevel::default()),
         }
     }
 }
@@ -520,11 +643,11 @@ mod tests {
 
     #[test]
     fn test_user_state_with_initial_settings() {
-        use super::LanguageLevel;
+        use super::{JlptLevel, LanguageLevel};
         let settings = InitialUserSettings {
             language: Language::Japanese,
             dialect: Dialect::JapaneseTokyo,
-            level: LanguageLevel::A2,
+            level: LanguageLevel::Jlpt(JlptLevel::N4),
             gender: UserGender::Female,
         };
         let state = UserState::with_initial_settings(Uuid::new_v4(), Some(settings));
@@ -532,7 +655,10 @@ mod tests {
         assert_eq!(state.selected_dialect, Dialect::JapaneseTokyo);
         assert_eq!(state.user_gender, UserGender::Female);
         assert_eq!(state.dialect_levels.len(), 1);
-        assert_eq!(state.dialect_levels[0].level, LanguageLevel::A2);
+        assert_eq!(
+            state.dialect_levels[0].level,
+            LanguageLevel::Jlpt(JlptLevel::N4)
+        );
     }
 
     fn create_test_mistake() -> Mistake {
@@ -902,58 +1028,131 @@ mod tests {
     }
 
     #[test]
-    fn test_language_level_default_is_b1() {
-        use super::LanguageLevel;
-        assert_eq!(LanguageLevel::default(), LanguageLevel::B1);
+    fn test_language_level_default_is_cefr_b1() {
+        use super::{CefrLevel, LanguageLevel};
+        assert_eq!(LanguageLevel::default(), LanguageLevel::Cefr(CefrLevel::B1));
     }
 
     #[test]
     fn test_get_level_for_dialect_returns_default_when_not_set() {
-        use super::LanguageLevel;
+        use super::{CefrLevel, LanguageLevel};
         let state = create_test_user_state();
         let level = state.get_level_for_dialect(&Dialect::SpanishMexican);
-        assert_eq!(level, LanguageLevel::B1);
+        assert_eq!(level, LanguageLevel::Cefr(CefrLevel::B1));
     }
 
     #[test]
     fn test_set_and_get_level_for_dialect() {
-        use super::LanguageLevel;
+        use super::{CefrLevel, LanguageLevel};
         let mut state = create_test_user_state();
-        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::C1);
+        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::Cefr(CefrLevel::C1));
         assert_eq!(
             state.get_level_for_dialect(&Dialect::SpanishMexican),
-            LanguageLevel::C1
+            LanguageLevel::Cefr(CefrLevel::C1)
         );
     }
 
     #[test]
     fn test_set_level_updates_existing() {
-        use super::LanguageLevel;
+        use super::{CefrLevel, LanguageLevel};
         let mut state = create_test_user_state();
-        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::A1);
-        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::C2);
+        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::Cefr(CefrLevel::A1));
+        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::Cefr(CefrLevel::C2));
         assert_eq!(
             state.get_level_for_dialect(&Dialect::SpanishMexican),
-            LanguageLevel::C2
+            LanguageLevel::Cefr(CefrLevel::C2)
         );
         assert_eq!(state.dialect_levels.len(), 1);
     }
 
     #[test]
     fn test_language_level_serialization() {
-        use super::LanguageLevel;
-        let levels = vec![
-            LanguageLevel::A1,
-            LanguageLevel::A2,
-            LanguageLevel::B1,
-            LanguageLevel::B2,
-            LanguageLevel::C1,
-            LanguageLevel::C2,
+        use super::{CefrLevel, JlptLevel, LanguageLevel};
+        let cefr_levels = vec![
+            LanguageLevel::Cefr(CefrLevel::A1),
+            LanguageLevel::Cefr(CefrLevel::A2),
+            LanguageLevel::Cefr(CefrLevel::B1),
+            LanguageLevel::Cefr(CefrLevel::B2),
+            LanguageLevel::Cefr(CefrLevel::C1),
+            LanguageLevel::Cefr(CefrLevel::C2),
         ];
-        for level in levels {
+        for level in cefr_levels {
             let json = serde_json::to_string(&level).unwrap();
             let deserialized: LanguageLevel = serde_json::from_str(&json).unwrap();
             assert_eq!(level, deserialized);
         }
+
+        let jlpt_levels = vec![
+            LanguageLevel::Jlpt(JlptLevel::N5),
+            LanguageLevel::Jlpt(JlptLevel::N4),
+            LanguageLevel::Jlpt(JlptLevel::N3),
+            LanguageLevel::Jlpt(JlptLevel::N2),
+            LanguageLevel::Jlpt(JlptLevel::N1),
+        ];
+        for level in jlpt_levels {
+            let json = serde_json::to_string(&level).unwrap();
+            let deserialized: LanguageLevel = serde_json::from_str(&json).unwrap();
+            assert_eq!(level, deserialized);
+        }
+    }
+
+    #[test]
+    fn test_cefr_to_jlpt_conversion() {
+        use super::{CefrLevel, JlptLevel};
+        assert_eq!(CefrLevel::A1.to_jlpt(), JlptLevel::N5);
+        assert_eq!(CefrLevel::A2.to_jlpt(), JlptLevel::N4);
+        assert_eq!(CefrLevel::B1.to_jlpt(), JlptLevel::N3);
+        assert_eq!(CefrLevel::B2.to_jlpt(), JlptLevel::N2);
+        assert_eq!(CefrLevel::C1.to_jlpt(), JlptLevel::N1);
+        assert_eq!(CefrLevel::C2.to_jlpt(), JlptLevel::N1);
+    }
+
+    #[test]
+    fn test_jlpt_to_cefr_conversion() {
+        use super::{CefrLevel, JlptLevel};
+        assert_eq!(JlptLevel::N5.to_cefr(), CefrLevel::A1);
+        assert_eq!(JlptLevel::N4.to_cefr(), CefrLevel::A2);
+        assert_eq!(JlptLevel::N3.to_cefr(), CefrLevel::B1);
+        assert_eq!(JlptLevel::N2.to_cefr(), CefrLevel::B2);
+        assert_eq!(JlptLevel::N1.to_cefr(), CefrLevel::C1);
+    }
+
+    #[test]
+    fn test_language_level_for_language() {
+        use super::{CefrLevel, JlptLevel, LanguageLevel};
+        let spanish_levels = LanguageLevel::for_language(Language::Spanish);
+        assert_eq!(spanish_levels.len(), 6);
+        assert_eq!(spanish_levels[0], LanguageLevel::Cefr(CefrLevel::A1));
+
+        let japanese_levels = LanguageLevel::for_language(Language::Japanese);
+        assert_eq!(japanese_levels.len(), 5);
+        assert_eq!(japanese_levels[0], LanguageLevel::Jlpt(JlptLevel::N5));
+    }
+
+    #[test]
+    fn test_language_level_default_for_language() {
+        use super::{CefrLevel, JlptLevel, LanguageLevel};
+        assert_eq!(
+            LanguageLevel::default_for_language(Language::Spanish),
+            LanguageLevel::Cefr(CefrLevel::B1)
+        );
+        assert_eq!(
+            LanguageLevel::default_for_language(Language::Japanese),
+            LanguageLevel::Jlpt(JlptLevel::N3)
+        );
+    }
+
+    #[test]
+    fn test_language_level_from_id() {
+        use super::{CefrLevel, JlptLevel, LanguageLevel};
+        assert_eq!(
+            LanguageLevel::from_id("a1"),
+            Some(LanguageLevel::Cefr(CefrLevel::A1))
+        );
+        assert_eq!(
+            LanguageLevel::from_id("n3"),
+            Some(LanguageLevel::Jlpt(JlptLevel::N3))
+        );
+        assert_eq!(LanguageLevel::from_id("invalid"), None);
     }
 }

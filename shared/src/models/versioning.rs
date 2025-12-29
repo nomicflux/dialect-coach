@@ -14,8 +14,9 @@ pub enum UserVersion {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum UserStateVersion {
     V1,
-    #[default]
     V2ScoredItems,
+    #[default]
+    V3LanguageLevels,
 }
 
 pub type UserStateV1 = UserState;
@@ -28,7 +29,7 @@ pub struct UserV1Data {
 }
 
 pub const CURRENT_USER_VERSION: UserVersion = UserVersion::V2Admin;
-pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V2ScoredItems;
+pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V3LanguageLevels;
 
 /// Generic wrapper for versioned data stored in sled
 /// Stores the version enum and raw JSON data separately.
@@ -73,7 +74,12 @@ pub const USER_STATE_MIGRATIONS: &[UserStateMigrationStep] = &[
         forward: v1_to_v2_forward,
         backward: v1_to_v2_backward,
     },
-    // Future migrations go here as new entries
+    UserStateMigrationStep {
+        from: UserStateVersion::V2ScoredItems,
+        to: UserStateVersion::V3LanguageLevels,
+        forward: v2_to_v3_forward,
+        backward: v2_to_v3_backward,
+    },
 ];
 
 // ============ V1 → V2 Migration Functions ============
@@ -177,6 +183,111 @@ fn unwrap_items_from_scores(response: &mut serde_json::Value) {
     }
 }
 
+// ============ V2 → V3 Migration Functions ============
+
+fn v2_to_v3_forward(mut data: serde_json::Value) -> serde_json::Value {
+    tracing::debug!("V2→V3 migration: starting forward migration");
+    convert_dialect_levels_to_v3(&mut data);
+    data
+}
+
+fn v2_to_v3_backward(mut data: serde_json::Value) -> serde_json::Value {
+    tracing::debug!("V3→V2 migration: starting backward migration");
+    convert_dialect_levels_to_v2(&mut data);
+    data
+}
+
+fn convert_dialect_levels_to_v3(data: &mut serde_json::Value) {
+    let dialect_levels = match data
+        .get_mut("dialect_levels")
+        .and_then(|v| v.as_array_mut())
+    {
+        Some(dl) => dl,
+        None => {
+            tracing::debug!("V2→V3 migration: no dialect_levels found");
+            return;
+        }
+    };
+
+    tracing::debug!(
+        "V2→V3 migration: processing {} dialect_levels",
+        dialect_levels.len()
+    );
+
+    for entry in dialect_levels.iter_mut() {
+        if let Some(level_str) = entry.get("level").and_then(|v| v.as_str()) {
+            let dialect_id = entry.get("dialect").and_then(|v| v.as_str());
+            let is_japanese = dialect_id.is_some_and(|d| d.starts_with("japanese"));
+            let new_level = convert_level_string_to_v3(level_str, is_japanese);
+            entry["level"] = new_level;
+        }
+    }
+}
+
+fn convert_level_string_to_v3(level_str: &str, is_japanese: bool) -> serde_json::Value {
+    let cefr_level = match level_str {
+        "A1" => "A1",
+        "A2" => "A2",
+        "B1" => "B1",
+        "B2" => "B2",
+        "C1" => "C1",
+        "C2" => "C2",
+        _ => "B1",
+    };
+
+    if is_japanese {
+        let jlpt = match cefr_level {
+            "A1" => "N5",
+            "A2" => "N4",
+            "B1" => "N3",
+            "B2" => "N2",
+            "C1" | "C2" => "N1",
+            _ => "N3",
+        };
+        serde_json::json!({ "Jlpt": jlpt })
+    } else {
+        serde_json::json!({ "Cefr": cefr_level })
+    }
+}
+
+fn convert_dialect_levels_to_v2(data: &mut serde_json::Value) {
+    let dialect_levels = match data
+        .get_mut("dialect_levels")
+        .and_then(|v| v.as_array_mut())
+    {
+        Some(dl) => dl,
+        None => {
+            tracing::debug!("V3→V2 migration: no dialect_levels found");
+            return;
+        }
+    };
+
+    for entry in dialect_levels.iter_mut() {
+        if let Some(level_obj) = entry.get("level") {
+            let level_str = extract_level_from_v3(level_obj);
+            entry["level"] = serde_json::Value::String(level_str);
+        }
+    }
+}
+
+fn extract_level_from_v3(level_obj: &serde_json::Value) -> String {
+    if let Some(cefr) = level_obj.get("Cefr").and_then(|v| v.as_str()) {
+        return cefr.to_string();
+    }
+    if let Some(jlpt) = level_obj.get("Jlpt").and_then(|v| v.as_str()) {
+        return match jlpt {
+            "N5" => "A1",
+            "N4" => "A2",
+            "N3" => "B1",
+            "N2" => "B2",
+            "N1" => "C1",
+            _ => "B1",
+        }
+        .to_string();
+    }
+    "B1".to_string()
+}
+
 // ============ Migration Runner ============
 
 /// Run all migrations from given version to current, using the registry
@@ -220,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_user_state_version_default() {
-        assert_eq!(UserStateVersion::default(), UserStateVersion::V2ScoredItems);
+        assert_eq!(UserStateVersion::default(), UserStateVersion::V3LanguageLevels);
     }
 
     #[test]
@@ -253,7 +364,7 @@ mod tests {
         let data = serde_json::json!({"user_id": "test-id", "learning_items": []});
         let versioned = VersionedData::<UserStateVersion>::new(data.clone());
 
-        assert_eq!(versioned.version, UserStateVersion::V2ScoredItems);
+        assert_eq!(versioned.version, UserStateVersion::V3LanguageLevels);
         assert_eq!(versioned.data, data);
     }
 
@@ -459,17 +570,18 @@ mod tests {
 
     #[test]
     fn test_run_migrations_current_version_no_change() {
-        let v2_data = serde_json::json!({
+        let v3_data = serde_json::json!({
             "user_id": "test",
-            "conversation_history": []
+            "conversation_history": [],
+            "dialect_levels": []
         });
 
         let result = super::run_user_state_migrations(
-            super::UserStateVersion::V2ScoredItems,
-            v2_data.clone(),
+            super::UserStateVersion::V3LanguageLevels,
+            v3_data.clone(),
         );
 
-        assert_eq!(result, v2_data); // No change for current version
+        assert_eq!(result, v3_data);
     }
 
     fn extract_field_names(value: &serde_json::Value) -> Vec<String> {
@@ -818,5 +930,103 @@ mod tests {
             "Migration roundtrip failed: mistakes should be unwrapped to objects"
         );
         assert_eq!(mistakes[0]["id"], "m1");
+    }
+
+    #[test]
+    fn test_v2_to_v3_forward_converts_cefr_levels() {
+        let v2_data = serde_json::json!({
+            "user_id": "test",
+            "dialect_levels": [
+                {"dialect": "spanish_mexican", "level": "B1"},
+                {"dialect": "french_parisian", "level": "C1"}
+            ]
+        });
+
+        let v3_data = super::v2_to_v3_forward(v2_data);
+
+        let levels = v3_data["dialect_levels"].as_array().unwrap();
+        assert_eq!(levels[0]["level"], serde_json::json!({"Cefr": "B1"}));
+        assert_eq!(levels[1]["level"], serde_json::json!({"Cefr": "C1"}));
+    }
+
+    #[test]
+    fn test_v2_to_v3_forward_converts_japanese_to_jlpt() {
+        let v2_data = serde_json::json!({
+            "user_id": "test",
+            "dialect_levels": [
+                {"dialect": "japanese_tokyo", "level": "B1"},
+                {"dialect": "japanese_kansai", "level": "A1"}
+            ]
+        });
+
+        let v3_data = super::v2_to_v3_forward(v2_data);
+
+        let levels = v3_data["dialect_levels"].as_array().unwrap();
+        assert_eq!(levels[0]["level"], serde_json::json!({"Jlpt": "N3"}));
+        assert_eq!(levels[1]["level"], serde_json::json!({"Jlpt": "N5"}));
+    }
+
+    #[test]
+    fn test_v2_to_v3_backward_converts_to_string() {
+        let v3_data = serde_json::json!({
+            "user_id": "test",
+            "dialect_levels": [
+                {"dialect": "spanish_mexican", "level": {"Cefr": "B2"}},
+                {"dialect": "japanese_tokyo", "level": {"Jlpt": "N2"}}
+            ]
+        });
+
+        let v2_data = super::v2_to_v3_backward(v3_data);
+
+        let levels = v2_data["dialect_levels"].as_array().unwrap();
+        assert_eq!(levels[0]["level"], "B2");
+        assert_eq!(levels[1]["level"], "B2");
+    }
+
+    #[test]
+    fn test_v3_migration_roundtrip() {
+        let original = serde_json::json!({
+            "user_id": "test",
+            "dialect_levels": [
+                {"dialect": "spanish_mexican", "level": "C1"},
+                {"dialect": "arabic_egyptian", "level": "A2"}
+            ]
+        });
+
+        let v3 = super::v2_to_v3_forward(original.clone());
+        let back_to_v2 = super::v2_to_v3_backward(v3);
+
+        let levels = back_to_v2["dialect_levels"].as_array().unwrap();
+        assert_eq!(levels[0]["level"], "C1");
+        assert_eq!(levels[1]["level"], "A2");
+    }
+
+    #[test]
+    fn test_run_migrations_v1_to_v3() {
+        let v1_data = serde_json::json!({
+            "user_id": "test",
+            "conversation_history": [{
+                "id": "msg-1",
+                "content": {
+                    "AgentMessage": {
+                        "content": {
+                            "mistakes": [{"id": "1"}]
+                        }
+                    }
+                }
+            }],
+            "dialect_levels": [
+                {"dialect": "spanish_mexican", "level": "B1"}
+            ]
+        });
+
+        let result = super::run_user_state_migrations(super::UserStateVersion::V1, v1_data);
+
+        let history = result["conversation_history"].as_array().unwrap();
+        let mistakes = &history[0]["content"]["AgentMessage"]["content"]["mistakes"];
+        assert!(mistakes[0].as_array().is_some());
+
+        let levels = result["dialect_levels"].as_array().unwrap();
+        assert_eq!(levels[0]["level"], serde_json::json!({"Cefr": "B1"}));
     }
 }

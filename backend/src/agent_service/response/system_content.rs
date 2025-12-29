@@ -255,7 +255,7 @@ mod tests {
     use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
     use dialect_coach_shared::models::plan::{PlanContent, PlanStep, StepType};
     use dialect_coach_shared::models::{Explained, Translated};
-    use dialect_coach_shared::{Dialect, PastLearningItems, UserGender};
+    use dialect_coach_shared::{CefrLevel, Dialect, PastLearningItems, UserGender};
 
     #[test]
     fn test_build_system_content_debug() {
@@ -274,7 +274,7 @@ mod tests {
             UserGender::NonBinary,
             &None,
             &None,
-            LanguageLevel::B1,
+            LanguageLevel::Cefr(CefrLevel::B1),
         );
 
         assert!(content.contains("# YOUR ROLE"));
@@ -304,7 +304,7 @@ mod tests {
             UserGender::NonBinary,
             &None,
             &None,
-            LanguageLevel::A2,
+            LanguageLevel::Cefr(CefrLevel::A2),
         );
 
         assert!(content.contains("# YOUR ROLE"));

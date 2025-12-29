@@ -148,15 +148,25 @@ pub fn settings(props: &SettingsProps) -> Html {
                     <div class="panel-field">
                         <label for="language-level-select">{"Your Level"}</label>
                         <select id="language-level-select" onchange={on_language_level_change(user.clone(), dispatch.clone())}>
-                            <option value="a1" selected={us.current_language_level() == LanguageLevel::A1}>{"A1 - Beginner"}</option>
-                            <option value="a2" selected={us.current_language_level() == LanguageLevel::A2}>{"A2 - Elementary"}</option>
-                            <option value="b1" selected={us.current_language_level() == LanguageLevel::B1}>{"B1 - Intermediate"}</option>
-                            <option value="b2" selected={us.current_language_level() == LanguageLevel::B2}>{"B2 - Upper Intermediate"}</option>
-                            <option value="c1" selected={us.current_language_level() == LanguageLevel::C1}>{"C1 - Advanced"}</option>
-                            <option value="c2" selected={us.current_language_level() == LanguageLevel::C2}>{"C2 - Proficient"}</option>
+                            {{
+                                let levels = LanguageLevel::for_language(us.selected_language);
+                                let current_level = us.current_language_level();
+                                levels.iter().map(|level| {
+                                    let is_selected = *level == current_level;
+                                    html! {
+                                        <option value={level.id()} selected={is_selected}>
+                                            {level.name()}
+                                        </option>
+                                    }
+                                }).collect::<Html>()
+                            }}
                         </select>
                         <div class="field-help field-help--info">
-                            {"Your proficiency level in the selected dialect (CEFR scale)"}
+                            {if us.selected_language == Language::Japanese {
+                                "Your proficiency level in the selected dialect (JLPT scale)"
+                            } else {
+                                "Your proficiency level in the selected dialect (CEFR scale)"
+                            }}
                         </div>
                     </div>
                 </div>

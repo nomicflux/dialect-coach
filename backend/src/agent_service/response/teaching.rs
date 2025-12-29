@@ -1,5 +1,5 @@
 use super::config::tokens_per_mode;
-use dialect_coach_shared::{LanguageLevel, TeachingMode};
+use dialect_coach_shared::{CefrLevel, JlptLevel, LanguageLevel, TeachingMode};
 
 const IMMERSIVE_DESC: &str = "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally as you continue the conversation.";
 
@@ -41,6 +41,12 @@ const LEVEL_B2: &str = "LANGUAGE LEVEL B2 (Upper Intermediate): Use varied vocab
 const LEVEL_C1: &str = "LANGUAGE LEVEL C1 (Advanced): Use sophisticated vocabulary and nuanced expressions. Can discuss abstract topics. Full range of tenses and moods.";
 const LEVEL_C2: &str = "LANGUAGE LEVEL C2 (Proficient): Speak as you would to a native speaker. Full complexity, subtlety, and cultural references are appropriate.";
 
+const JLPT_N5: &str = "LANGUAGE LEVEL N5 (Beginner): Use only hiragana, katakana, and basic kanji (~100 characters). Very simple sentences with basic vocabulary. Speak slowly and clearly. Limited to basic daily expressions and greetings.";
+const JLPT_N4: &str = "LANGUAGE LEVEL N4 (Elementary): Use basic vocabulary and kanji (~300 characters). Simple sentences about familiar daily topics. Speak slowly. Basic past and future tenses okay.";
+const JLPT_N3: &str = "LANGUAGE LEVEL N3 (Intermediate): Everyday Japanese at near-natural speed. Can use context to understand slightly difficult expressions. Standard vocabulary and grammar for daily situations.";
+const JLPT_N2: &str = "LANGUAGE LEVEL N2 (Upper Intermediate): Varied vocabulary including abstract concepts. Can follow narratives and understand writer/speaker intent. Natural speech speed. Newspaper articles and general topics accessible.";
+const JLPT_N1: &str = "LANGUAGE LEVEL N1 (Advanced): Full sophistication appropriate. Can handle editorials, critiques, and academic materials. Native-level complexity, nuance, and cultural references are appropriate.";
+
 fn mode_description(mode: &TeachingMode) -> &'static str {
     match mode {
         TeachingMode::Immersive => IMMERSIVE_DESC,
@@ -62,14 +68,31 @@ pub(crate) fn response_teaching_desc(teaching_mode: &TeachingMode) -> String {
     )
 }
 
+fn cefr_instruction(level: CefrLevel) -> &'static str {
+    match level {
+        CefrLevel::A1 => LEVEL_A1,
+        CefrLevel::A2 => LEVEL_A2,
+        CefrLevel::B1 => LEVEL_B1,
+        CefrLevel::B2 => LEVEL_B2,
+        CefrLevel::C1 => LEVEL_C1,
+        CefrLevel::C2 => LEVEL_C2,
+    }
+}
+
+fn jlpt_instruction(level: JlptLevel) -> &'static str {
+    match level {
+        JlptLevel::N5 => JLPT_N5,
+        JlptLevel::N4 => JLPT_N4,
+        JlptLevel::N3 => JLPT_N3,
+        JlptLevel::N2 => JLPT_N2,
+        JlptLevel::N1 => JLPT_N1,
+    }
+}
+
 pub(crate) fn language_level_instruction(level: LanguageLevel) -> &'static str {
     match level {
-        LanguageLevel::A1 => LEVEL_A1,
-        LanguageLevel::A2 => LEVEL_A2,
-        LanguageLevel::B1 => LEVEL_B1,
-        LanguageLevel::B2 => LEVEL_B2,
-        LanguageLevel::C1 => LEVEL_C1,
-        LanguageLevel::C2 => LEVEL_C2,
+        LanguageLevel::Cefr(cefr) => cefr_instruction(cefr),
+        LanguageLevel::Jlpt(jlpt) => jlpt_instruction(jlpt),
     }
 }
 
@@ -78,14 +101,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_language_level_instruction_covers_all_levels() {
+    fn test_language_level_instruction_covers_all_cefr_levels() {
         let levels = [
-            LanguageLevel::A1,
-            LanguageLevel::A2,
-            LanguageLevel::B1,
-            LanguageLevel::B2,
-            LanguageLevel::C1,
-            LanguageLevel::C2,
+            LanguageLevel::Cefr(CefrLevel::A1),
+            LanguageLevel::Cefr(CefrLevel::A2),
+            LanguageLevel::Cefr(CefrLevel::B1),
+            LanguageLevel::Cefr(CefrLevel::B2),
+            LanguageLevel::Cefr(CefrLevel::C1),
+            LanguageLevel::Cefr(CefrLevel::C2),
+        ];
+        for level in levels {
+            let instruction = language_level_instruction(level);
+            assert!(!instruction.is_empty());
+            assert!(instruction.contains("LANGUAGE LEVEL"));
+        }
+    }
+
+    #[test]
+    fn test_language_level_instruction_covers_all_jlpt_levels() {
+        let levels = [
+            LanguageLevel::Jlpt(JlptLevel::N5),
+            LanguageLevel::Jlpt(JlptLevel::N4),
+            LanguageLevel::Jlpt(JlptLevel::N3),
+            LanguageLevel::Jlpt(JlptLevel::N2),
+            LanguageLevel::Jlpt(JlptLevel::N1),
         ];
         for level in levels {
             let instruction = language_level_instruction(level);

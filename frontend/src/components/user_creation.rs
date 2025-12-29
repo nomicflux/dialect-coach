@@ -1,7 +1,7 @@
 use crate::app::app_callbacks::on_create_user_click;
 use crate::app::app_state::{AppState, SessionState, UIState};
 use dialect_coach_shared::models::{
-    Dialect, InitialUserSettings, Language, LanguageLevel, UserGender, dialect_features,
+    CefrLevel, Dialect, InitialUserSettings, Language, LanguageLevel, UserGender, dialect_features,
 };
 use yew::prelude::*;
 
@@ -36,7 +36,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
     // Selection state
     let selected_language = use_state::<Option<Language>, _>(|| None);
     let selected_dialect = use_state::<Option<Dialect>, _>(|| None);
-    let selected_level = use_state(|| LanguageLevel::B1);
+    let selected_level = use_state(|| LanguageLevel::Cefr(CefrLevel::B1));
     let selected_gender = use_state(|| UserGender::NonBinary);
 
     // Derived data
@@ -375,16 +375,10 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                                 onchange={
                                     let selected_level = selected_level.clone();
                                     Callback::from(move |e: Event| {
-                                        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-                                            match select.value().as_str() {
-                                                "a1" => selected_level.set(LanguageLevel::A1),
-                                                "a2" => selected_level.set(LanguageLevel::A2),
-                                                "b1" => selected_level.set(LanguageLevel::B1),
-                                                "b2" => selected_level.set(LanguageLevel::B2),
-                                                "c1" => selected_level.set(LanguageLevel::C1),
-                                                "c2" => selected_level.set(LanguageLevel::C2),
-                                                _ => {}
-                                            }
+                                        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>()
+                                            && let Some(level) = LanguageLevel::from_id(&select.value())
+                                        {
+                                            selected_level.set(level);
                                         }
                                     })
                                 }
