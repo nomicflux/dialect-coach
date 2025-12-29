@@ -529,4 +529,31 @@ ChangeLanguage(lang) => {
 | Phase | Description | Status |
 |-------|-------------|--------|
 | 1 | Core type system + migration + settings UI | **Complete** |
-| 2 | User creation + auto-conversion on language change | Not Started |
+| 2 | User creation + auto-conversion on language change | **Complete** |
+
+## Phase 2 Completion Details (2025-12-29)
+
+**Implementation Summary:**
+- Added `convert_for_language()` method to `LanguageLevel` (4 lines)
+- Auto-converts proficiency level when language changes in user creation
+- User creation level dropdown now dynamically renders CEFR or JLPT options
+- Settings reducer auto-converts level on language change
+
+**Code Changes:**
+1. `shared/src/models/user_state.rs`: Added `convert_for_language()` method + 4 comprehensive tests
+2. `frontend/src/components/user_creation.rs`:
+   - Updated `on_language_change` to auto-convert level
+   - Replaced hardcoded CEFR dropdown with dynamic rendering
+3. `frontend/src/app/app_state/user/reducer.rs`: Added level conversion in `ChangeLanguage` handler
+
+**Test Results:**
+- All 258 tests pass
+- 4 new conversion tests verify both directions (CEFR↔JLPT)
+- No clippy warnings
+- Frontend builds successfully with trunk
+
+**User Experience:**
+- User Creation: Select Spanish → B2 level → Switch to Japanese → Level auto-converts to N2
+- User Creation: Level dropdown disabled until language selected, shows appropriate options
+- Settings: Change language → level auto-converts seamlessly
+- No manual re-selection needed when switching between Japanese and other languages
