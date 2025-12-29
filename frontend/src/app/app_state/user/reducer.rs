@@ -233,6 +233,11 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             next.selected_language = language;
             next.selected_dialect =
                 UserState::default_dialect_for_language(language, next.show_experimental_dialects);
+            let current_level = next.current_language_level();
+            let converted = current_level.convert_for_language(language);
+            if current_level != converted {
+                next.set_level_for_dialect(next.selected_dialect, converted);
+            }
 
             if old_language != language {
                 create_new_branch_for_language(next);

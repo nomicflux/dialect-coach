@@ -186,6 +186,14 @@ impl LanguageLevel {
             _ => Self::Cefr(CefrLevel::default()),
         }
     }
+
+    pub fn convert_for_language(self, lang: Language) -> Self {
+        match (self, lang) {
+            (Self::Cefr(c), Language::Japanese) => Self::Jlpt(c.to_jlpt()),
+            (Self::Jlpt(j), l) if l != Language::Japanese => Self::Cefr(j.to_cefr()),
+            _ => self,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1154,5 +1162,37 @@ mod tests {
             Some(LanguageLevel::Jlpt(JlptLevel::N3))
         );
         assert_eq!(LanguageLevel::from_id("invalid"), None);
+    }
+
+    #[test]
+    fn test_convert_cefr_to_jlpt_for_japanese() {
+        use super::{CefrLevel, JlptLevel, LanguageLevel};
+        let cefr_b2 = LanguageLevel::Cefr(CefrLevel::B2);
+        let converted = cefr_b2.convert_for_language(Language::Japanese);
+        assert_eq!(converted, LanguageLevel::Jlpt(JlptLevel::N2));
+    }
+
+    #[test]
+    fn test_convert_jlpt_to_cefr_for_spanish() {
+        use super::{CefrLevel, JlptLevel, LanguageLevel};
+        let jlpt_n3 = LanguageLevel::Jlpt(JlptLevel::N3);
+        let converted = jlpt_n3.convert_for_language(Language::Spanish);
+        assert_eq!(converted, LanguageLevel::Cefr(CefrLevel::B1));
+    }
+
+    #[test]
+    fn test_convert_cefr_stays_cefr_for_non_japanese() {
+        use super::{CefrLevel, LanguageLevel};
+        let cefr_a1 = LanguageLevel::Cefr(CefrLevel::A1);
+        let converted = cefr_a1.convert_for_language(Language::Spanish);
+        assert_eq!(converted, LanguageLevel::Cefr(CefrLevel::A1));
+    }
+
+    #[test]
+    fn test_convert_jlpt_stays_jlpt_for_japanese() {
+        use super::{JlptLevel, LanguageLevel};
+        let jlpt_n5 = LanguageLevel::Jlpt(JlptLevel::N5);
+        let converted = jlpt_n5.convert_for_language(Language::Japanese);
+        assert_eq!(converted, LanguageLevel::Jlpt(JlptLevel::N5));
     }
 }

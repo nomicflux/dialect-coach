@@ -105,6 +105,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
     let on_language_change = {
         let selected_language = selected_language.clone();
         let selected_dialect = selected_dialect.clone();
+        let selected_level = selected_level.clone();
         Callback::from(move |e: Event| {
             if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
                 let val = select.value();
@@ -119,7 +120,13 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                         "Japanese" => Some(Language::Japanese),
                         _ => None,
                     };
-                    selected_language.set(lang);
+                    if let Some(new_lang) = lang {
+                        selected_language.set(Some(new_lang));
+                        let current_level = *selected_level;
+                        selected_level.set(current_level.convert_for_language(new_lang));
+                    } else {
+                        selected_language.set(None);
+                    }
                 }
                 selected_dialect.set(None);
             }
@@ -369,7 +376,7 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                     </div>
 
                     <div class="form-group">
-                         <div class="select-wrapper">
+                        <div class="select-wrapper">
                             <select
                                 class="select-field"
                                 onchange={
@@ -382,13 +389,23 @@ pub fn user_creation(props: &UserCreationProps) -> Html {
                                         }
                                     })
                                 }
+                                disabled={selected_language.is_none()}
                             >
-                                <option value="a1">{"A1 - Beginner"}</option>
-                                <option value="a2">{"A2 - Elementary"}</option>
-                                <option value="b1" selected=true>{"B1 - Intermediate"}</option>
-                                <option value="b2">{"B2 - Upper Intermediate"}</option>
-                                <option value="c1">{"C1 - Advanced"}</option>
-                                <option value="c2">{"C2 - Proficient"}</option>
+                                {
+                                    if let Some(lang) = *selected_language {
+                                        LanguageLevel::for_language(lang)
+                                            .into_iter()
+                                            .map(|level| {
+                                                let is_selected = *selected_level == level;
+                                                html! {
+                                                    <option value={level.id()} selected={is_selected}>{level.name()}</option>
+                                                }
+                                            })
+                                            .collect::<Html>()
+                                    } else {
+                                        html! { <option value="" disabled=true selected=true>{"Select a language first"}</option> }
+                                    }
+                                }
                             </select>
                         </div>
                     </div>
