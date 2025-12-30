@@ -87,12 +87,18 @@ impl UserPersistence for PostgresPersistence {
         let user_id = user_state.user_id;
         let data = serialize_versioned_user_state(&clean)?;
 
+        let version_val = serde_json::to_value(CURRENT_USER_STATE_VERSION)?;
+        let version_str = version_val
+            .as_str()
+            .ok_or_else(|| anyhow!("Invalid version serialization"))?;
+
         sqlx::query(
-            "INSERT INTO user_states (user_id, data, version) VALUES ($1, $2, 'V1')
-             ON CONFLICT (user_id) DO UPDATE SET data = $2, version = 'V1', updated_at = NOW()",
+            "INSERT INTO user_states (user_id, data, version) VALUES ($1, $2, $3)
+             ON CONFLICT (user_id) DO UPDATE SET data = $2, version = $3, updated_at = NOW()",
         )
         .bind(user_id)
         .bind(&data)
+        .bind(version_str)
         .execute(&self.pool)
         .await?;
 
