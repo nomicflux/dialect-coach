@@ -81,7 +81,7 @@ pub fn settings(props: &SettingsProps) -> Html {
 
                     <div class="panel-field">
                         <label for="dialect-select">{"Dialect"}</label>
-                        <select id="dialect-select" onchange={on_dialect_change(user.clone(), dispatch.clone())}>
+                        <select id="dialect-select" onchange={on_dialect_change(dispatch.clone())}>
                             {{
                                 let dialects = us.current_dialects();
                                 let current = us.current_dialect();

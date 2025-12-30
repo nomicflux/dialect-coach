@@ -4,7 +4,8 @@ use crate::app::app_state::{
 };
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::{
-    ArabicScript, Formality, JapaneseScript, Language, LanguageLevel, TeachingMode, UserGender,
+    ArabicScript, Dialect, Formality, JapaneseScript, Language, LanguageLevel, TeachingMode,
+    UserGender,
 };
 use log::info;
 use std::rc::Rc;
@@ -30,20 +31,14 @@ pub fn on_language_change(dispatch: Callback<UserDomainAction>) -> Callback<Even
     })
 }
 
-pub fn on_dialect_change(
-    user: Rc<UserState>,
-    dispatch: Callback<UserDomainAction>,
-) -> Callback<Event> {
+pub fn on_dialect_change(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
     Callback::from(move |e: Event| {
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let value = select.value();
-            // Get all dialects for current language and find matching one
-            let dialects = user.current_dialects();
-            if let Some(dialect_features) = dialects.iter().find(|df| df.dialect.id() == value) {
-                dispatch.emit(UserDomainAction::Settings(SettingsAction::ChangeDialect(
-                    dialect_features.dialect,
-                )));
-            }
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>()
+            && let Some(dialect) = Dialect::from_id(&select.value())
+        {
+            dispatch.emit(UserDomainAction::Settings(SettingsAction::ChangeDialect(
+                dialect,
+            )));
         }
     })
 }
