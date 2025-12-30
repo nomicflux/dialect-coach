@@ -109,10 +109,7 @@ pub fn on_language_level_change(
     })
 }
 
-pub fn on_dialect_cycle(
-    _user: Rc<UserState>,
-    dispatch: Callback<UserDomainAction>,
-) -> Callback<()> {
+pub fn on_dialect_cycle(dispatch: Callback<UserDomainAction>) -> Callback<()> {
     Callback::from(move |_| {
         dispatch.emit(UserDomainAction::Settings(SettingsAction::CycleDialect));
     })

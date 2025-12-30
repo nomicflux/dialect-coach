@@ -312,4 +312,4 @@ pub fn on_dialect_cycle(dispatch: Callback<UserDomainAction>) -> Callback<()>
 |-------|-------------|--------|
 | 1 | Fix AddGoal architecture | **Complete** |
 | 2 | Fix ChangeDialect callback | **Complete** |
-| 3 | Remove dead parameter | Pending |
+| 3 | Remove dead parameter | **Complete** |
