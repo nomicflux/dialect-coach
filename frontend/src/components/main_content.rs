@@ -18,7 +18,7 @@ use crate::components::{
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
 use crate::utils::perf::PerfGuard;
-use dialect_coach_shared::models::{LearningGoal, PhraseTranslation, Translated};
+use dialect_coach_shared::models::{PhraseTranslation, Translated};
 
 use gloo::events::EventListener;
 use std::rc::Rc;
@@ -187,19 +187,11 @@ pub fn main_content(props: &MainContentProps) -> Html {
         session.dispatch(SessionAction::Domain(action));
     });
 
-    let on_add_goal = use_callback(
-        (us.clone(), dispatch_domain.clone()),
-        |goal: String, (us, dispatch)| {
-            if !goal.trim().is_empty() {
-                dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(
-                    LearningGoal {
-                        goal,
-                        dialect: us.selected_dialect,
-                    },
-                )));
-            }
-        },
-    );
+    let on_add_goal = use_callback(dispatch_domain.clone(), |goal: String, dispatch| {
+        if !goal.trim().is_empty() {
+            dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(goal)));
+        }
+    });
 
     let on_delete_goal = use_callback(dispatch_domain.clone(), |index: usize, dispatch| {
         dispatch.emit(UserDomainAction::Learning(LearningAction::DeleteGoal(

@@ -4,7 +4,7 @@ use super::actions::{
 use super::helpers::*;
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::ConversationBranch;
-use dialect_coach_shared::{AgentAnalysis, LearningItem, LearningItemType};
+use dialect_coach_shared::{AgentAnalysis, LearningGoal, LearningItem, LearningItemType};
 
 pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
     use MessageAction::*;
@@ -81,7 +81,11 @@ pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
                 item,
             ));
         }
-        AddGoal(goal) => {
+        AddGoal(goal_text) => {
+            let goal = LearningGoal {
+                goal: goal_text,
+                dialect: next.selected_dialect,
+            };
             next.learning_goals = Arc::new(add_learning_goal((*next.learning_goals).clone(), goal));
         }
         DeleteGoal(index) => {

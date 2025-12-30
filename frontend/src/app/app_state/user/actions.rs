@@ -3,8 +3,8 @@ use dialect_coach_shared::models::{
     Message, TeachingMode, UserGender,
 };
 use dialect_coach_shared::{
-    AgentAnalysis, Explained, Exploratory, LearningGoal, LearningItem, Mistake, Translated,
-    UsageStats, UserState,
+    AgentAnalysis, Explained, Exploratory, LearningItem, Mistake, Translated, UsageStats,
+    UserState,
 };
 use uuid::Uuid;
 
@@ -26,7 +26,7 @@ pub enum LearningAction {
     UpdateScores(AgentAnalysis),
     DeleteItem(Uuid),
     UndoDeleteItem(LearningItem),
-    AddGoal(LearningGoal),
+    AddGoal(String),
     DeleteGoal(usize),
 }
 

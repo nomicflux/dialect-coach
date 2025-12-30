@@ -4,8 +4,7 @@ use crate::app::app_state::{
 };
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::{
-    ArabicScript, Formality, JapaneseScript, Language, LanguageLevel, LearningGoal, TeachingMode,
-    UserGender,
+    ArabicScript, Formality, JapaneseScript, Language, LanguageLevel, TeachingMode, UserGender,
 };
 use log::info;
 use std::rc::Rc;
@@ -141,16 +140,10 @@ pub fn on_teaching_mode_cycle(
     })
 }
 
-pub fn on_add_goal(user: Rc<UserState>, dispatch: Callback<UserDomainAction>) -> Callback<String> {
+pub fn on_add_goal(dispatch: Callback<UserDomainAction>) -> Callback<String> {
     Callback::from(move |goal: String| {
-        let learning_goal = LearningGoal {
-            goal,
-            dialect: user.selected_dialect,
-        };
-        info!("Adding learning goal: {:?}", learning_goal);
-        dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(
-            learning_goal,
-        )));
+        info!("Adding learning goal: {}", goal);
+        dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(goal)));
     })
 }
 
