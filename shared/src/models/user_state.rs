@@ -265,14 +265,30 @@ impl UserState {
 }
 
 impl UserState {
-    pub fn default_dialect_for_language(language: Language, show_experimental: bool) -> Dialect {
-        Dialect::for_language(language, false, false)
-            .into_iter()
-            .map(dialect_features)
+    pub fn default_dialect_for_language(language: Language, show_experimental: bool) -> Option<Dialect> {
+        let all_for_language = Dialect::for_language(language, false, false);
+
+        // 1. Try to find one that matches the experimental filter
+        let filtered = all_for_language
+            .iter()
+            .map(|&d| dialect_features(d))
             .filter(|d| show_experimental || !d.is_experimental)
             .map(|d| d.dialect)
-            .next()
-            .unwrap_or(Dialect::SpanishArgentinian)
+            .next();
+
+        if let Some(d) = filtered {
+            return Some(d);
+        }
+
+        // 2. Fallback: If filter removed everything (e.g. Japanese only has experimental dialects),
+        // return the first available dialect for THIS language.
+        // This prevents leaking "SpanishArgentinian" into "Japanese" state.
+        if let Some(&first) = all_for_language.first() {
+            return Some(first);
+        }
+
+        // 3. No dialects found for language at all
+        None
     }
 
     pub fn with_initial_settings(
@@ -290,7 +306,10 @@ impl UserState {
             }
             None => {
                 let lang = Language::Spanish;
-                let dial = Self::default_dialect_for_language(lang, show_experimental_dialects);
+                // Since Spanish is the default language and always has dialects, this unwrap is generally safe,
+                // but we might want to be robust eventually. For now, unwrap_or fallback to a known constant if somehow empty.
+                let dial = Self::default_dialect_for_language(lang, show_experimental_dialects)
+                   .unwrap_or(Dialect::SpanishArgentinian);
                 (lang, dial, UserGender::NonBinary, Vec::new())
             }
         };
@@ -1196,3 +1215,32 @@ mod tests {
         assert_eq!(converted, LanguageLevel::Jlpt(JlptLevel::N5));
     }
 }
+
+    #[test]
+    fn test_default_dialect_leakage_reproduction() {
+        // user reports show_experimental was TRUE
+        let show_experimental = true;
+        
+        // When switching to Japanese
+        let default_dialect = UserState::default_dialect_for_language(Language::Japanese, show_experimental)
+            .expect("Should find a dialect for Japanese");
+        
+        // It SHOULD be a Japanese dialect
+        assert_eq!(default_dialect.language(), Language::Japanese, "User reported leakage where Japanese selected SpanishArgentinian");
+        
+        // Specifically, it should ideally be Tokyo if available
+        assert_eq!(default_dialect, Dialect::JapaneseTokyo);
+    }
+
+    #[test]
+    fn test_default_dialect_fallback_safety() {
+        // Even if show_experimental is FALSE
+        let show_experimental = false;
+         
+        // And we ask for Japanese (which only has experimental dialects currently)
+        let default_dialect = UserState::default_dialect_for_language(Language::Japanese, show_experimental)
+            .expect("Should find a fallback dialect even if experimental is hidden");
+        
+        // It MUST still be Japanese to avoid leakage
+        assert_eq!(default_dialect.language(), Language::Japanese, "Fallback logic leaked to different language!");
+    }
