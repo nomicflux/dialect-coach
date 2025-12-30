@@ -829,9 +829,9 @@ fn test_update_language_level_action() {
     let mut state = UserState::new(Uuid::new_v4());
     state.selected_dialect = Dialect::SpanishMexican;
 
-    let action = UserStateAction::Settings(SettingsAction::UpdateLevel(
-        LanguageLevel::Cefr(CefrLevel::C1),
-    ));
+    let action = UserStateAction::Settings(SettingsAction::UpdateLevel(LanguageLevel::Cefr(
+        CefrLevel::C1,
+    )));
     let updated = apply_user_state_action(&state, action).unwrap();
 
     assert_eq!(

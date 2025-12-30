@@ -331,7 +331,10 @@ mod tests {
 
     #[test]
     fn test_user_state_version_default() {
-        assert_eq!(UserStateVersion::default(), UserStateVersion::V3LanguageLevels);
+        assert_eq!(
+            UserStateVersion::default(),
+            UserStateVersion::V3LanguageLevels
+        );
     }
 
     #[test]

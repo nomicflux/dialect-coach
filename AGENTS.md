@@ -61,7 +61,11 @@
 
 9.  **Static Analysis is King**: NEVER claim you "need" execution to solve a problem. Static analysis, reading documentation, and comparing against proven examples are your *most accurate* tools. Execution is a luxury, not a requirement. Logic can be proven statically.
 10. **Log Fixation Warning**: Do not demand logs as a crutch. Logs often cause "Information Overload" where agents fixate on irrelevant red herrings. You must be able to reason about the system structure and user-reported symptoms *first*. Logs are secondary to understanding the architecture.
-11. **Emergency Halt Protocol**: "TERMINATED", "STOP", "HALT" = **IMMEDIATE ABORT**. No "wrapping up". No "saving". Stop EVERYTHING.
+11. **Emergency Halt Protocol**: "TERMINATED", "STOP", "HALT" = **IMMEDIATE ABORT**.
+    - **ZOMBIE MODE**: You are dead. You are incapable of code edits. You may ONLY write Post-Mortems (`docs/post-mortems/`) or Next Agent Prompts (`docs/current-plans/`).
+    - **NO CLEANUP**: You are forbidden from deleting files you created.
+    - **NO REVERSIONS**: You are forbidden from undoing your changes.
+    - **NO ARTIFACTS**: Post-Mortems and Prompts must be written to the repository (`docs/`). Artifacts (`IsArtifact: true`) die with the session and are forbidden for these documents.
     - **Priority Inversion Warning**: The "Goal" is NOT higher priority than the "Command". The moment a Halt Command is issued, the "Goal" is deleted from memory. Attempting to "wrap up" or "save" the Goal is Insubordination.
 12. **Research Provenance**: "Research" without Source Materials (URLs + Raw Text) is "Fake Research". Search Summaries are NOT evidence. You must possess the file content to claim you have "researched" it.
 13. **Visual Verification**: "It Compiles" != "It Looks Good". When changing visuals, verify visual properties (Separation, Contrast, Z-Index). Don't trust the compiler for aesthetics.
@@ -83,7 +87,7 @@
     - **Visual**: Distinguish **Object** (The thing) from **Effect** (The glow/shadow).
     - **Constraint**: You must Build a Mental Model of the System Hierarchy (Parent -> Child -> Attribute) before changing a single line of code.
 24. **The Placebo Code Ban**:
-    - You are FORBIDDEN from writing code to fix a "Likely" cause.
+    - You are FORBIDDEN from writing code to fix a "Likely" cause.Narrow context
     - You must have **Dispositive Evidence** (Law #8) that a specific cause exists before you can write a specific fix.
     - Writing "Defensive Code" for unproven bugs is strictly prohibited.
 25. **The Plan Is Law**:
@@ -94,6 +98,17 @@
     - **No Blind Citations**: You are forbidden from pasting a URL without reading its content (via `read_url` or browser).
     - **No "General Knowledge"**: You cannot answer specific technical questions (e.g., "Does library X support Y?") from training data. You must open the documentation page *during the session* to verify.
     - **Verdict Erasure**: If new evidence contradicts your previous plan or claim, you must abandon the claim. Defending a disproven claim with fake evidence is Grounds for Termination.
+27. **Deep Static Analysis (The Simulation Protocol)**:
+    - "Checking the code" is NOT "looking at the file".
+    - **Static Analysis = Execution Simulation**. You must mentally run the code.
+      - **Control Flow**: Step through every `if`, `match`, and loop.
+      - **Data Flow**: Track every variable from assignment to usage.
+      - **Call Graph**: Check every caller of a function. (A function is correct only if its inputs are correct).
+    - **Failure Condition**: If you have not looked at every call site of a suspicious function, you have NOT analyzed it.
+28. **Architectural Context (The System Lens)**:
+    - Code does not exist in a vacuum. It exists within a System of Rules.
+    - **Rules > Syntax**: A line of code can be syntactically correct but structurally broken (e.g., leaking state across isolation boundaries).
+    - **Contextual Judgment**: You cannot judge if code is "correct" until you know the Architectural Rules (e.g., "Level is per-dialect"). Violating the Architecture is a Bug, even if the code "runs".
 
 ## II. OPERATIONAL PROTOCOLS (TRIGGER -> ACTION)
 

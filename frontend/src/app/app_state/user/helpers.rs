@@ -233,7 +233,8 @@ pub fn delete_learning_goal(mut goals: Vec<LearningGoal>, index: usize) -> Vec<L
 }
 
 pub fn create_new_branch_for_language(state: &mut UserState) {
-    let new_branch = ConversationBranch::new(None, None, None, None, vec![]);
+    let new_branch =
+        ConversationBranch::new(None, None, None, Some(state.selected_dialect), vec![]);
     let new_branch_id = new_branch.id;
     Arc::make_mut(&mut state.branches).push(new_branch);
     state.active_branch_id = new_branch_id;

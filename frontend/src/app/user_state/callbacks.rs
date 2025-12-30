@@ -97,14 +97,14 @@ pub fn on_user_gender_change(dispatch: Callback<UserDomainAction>) -> Callback<E
     })
 }
 
-pub fn on_language_level_change(
-    dispatch: Callback<UserDomainAction>,
-) -> Callback<Event> {
+pub fn on_language_level_change(dispatch: Callback<UserDomainAction>) -> Callback<Event> {
     Callback::from(move |e: Event| {
         if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>()
             && let Some(level) = LanguageLevel::from_id(&select.value())
         {
-            dispatch.emit(UserDomainAction::Settings(SettingsAction::UpdateLevel(level)));
+            dispatch.emit(UserDomainAction::Settings(SettingsAction::UpdateLevel(
+                level,
+            )));
         }
     })
 }

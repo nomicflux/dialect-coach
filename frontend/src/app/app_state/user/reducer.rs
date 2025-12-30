@@ -233,8 +233,19 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             }
         }
         ChangeLanguage(language) => {
-            // Only switch language if we can find a valid valid dialect for it
-            if let Some(dialect) = UserState::default_dialect_for_language(language, next.show_experimental_dialects) {
+            // Find most recent branch with a dialect for this language
+            let dialect_from_branch = next
+                .branches
+                .iter()
+                .filter(|b| b.dialect.is_some_and(|d| d.language() == language))
+                .max_by_key(|b| b.created_at)
+                .and_then(|b| b.dialect);
+
+            let dialect = dialect_from_branch.or_else(|| {
+                UserState::default_dialect_for_language(language, next.show_experimental_dialects)
+            });
+
+            if let Some(dialect) = dialect {
                 let old_language = next.selected_language;
                 next.selected_language = language;
                 next.selected_dialect = dialect;
@@ -243,7 +254,7 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
                     create_new_branch_for_language(next);
                 }
             } else {
-               log::warn!("No default dialect found for language: {:?}", language);
+                log::warn!("No dialect found for language: {:?}", language);
             }
         }
         ChangeFormality(formality) => {

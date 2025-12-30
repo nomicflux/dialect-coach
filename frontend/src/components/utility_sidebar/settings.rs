@@ -147,7 +147,12 @@ pub fn settings(props: &SettingsProps) -> Html {
 
                     <div class="panel-field">
                         <label for="language-level-select">{"Your Level"}</label>
-                        <select id="language-level-select" onchange={on_language_level_change(dispatch.clone())}>
+                        <select
+                            id="language-level-select"
+                            key={us.selected_language.code()}
+                            value={us.current_language_level().id()}
+                            onchange={on_language_level_change(dispatch.clone())}
+                        >
                             {{
                                 let levels = LanguageLevel::for_language(us.selected_language);
                                 let current_level = us.current_language_level();

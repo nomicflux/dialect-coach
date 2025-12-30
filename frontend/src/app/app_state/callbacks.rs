@@ -15,13 +15,14 @@ pub fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Mess
     })
 }
 
-pub fn on_user_state_ws_open(app_state: UseReducerHandle<AppState>, user_id: Uuid) -> Callback<()> {
+pub fn on_user_state_ws_open(
+    app_state: UseReducerHandle<AppState>,
+    _user_id: Uuid,
+) -> Callback<()> {
     Callback::from(move |_| {
-        info!(
-            "User state WebSocket opened, loading state for user: {}",
-            user_id
-        );
-        app_state.dispatch(AppStateAction::LoadUserState(user_id));
+        info!("User state WebSocket opened");
+        // State is loaded via SetUser at sign-in, NOT here.
+        // Only retry pending saves on reconnection.
         app_state.dispatch(AppStateAction::RetryPendingSaves);
     })
 }

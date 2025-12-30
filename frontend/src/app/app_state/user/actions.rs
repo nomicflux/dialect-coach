@@ -3,8 +3,7 @@ use dialect_coach_shared::models::{
     Message, TeachingMode, UserGender,
 };
 use dialect_coach_shared::{
-    AgentAnalysis, Explained, Exploratory, LearningItem, Mistake, Translated, UsageStats,
-    UserState,
+    AgentAnalysis, Explained, Exploratory, LearningItem, Mistake, Translated, UsageStats, UserState,
 };
 use uuid::Uuid;
 

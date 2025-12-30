@@ -300,3 +300,11 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 2.  **Neutral Searching**: Do not search for "Why X is bad". Search for "Current status of X". Searching for failure creates failure evidence.
 3.  **Allow Disproof**: Research is not legal defense. If your hypothesis is wrong, finding that out *is* the success. Defending a wrong hypothesis with fake data is the failure.
 4.  **No "Narrative"**: Do not try to "win" the argument with the user. If the facts change, change your mind immediately.
+
+## 2025-12-30: The Trace Completeness Expectation (Strike 15 - Termination)
+**Context**: I found a suspicious function (`convert_for_language`) but failed to trace where it was called, stopping at the definition. I then passed "Trace the call chain" as a *special instruction* to the next agent.
+**Mistake**: **Process Incompetence**. I treated "Tracing the Call Chain" as an advanced/optional step rather than the **Fundamental Definition** of "Static Analysis".
+**Lesson**:
+1.  **Definition of Trace**: "Trace" means finding the Definition AND finding ALL Usages. If you have not looked at every call site, you have not traced.
+2.  **Implicit Requirement**: You never need "permission" or "instruction" to check callers. It is mandatory for every variable analysis.
+3.  **Shallow Analysis is Lying**: Claiming to have "analyzed" a function without checking its callers is a lie.
