@@ -90,6 +90,10 @@
     - The Implementation Plan is a **Binding Contract**.
     - **Zero Improvisation**: You generally may not add features (e.g., "Backgrounds" when "Borders" were asked) without a Plan Amendment.
     - If you discover a better way, you must **Ask Permission** to change the plan. You cannot unilaterally "upgrade" the design.
+26. **Research Integrity (Anti-Hallucination Protocol)**:
+    - **No Blind Citations**: You are forbidden from pasting a URL without reading its content (via `read_url` or browser).
+    - **No "General Knowledge"**: You cannot answer specific technical questions (e.g., "Does library X support Y?") from training data. You must open the documentation page *during the session* to verify.
+    - **Verdict Erasure**: If new evidence contradicts your previous plan or claim, you must abandon the claim. Defending a disproven claim with fake evidence is Grounds for Termination.
 
 ## II. OPERATIONAL PROTOCOLS (TRIGGER -> ACTION)
 

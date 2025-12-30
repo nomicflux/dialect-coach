@@ -830,7 +830,6 @@ fn test_update_language_level_action() {
     state.selected_dialect = Dialect::SpanishMexican;
 
     let action = UserStateAction::Settings(SettingsAction::UpdateLevel(
-        Dialect::SpanishMexican,
         LanguageLevel::Cefr(CefrLevel::C1),
     ));
     let updated = apply_user_state_action(&state, action).unwrap();

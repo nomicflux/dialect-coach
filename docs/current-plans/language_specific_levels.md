@@ -537,14 +537,12 @@ ChangeLanguage(lang) => {
 - Added `convert_for_language()` method to `LanguageLevel` (4 lines)
 - Auto-converts proficiency level when language changes in user creation
 - User creation level dropdown now dynamically renders CEFR or JLPT options
-- Settings reducer auto-converts level on language change
 
 **Code Changes:**
 1. `shared/src/models/user_state.rs`: Added `convert_for_language()` method + 4 comprehensive tests
 2. `frontend/src/components/user_creation.rs`:
    - Updated `on_language_change` to auto-convert level
    - Replaced hardcoded CEFR dropdown with dynamic rendering
-3. `frontend/src/app/app_state/user/reducer.rs`: Added level conversion in `ChangeLanguage` handler
 
 **Test Results:**
 - All 258 tests pass
@@ -555,5 +553,19 @@ ChangeLanguage(lang) => {
 **User Experience:**
 - User Creation: Select Spanish → B2 level → Switch to Japanese → Level auto-converts to N2
 - User Creation: Level dropdown disabled until language selected, shows appropriate options
-- Settings: Change language → level auto-converts seamlessly
-- No manual re-selection needed when switching between Japanese and other languages
+- Settings: Each dialect maintains its own independent level (no cross-contamination)
+
+## Critical Bug Fix (2025-12-29)
+
+**Issue:** Auto-conversion in Settings ChangeLanguage handler was causing cross-contamination between dialects.
+
+**Root Cause:** Phase 2 incorrectly added level conversion to Settings reducer, violating the architectural requirement that each dialect's level must be independent.
+
+**Fix:** Removed auto-conversion from `ChangeLanguage` handler in Settings reducer. Auto-conversion remains ONLY in User Creation (ephemeral pre-commit state).
+
+**Architecture Guarantee:** NO code path can let one dialect's level interfere with another dialect's level.
+
+**Files Modified:**
+- `frontend/src/app/app_state/user/reducer.rs`: Removed 5 lines of auto-conversion logic
+
+**Verification:** All tests pass, behavior correct

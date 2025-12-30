@@ -104,17 +104,13 @@ pub fn on_user_gender_change(dispatch: Callback<UserDomainAction>) -> Callback<E
 }
 
 pub fn on_language_level_change(
-    user: Rc<UserState>,
     dispatch: Callback<UserDomainAction>,
 ) -> Callback<Event> {
     Callback::from(move |e: Event| {
-        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>() {
-            let level = LanguageLevel::from_id(&select.value())
-                .unwrap_or_else(|| LanguageLevel::default_for_language(user.selected_language));
-            let dialect = user.selected_dialect;
-            dispatch.emit(UserDomainAction::Settings(SettingsAction::UpdateLevel(
-                dialect, level,
-            )));
+        if let Some(select) = e.target_dyn_into::<web_sys::HtmlSelectElement>()
+            && let Some(level) = LanguageLevel::from_id(&select.value())
+        {
+            dispatch.emit(UserDomainAction::Settings(SettingsAction::UpdateLevel(level)));
         }
     })
 }

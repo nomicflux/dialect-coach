@@ -55,7 +55,7 @@ pub enum SettingsAction {
     ChangeFormality(Formality),
     ChangeTeachingMode(TeachingMode),
     UpdateGender(UserGender),
-    UpdateLevel(Dialect, LanguageLevel),
+    UpdateLevel(LanguageLevel),
     SetArabicScript(ArabicScript),
     SetJapaneseScript(JapaneseScript),
     ToggleTTS,

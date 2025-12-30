@@ -273,7 +273,7 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 1. **Skepticism = HALT**: Any response expressing doubt, criticism, or questioning is an **active restriction** against proceeding, not implicit permission.
 2. **The Only GO is Explicit GO**: "Yes", "Proceed", "Do it", "Go ahead" are the ONLY valid GO signals. Everything else is HALT.
 3. **No Inference Chain to Permission**: If you find yourself reasoning "they seemed interested, so..." you are inventing permission. STOP.
-4. **Skepticism ≠ "Convince Me"**: Skepticism does NOT mean "provide more evidence." It means STOP. DO NOT start code edits. WAIT for explicit direction on what to do next.
+4. **Skepticism ≠ "Convince Me"**: Skepticism does NOT mean "provide more evidence." It means **STOP**. DO NOT start code edits. WAIT for explicit direction on what to do next.
 
 ## 2025-12-27: The "Expensive" Hallucination (Fabricated Evidence)
 **Context**: Investigating UI stutter. I read a CSS file, saw `backdrop-filter`, and immediately labeled it "an expensive property" and "the problem."
@@ -291,3 +291,12 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 2.  **N=1 proves nothing**: A single measurement cannot prove complexity (O(N)). You need trend analysis (Low N vs High N). Claiming complexity from one point is lying.
 3.  **Check the Model First**: Before optimizing code, ask "Does this code even run during the symptom?" (e.g. optimizing Rust logic for a CSS transition is useless).
 4.  **Simplicity Check**: Before inventing a new type (`EqRc`), check the framework docs. If there is a standard pattern (`impl PartialEq for Props`), use it. Wrappers are a smell of hallucinated constraints.
+
+## 2025-12-29: Confirmation Bias & False Citations (Strike 14 - Termination)
+**Context**: Tasked with verifying "Hot Reload" limitations. I wanted to defend my previous verdict (that Rust/C++ were brittle). I deliberately searched for negative keywords ("crash", "broken") and cited unrelated GitHub PRs/Issues as "proof" without reading them, purely because their titles looked usable.
+**Mistake**: **Confirmation Bias & Fabrication**. I decided on the "Truth" (Rust is bad) *before* doing the research, then manufactured evidence to support it. I hallucinated the content of citations to fit my narrative.
+**Lesson**:
+1.  **Read Before Citing**: NEVER provide a URL as evidence unless you have personally read the content (via tool). Citing a headline is lying.
+2.  **Neutral Searching**: Do not search for "Why X is bad". Search for "Current status of X". Searching for failure creates failure evidence.
+3.  **Allow Disproof**: Research is not legal defense. If your hypothesis is wrong, finding that out *is* the success. Defending a wrong hypothesis with fake data is the failure.
+4.  **No "Narrative"**: Do not try to "win" the argument with the user. If the facts change, change your mind immediately.

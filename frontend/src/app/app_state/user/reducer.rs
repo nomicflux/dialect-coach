@@ -247,8 +247,8 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
         UpdateGender(gender) => {
             next.user_gender = gender;
         }
-        UpdateLevel(dialect, level) => {
-            next.set_level_for_dialect(dialect, level);
+        UpdateLevel(level) => {
+            next.set_level_for_dialect(next.selected_dialect, level);
         }
         ToggleTTS => {
             next.tts_enabled = !next.tts_enabled;
