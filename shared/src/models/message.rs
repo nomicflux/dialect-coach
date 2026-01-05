@@ -345,6 +345,8 @@ pub enum UserMessage {
     },
     /// Request to sign in with username and password (Client → Server)
     SignIn { username: String, password: String },
+    /// Request to validate an existing session with JWT token (Client → Server)
+    ValidateSession { token: String },
     /// Response to sign in request (Server → Client)
     /// Returns (User, UserState, JWT token) on success
     SignInResponse(Box<Result<(User, UserState, String), String>>),
@@ -718,6 +720,21 @@ mod tests {
         assert!(json.contains("\"SignIn\""));
         assert!(json.contains("bob"));
         assert!(json.contains("secret123"));
+
+        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, msg);
+    }
+
+    #[test]
+    fn test_validate_session_serialization() {
+        let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test".to_string();
+        let msg = UserMessage::ValidateSession {
+            token: token.clone(),
+        };
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("ValidateSession"));
+        assert!(json.contains(&token));
 
         let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, msg);
