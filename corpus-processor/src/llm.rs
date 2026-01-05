@@ -73,13 +73,12 @@ impl LlmClient {
 Task: Analyze the provided text chunk for a RAG retrieval system.
 
 1. Context Triggers: Generate 3 distinct conversational turns in {dialect_name} that would ELICIT this text as a response.
-   - STRICTLY use {dialect_name} (or widespread Code Switching if common).
-   - Do NOT include English learner questions like "How do I say...".
+   - STRICTLY use {dialect_name} (with selected Code Switching if common in {dialect_name}).
    - Focus on the conversational flow: What did the OTHER person say immediately before this?
 
 2. Keywords: Extract ALL substantive vocabulary terms in their dictionary form (lemma).
-   - Exclude: Articles, particles, prepositions, common adjectives/adverbs (e.g., "very", "too").
-   - Include: Nouns, Verbs (dictionary form), uncommon adjectives/adverbs.
+   - Exclude: Articles, particles, conjunctions, prepositions, common adjectives/adverbs (e.g., "very", "too").
+   - Include: Nouns (dictionary form), Verbs (dictionary form), uncommon adjectives/adverbs.
    - Include slang terms if present.
 
 3. Filtration (CRITICAL):
@@ -126,7 +125,7 @@ Input Text: "{text_chunk}"
         );
         let t_exec = std::time::Instant::now();
 
-        let result = match extractor.extract(&prompt).await {
+        let mut result = match extractor.extract(&prompt).await {
             Ok(data) => {
                 println!(
                     "  >> [LLM] Network/Gen Success in {:.2}s. (Safe: {}, Target: {})",
@@ -145,6 +144,9 @@ Input Text: "{text_chunk}"
                 return Err(e.into());
             }
         };
+
+        // Sort keywords alphabetically for deterministic lookups (Unicode order)
+        result.keywords.sort();
 
         // Filtration Logic
         if !result.is_safe || !result.is_target_dialect {
