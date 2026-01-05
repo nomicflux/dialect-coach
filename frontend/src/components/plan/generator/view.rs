@@ -51,23 +51,41 @@ pub fn render_file_tab(on_change: Callback<Event>, disabled: bool) -> Html {
 }
 
 pub fn render_dialect_selector(
-    selected: &Dialect,
-    on_change: Callback<Event>,
+    selected_dialect: &Dialect,
+    on_dialect_change: Callback<Event>,
+    on_language_change: Callback<Event>,
     disabled: bool,
 ) -> Html {
+    let current_language = selected_dialect.language();
+    let dialects = Dialect::for_language(current_language, false, false);
+
     html! {
-        <div class="panel-field">
-            <label>{"Target Dialect"}</label>
-             <select onchange={on_change} disabled={disabled} value={selected.id()}>
-                {for Dialect::all().iter().map(|d| {
-                    html! {
-                        <option value={d.id()} selected={*selected == *d}>
-                            {d.name()}
-                        </option>
-                    }
-                })}
-            </select>
-        </div>
+        <>
+            <div class="panel-field">
+                <label>{"Target Language"}</label>
+                 <select onchange={on_language_change} disabled={disabled} value={current_language.name()}>
+                    {for dialect_coach_shared::models::Language::all().iter().map(|l| {
+                        html! {
+                            <option value={l.name()} selected={*l == current_language}>
+                                {l.name()}
+                            </option>
+                        }
+                    })}
+                </select>
+            </div>
+            <div class="panel-field">
+                <label>{"Target Dialect"}</label>
+                 <select onchange={on_dialect_change} disabled={disabled} value={selected_dialect.id()}>
+                    {for dialects.iter().map(|d| {
+                        html! {
+                            <option value={d.id()} selected={*d == *selected_dialect}>
+                                {d.name()}
+                            </option>
+                        }
+                    })}
+                </select>
+            </div>
+        </>
     }
 }
 

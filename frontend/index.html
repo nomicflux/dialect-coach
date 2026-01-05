@@ -46,7 +46,7 @@
     </div>
 
     <!-- Trunk will automatically inject the WASM bundle here -->
-    <link data-trunk rel="rust" data-bin="dialect-coach-frontend" data-wasm-opt="z" />
+    <link data-trunk rel="rust" data-bin="dialect-coach-frontend" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
 </body>
 
 </html>

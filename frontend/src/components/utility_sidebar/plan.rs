@@ -154,6 +154,7 @@ fn render_generator(
     dispatch: Callback<UserDomainAction>,
     enrichment_service: Rc<EnrichmentService>,
     show_generator: UseStateHandle<bool>,
+    active_branch_dialect: Dialect,
 ) -> Html {
     let on_plan_generated = {
         let dispatch = dispatch.clone();
@@ -173,7 +174,7 @@ fn render_generator(
         Callback::from(move |_| show_generator.set(false))
     };
 
-    html! { <PlanGenerator {plan_service} {on_plan_generated} {on_cancel} /> }
+    html! { <PlanGenerator {plan_service} {on_plan_generated} {on_cancel} dialect={active_branch_dialect} /> }
 }
 
 fn render_create_form(
@@ -382,22 +383,25 @@ fn render_edit_mode(
     show_generator: UseStateHandle<bool>,
     editing_plan_id: UseStateHandle<Option<Uuid>>,
 ) -> Html {
-    if *show_generator {
-        render_generator(
-            props.plan_service.clone(),
-            props.dispatch.clone(),
-            props.enrichment_service.clone(),
-            show_generator,
-        )
-    } else if let Some(dialect) = props.active_branch_dialect {
-        render_create_form(
-            dialect,
-            plan_to_edit,
-            props.dispatch.clone(),
-            props.enrichment_service.clone(),
-            show_create_plan,
-            editing_plan_id,
-        )
+    if let Some(dialect) = props.active_branch_dialect {
+        if *show_generator {
+            render_generator(
+                props.plan_service.clone(),
+                props.dispatch.clone(),
+                props.enrichment_service.clone(),
+                show_generator,
+                dialect,
+            )
+        } else {
+            render_create_form(
+                dialect,
+                plan_to_edit,
+                props.dispatch.clone(),
+                props.enrichment_service.clone(),
+                show_create_plan,
+                editing_plan_id,
+            )
+        }
     } else {
         html! {}
     }

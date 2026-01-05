@@ -231,8 +231,15 @@ pub fn use_user_websocket(
             session.clone(),
         ));
 
+        let ws_for_validation = ws_clone.clone();
         ws.set_on_open(Callback::from(move |_| {
             info!("User WebSocket opened");
+
+            // Check for session token and validate
+            if let Some(token) = crate::utils::cookies::get_session_token() {
+                info!("Found session token, validating...");
+                ws_for_validation.borrow().validate_session(token);
+            }
         }));
 
         ws.connect();

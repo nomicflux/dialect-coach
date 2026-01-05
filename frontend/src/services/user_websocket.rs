@@ -76,6 +76,12 @@ impl UserWebSocketService {
         self.send_message(&msg)
     }
 
+    /// Validate existing session token
+    pub fn validate_session(&self, token: String) {
+        let msg = UserMessage::ValidateSession { token };
+        let _ = self.send_message(&msg);
+    }
+
     /// Send a UserMessage
     fn send_message(&self, msg: &UserMessage) -> Result<(), String> {
         let json = serde_json::to_string(msg).map_err(|e| format!("Failed to serialize: {}", e))?;

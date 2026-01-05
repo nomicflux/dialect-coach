@@ -15,6 +15,7 @@ pub struct PlanGeneratorProps {
     pub plan_service: Rc<PlanService>,
     pub on_plan_generated: Callback<SimpleImportLanguagePlan>,
     pub on_cancel: Callback<()>,
+    pub dialect: Dialect,
 }
 
 #[derive(Clone, PartialEq)]
@@ -28,7 +29,7 @@ pub fn plan_generator(props: &PlanGeneratorProps) -> Html {
     let active_tab = use_state(|| Tab::Text);
     let text_content = use_state(String::new);
     let file_content = use_state(|| None::<web_sys::File>);
-    let selected_dialect = use_state(|| Dialect::SpanishMexican);
+    let selected_dialect = use_state(|| props.dialect);
     let loading = use_state(|| false);
     let error_message = use_state(|| None::<String>);
 
@@ -50,6 +51,22 @@ pub fn plan_generator(props: &PlanGeneratorProps) -> Html {
         plan_service,
     });
 
+    let on_language_change = {
+        let selected_dialect = selected_dialect.clone();
+        Callback::from(move |e: Event| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            if let Some(language) = dialect_coach_shared::models::Language::all()
+                .into_iter()
+                .find(|l| l.to_string() == input.value())
+            {
+                 let dialects = Dialect::for_language(language, false, false);
+                 if let Some(first) = dialects.first() {
+                     selected_dialect.set(*first);
+                 }
+            }
+        })
+    };
+
     let is_loading = *loading;
 
     html! {
@@ -65,7 +82,7 @@ pub fn plan_generator(props: &PlanGeneratorProps) -> Html {
                     {render_file_tab(on_file_change, is_loading)}
                 }
 
-                {render_dialect_selector(&selected_dialect, on_dialect_change, is_loading)}
+                {render_dialect_selector(&selected_dialect, on_dialect_change, on_language_change, is_loading)}
 
                 if let Some(msg) = (*error_message).as_ref() {
                     <div class="error-message">{msg}</div>
