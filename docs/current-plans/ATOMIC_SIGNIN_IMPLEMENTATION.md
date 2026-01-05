@@ -6,15 +6,6 @@ After user creation, header shows signed-in but main content shows WelcomeScreen
 
 **Root Cause**: Two-phase loading gap where `current_user` is set immediately but `session.user` (UserState) loads asynchronously via a separate WebSocket round-trip.
 
-**Current Flow**:
-1. Auth handler returns `(User, token)` or `User`
-2. Frontend sets `current_user` via `SetUser` action
-3. `SetUser` triggers `load_user_state()` which sends `UserStateMessage::Load(user_id)` over separate WebSocket
-4. Backend returns `LoadResponse(Some(UserState))` or `LoadResponse(None)` for new users
-5. Frontend sets `session.user` via `SessionAction::UpdateUser`
-
-**The Gap**: Between steps 2 and 5, `current_user.is_some()` (header shows signed-in) but `session.user.is_none()` (main content shows WelcomeScreen).
-
 ## State Management Principles (User-Specified - Inviolable)
 
 1. USER IS CREATED. THIS INVOLVES CREATING INITIAL USER STATE. BOTH CREATED. DONE.
@@ -28,6 +19,16 @@ After user creation, header shows signed-in but main content shows WelcomeScreen
 - User and UserState are SEPARATE data structures (do NOT merge them)
 - "There is no 'current user' vs 'session user'. There is just the user."
 
+## Architecture Principle
+
+**EVERYTHING IS JUST SIGNIN.**
+
+- SIGNIN IS SIGNIN.
+- CREATION IS CREATION, THEN SIGNS IN THE USER.
+- VALIDATION IS JUST SIGNIN VIA SESSION TOKEN.
+
+**THERE IS ONE CODE PATH: signin.**
+
 ## DO NOT
 
 - Change persistence layer
@@ -35,73 +36,87 @@ After user creation, header shows signed-in but main content shows WelcomeScreen
 - Remove user state WebSocket (still needed for saves/stats)
 - Add fallback logic for "missing" UserState
 - Merge User/UserState structures
+- Create multiple code paths for what is fundamentally the same operation
 
 ## Solution Architecture
 
 ### Backend Changes (`backend/src/websocket/user.rs`)
 
-**Core principle**: Session restoration on page reload is just signin via session token. ONE function signs in, all paths use it.
-
 **New helper function** `sign_in_user(state: &AppState, user_id: Uuid) -> Result<(User, UserState, String), String>`:
-- Load User from persistence
-- Load UserState from persistence
+- Load User via `state.user_persistence.load_user_by_id(user_id)`
+- Load UserState via `state.user_persistence.load(user_id)`
 - Populate `user_state.is_admin` from user record
-- Generate JWT token
-- Return `(User, UserState, token)`
+- Generate JWT token via `crypto::jwt::generate_token(user_id)`
+- Return `(User, UserState, token)` or error
 
 **handle_create_user**:
 - Create User
-- Create initial UserState with `initial_settings`
-- Save both to persistence
+- Create `UserState::with_initial_settings(user.id, initial_settings)`
+- Save User and UserState to persistence
 - Call `sign_in_user(state, user.id)`
-- Return result
+- Return `UserMessage::SignInResponse(result)`
 
 **handle_sign_in**:
-- Authenticate username/password (get user_id)
+- Authenticate username/password to get user_id
 - Call `sign_in_user(state, user_id)`
-- Return result
+- Return `UserMessage::SignInResponse(result)`
 
 **handle_validate_session**:
-- Validate token (get user_id)
+- Validate token to get user_id
 - Call `sign_in_user(state, user_id)`
-- Return result
-
-All three handlers return identical types: `(User, UserState, token)`
+- Return `UserMessage::SignInResponse(result)`
 
 ### Shared Types Changes (`shared/src/models/message.rs`)
 
-Modify `UserMessage` enum:
+**Remove** `CreateUserResponse` and `ValidateSessionResponse` variants.
+
+**Modify** `SignInResponse`:
 ```rust
 // BEFORE:
-CreateUserResponse(Result<(User, String), String>),
 SignInResponse(Result<(User, String), String>),
-ValidateSessionResponse(Result<User, String>),
 
 // AFTER:
-CreateUserResponse(Result<(User, UserState, String), String>),
 SignInResponse(Result<(User, UserState, String), String>),
-ValidateSessionResponse(Result<(User, UserState), String>),
 ```
+
+All backend handlers return `SignInResponse`. Frontend has ONE callback for signin.
 
 ### Frontend Changes (`frontend/src/app/callbacks.rs`)
 
-**on_user_create_response**:
-- Receives `(User, UserState, token)`
-- Sets token in cookies
-- Sets `current_user` AND `session.user` atomically (or in immediate succession without WebSocket gap)
+**ONE signin callback** `on_signin_response`:
+- Receives `Result<(User, UserState, String), String>`
+- On success:
+  - Set token in cookies via `crate::utils::cookies::set_session_token(&token)`
+  - Dispatch `AppStateAction::SetUser(user)`
+  - Dispatch `SessionAction::Login(user_state)` or `SessionAction::UpdateUser(user_state)`
+  - Clear loading states
 
-**on_user_signin_response**:
-- Receives `(User, UserState, token)`
-- Sets token in cookies
-- Sets `current_user` AND `session.user` atomically
+**Remove**:
+- `on_user_create_response` (replaced by `on_signin_response`)
+- `on_validate_session_response` (replaced by `on_signin_response`)
 
-**on_validate_session_response**:
-- Receives `(User, UserState)`
-- Sets `current_user` AND `session.user` atomically
+**Update click handlers** to use the ONE signin callback:
+- `on_create_user_click` → sends CreateUser message → receives SignInResponse
+- `on_signin_click` → sends SignIn message → receives SignInResponse
+- Session validation → sends ValidateSession message → receives SignInResponse
 
-### Frontend WebSocket Changes
+### Frontend WebSocket Changes (`frontend/src/services/user_websocket.rs`)
 
-Update `UserWebSocketService` to handle new response types in `process_message`.
+Update `process_message` to route all three request types to the same callback:
+```rust
+fn process_message(
+    text: &str,
+    on_signin: &Callback<Result<(User, UserState, String), String>>,
+) {
+    match serde_json::from_str::<UserMessage>(text) {
+        Ok(UserMessage::SignInResponse(result)) => on_signin.emit(result),
+        Ok(_) => error!("Unexpected variant"),
+        Err(e) => error!("Failed to parse"),
+    }
+}
+```
+
+Remove separate callbacks for create/validate - they all use `on_signin`.
 
 ## Implementation Phases
 
@@ -119,20 +134,21 @@ Update `UserWebSocketService` to handle new response types in `process_message`.
 - `shared/src/models/message.rs`
 
 **Tasks**:
-1. Change `CreateUserResponse` to `Result<(User, UserState, String), String>`
-2. Change `SignInResponse` to `Result<(User, UserState, String), String>`
-3. Change `ValidateSessionResponse` to `Result<(User, UserState), String>`
-4. Update existing tests to use new tuple types
+1. Change `SignInResponse` to `Result<(User, UserState, String), String>`
+2. Remove `CreateUserResponse` variant
+3. Remove `ValidateSessionResponse` variant
+4. Update all tests that reference the removed variants
+5. Update serialization tests for `SignInResponse` to use `(User, UserState, String)` tuple
 
 **Deliverables**:
-- All message types updated
+- ONE response type for signin: `SignInResponse(Result<(User, UserState, String), String>)`
 - All tests in `shared` pass
 
 **End of Phase**:
 - Run `cargo test -p dialect-coach-shared`
 - Run `cargo clippy -p dialect-coach-shared` - fix all errors
 - Update this document with status
-- `git add shared && git commit -m "Phase 1 (shared types for atomic signin) complete"`
+- `git add shared && git commit -m "Phase 1 (one signin response type) complete"`
 
 ### Phase 2: Backend Handler Updates
 
@@ -148,35 +164,54 @@ Update `UserWebSocketService` to handle new response types in `process_message`.
 - `backend/src/websocket/user.rs`
 
 **Tasks**:
-1. Update `handle_create_user`:
-   - After creating user, create `UserState::with_initial_settings(user.id, initial_settings)`
-   - Save the UserState via `state.user_persistence.save(&user_state)`
-   - Return `CreateUserResponse(Ok((user, user_state, token)))`
+1. Create `sign_in_user` helper (ONE signin function):
+   ```rust
+   async fn sign_in_user(
+       state: &AppState,
+       user_id: Uuid,
+   ) -> Result<(User, UserState, String), String>
+   ```
+   - Load User via `state.user_persistence.load_user_by_id(user_id).await`
+   - Load UserState via `state.user_persistence.load(user_id).await`
+   - Handle missing User or UserState as errors
+   - Populate `user_state.is_admin = user.is_admin`
+   - Generate token via `crypto::jwt::generate_token(user_id)`
+   - Return tuple or error string
 
-2. Update `handle_sign_in`:
-   - After authenticating, load UserState via `state.user_persistence.load(user.id)`
-   - Handle the case where UserState doesn't exist (shouldn't happen, but be safe)
-   - Return `SignInResponse(Ok((user, user_state, token)))`
+2. Update `handle_create_user`:
+   - Keep existing user/userstate creation logic
+   - After saving, call `sign_in_user(state, user.id).await`
+   - Return `UserMessage::SignInResponse(result)`
+   - Remove `CreateUserResponse` usage
 
-3. Update `handle_validate_session`:
-   - After loading user, load UserState via `state.user_persistence.load(user_id)`
-   - Populate `is_admin` from user record (already done in `load_user_state_response`)
-   - Return `ValidateSessionResponse(Ok((user, user_state)))`
+3. Update `handle_sign_in`:
+   - Keep existing authentication logic (get user_id)
+   - Call `sign_in_user(state, user.id).await`
+   - Return `UserMessage::SignInResponse(result)`
 
-4. Update tests to use new response types
+4. Update `handle_validate_session`:
+   - Keep existing token validation logic (get user_id)
+   - Call `sign_in_user(state, user_id).await`
+   - Return `UserMessage::SignInResponse(result)`
+   - Remove `ValidateSessionResponse` usage
+
+5. Update tests:
+   - `test_send_user_message_serialization` - use `(User, UserState, String)` tuple
+   - `test_send_user_message_create_user_response_ok` - expect `SignInResponse`, not `CreateUserResponse`
+   - Remove or update tests for removed response types
 
 **Deliverables**:
-- All three handlers return `(User, UserState, ...)` tuples
-- UserState created and saved during user creation
+- ONE `sign_in_user()` function
+- All three handlers call `sign_in_user()` and return `SignInResponse`
 - All tests in `backend` pass
 
 **End of Phase**:
 - Run `cargo test -p dialect-coach-backend`
 - Run `cargo clippy -p dialect-coach-backend` - fix all errors
 - Update this document with status
-- `git add backend && git commit -m "Phase 2 (backend atomic signin) complete"`
+- `git add backend && git commit -m "Phase 2 (one signin path) complete"`
 
-### Phase 3: Frontend Callback Updates
+### Phase 3: Frontend Callback Consolidation
 
 **Agent**: kiss-code-generator
 
@@ -188,40 +223,52 @@ Update `UserWebSocketService` to handle new response types in `process_message`.
 
 **Files to modify**:
 - `frontend/src/app/callbacks.rs`
-- `frontend/src/services/user_websocket.rs` (if needed for type changes)
+- `frontend/src/services/user_websocket.rs`
 
 **Tasks**:
-1. Update `on_user_create_response`:
-   - Change callback type from `Result<(User, String), String>` to `Result<(User, UserState, String), String>`
-   - Set token in cookies
-   - Dispatch `AppStateAction::SetUser(user)` - but modify to NOT trigger `load_user_state()` since we already have it
-   - Dispatch `SessionAction::Login(user_state)` or `SessionAction::UpdateUser(user_state)` to set session.user
+1. Create/update ONE signin callback `on_signin_response`:
+   ```rust
+   pub fn on_signin_response(
+       app_state: UseReducerHandle<AppState>,
+       session: UseReducerHandle<SessionState>,
+       ui_state: UseReducerHandle<UIState>,
+   ) -> Callback<Result<(User, UserState, String), String>>
+   ```
+   - On success:
+     - `crate::utils::cookies::set_session_token(&token)`
+     - `app_state.dispatch(AppStateAction::SetUser(user))`
+     - `session.dispatch(SessionAction::Login(user_state))` or `UpdateUser`
+     - `ui_state.dispatch(UIStateAction::SetSignInLoading(false))`
+     - `ui_state.dispatch(UIStateAction::HideUserCreationPage)` if needed
+   - On error:
+     - `ui_state.dispatch(UIStateAction::SetSignInLoading(false))`
+     - `app_state.dispatch(AppStateAction::SetError(...))`
 
-2. Update `on_user_signin_response`:
-   - Same pattern as create
+2. Delete `on_user_create_response` - no longer needed
 
-3. Update `on_validate_session_response`:
-   - Change callback type from `Result<User, String>` to `Result<(User, UserState), String>`
-   - Same pattern as above
+3. Rename or delete `on_user_signin_response` - replaced by `on_signin_response`
 
-4. Update `UserWebSocketService::process_message` to handle new types
+4. Delete `on_validate_session_response` - no longer needed
 
-**Considerations**:
-- Currently `SetUser` calls `load_user_state()` which we no longer need for signin flows
-- Options:
-  a. Create `SetUserWithState(User, UserState)` action that sets both without WS call
-  b. Modify `SetUser` to optionally skip WS call
-  c. Have callbacks set `current_user` and `session.user` separately in immediate succession
+5. Update `UserWebSocketService`:
+   - Remove `on_create` callback parameter
+   - Remove `on_validate` callback parameter
+   - Keep only `on_signin` callback
+   - Update `process_message` to only handle `SignInResponse`
+
+6. Update service instantiation in `app.rs` or wherever `UserWebSocketService` is created:
+   - Pass only ONE callback
 
 **Deliverables**:
-- All auth callbacks set both `current_user` and `session.user` atomically
-- No WelcomeScreen flash after signin
+- ONE callback handles all signin responses
+- No separate create/validate callbacks
+- All tests in `frontend` pass
 
 **End of Phase**:
 - Run `cargo test -p dialect-coach-frontend`
 - Run `cargo clippy -p dialect-coach-frontend` - fix all errors
 - Update this document with status
-- `git add frontend && git commit -m "Phase 3 (frontend atomic signin) complete"`
+- `git add frontend && git commit -m "Phase 3 (one signin callback) complete"`
 
 ### Phase 4: Remove Obsolete Frontend UserState Creation
 
@@ -235,33 +282,26 @@ Update `UserWebSocketService` to handle new response types in `process_message`.
 
 **Files to modify**:
 - `frontend/src/app/app_state/callbacks.rs`
-- `frontend/src/app/app_state/app.rs`
 
 **Tasks**:
-1. In `on_user_state_load_response` (`app_state/callbacks.rs`):
-   - Remove the "New user - create initial UserState" branch (lines 46-53)
+1. In `on_user_state_load_response`:
+   - Remove "New user - create initial UserState" branch (lines 46-53)
    - This is now handled by backend during user creation
-   - Keep the existing user path that dispatches `UpdateUser`
+   - Only keep the existing user path
 
-2. In `AppStateAction::SetUser` handler (`app_state/app.rs`):
-   - Consider whether `load_user_state()` should still be called
-   - For atomic signin, we don't need it (UserState comes with auth response)
-   - But we may still want it for edge cases (reconnection?)
-   - Decision: Keep `load_user_state()` for now - it will receive `LoadResponse(Some(user_state))` and update, which is fine even if already set
-
-3. Remove `pending_initial_settings` handling since it's no longer needed:
-   - Remove `StorePendingInitialSettings` action usage in signin flows
-   - Keep the field for now if it's used elsewhere
+2. Clean up `pending_initial_settings` if no longer needed:
+   - Check if `StorePendingInitialSettings` is still used anywhere
+   - If not, can be removed in a future cleanup
 
 **Deliverables**:
 - No frontend-side UserState creation for new users
-- Clean up obsolete code paths
+- Backend handles all UserState creation
 
 **End of Phase**:
 - Run `cargo test -p dialect-coach-frontend`
 - Run `cargo clippy -p dialect-coach-frontend` - fix all errors
 - Update this document with status
-- `git add frontend && git commit -m "Phase 4 (cleanup obsolete user state creation) complete"`
+- `git add frontend && git commit -m "Phase 4 (remove obsolete userstate creation) complete"`
 
 ### Phase 5: Integration Testing
 
@@ -269,9 +309,9 @@ Update `UserWebSocketService` to handle new response types in `process_message`.
 
 **Tasks**:
 1. Manual testing:
-   - Create new user -> should show main content immediately, no WelcomeScreen flash
-   - Sign in as existing user -> should show main content immediately
-   - Reload page with valid token -> should show main content immediately
+   - Create new user → should show main content immediately, no WelcomeScreen flash
+   - Sign in as existing user → should show main content immediately
+   - Reload page with valid token → should show main content immediately
 
 2. Verify:
    - UserState persists correctly after creation
@@ -289,30 +329,16 @@ Update `UserWebSocketService` to handle new response types in `process_message`.
 
 - [ ] Phase 1: Shared Types Update - NOT STARTED
 - [ ] Phase 2: Backend Handler Updates - NOT STARTED
-- [ ] Phase 3: Frontend Callback Updates - NOT STARTED
+- [ ] Phase 3: Frontend Callback Consolidation - NOT STARTED
 - [ ] Phase 4: Remove Obsolete Frontend UserState Creation - NOT STARTED
 - [ ] Phase 5: Integration Testing - NOT STARTED
 
-## Notes
+## Key Principle Reminder
 
-### Key Files Reference
+**THERE IS ONE CODE PATH FOR SIGNIN.**
 
-- Backend handlers: `backend/src/websocket/user.rs`
-- Shared message types: `shared/src/models/message.rs`
-- Frontend callbacks: `frontend/src/app/callbacks.rs`
-- Frontend app state: `frontend/src/app/app_state/app.rs`
-- Frontend session callbacks: `frontend/src/app/app_state/callbacks.rs`
-- UserState model: `shared/src/models/user_state.rs`
-- User persistence: `backend/src/persistence/` (DO NOT MODIFY)
+Backend has ONE `sign_in_user()` function.
+Frontend has ONE `on_signin_response()` callback.
+Shared types has ONE `SignInResponse` message.
 
-### Existing Tests to Update
-
-Backend tests in `backend/src/websocket/user.rs`:
-- `test_send_user_message_sign_in_response_err`
-- `test_send_user_message_serialization`
-- `test_send_user_message_create_user_response_ok`
-
-Shared tests in `shared/src/models/message.rs`:
-- `test_user_message_create_user_response_ok`
-- `test_user_message_sign_in_response_ok`
-- `test_user_message_validate_session_response_ok`
+Everything else routes through these.
