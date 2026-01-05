@@ -140,6 +140,7 @@ struct NormalSystemParams<'a> {
     plan_instr: &'a str,
     formality_label: &'a str,
     dialect_name: &'a str,
+    level_name: &'a str,
     has_corpus: bool,
 }
 
@@ -155,6 +156,7 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
             # CRITICAL RULES
             {}
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples
+            3. Before generating your response, mentally check: 'Would a student at {} understand every word of this?' If not, simplify it immediately. Prioritize clarity over native nuance for this level.
             {}
             {}
             {}
@@ -171,6 +173,7 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
         params.level_instruction,
         mimic_instruction(params.has_corpus),
         params.formality_label.to_lowercase(),
+        params.level_name,
         params.teaching_rules,
         params.goals_section,
         params.learning_items_context,
@@ -243,6 +246,7 @@ pub(crate) fn build_system_content(
             plan_instr: &plan_instr,
             formality_label,
             dialect_name: dialect.dialect.name(),
+            level_name: language_level.name(),
             has_corpus: dialect.has_corpus,
         })
     }
@@ -484,5 +488,52 @@ mod tests {
             prompt.contains("The user has learned the listed materials"),
             "Should contain review-specific goal instruction"
         );
+    }
+
+    #[test]
+    fn test_simplification_gate_contains_level_name() {
+        let dialect = Dialect::SpanishMexican;
+        let formality = Formality::Informal;
+        let teaching_mode = TeachingMode::Immersive;
+        let learning_goals = vec![];
+        let past_learning_items = PastLearningItems::default();
+
+        let content = build_system_content(
+            dialect_features(dialect),
+            formality,
+            teaching_mode,
+            &learning_goals,
+            &past_learning_items,
+            UserGender::NonBinary,
+            &None,
+            &None,
+            LanguageLevel::Cefr(CefrLevel::A2),
+        );
+
+        assert!(content.contains("Would a student at A2 - Elementary understand"));
+        assert!(!content.contains("Would a student at [LEVEL] understand"));
+    }
+
+    #[test]
+    fn test_simplification_gate_contains_jlpt_level_name() {
+        let dialect = Dialect::JapaneseTokyo;
+        let formality = Formality::Informal;
+        let teaching_mode = TeachingMode::Immersive;
+        let learning_goals = vec![];
+        let past_learning_items = PastLearningItems::default();
+
+        let content = build_system_content(
+            dialect_features(dialect),
+            formality,
+            teaching_mode,
+            &learning_goals,
+            &past_learning_items,
+            UserGender::NonBinary,
+            &None,
+            &None,
+            LanguageLevel::Jlpt(dialect_coach_shared::JlptLevel::N5),
+        );
+
+        assert!(content.contains("Would a student at N5 - Beginner understand"));
     }
 }
