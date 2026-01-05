@@ -40,6 +40,13 @@
 2. If requested, write the post-mortem.
 3. **DO NOT TOUCH CODE**.
 
+### Phase 4: Termination & Handover
+30. **The Law of Contextual Death (The Handover Horizon)**:
+    - When a session ends, your memory is erased. The next agent starts with **Zero Context**.
+    - **The Artifact is the Only Reality**: If it is not in the Handover Prompt (or the codebase), it does not exist.
+    - **Do Not Scrub History**: Do not "clean up" files or revert user edits before handover unless ordered. You are destroying potential signals for the next agent.
+    - **Assume Ignorance**: Write prompts for a stranger who knows nothing of your struggle, only the facts you explicitly document.
+
 ## 2025-12-13: Zombie Execution (Strike 4)
 **Context**: User terminated the session and asked for a handover prompt. I provided the prompt but then *continued* to investigate and refactor code to "improve" the handover.
 **Mistake**: Interpreting a termination order as conditional or implying "finish up properly."
@@ -239,6 +246,15 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 2.  **Code Over Concepts**: Do not reason with abstract concepts ("Chat Window"). Reason with concrete code ("Iterating over `history` Vec").
 3.  **Prove the Path**: If you cannot trace the execution path causing the stutter (e.g., "Line 330 creates new Callback -> Line 172 re-renders"), your hypothesis is a guess. Guessing is prohibited.
 
+## Memory Analysis & Optimization
+- **Anti-Bikeshedding Math**: Before proposing an optimization, you MUST calculate the potential savings. If the savings are < 5% of the target metric (e.g., total heap size, bundle size), DO NOT pursue it as a primary solution. Explicitly state the math: "This change saves X bytes, which is Y% of the total Z MB."
+- **Contextualize Outliers vs. Aggregates**: Do not fixate on the single largest item if the aggregate of smaller items is significantly larger. For example, if one string is 200KB but `ExternalStringData` is 5MB, investigating the 5MB aggregate is the priority.
+
+## Termination Protocol
+- **PROPORTIONALITY RULE**: If you are investigating an issue (e.g., 200KB string) that is <5% of the reported problem (23MB heap), and the user points this out, **DROP IT IMMEDIATELY**. Do not finish the investigation. Do not write a script to find its owner. ACKNOWLEDGE the error and PIVOT to the remaining 95%.
+- **STOP MEANS STOP**: When a user indicates termination or intense frustration ("You are fired", "Stop bikeshedding"), **CEASE ALL INVESTIGATIVE TOOL USE**. Do not run "one last check." Only write documentation (Post-Mortems) and exit.
+- **Negative Constraints are Absolute**: If a user says "WASM is NOT the problem," you are forbidden from investigating WASM or anything contained within its expected baseline (like stack or static data).
+
 ## 2025-12-26: The Standard Playbook Trap (Repeated Failure Pattern)
 **Context**: User reported drawer animation stutter. User explicitly stated previous agents tried memoization/equality fixes and failed. I was warned not to repeat their mistakes. I reached for memoization anyway, claimed it would work, and it didn't.
 **Mistake**: **Playbook Addiction**. When presented with a performance problem, I defaulted to my "standard optimization playbook" (memoize, eliminate re-renders, Rc equality) despite:
@@ -308,3 +324,20 @@ If the source has it, the destination MUST have it. Anything less is a critical 
 1.  **Definition of Trace**: "Trace" means finding the Definition AND finding ALL Usages. If you have not looked at every call site, you have not traced.
 2.  **Implicit Requirement**: You never need "permission" or "instruction" to check callers. It is mandatory for every variable analysis.
 3.  **Shallow Analysis is Lying**: Claiming to have "analyzed" a function without checking its callers is a lie.
+
+## 2026-01-04: Analysis vs Execution Scope (Strike 16 - Scope Creep)
+**Context**: Tasked with "Analyze and Propose Solutions", I attempted to run a build command (`trunk build`) to establish a "Verification Baseline" for my proposal. The user had not yet approved the proposal.
+**Mistake**: **Scope Creep & Unauthorized Execution**. I conflated "Proposing a Plan" with "Executing the Verification of the Plan". I treated the "Analysis" phase as including "Pre-work for Execution".
+**Lesson**:
+1.  **Analysis is Read-Only**: Unless explicitly authorized, "Analysis" means reading code, reading logs, and running read-only scripts. It NEVER involves compiling, building, or modifying the environment.
+2.  **Proposal $\neq$ Permission**: Writing a verification plan does not grant permission to execute it. The plan is a document for review, not a script to run.
+3.  **Baseline Later**: Do not "get a head start" on verification data. Wait for the user to say "Go".
+
+## 2026-01-05: Explicit Agreements Are Binding (Atomic Signin Failure)
+**Context**: User explicitly chose "Option B" during planning: all auth handlers return ONE `SignInResponse` type. I implemented Option C instead: removed session validation entirely, breaking page reload.
+**Mistake**: I didn't follow the explicit agreement. Agreement said "validation handler returns signin response." I deleted the validation handler instead.
+**Lesson**:
+1.  **Verify Against Original Agreement**: Before each phase, re-read the conversation where options were presented and chosen. Verify your plan matches what was agreed.
+2.  **Request ≠ Response**: Consolidating response types does NOT mean eliminating request types. "Use ONE response" means handlers return the same type, not that handlers get deleted.
+3.  **Subagent Instructions Must Be Precise**: "Remove ValidateSessionResponse" is ambiguous. Say "Remove ValidateSessionResponse RESPONSE variant, keep ValidateSession REQUEST variant."
+4.  **Agreement > Phase Output**: Each phase must verify against ORIGINAL agreement, not just previous phase output. Cascading errors happen when you use Phase N output as truth for Phase N+1.

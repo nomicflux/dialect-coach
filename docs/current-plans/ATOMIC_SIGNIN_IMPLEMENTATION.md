@@ -367,6 +367,24 @@ All 5 phases complete. The atomic signin implementation is done:
 - User and UserState always loaded together atomically
 - No WelcomeScreen flash after signin
 
+## Session Validation Restoration (2026-01-05)
+
+**Problem**: Original implementation removed session validation entirely, breaking page reload.
+
+**Fix Applied** (4 phases):
+1. **Phase 1**: Added `ValidateSession { token: String }` REQUEST variant to shared types
+2. **Phase 2**: Added `handle_validate_session()` backend handler that calls `sign_in_user()` and returns `SignInResponse`
+3. **Phase 3**: Added frontend session check on page load - checks cookies, sends `ValidateSession` request
+4. **Phase 4**: Integration testing - 537 tests passing (256 shared + 218 backend + 48 frontend + 15 integration), clippy clean
+
+**Final Architecture**:
+- THREE request types: `CreateUser`, `SignIn`, `ValidateSession` ✓
+- ONE response type: `SignInResponse` ✓
+- ONE backend function: `sign_in_user()` ✓
+- ONE frontend callback: `on_signin_response()` ✓
+
+Session reload now works correctly.
+
 ## Key Principle Reminder
 
 **THERE IS ONE CODE PATH FOR SIGNIN.**
