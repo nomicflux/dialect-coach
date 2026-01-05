@@ -332,7 +332,14 @@ Remove separate callbacks for create/validate - they all use `on_signin`.
   - Removed `CreateUserResponse` and `ValidateSessionResponse` variants
   - Updated tests to use new type
   - All 255 tests passing, clippy clean
-- [ ] Phase 2: Backend Handler Updates - NOT STARTED
+- [x] Phase 2: Backend Handler Updates - COMPLETE
+  - Created ONE `sign_in_user()` helper function
+  - Implemented atomic user creation+save in `handle_create_user`
+  - Updated `handle_sign_in` to call `sign_in_user()`
+  - Removed obsolete `handle_validate_session` (no message variant triggers it)
+  - Updated websocket handler to remove `ValidateSession` message handling
+  - Updated all tests for new `SignInResponse` type
+  - All 235 backend tests passing, clippy clean
 - [ ] Phase 3: Frontend Callback Consolidation - NOT STARTED
 - [ ] Phase 4: Remove Obsolete Frontend UserState Creation - NOT STARTED
 - [ ] Phase 5: Integration Testing - NOT STARTED

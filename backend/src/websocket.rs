@@ -135,9 +135,6 @@ async fn process_user_message_ws(state: &AppState, text: &str, tx: &mpsc::Unboun
         Ok(UserMessage::SignIn { username, password }) => {
             let _ = user::handle_sign_in(state, username, password, tx).await;
         }
-        Ok(UserMessage::ValidateSession { token }) => {
-            let _ = user::handle_validate_session(state, token, tx).await;
-        }
         Ok(_) => {
             tracing::warn!("Received unexpected UserMessage variant from client");
         }
