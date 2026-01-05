@@ -5,7 +5,7 @@ use tempfile::tempdir;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use corpus_processor::chunking::{ChunkConfig, chunk_text};
+    use corpus_processor::chunking::{chunk_text, ChunkConfig};
     use corpus_processor::loaders::load_corpus;
 
     #[test]

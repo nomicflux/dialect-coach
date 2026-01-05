@@ -172,12 +172,10 @@ fn test_unsupported_file_format() {
 
     let result = load_corpus(file_path.to_str().unwrap(), Dialect::ArabicEgyptian);
     assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("Unsupported file format")
-    );
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Unsupported file format"));
 }
 
 #[test]

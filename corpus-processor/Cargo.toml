@@ -1,7 +1,7 @@
 [package]
 name = "corpus-processor"
-version.workspace = true
-edition.workspace = true
+version = "0.1.0"
+edition = "2021"
 
 [[bin]]
 name = "corpus-processor"
@@ -9,11 +9,15 @@ path = "src/main.rs"
 
 [dependencies]
 dialect-coach-shared = { path = "../shared" }
-serde.workspace = true
-serde_json.workspace = true
-uuid.workspace = true
-anyhow.workspace = true
-thiserror.workspace = true
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["serde", "v4", "v5"] }
+anyhow = "1.0"
+thiserror = "2.0"
+
+# AI / LLM
+rig-core = "0.27"
+schemars = { version = "1.0", features = ["derive"] }
 
 # CLI
 clap = { version = "4.5", features = ["derive"] }
@@ -34,6 +38,7 @@ tokio = { version = "1.42", features = ["rt-multi-thread", "macros"] }
 
 # Test seams
 async-trait = "0.1"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt"] }
 
 [dev-dependencies]
 tempfile = "3.8"

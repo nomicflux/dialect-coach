@@ -1,4 +1,4 @@
-use corpus_processor::chunking::{ChunkConfig, chunk_text};
+use corpus_processor::chunking::{chunk_text, ChunkConfig};
 
 #[test]
 fn test_empty_text() {

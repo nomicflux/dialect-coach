@@ -1,12 +1,14 @@
-use anyhow::{Context, Result, anyhow};
-use dialect_coach_shared::DialectDocument;
+use anyhow::{anyhow, Context, Result};
+
 use qdrant_client::qdrant::points_selector::PointsSelectorOneOf;
+
 use qdrant_client::qdrant::points_update_operation::{Operation, SetPayload};
 use qdrant_client::qdrant::value::Kind;
 use qdrant_client::qdrant::{
     Condition, CreateCollectionBuilder, DeletePointsBuilder, Distance, Filter, PointId,
     PointStruct, PointsIdsList, PointsSelector, PointsUpdateOperation, ScrollPointsBuilder,
-    UpdateBatchPointsBuilder, UpsertPointsBuilder, Value, VectorParamsBuilder,
+    UpdateBatchPointsBuilder, UpsertPointsBuilder, Value, VectorParamsBuilder, VectorParamsMap,
+    VectorsConfig,
 };
 use qdrant_client::{Payload, Qdrant};
 use std::collections::HashMap;
@@ -44,9 +46,8 @@ impl QdrantService {
         Ok(Self { client })
     }
 
-    /// Initialize collection if it doesn't exist
+    /// Initialize collection with Named Vectors
     pub async fn init_collection(&self, vector_size: u64) -> Result<()> {
-        // Check if collection exists
         let collections = self
             .client
             .list_collections()
@@ -59,36 +60,58 @@ impl QdrantService {
             .any(|c| c.name == COLLECTION_NAME);
 
         if !exists {
-            println!("Creating collection '{}'...", COLLECTION_NAME);
+            println!(
+                "Creating collection '{}' with Named Vectors...",
+                COLLECTION_NAME
+            );
+
+            // Define named vector configurations
+            let mut vector_params = HashMap::new();
+            vector_params.insert(
+                "content".to_string(),
+                VectorParamsBuilder::new(vector_size, Distance::Cosine).build(),
+            );
+            vector_params.insert(
+                "context".to_string(),
+                VectorParamsBuilder::new(vector_size, Distance::Cosine).build(),
+            );
+            vector_params.insert(
+                "keyword".to_string(),
+                VectorParamsBuilder::new(vector_size, Distance::Cosine).build(),
+            );
+
+            use qdrant_client::qdrant::vectors_config::Config;
+
+            // ...
 
             self.client
                 .create_collection(
-                    CreateCollectionBuilder::new(COLLECTION_NAME)
-                        .vectors_config(VectorParamsBuilder::new(vector_size, Distance::Cosine)),
+                    CreateCollectionBuilder::new(COLLECTION_NAME).vectors_config(VectorsConfig {
+                        config: Some(Config::ParamsMap(VectorParamsMap { map: vector_params })),
+                    }),
                 )
                 .await
                 .context("Failed to create collection")?;
 
             println!("Collection created successfully");
         } else {
-            println!("Collection '{}' already exists", COLLECTION_NAME);
+            println!("Collection '{}' already exists. Note: Ensure it has 'content', 'context', and 'keyword' vectors.", COLLECTION_NAME);
         }
 
         Ok(())
     }
 
-    /// Upload documents to Qdrant in batches
-    pub async fn upload_documents(&self, documents: &[DialectDocument]) -> Result<()> {
+    /// Upload enriched documents to Qdrant
+    /// Takes a tuple of (Document, Context Embedding, Keyword Embedding, EnrichedData)
+    pub async fn upload_enriched_documents(
+        &self,
+        documents: &[crate::processor::EnrichedCorpusTuple],
+    ) -> Result<()> {
         if documents.is_empty() {
             return Ok(());
         }
 
-        // Verify all documents have embeddings
-        if documents.iter().any(|doc| doc.embedding.is_empty()) {
-            anyhow::bail!("All documents must have embeddings before uploading");
-        }
-
-        let vector_size = documents[0].embedding.len() as u64;
+        let vector_size = documents[0].0.embedding.len() as u64;
         self.init_collection(vector_size).await?;
 
         let batch_size = 100;
@@ -97,24 +120,44 @@ impl QdrantService {
         for (batch_idx, chunk) in documents.chunks(batch_size).enumerate() {
             let points: Vec<PointStruct> = chunk
                 .iter()
-                .map(|doc| {
-                    // Generate a stable UUID based on content and dialect
-                    // This ensures the same content always gets the same UUID
+                .map(|item| {
+                    let (doc, context_emb, keyword_emb, data) = item;
                     let namespace = Uuid::NAMESPACE_OID;
                     let name = format!("{}:{}", doc.dialect.name(), doc.content);
                     let uuid = Uuid::new_v5(&namespace, name.as_bytes());
                     let point_id = PointId::from(uuid.to_string());
 
-                    // Create payload with document metadata
+                    // Payload
                     let mut payload = Payload::new();
                     payload.insert("content", doc.content.clone());
                     payload.insert("dialect", doc.dialect.id());
 
-                    if let Some(formality) = &doc.formality {
-                        payload.insert("formality", format!("{:?}", formality));
+                    // Add Enriched Metadata
+                    if let Some(f) = &data.formality {
+                        payload.insert("formality", format!("{:?}", f));
+                    }
+                    if let Some(i) = &data.intent {
+                        payload.insert("intent", format!("{:?}", i));
+                    }
+                    if let Some(e) = &data.emotion {
+                        payload.insert("emotion", format!("{:?}", e));
+                    }
+                    payload.insert("topics", data.topics.clone());
+                    payload.insert("context_triggers", data.context_triggers.clone());
+                    payload.insert("keywords", data.keywords.clone());
+
+                    // Named Vectors
+                    let mut vectors = HashMap::new();
+                    vectors.insert("content".to_string(), doc.embedding.clone());
+
+                    if let Some(emb) = context_emb {
+                        vectors.insert("context".to_string(), emb.clone());
+                    }
+                    if let Some(emb) = keyword_emb {
+                        vectors.insert("keyword".to_string(), emb.clone());
                     }
 
-                    PointStruct::new(point_id, doc.embedding.clone(), payload)
+                    PointStruct::new(point_id, vectors, payload)
                 })
                 .collect();
 

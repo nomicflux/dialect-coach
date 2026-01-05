@@ -1,5 +1,6 @@
 mod chunking;
 mod embeddings;
+mod llm;
 mod loaders;
 mod processor;
 mod qdrant;
@@ -15,6 +16,20 @@ use std::fs;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+fn load_enriched_from_jsonl(path: &str) -> Result<Vec<crate::processor::EnrichedCorpusTuple>> {
+    let content = fs::read_to_string(path).context(format!("Failed to read JSONL: {}", path))?;
+    let mut out = Vec::new();
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let rec: crate::processor::EnrichedCorpusRecord =
+            serde_json::from_str(line).context("Failed to parse enriched record")?;
+        out.push((rec.doc, rec.context_emb, rec.keyword_emb, rec.enriched));
+    }
+    Ok(out)
 }
 
 #[derive(Subcommand)]
@@ -41,9 +56,16 @@ enum Commands {
         #[arg(long, default_value = "512")]
         chunk_size: usize,
 
-        /// Overlap between chunks in characters
         #[arg(long, default_value = "50")]
         overlap: usize,
+
+        /// Stop after processing this many chunks (useful for testing)
+        #[arg(long)]
+        max_chunks: Option<usize>,
+
+        /// Dry run: enrich/filter but do NOT embed/save
+        #[arg(long)]
+        dry_run: bool,
     },
 
     Delete {
@@ -124,6 +146,11 @@ async fn main() -> Result<()> {
     // Load .env file if it exists
     dotenvy::dotenv().ok();
 
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -134,6 +161,8 @@ async fn main() -> Result<()> {
             output,
             chunk_size,
             overlap,
+            max_chunks,
+            dry_run,
         } => {
             println!("Processing corpus:");
             println!("  Language: {}", language);
@@ -141,13 +170,26 @@ async fn main() -> Result<()> {
             println!("  Input: {}", input);
             println!("  Output: {}", output);
             println!("  Chunk size: {}", chunk_size);
-            println!("  Overlap: {}\n", overlap);
+            println!("  Overlap: {}", overlap);
+            if let Some(max) = max_chunks {
+                println!("  Max chunks: {}", max);
+            }
+            println!();
 
             // Parse dialect
             let dialect_enum = parse_dialect(&language, &dialect)?;
 
             // Process the corpus
-            processor::process_corpus(&input, &output, dialect_enum, chunk_size, overlap)?;
+            processor::process_corpus(
+                &input,
+                &output,
+                dialect_enum,
+                chunk_size,
+                overlap,
+                max_chunks,
+                dry_run,
+            )
+            .await?;
 
             println!("\n✓ Processing completed successfully");
         }
@@ -178,7 +220,24 @@ async fn main() -> Result<()> {
             let qdrant = get_qdrant_service(url, api_key).await?;
 
             println!("Uploading to Qdrant...");
-            qdrant.upload_documents(&documents).await?;
+
+            // Re-define FullRecord here or import it?
+            // Better to move FullRecord to a shared location in the crate.
+            // For now, I will assume load_documents handles it...
+            // Wait, load_documents_from_jsonl returns Vec<DialectDocument>.
+            // I need a NEW loader for the enriched format.
+
+            // Let's implement load_enriched_documents in main or loaders.
+            // And pass that to qdrant.
+
+            // TEMPORARY HACK: I will define the struct here to read it.
+            // But qdrant::upload_enriched_documents expects inputs.
+
+            // Actually, I should just modify load_documents...
+            // But it's time sensitive.
+            // I'll call a new function `load_enriched_from_jsonl`
+            let enriched_docs = load_enriched_from_jsonl(&input)?;
+            qdrant.upload_enriched_documents(&enriched_docs).await?;
 
             println!("\n✓ Upload completed successfully");
         }

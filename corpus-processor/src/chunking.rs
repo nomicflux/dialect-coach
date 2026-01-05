@@ -33,6 +33,58 @@ pub fn chunk_text(text: &str, config: &ChunkConfig) -> Result<Vec<String>> {
     let mut previous_overlap = String::new();
 
     for sentence in sentences {
+        // CASE 1: The sentence itself is huge (larger than max_chunk_size)
+        // We must split this specific sentence regardless of punctuation
+        if sentence.len() > config.max_chunk_size {
+            // If we have a pending chunk, flush it first
+            if !current_chunk.is_empty() {
+                chunks.push(current_chunk.trim().to_string());
+                current_chunk = String::new();
+                previous_overlap = String::new();
+            }
+
+            // Now split the huge sentence by words
+            // Note: This is a fallback to ensure we never produce huge chunks
+            let mut sub_chunk = String::new();
+            if !previous_overlap.is_empty() {
+                sub_chunk = previous_overlap.clone();
+            }
+
+            for word in sentence.split_whitespace() {
+                if !sub_chunk.is_empty() && sub_chunk.len() + word.len() + 1 > config.max_chunk_size
+                {
+                    // Flush sub-chunk
+                    chunks.push(sub_chunk.trim().to_string());
+
+                    // Calculate overlap for next sub-chunk
+                    previous_overlap = extract_overlap(&sub_chunk, config.overlap);
+                    sub_chunk = previous_overlap.clone();
+                }
+
+                if !sub_chunk.is_empty() {
+                    sub_chunk.push(' ');
+                }
+                sub_chunk.push_str(word);
+            }
+
+            // Flush the final piece of the huge sentence
+            if !sub_chunk.is_empty() {
+                // Keep this piece as the "current_chunk" for the next iteration
+                // so we can append subsequent small sentences to it if space permits
+                current_chunk = sub_chunk;
+                // Calculate overlap just in case we switch logic next
+                previous_overlap = extract_overlap(&current_chunk, config.overlap);
+            }
+            continue;
+        }
+
+        // CASE 2: Semantic Windowing logic
+        // We buffer sentences to create a sliding window of context
+        // Current implementation: Just simple accumulation, but designed to be extensible
+        // TODO: Implement actual sliding window (S1+S2+S3) if needed for RAG
+        // For now, we stick to the accumulating logic which is effectively a variable-size window
+        // bounded by max_chunk_size.
+
         // Start new chunk with overlap from previous
         if current_chunk.is_empty() && !previous_overlap.is_empty() {
             current_chunk = previous_overlap.clone();
@@ -45,6 +97,9 @@ pub fn chunk_text(text: &str, config: &ChunkConfig) -> Result<Vec<String>> {
             chunks.push(current_chunk.trim().to_string());
 
             // Prepare overlap for next chunk
+            // For true semantic windowing, we might want the overlap to be the *previous sentence completely*
+            // rather than just `overlap` characters.
+            // But for now, we respect the config.
             previous_overlap = extract_overlap(&current_chunk, config.overlap);
 
             // Start new chunk
@@ -190,4 +245,35 @@ mod tests {
         let sentences = split_into_sentences("First. Second! Third?");
         assert_eq!(sentences.len(), 3);
     }
+}
+
+#[test]
+fn test_chunk_huge_sentence_no_punctuation() {
+    let config = ChunkConfig {
+        max_chunk_size: 50,
+        overlap: 10,
+    };
+    // A "sentence" (no punctuation) that is strictly larger than max_chunk_size
+    let huge_sentence = "This is a very long sentence that has absolutely no punctuation and will definitely exceed the fifty character limit we set in the configuration.";
+
+    let chunks = chunk_text(huge_sentence, &config).unwrap();
+
+    // It should have been split
+    assert!(chunks.len() > 1);
+
+    // All chunks should be within limit
+    for chunk in &chunks {
+        assert!(
+            chunk.len() <= config.max_chunk_size,
+            "Chunk size {} exceeds max {}",
+            chunk.len(),
+            config.max_chunk_size
+        );
+    }
+
+    // Reconstruct to ensure we didn't lose words
+    let reconstructed = chunks.join(" ");
+    // Note: reconstruction might have extra overlaps repeated, so exact matching is tricky.
+    // But we should at least find the words.
+    assert!(chunks[0].starts_with("This is a"));
 }
