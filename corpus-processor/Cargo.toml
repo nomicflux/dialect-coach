@@ -35,6 +35,7 @@ walkdir = "2.5"
 
 # Async runtime
 tokio = { version = "1.42", features = ["rt-multi-thread", "macros"] }
+futures = "0.3"
 
 # Test seams
 async-trait = "0.1"

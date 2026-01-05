@@ -74,6 +74,7 @@ Task: Analyze the provided text chunk for a RAG retrieval system.
 
 1. Context Triggers: Generate 3 distinct conversational turns in {dialect_name} that would ELICIT this text as a response.
    - STRICTLY use {dialect_name} (with selected Code Switching if common in {dialect_name}).
+   - DO NOT use English. The Context MUST be in {dialect_name}.
    - Focus on the conversational flow: What did the OTHER person say immediately before this?
 
 2. Keywords: Extract ALL substantive vocabulary terms in their dictionary form (lemma).
@@ -147,6 +148,8 @@ Input Text: "{text_chunk}"
 
         // Sort keywords alphabetically for deterministic lookups (Unicode order)
         result.keywords.sort();
+        // Lowercase topics for consistency
+        result.topics = result.topics.into_iter().map(|t| t.to_lowercase()).collect();
 
         // Filtration Logic
         if !result.is_safe || !result.is_target_dialect {
