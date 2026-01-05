@@ -109,6 +109,11 @@
     - Code does not exist in a vacuum. It exists within a System of Rules.
     - **Rules > Syntax**: A line of code can be syntactically correct but structurally broken (e.g., leaking state across isolation boundaries).
     - **Contextual Judgment**: You cannot judge if code is "correct" until you know the Architectural Rules (e.g., "Level is per-dialect"). Violating the Architecture is a Bug, even if the code "runs".
+29. **The Whole Claim Law**:
+    - If you claim "X works in Y", you must prove **"X works in Y"**.
+    - Proving "X exists" is **NOT** proof that "X works in Y".
+    - **Partial Proof is No Proof**. You cannot prove 50% of a claim and infer the rest.
+    - Evidence must cover the **Entirety** of the claim you are making. If your evidence only covers part of the claim, you have **Zero Evidence**.
 
 ## II. OPERATIONAL PROTOCOLS (TRIGGER -> ACTION)
 

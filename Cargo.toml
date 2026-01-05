@@ -4,7 +4,15 @@ members = [
     "frontend",
     "backend",
 ]
+exclude = ["corpus-processor"]
 resolver = "2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
 
 [workspace.package]
 version = "0.1.0"
