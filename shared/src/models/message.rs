@@ -343,18 +343,11 @@ pub enum UserMessage {
         password: String,
         initial_settings: Option<InitialUserSettings>,
     },
-    /// Response to create user request (Server → Client)
-    /// Returns (User, JWT token) on success
-    CreateUserResponse(Result<(User, String), String>),
     /// Request to sign in with username and password (Client → Server)
     SignIn { username: String, password: String },
     /// Response to sign in request (Server → Client)
-    /// Returns (User, JWT token) on success
-    SignInResponse(Result<(User, String), String>),
-    /// Request to validate a session token (Client → Server)
-    ValidateSession { token: String },
-    /// Response to session validation (Server → Client)
-    ValidateSessionResponse(Result<User, String>),
+    /// Returns (User, UserState, JWT token) on success
+    SignInResponse(Box<Result<(User, UserState, String), String>>),
 }
 
 #[cfg(test)]
@@ -711,39 +704,6 @@ mod tests {
         assert_eq!(deserialized, msg);
     }
 
-    #[test]
-    fn test_user_message_create_user_response_ok() {
-        let user = User::new(
-            Uuid::new_v4(),
-            "alice".to_string(),
-            "alice@example.com".to_string(),
-        );
-        let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test".to_string();
-        let msg = UserMessage::CreateUserResponse(Ok((user.clone(), token.clone())));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"CreateUserResponse\""));
-        assert!(json.contains("\"Ok\""));
-        assert!(json.contains("alice"));
-        assert!(json.contains("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_message_create_user_response_err() {
-        let error_msg = "Username already exists".to_string();
-        let msg = UserMessage::CreateUserResponse(Err(error_msg.clone()));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"CreateUserResponse\""));
-        assert!(json.contains("\"Err\""));
-        assert!(json.contains(&error_msg));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
 
     #[test]
     fn test_user_message_sign_in_serialization() {
@@ -770,8 +730,9 @@ mod tests {
             "charlie".to_string(),
             "charlie@example.com".to_string(),
         );
+        let state = UserState::new(user.id);
         let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.signin".to_string();
-        let msg = UserMessage::SignInResponse(Ok((user.clone(), token.clone())));
+        let msg = UserMessage::SignInResponse(Box::new(Ok((user.clone(), state, token.clone()))));
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"SignInResponse\""));
@@ -786,7 +747,7 @@ mod tests {
     #[test]
     fn test_user_message_sign_in_response_err() {
         let error_msg = "User not found".to_string();
-        let msg = UserMessage::SignInResponse(Err(error_msg.clone()));
+        let msg = UserMessage::SignInResponse(Box::new(Err(error_msg.clone())));
 
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"SignInResponse\""));
@@ -810,52 +771,6 @@ mod tests {
         assert!(json.contains("ExplainMessage"));
     }
 
-    #[test]
-    fn test_user_message_validate_session_serialization() {
-        let token = "jwt-token-abc123".to_string();
-        let msg = UserMessage::ValidateSession {
-            token: token.clone(),
-        };
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"ValidateSession\""));
-        assert!(json.contains("jwt-token-abc123"));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_message_validate_session_response_ok() {
-        let user = User::new(
-            Uuid::new_v4(),
-            "dave".to_string(),
-            "dave@example.com".to_string(),
-        );
-        let msg = UserMessage::ValidateSessionResponse(Ok(user.clone()));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"ValidateSessionResponse\""));
-        assert!(json.contains("\"Ok\""));
-        assert!(json.contains("dave"));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_message_validate_session_response_err() {
-        let error_msg = "Invalid or expired token".to_string();
-        let msg = UserMessage::ValidateSessionResponse(Err(error_msg.clone()));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"ValidateSessionResponse\""));
-        assert!(json.contains("\"Err\""));
-        assert!(json.contains(&error_msg));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
 
     #[test]
     fn test_auth_credentials_password_in_create_user() {
