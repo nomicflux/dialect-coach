@@ -156,6 +156,25 @@ pub async fn handle_sign_in(
     send_user_message(&response, tx)
 }
 
+pub async fn handle_validate_session(
+    state: &AppState,
+    token: String,
+    tx: &mpsc::UnboundedSender<String>,
+) -> Result<(), ()> {
+    let response = match crypto::jwt::validate_token(&token) {
+        Ok(user_id) => {
+            let result = sign_in_user(state, user_id).await;
+            UserMessage::SignInResponse(Box::new(result))
+        }
+        Err(e) => {
+            let error_msg = format!("Invalid session token: {}", e);
+            tracing::warn!("{}", error_msg);
+            UserMessage::SignInResponse(Box::new(Err(error_msg)))
+        }
+    };
+    send_user_message(&response, tx)
+}
+
 pub fn send_user_message(msg: &UserMessage, tx: &mpsc::UnboundedSender<String>) -> Result<(), ()> {
     let json = serde_json::to_string(msg)
         .map_err(|e| tracing::error!("Failed to serialize UserMessage: {}", e))?;
@@ -192,7 +211,7 @@ mod test {
         let json = rx.try_recv().unwrap();
         let parsed: UserMessage = serde_json::from_str(&json).unwrap();
         if let UserMessage::SignInResponse(result) = parsed {
-            assert_eq!(result.is_err(), true);
+            assert!(result.is_err());
         } else {
             panic!("Expected SignInResponse");
         }
@@ -250,5 +269,24 @@ mod test {
         } else {
             panic!("Expected SignInResponse(Ok)");
         }
+    }
+
+    #[test]
+    fn test_send_user_message_validate_session() {
+        let user = User::new(
+            Uuid::new_v4(),
+            "validator".to_string(),
+            "validator@example.com".to_string(),
+        );
+        let state = UserState::new(user.id);
+        let token = "test_token".to_string();
+        let response = UserMessage::SignInResponse(Box::new(Ok((user, state, token))));
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let result = send_user_message(&response, &tx);
+
+        assert!(result.is_ok());
+        let msg = rx.try_recv().ok();
+        assert!(msg.is_some());
     }
 }

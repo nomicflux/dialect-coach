@@ -4,7 +4,7 @@ use dialect_coach_shared::{CefrLevel, JlptLevel, LanguageLevel, TeachingMode};
 const IMMERSIVE_DESC: &str = "3. IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally as you continue the conversation.";
 
 const CORRECTIVE_DESC: &str = r#"3. CORRECTIVE MODE: Respond naturally, warmly but concisely (hard limit of 1-2 short sentences).
-If and only if the user made mistakes in their previous message, include some corrected versions as a gentle guide.
+If and only if the user made mistakes in their previous message, include some corrected versions of their specific mistakes as a gentle guide, ONLY if the user made mistakes and scoped to their mistakes.
 Otherwise, continue the conversation naturally while naturally incorporating learning items.
 Inclusion of corrections and items is limited to what fits within the 1-2 sentence limit. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally."#;
 
