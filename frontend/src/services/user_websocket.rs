@@ -1,4 +1,4 @@
-use dialect_coach_shared::{AuthCredentials, InitialUserSettings, User, UserMessage};
+use dialect_coach_shared::{AuthCredentials, InitialUserSettings, User, UserMessage, UserState};
 use futures_util::{SinkExt, StreamExt};
 use gloo_net::websocket::{Message as WsMessage, futures::WebSocket};
 use log::{error, info};
@@ -11,9 +11,7 @@ use yew::Callback;
 pub struct UserWebSocketService {
     sender: Rc<RefCell<Option<futures_channel::mpsc::UnboundedSender<String>>>>,
     url: String,
-    on_create_response: Callback<Result<(User, String), String>>,
-    on_signin_response: Callback<Result<(User, String), String>>,
-    on_validate_session_response: Callback<Result<User, String>>,
+    on_signin: Callback<Result<(User, UserState, String), String>>,
     on_open: Callback<()>,
 }
 
@@ -23,26 +21,14 @@ impl UserWebSocketService {
         Self {
             sender: Rc::new(RefCell::new(None)),
             url: url.to_string(),
-            on_create_response: Callback::noop(),
-            on_signin_response: Callback::noop(),
-            on_validate_session_response: Callback::noop(),
+            on_signin: Callback::noop(),
             on_open: Callback::noop(),
         }
     }
 
-    /// Set callback for create user responses
-    pub fn set_on_create_response(&mut self, callback: Callback<Result<(User, String), String>>) {
-        self.on_create_response = callback;
-    }
-
-    /// Set callback for sign in responses
-    pub fn set_on_signin_response(&mut self, callback: Callback<Result<(User, String), String>>) {
-        self.on_signin_response = callback;
-    }
-
-    /// Set callback for validate session responses
-    pub fn set_on_validate_session_response(&mut self, callback: Callback<Result<User, String>>) {
-        self.on_validate_session_response = callback;
+    /// Set callback for sign in responses (all auth flows)
+    pub fn set_on_signin(&mut self, callback: Callback<Result<(User, UserState, String), String>>) {
+        self.on_signin = callback;
     }
 
     /// Set callback for connection open
@@ -58,9 +44,7 @@ impl UserWebSocketService {
             Ok(ws) => start_connection_tasks(
                 ws,
                 self.sender.clone(),
-                self.on_create_response.clone(),
-                self.on_signin_response.clone(),
-                self.on_validate_session_response.clone(),
+                self.on_signin.clone(),
                 self.on_open.clone(),
             ),
             Err(e) => error!("Failed to open user WebSocket: {:?}", e),
@@ -92,12 +76,6 @@ impl UserWebSocketService {
         self.send_message(&msg)
     }
 
-    /// Validate session with JWT token
-    pub fn validate_session(&self, token: String) -> Result<(), String> {
-        let msg = UserMessage::ValidateSession { token };
-        self.send_message(&msg)
-    }
-
     /// Send a UserMessage
     fn send_message(&self, msg: &UserMessage) -> Result<(), String> {
         let json = serde_json::to_string(msg).map_err(|e| format!("Failed to serialize: {}", e))?;
@@ -116,22 +94,12 @@ impl UserWebSocketService {
 /// Process incoming UserMessage
 fn process_message(
     text: &str,
-    on_create: &Callback<Result<(User, String), String>>,
-    on_signin: &Callback<Result<(User, String), String>>,
-    on_validate: &Callback<Result<User, String>>,
+    on_signin: &Callback<Result<(User, UserState, String), String>>,
 ) {
     match serde_json::from_str::<UserMessage>(text) {
-        Ok(UserMessage::CreateUserResponse(result)) => {
-            info!("Received CreateUserResponse: {:?}", result.is_ok());
-            on_create.emit(result);
-        }
         Ok(UserMessage::SignInResponse(result)) => {
             info!("Received SignInResponse: {:?}", result.is_ok());
-            on_signin.emit(result);
-        }
-        Ok(UserMessage::ValidateSessionResponse(result)) => {
-            info!("Received ValidateSessionResponse: {:?}", result.is_ok());
-            on_validate.emit(result);
+            on_signin.emit(*result);
         }
         Ok(_) => {
             error!("Received unexpected UserMessage variant");
@@ -145,9 +113,7 @@ fn process_message(
 fn start_connection_tasks(
     ws: WebSocket,
     sender_ref: Rc<RefCell<Option<futures_channel::mpsc::UnboundedSender<String>>>>,
-    on_create: Callback<Result<(User, String), String>>,
-    on_signin: Callback<Result<(User, String), String>>,
-    on_validate: Callback<Result<User, String>>,
+    on_signin: Callback<Result<(User, UserState, String), String>>,
     on_open: Callback<()>,
 ) {
     spawn_local(async move {
@@ -175,7 +141,7 @@ fn start_connection_tasks(
 
         while let Some(msg) = read.next().await {
             if let Ok(WsMessage::Text(text)) = msg {
-                process_message(&text, &on_create, &on_signin, &on_validate);
+                process_message(&text, &on_signin);
             }
         }
         info!("User WebSocket connection closed");

@@ -340,7 +340,13 @@ Remove separate callbacks for create/validate - they all use `on_signin`.
   - Updated websocket handler to remove `ValidateSession` message handling
   - Updated all tests for new `SignInResponse` type
   - All 235 backend tests passing, clippy clean
-- [ ] Phase 3: Frontend Callback Consolidation - NOT STARTED
+- [x] Phase 3: Frontend Callback Consolidation - COMPLETE
+  - Created ONE `on_signin_response` callback for all auth flows
+  - Deleted `on_user_create_response`, `on_user_signin_response`, `on_validate_session_response`
+  - Updated `UserWebSocketService` to have ONE callback parameter
+  - Removed session validation logic from websocket hooks (was calling deleted method)
+  - Callback atomically sets both `current_user` and `session.user` via `SessionAction::Login`
+  - All 48 frontend tests passing, clippy clean
 - [ ] Phase 4: Remove Obsolete Frontend UserState Creation - NOT STARTED
 - [ ] Phase 5: Integration Testing - NOT STARTED
 

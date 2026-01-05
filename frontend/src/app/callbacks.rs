@@ -4,7 +4,7 @@ use crate::app::app_state::{
     UIStateAction,
 };
 use dialect_coach_shared::{
-    AIActionRequest, AuthCredentials, InitialUserSettings, UserMessageWithContext,
+    AIActionRequest, AuthCredentials, InitialUserSettings, UserMessageWithContext, UserState,
 };
 use log::{error, info};
 use uuid::Uuid;
@@ -155,68 +155,26 @@ pub fn on_signin_click(
     })
 }
 
-pub fn on_user_create_response(
+pub fn on_signin_response(
     app_state: UseReducerHandle<AppState>,
     ui_state: UseReducerHandle<UIState>,
-    _session: UseReducerHandle<SessionState>,
-) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
+    session: UseReducerHandle<SessionState>,
+) -> Callback<Result<(dialect_coach_shared::User, UserState, String), String>> {
     Callback::from(
-        move |result: Result<(dialect_coach_shared::User, String), String>| match result {
-            Ok((user, token)) => {
-                info!("User created successfully: {}", user.username);
+        move |result: Result<(dialect_coach_shared::User, UserState, String), String>| match result {
+            Ok((user, user_state, token)) => {
+                info!("Sign in successful: {}", user.username);
                 crate::utils::cookies::set_session_token(&token);
                 ui_state.dispatch(UIStateAction::HideUserCreationPage);
                 ui_state.dispatch(UIStateAction::SetSignInLoading(false));
-                app_state.dispatch(AppStateAction::SetUser(user.clone()));
-                app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
-            }
-            Err(e) => {
-                error!("Failed to create user: {}", e);
-                ui_state.dispatch(UIStateAction::SetSignInLoading(false));
-                app_state.dispatch(AppStateAction::SetError(format!("Create failed: {}", e)));
-            }
-        },
-    )
-}
-
-pub fn on_user_signin_response(
-    app_state: UseReducerHandle<AppState>,
-    ui_state: UseReducerHandle<UIState>,
-    _session: UseReducerHandle<SessionState>,
-) -> Callback<Result<(dialect_coach_shared::User, String), String>> {
-    Callback::from(
-        move |result: Result<(dialect_coach_shared::User, String), String>| match result {
-            Ok((user, token)) => {
-                info!("Signed in successfully as: {}", user.username);
-                crate::utils::cookies::set_session_token(&token);
-                ui_state.dispatch(UIStateAction::SetSignInLoading(false));
-                // inputs cleared by component unmounting
-                app_state.dispatch(AppStateAction::SetUser(user.clone()));
+                app_state.dispatch(AppStateAction::SetUser(user));
+                session.dispatch(SessionAction::Login(user_state));
                 app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
             }
             Err(e) => {
                 error!("Sign in failed: {}", e);
                 ui_state.dispatch(UIStateAction::SetSignInLoading(false));
                 app_state.dispatch(AppStateAction::SetError(format!("Sign in failed: {}", e)));
-            }
-        },
-    )
-}
-
-pub fn on_validate_session_response(
-    app_state: UseReducerHandle<AppState>,
-    _session: UseReducerHandle<SessionState>,
-) -> Callback<Result<dialect_coach_shared::User, String>> {
-    Callback::from(
-        move |result: Result<dialect_coach_shared::User, String>| match result {
-            Ok(user) => {
-                info!("Session validated successfully for user: {}", user.username);
-                app_state.dispatch(AppStateAction::SetUser(user.clone()));
-                app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
-            }
-            Err(e) => {
-                error!("Session validation failed: {}", e);
-                crate::utils::cookies::clear_session_token();
             }
         },
     )
