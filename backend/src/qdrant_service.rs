@@ -4,11 +4,10 @@ use qdrant_client::Qdrant;
 use qdrant_client::QdrantError;
 use qdrant_client::qdrant::r#match::MatchValue;
 use qdrant_client::qdrant::{
-    Condition, CreateFieldIndexCollectionBuilder, FieldType, Filter, SearchPointsBuilder,
+    Condition, CreateFieldIndexCollectionBuilder, FieldType, Filter, QueryPointsBuilder,
 };
-use rand::seq::SliceRandom;
 
-const COLLECTION_NAME: &str = "dialect_documents";
+const COLLECTION_NAME: &str = "dialect_documents_v2";
 
 /// Qdrant service for RAG retrieval
 pub struct QdrantService {
@@ -94,196 +93,205 @@ impl QdrantService {
         ))
     }
 
-    /// Search for relevant dialect examples
+    fn formality_to_filter_string(formality: &dialect_coach_shared::Formality) -> String {
+        match formality {
+            dialect_coach_shared::Formality::Formal => "Formal",
+            dialect_coach_shared::Formality::ProfessionalCasual => "ProfessionalCasual",
+            dialect_coach_shared::Formality::Informal => "Informal",
+            dialect_coach_shared::Formality::Slang => "Slang",
+        }
+        .to_string()
+    }
+
+    fn build_dialect_filter(
+        dialect: &Dialect,
+        formality: Option<&dialect_coach_shared::Formality>,
+    ) -> Filter {
+        let mut conditions = vec![Condition::matches(
+            "dialect",
+            MatchValue::Keyword(dialect.id().to_string()),
+        )];
+
+        if let Some(f) = formality {
+            conditions.push(Condition::matches(
+                "formality",
+                MatchValue::Keyword(Self::formality_to_filter_string(f)),
+            ));
+        }
+
+        Filter::must(conditions)
+    }
+
+    async fn search_named_vector(
+        &self,
+        vector_name: &str,
+        embedding: &[f32],
+        filter: Filter,
+        limit: usize,
+    ) -> Result<Vec<(DialectDocument, f32)>, QdrantError> {
+        let search_result = self
+            .client
+            .query(
+                QueryPointsBuilder::new(COLLECTION_NAME)
+                    .query(embedding.to_owned())
+                    .using(vector_name)
+                    .filter(filter)
+                    .limit(limit as u64)
+                    .with_payload(true),
+            )
+            .await?;
+
+        Ok(search_result
+            .result
+            .into_iter()
+            .map(|point| {
+                let payload = point.payload;
+                let score = point.score;
+
+                let content = payload
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+
+                let formality = payload
+                    .get("formality")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| match s.as_ref() {
+                        "Formal" => Some(dialect_coach_shared::Formality::Formal),
+                        "ProfessionalCasual" => {
+                            Some(dialect_coach_shared::Formality::ProfessionalCasual)
+                        }
+                        "Informal" => Some(dialect_coach_shared::Formality::Informal),
+                        "Slang" => Some(dialect_coach_shared::Formality::Slang),
+                        _ => None,
+                    });
+
+                let dialect_str = payload
+                    .get("dialect")
+                    .and_then(|v| v.as_str())
+                    .map_or("", |v| v);
+
+                let dialect = Dialect::from_id(dialect_str).unwrap_or(Dialect::SpanishMexican);
+
+                (
+                    DialectDocument {
+                        content,
+                        dialect,
+                        formality,
+                        embedding: Vec::new(),
+                    },
+                    score,
+                )
+            })
+            .collect())
+    }
+
+    /// Search by content vector
+    pub async fn search_by_content(
+        &self,
+        embedding: &[f32],
+        dialect: &Dialect,
+        formality: Option<&dialect_coach_shared::Formality>,
+        limit: usize,
+    ) -> Result<Vec<(DialectDocument, f32)>> {
+        let filter = Self::build_dialect_filter(dialect, formality);
+        Self::retry_qdrant_operation(
+            || self.search_named_vector("content", embedding, filter.clone(), limit),
+            3,
+        )
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to search content vector for dialect {} (limit: {}): {}",
+                dialect.name(),
+                limit,
+                e
+            )
+        })
+    }
+
+    /// Search by context vector
+    pub async fn search_by_context(
+        &self,
+        embedding: &[f32],
+        dialect: &Dialect,
+        formality: Option<&dialect_coach_shared::Formality>,
+        limit: usize,
+    ) -> Result<Vec<(DialectDocument, f32)>> {
+        let filter = Self::build_dialect_filter(dialect, formality);
+        Self::retry_qdrant_operation(
+            || self.search_named_vector("context", embedding, filter.clone(), limit),
+            3,
+        )
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to search context vector for dialect {} (limit: {}): {}",
+                dialect.name(),
+                limit,
+                e
+            )
+        })
+    }
+
+    /// Search by keyword vector (multiple embeddings, returns combined results)
+    pub async fn search_by_keywords(
+        &self,
+        keyword_embeddings: &[Vec<f32>],
+        dialect: &Dialect,
+        formality: Option<&dialect_coach_shared::Formality>,
+        limit_per_keyword: usize,
+    ) -> Result<Vec<(DialectDocument, f32)>> {
+        let filter = Self::build_dialect_filter(dialect, formality);
+        let mut all_results = Vec::new();
+
+        for embedding in keyword_embeddings {
+            let results = Self::retry_qdrant_operation(
+                || {
+                    self.search_named_vector("keyword", embedding, filter.clone(), limit_per_keyword)
+                },
+                3,
+            )
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to search keyword vector for dialect {} (limit: {}): {}",
+                    dialect.name(),
+                    limit_per_keyword,
+                    e
+                )
+            })?;
+
+            all_results.extend(results);
+        }
+
+        Ok(all_results)
+    }
+
+    /// DEPRECATED: Temporary wrapper for backwards compatibility. Use search_by_content instead.
+    /// Will be removed in Phase 5.
+    #[allow(dead_code)]
     pub async fn search_dialect_examples(
         &self,
         query_embedding: &[f32],
         dialect: &Dialect,
         limit: usize,
     ) -> Result<Vec<(DialectDocument, f32)>> {
-        let dialect_id = dialect.id().to_string();
-        tracing::info!("Searching for {}", dialect_id);
-        let filter = Filter::must([Condition::matches(
-            "dialect",
-            MatchValue::Keyword(dialect_id),
-        )]);
-
-        let search_result = Self::retry_qdrant_operation(
-            || {
-                self.client.search_points(
-                    SearchPointsBuilder::new(
-                        COLLECTION_NAME,
-                        query_embedding.to_owned(),
-                        limit as u64,
-                    )
-                    .filter(filter.clone())
-                    .with_payload(true),
-                )
-            },
-            3,
-        )
-        .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to search Qdrant collection '{}' for dialect {} (limit: {}): {}",
-                COLLECTION_NAME,
-                dialect.name(),
-                limit,
-                e
-            )
-        })?;
-
-        let documents = self.parse_search_results(search_result.result, dialect)?;
-
-        tracing::info!(
-            "Found {} dialect examples for {}",
-            documents.len(),
-            dialect.name()
-        );
-
-        Ok(documents)
+        self.search_by_content(query_embedding, dialect, None, limit)
+            .await
     }
 
-    /// Get random dialect samples filtered by formality
+    /// DEPRECATED: Random sampling has been deprecated. Returns empty vec.
+    /// Will be removed in Phase 5.
+    #[allow(dead_code)]
     pub async fn random_dialect_samples(
         &self,
-        dialect: Dialect,
-        formality_levels: Vec<dialect_coach_shared::Formality>,
-        limit: usize,
+        _dialect: Dialect,
+        _formality_levels: Vec<dialect_coach_shared::Formality>,
+        _limit: usize,
     ) -> Result<Vec<DialectDocument>> {
-        use qdrant_client::qdrant::ScrollPointsBuilder;
-
-        // Build filter - just dialect for now (formality filtering can be added later)
-        let filter = Filter::must([Condition::matches("dialect", dialect.id().to_string())]);
-
-        // Use scroll to get random samples
-        let scroll_result = Self::retry_qdrant_operation(
-            || {
-                self.client.scroll(
-                    ScrollPointsBuilder::new(COLLECTION_NAME)
-                        .filter(filter.clone())
-                        .limit(limit as u32)
-                        .with_payload(true),
-                )
-            },
-            3,
-        )
-        .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to scroll Qdrant collection '{}' for dialect {} (limit: {}): {}",
-                COLLECTION_NAME,
-                dialect.name(),
-                limit,
-                e
-            )
-        })?;
-
-        // Parse retrieved points
-        let mut documents = Vec::new();
-        for point in scroll_result.result {
-            let payload = point.payload;
-
-            let content = payload
-                .get("content")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-
-            let formality = payload
-                .get("formality")
-                .and_then(|v| v.as_str())
-                .and_then(|s| {
-                    let s = s.as_ref();
-                    match s {
-                        "Formal" => Some(dialect_coach_shared::Formality::Formal),
-                        "ProfessionalCasual" => {
-                            Some(dialect_coach_shared::Formality::ProfessionalCasual)
-                        }
-                        "Informal" => Some(dialect_coach_shared::Formality::Informal),
-                        "Slang" => Some(dialect_coach_shared::Formality::Slang),
-                        _ => None,
-                    }
-                });
-
-            // Filter by formality if specified
-            if !formality_levels.is_empty()
-                && let Some(f) = formality
-                && !formality_levels.contains(&f)
-            {
-                continue;
-            }
-
-            documents.push(DialectDocument {
-                content,
-                dialect,
-                formality,
-                embedding: Vec::new(),
-            });
-        }
-
-        // Shuffle to make results actually random
-        documents.shuffle(&mut rand::thread_rng());
-
-        tracing::info!(
-            "Retrieved {} random dialect samples for {} with formality filters",
-            documents.len(),
-            dialect.name()
-        );
-
-        Ok(documents)
-    }
-
-    /// Parse Qdrant search results into DialectDocuments with scores
-    fn parse_search_results(
-        &self,
-        results: Vec<qdrant_client::qdrant::ScoredPoint>,
-        dialect: &Dialect,
-    ) -> Result<Vec<(DialectDocument, f32)>> {
-        let mut documents = Vec::new();
-
-        tracing::info!("Found {} results", results.len());
-
-        for point in results {
-            let payload = point.payload;
-            let score = point.score;
-
-            // Extract fields from payload
-            let content = payload
-                .get("content")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-
-            // Formality is optional
-            let formality = payload
-                .get("formality")
-                .and_then(|v| v.as_str())
-                .and_then(|s| {
-                    let s = s.as_ref();
-                    match s {
-                        "Formal" => Some(dialect_coach_shared::Formality::Formal),
-                        "ProfessionalCasual" => {
-                            Some(dialect_coach_shared::Formality::ProfessionalCasual)
-                        }
-                        "Informal" => Some(dialect_coach_shared::Formality::Informal),
-                        "Slang" => Some(dialect_coach_shared::Formality::Slang),
-                        _ => None,
-                    }
-                });
-
-            documents.push((
-                DialectDocument {
-                    content,
-                    dialect: *dialect,
-                    formality,
-                    embedding: Vec::new(),
-                },
-                score,
-            ));
-        }
-
-        Ok(documents)
+        Ok(Vec::new())
     }
 
     /// Get collection info for debugging
