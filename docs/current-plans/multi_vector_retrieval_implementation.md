@@ -687,8 +687,8 @@ let ctx = ResponseContext {
 | 3 | Keyword Extraction Service | ✅ Complete |
 | 4 | Examples Module Update | ✅ Complete |
 | 5 | Retrieval Module Rewrite | ✅ Complete |
-| 6 | Caller Updates and Integration | Not Started |
-| 7 | Final Cleanup and Testing | Not Started |
+| 6 | Caller Updates and Integration | ✅ Complete (done in Phase 5) |
+| 7 | Final Cleanup and Testing | ✅ Complete |
 
 ### Agreements Made
 - User specified: cartesian product config (6 fields: content/context/keyword × with-formality/without-formality) - 2026-01-06
