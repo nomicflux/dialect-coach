@@ -7,7 +7,7 @@ mod qdrant;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use dialect_coach_shared::{Dialect, DialectDocument, Language};
+use dialect_coach_shared::{Dialect, Language};
 use std::fs;
 use std::io::{BufRead, BufReader};
 
@@ -17,20 +17,6 @@ use std::io::{BufRead, BufReader};
 struct Cli {
     #[command(subcommand)]
     command: Commands,
-}
-
-fn load_enriched_from_jsonl(path: &str) -> Result<Vec<crate::processor::EnrichedCorpusTuple>> {
-    let content = fs::read_to_string(path).context(format!("Failed to read JSONL: {}", path))?;
-    let mut out = Vec::new();
-    for line in content.lines() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let rec: crate::processor::EnrichedCorpusRecord =
-            serde_json::from_str(line).context("Failed to parse enriched record")?;
-        out.push((rec.doc, rec.context_emb, rec.keyword_emb, rec.enriched));
-    }
-    Ok(out)
 }
 
 #[derive(Subcommand)]
@@ -375,6 +361,7 @@ fn parse_dialect(_language: &str, dialect_name: &str) -> Result<Dialect> {
 }
 
 /// Load DialectDocuments from JSONL file
+#[cfg(test)]
 fn load_documents_from_jsonl(path: &str) -> Result<Vec<DialectDocument>> {
     let content =
         fs::read_to_string(path).context(format!("Failed to read JSONL file: {}", path))?;

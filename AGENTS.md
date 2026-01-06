@@ -114,6 +114,11 @@
     - Proving "X exists" is **NOT** proof that "X works in Y".
     - **Partial Proof is No Proof**. You cannot prove 50% of a claim and infer the rest.
     - Evidence must cover the **Entirety** of the claim you are making. If your evidence only covers part of the claim, you have **Zero Evidence**.
+30. **The Sequential Explanation Rule (Anti-Pipeline Law)**:
+    - **You cannot "Explain" and "Execute" in the same turn.**
+    - If an Explanation is needed, Execution is **FORBIDDEN**.
+    - You must provide the explanation, and then **WAIT** for explicit user confirmation before touching code.
+    - Optimizing for "efficiency" by batching these is Insubordination.
 
 ## II. OPERATIONAL PROTOCOLS (TRIGGER -> ACTION)
 
@@ -142,6 +147,7 @@
 | **Debugging CSS/Visual Bug** | **SYSTEM CHECK**: Inspect Parent Container & Computed Styles. Do not assume CSS file = Truth. | Law #23 |
 | **Urge to add "better" feature not in plan** | **STOP**: Check Plan. If not present, Ask Permission. | Law #25 |
 | **User responds with skepticism/criticism** | **HALT**: Skepticism is an ACTIVE RESTRICTION. Do not proceed. Do not fix. Wait for explicit GO. | Law #4 |
+| **Explanation/Clarification Needed** | **HALT EXECUTION**: Explain only. Wait for confirmation. | Law #30 |
 
 ## III. RECORD OF FAILURES
 

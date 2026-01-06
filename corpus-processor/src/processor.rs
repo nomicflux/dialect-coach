@@ -2,9 +2,11 @@ use anyhow::{Context, Result};
 use dialect_coach_shared::{Dialect, DialectDocument};
 use futures::stream::{self, StreamExt};
 use std::fs;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 pub type EnrichedCorpusTuple = (
     DialectDocument,
@@ -27,12 +29,11 @@ pub struct ProcessorConfig<'a> {
 use crate::chunking::{chunk_text, ChunkConfig};
 use crate::embeddings::EmbeddingService;
 use crate::loaders::load_corpus;
-use std::io::Write;
 
 /// Concurrency limit for parallel LLM calls
 const DEFAULT_CONCURRENCY: usize = 10;
 
-/// Process a corpus: load, chunk, enrich (LLM), embed, and save
+/// Process a corpus: load, chunk, then for each chunk: enrich → embed → write (streaming)
 pub async fn process_corpus_with_embedder(
     config: ProcessorConfig<'_>,
     embedding_service: &EmbeddingService,
@@ -50,17 +51,6 @@ pub async fn process_corpus_with_embedder(
         "Failed to create output directory: {}",
         output_path
     ))?;
-
-    let output_dir = Path::new(output_path);
-    if output_dir.exists() {
-        let existing_files: Vec<_> = std::fs::read_dir(output_dir)?
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "jsonl"))
-            .collect();
-        if !existing_files.is_empty() && !dry_run {
-            println!("⚠️  Output files exist. Please clear output directory to reprocess.");
-        }
-    }
 
     println!("loading corpus...");
     let raw_documents = load_corpus(input_path, dialect)?;
@@ -90,150 +80,166 @@ pub async fn process_corpus_with_embedder(
         chunked_documents
     };
 
+    let total_count = documents_to_process.len();
+
     // Initialize LLM Client
     let llm_client = Arc::new(crate::llm::LlmClient::new()?);
 
-    println!(
-        "enriching and embedding... (concurrency: {})",
-        concurrency
-    );
-
-    // Counters for progress tracking
-    let processed_count = Arc::new(AtomicUsize::new(0));
+    // Counters
+    let written_count = Arc::new(AtomicUsize::new(0));
     let skipped_count = Arc::new(AtomicUsize::new(0));
     let error_count = Arc::new(AtomicUsize::new(0));
-    let total_count = documents_to_process.len();
-
-    // Phase 1: Parallel LLM enrichment
-    let enrichment_results: Vec<_> = stream::iter(documents_to_process.iter().enumerate())
-        .map(|(idx, doc)| {
-            let llm = Arc::clone(&llm_client);
-            let processed = Arc::clone(&processed_count);
-            let skipped = Arc::clone(&skipped_count);
-            let errors = Arc::clone(&error_count);
-            let content = doc.content.clone();
-
-            async move {
-                let result = llm.enrich_chunk(&content, dialect).await;
-
-                match result {
-                    Ok(Some(enriched)) => {
-                        let count = processed.fetch_add(1, Ordering::Relaxed) + 1;
-                        println!(
-                            "[{}/{}] ✅ Enriched chunk {}",
-                            count,
-                            total_count,
-                            idx + 1
-                        );
-                        Some((idx, enriched))
-                    }
-                    Ok(None) => {
-                        skipped.fetch_add(1, Ordering::Relaxed);
-                        None
-                    }
-                    Err(e) => {
-                        errors.fetch_add(1, Ordering::Relaxed);
-                        eprintln!("[Chunk {}] ❌ LLM Error: {}", idx + 1, e);
-                        None
-                    }
-                }
-            }
-        })
-        .buffer_unordered(concurrency)
-        .collect()
-        .await;
-
-    let enriched_chunks: Vec<_> = enrichment_results.into_iter().flatten().collect();
-
-    println!(
-        "\n📊 LLM Phase Complete: {} enriched, {} skipped, {} errors",
-        processed_count.load(Ordering::Relaxed),
-        skipped_count.load(Ordering::Relaxed),
-        error_count.load(Ordering::Relaxed)
-    );
 
     if dry_run {
-        for (idx, enriched) in &enriched_chunks {
-            let doc = &documents_to_process[*idx];
-            let context_text = enriched.context_triggers.join("\n");
-            let keyword_text = enriched.keywords.join(" ");
-            println!("\n[DRY RUN] Chunk {}", idx);
-            println!("  METADATA: {:?}", enriched);
-            println!("  VECTOR SOURCE DATA:");
-            println!("    ► Content (to embed): {:?}", doc.content);
-            println!("    ► Context (to embed): {:?}", context_text);
-            println!("    ► Keywords (to embed): {:?}", keyword_text);
-        }
-        println!("\nDry run complete. No data saved/uploaded.");
+        println!("enriching (dry run)... (concurrency: {})", concurrency);
+
+        stream::iter(documents_to_process.iter().enumerate())
+            .map(|(idx, doc)| {
+                let llm = Arc::clone(&llm_client);
+                let skipped = Arc::clone(&skipped_count);
+                let errors = Arc::clone(&error_count);
+                let written = Arc::clone(&written_count);
+                let content = doc.content.clone();
+
+                async move {
+                    match llm.enrich_chunk(&content, dialect).await {
+                        Ok(Some(data)) => {
+                            let count = written.fetch_add(1, Ordering::Relaxed) + 1;
+                            println!("[{}/{}] ✅ Chunk {}", count, total_count, idx + 1);
+                            println!("  {:?}", data);
+                        }
+                        Ok(None) => {
+                            skipped.fetch_add(1, Ordering::Relaxed);
+                        }
+                        Err(e) => {
+                            errors.fetch_add(1, Ordering::Relaxed);
+                            eprintln!("[Chunk {}] ❌ {}", idx + 1, e);
+                        }
+                    }
+                }
+            })
+            .buffer_unordered(concurrency)
+            .collect::<Vec<_>>()
+            .await;
+
+        println!(
+            "\n📊 Dry Run: {} enriched, {} skipped, {} errors",
+            written_count.load(Ordering::Relaxed),
+            skipped_count.load(Ordering::Relaxed),
+            error_count.load(Ordering::Relaxed)
+        );
         return Ok(());
     }
 
-    // Phase 2: Sequential embeddings (fastembed is CPU-bound, not async-friendly)
-    println!("\n🔄 Generating embeddings...");
-    let mut results = Vec::new();
+    // Real processing with channel-based streaming
+    let file_name = format!("{}_enriched.jsonl", dialect.id());
+    let path = Path::new(output_path).join(&file_name);
 
-    for (idx, enriched) in enriched_chunks {
-        let doc = &documents_to_process[idx];
+    println!(
+        "processing (streaming to {})... (concurrency: {})",
+        file_name, concurrency
+    );
+
+    // Channel for streaming: producer sends enriched chunks, consumer embeds and writes
+    let (tx, mut rx) = mpsc::channel::<(usize, DialectDocument, crate::llm::EnrichedData)>(concurrency * 2);
+
+    // Producer: parallel LLM calls, sends results to channel
+    let producer = {
+        let documents = documents_to_process.clone();
+        let llm = Arc::clone(&llm_client);
+        let skipped = Arc::clone(&skipped_count);
+        let errors = Arc::clone(&error_count);
+
+        tokio::spawn(async move {
+            stream::iter(documents.into_iter().enumerate())
+                .map(|(idx, doc)| {
+                    let llm = Arc::clone(&llm);
+                    let tx = tx.clone();
+                    let skipped = Arc::clone(&skipped);
+                    let errors = Arc::clone(&errors);
+
+                    async move {
+                        match llm.enrich_chunk(&doc.content, dialect).await {
+                            Ok(Some(data)) => {
+                                let _ = tx.send((idx, doc, data)).await;
+                            }
+                            Ok(None) => {
+                                skipped.fetch_add(1, Ordering::Relaxed);
+                            }
+                            Err(e) => {
+                                errors.fetch_add(1, Ordering::Relaxed);
+                                eprintln!("[Chunk {}] ❌ LLM: {}", idx + 1, e);
+                            }
+                        }
+                    }
+                })
+                .buffer_unordered(concurrency)
+                .collect::<Vec<_>>()
+                .await;
+        })
+    };
+
+    // Consumer: receives enriched chunks, embeds, writes to disk
+    let file = fs::File::create(&path)?;
+    let mut writer = BufWriter::new(file);
+
+    while let Some((idx, doc, enriched)) = rx.recv().await {
         let context_text = enriched.context_triggers.join("\n");
         let keyword_text = enriched.keywords.join(" ");
 
-        // Embed Content
-        let content_emb = embedding_service
-            .embed_batch(vec![doc.content.clone()])?
-            .pop()
-            .unwrap();
+        // Embed
+        let content_emb = match embedding_service.embed_batch(vec![doc.content.clone()]) {
+            Ok(mut v) => v.pop().unwrap(),
+            Err(e) => {
+                error_count.fetch_add(1, Ordering::Relaxed);
+                eprintln!("[Chunk {}] ❌ Embed: {}", idx + 1, e);
+                continue;
+            }
+        };
 
-        // Embed Context (Triggers)
         let context_emb = if !context_text.is_empty() {
-            Some(
-                embedding_service
-                    .embed_batch(vec![context_text])?
-                    .pop()
-                    .unwrap(),
-            )
+            embedding_service.embed_batch(vec![context_text]).ok().and_then(|mut v| v.pop())
         } else {
             None
         };
 
-        // Embed Keywords
         let keyword_emb = if !keyword_text.is_empty() {
-            Some(
-                embedding_service
-                    .embed_batch(vec![keyword_text])?
-                    .pop()
-                    .unwrap(),
-            )
+            embedding_service.embed_batch(vec![keyword_text]).ok().and_then(|mut v| v.pop())
         } else {
             None
         };
 
-        let mut processed_doc = doc.clone();
+        let mut processed_doc = doc;
         processed_doc.embedding = content_emb;
 
-        results.push((processed_doc, context_emb, keyword_emb, enriched));
+        let record = EnrichedCorpusRecord {
+            doc: processed_doc,
+            context_emb,
+            keyword_emb,
+            enriched,
+        };
+
+        // Write immediately
+        serde_json::to_writer(&mut writer, &record)?;
+        writeln!(writer)?;
+
+        let count = written_count.fetch_add(1, Ordering::Relaxed) + 1;
+        if count.is_multiple_of(10) || count == 1 {
+            writer.flush()?;
+            println!("[{}/{}] ✅", count, total_count);
+        }
     }
 
-    println!("✅ Generated {} total embeddings", results.len());
+    writer.flush()?;
+    producer.await?;
 
-    // Save to disk
-    let records: Vec<EnrichedCorpusRecord> = results
-        .into_iter()
-        .map(|(doc, ce, ke, en)| EnrichedCorpusRecord {
-            doc,
-            context_emb: ce,
-            keyword_emb: ke,
-            enriched: en,
-        })
-        .collect();
-
-    let file_name = format!("{}_enriched.jsonl", dialect.id());
-    let path = Path::new(output_path).join(file_name);
-    let mut file = fs::File::create(&path)?;
-    for record in records {
-        serde_json::to_writer(&file, &record)?;
-        writeln!(file)?;
-    }
-    println!("Saved enriched data to {}", path.display());
+    println!(
+        "\n✅ Complete: {} written, {} skipped, {} errors",
+        written_count.load(Ordering::Relaxed),
+        skipped_count.load(Ordering::Relaxed),
+        error_count.load(Ordering::Relaxed)
+    );
+    println!("Saved to {}", path.display());
 
     Ok(())
 }

@@ -1,13 +1,12 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 
 use qdrant_client::qdrant::points_selector::PointsSelectorOneOf;
 
 use qdrant_client::qdrant::points_update_operation::{Operation, SetPayload};
-use qdrant_client::qdrant::value::Kind;
 use qdrant_client::qdrant::{
     Condition, CreateCollectionBuilder, DeletePointsBuilder, Distance, Filter, PointId,
     PointStruct, PointsIdsList, PointsSelector, PointsUpdateOperation, ScrollPointsBuilder,
-    UpdateBatchPointsBuilder, UpsertPointsBuilder, Value, VectorParamsBuilder, VectorParamsMap,
+    UpdateBatchPointsBuilder, UpsertPointsBuilder, VectorParamsBuilder, VectorParamsMap,
     VectorsConfig,
 };
 use qdrant_client::{Payload, Qdrant};
@@ -96,82 +95,6 @@ impl QdrantService {
             println!("Collection created successfully");
         } else {
             println!("Collection '{}' already exists. Note: Ensure it has 'content', 'context', and 'keyword' vectors.", COLLECTION_NAME);
-        }
-
-        Ok(())
-    }
-
-    /// Upload enriched documents to Qdrant
-    /// Takes a tuple of (Document, Context Embedding, Keyword Embedding, EnrichedData)
-    pub async fn upload_enriched_documents(
-        &self,
-        documents: &[crate::processor::EnrichedCorpusTuple],
-    ) -> Result<()> {
-        if documents.is_empty() {
-            return Ok(());
-        }
-
-        let vector_size = documents[0].0.embedding.len() as u64;
-        self.init_collection(vector_size).await?;
-
-        let batch_size = 100;
-        let total_batches = documents.len().div_ceil(batch_size);
-
-        for (batch_idx, chunk) in documents.chunks(batch_size).enumerate() {
-            let points: Vec<PointStruct> = chunk
-                .iter()
-                .map(|item| {
-                    let (doc, context_emb, keyword_emb, data) = item;
-                    let namespace = Uuid::NAMESPACE_OID;
-                    let name = format!("{}:{}", doc.dialect.name(), doc.content);
-                    let uuid = Uuid::new_v5(&namespace, name.as_bytes());
-                    let point_id = PointId::from(uuid.to_string());
-
-                    // Payload
-                    let mut payload = Payload::new();
-                    payload.insert("content", doc.content.clone());
-                    payload.insert("dialect", doc.dialect.id());
-
-                    // Add Enriched Metadata
-                    if let Some(f) = &data.formality {
-                        payload.insert("formality", format!("{:?}", f));
-                    }
-                    if let Some(i) = &data.intent {
-                        payload.insert("intent", format!("{:?}", i));
-                    }
-                    if let Some(e) = &data.emotion {
-                        payload.insert("emotion", format!("{:?}", e));
-                    }
-                    payload.insert("topics", data.topics.clone());
-                    payload.insert("context_triggers", data.context_triggers.clone());
-                    payload.insert("keywords", data.keywords.clone());
-
-                    // Named Vectors
-                    let mut vectors = HashMap::new();
-                    vectors.insert("content".to_string(), doc.embedding.clone());
-
-                    if let Some(emb) = context_emb {
-                        vectors.insert("context".to_string(), emb.clone());
-                    }
-                    if let Some(emb) = keyword_emb {
-                        vectors.insert("keyword".to_string(), emb.clone());
-                    }
-
-                    PointStruct::new(point_id, vectors, payload)
-                })
-                .collect();
-
-            self.client
-                .upsert_points(UpsertPointsBuilder::new(COLLECTION_NAME, points).wait(true))
-                .await
-                .context(format!("Failed to upload batch {}", batch_idx + 1))?;
-
-            println!(
-                "  Uploaded batch {}/{} ({} documents)",
-                batch_idx + 1,
-                total_batches,
-                (batch_idx + 1) * batch_size.min(documents.len() - batch_idx * batch_size)
-            );
         }
 
         Ok(())
