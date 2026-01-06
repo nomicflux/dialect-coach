@@ -1,4 +1,4 @@
-use dialect_coach_shared::{DialectDocument, Formality};
+use dialect_coach_shared::DialectDocument;
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
 
@@ -57,45 +57,46 @@ pub fn build_examples_message(
     Some(create_examples_user_message(&examples_text))
 }
 
-pub(super) fn deduplicate_examples(
-    examples: Vec<DialectDocument>,
-    random_samples: Vec<DialectDocument>,
+/// Merge results from multiple search sources, deduplicating by content
+/// Each search source already has its own limit from RAGConfig
+pub(super) fn merge_search_results(
+    results: Vec<Vec<(DialectDocument, f32)>>,
 ) -> Vec<DialectDocument> {
-    let mut all_examples = Vec::new();
-    all_examples.extend(examples);
-    all_examples.extend(random_samples);
-
     let mut seen = std::collections::HashSet::new();
-    all_examples
-        .into_iter()
-        .filter(|doc| seen.insert(doc.content.clone()))
-        .take(50)
-        .collect()
+    let mut merged = Vec::new();
+
+    for result_set in results {
+        for (doc, _score) in result_set {
+            if seen.insert(doc.content.clone()) {
+                merged.push(doc);
+            }
+        }
+    }
+
+    merged
 }
 
-pub(super) fn group_examples_by_formality(
-    examples: &[DialectDocument],
-    formality: Formality,
-    primary_limit: usize,
-    secondary_limit: usize,
-) -> (Vec<DialectDocument>, Vec<DialectDocument>) {
-    let primary_examples: Vec<_> = examples
-        .iter()
-        .filter(|doc| doc.formality.is_none() || doc.formality == Some(formality))
-        .take(primary_limit)
-        .cloned()
-        .collect();
+/// Deduplicate results, excluding content already seen in primary results
+/// Each search source already has its own limit from RAGConfig
+pub(super) fn deduplicate_excluding(
+    results: Vec<Vec<(DialectDocument, f32)>>,
+    exclude: &[DialectDocument],
+) -> Vec<DialectDocument> {
+    let excluded_content: std::collections::HashSet<_> =
+        exclude.iter().map(|d| d.content.clone()).collect();
 
-    let secondary_examples: Vec<_> = examples
-        .iter()
-        .filter(|doc| {
-            doc.formality.is_some() && doc.formality != Some(formality) && doc.formality.is_some()
-        })
-        .take(secondary_limit)
-        .cloned()
-        .collect();
+    let mut seen = excluded_content;
+    let mut deduped = Vec::new();
 
-    (primary_examples, secondary_examples)
+    for result_set in results {
+        for (doc, _score) in result_set {
+            if seen.insert(doc.content.clone()) {
+                deduped.push(doc);
+            }
+        }
+    }
+
+    deduped
 }
 
 pub(crate) fn build_conversation_history_with_examples(
@@ -126,70 +127,6 @@ pub(crate) fn build_conversation_history_with_examples(
 mod tests {
     use super::*;
     use dialect_coach_shared::{Dialect, Formality};
-
-    #[test]
-    fn test_deduplicate_examples() {
-        let doc1 = DialectDocument::new("Hello".to_string(), Dialect::SpanishMexican, None);
-        let doc2 = DialectDocument::new("Hola".to_string(), Dialect::SpanishMexican, None);
-        let doc3 = DialectDocument::new("Hello".to_string(), Dialect::SpanishMexican, None);
-
-        let examples = vec![doc1.clone(), doc2.clone()];
-        let random_samples = vec![doc3];
-
-        let result = deduplicate_examples(examples, random_samples);
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].content, "Hello");
-        assert_eq!(result[1].content, "Hola");
-    }
-
-    #[test]
-    fn test_deduplicate_examples_respects_limit() {
-        let mut examples = Vec::new();
-        for i in 0..60 {
-            examples.push(DialectDocument::new(
-                format!("Example {}", i),
-                Dialect::SpanishMexican,
-                None,
-            ));
-        }
-
-        let result = deduplicate_examples(examples, Vec::new());
-        assert_eq!(result.len(), 50);
-    }
-
-    #[test]
-    fn test_group_examples_by_formality() {
-        let dialect = Dialect::SpanishMexican;
-        let doc1 = DialectDocument::new("Hello".to_string(), dialect, Some(Formality::Informal));
-        let doc2 = DialectDocument::new("Hola".to_string(), dialect, Some(Formality::Formal));
-        let doc3 = DialectDocument::new("Hey".to_string(), dialect, None);
-        let doc4 = DialectDocument::new("Hi".to_string(), dialect, Some(Formality::Informal));
-
-        let examples = vec![doc1, doc2, doc3, doc4];
-        let (primary, secondary) =
-            group_examples_by_formality(&examples, Formality::Informal, 10, 10);
-
-        assert_eq!(primary.len(), 3);
-        assert_eq!(secondary.len(), 1);
-        assert_eq!(secondary[0].formality, Some(Formality::Formal));
-    }
-
-    #[test]
-    fn test_group_examples_by_formality_respects_limits() {
-        let dialect = Dialect::SpanishMexican;
-        let mut examples = Vec::new();
-        for i in 0..15 {
-            examples.push(DialectDocument::new(
-                format!("Example {}", i),
-                dialect,
-                Some(Formality::Informal),
-            ));
-        }
-
-        let (primary, _secondary) =
-            group_examples_by_formality(&examples, Formality::Informal, 5, 5);
-        assert_eq!(primary.len(), 5);
-    }
 
     #[test]
     fn test_build_conversation_history_with_examples() {

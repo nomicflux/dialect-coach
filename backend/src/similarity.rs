@@ -35,7 +35,7 @@ pub async fn compute_corpus_similarity(
 ) -> Result<(f64, f64)> {
     let response_embedding = embeddings.embed_text(response)?;
     let samples_with_scores = qdrant
-        .search_dialect_examples(&response_embedding, &dialect, limit)
+        .search_by_content(&response_embedding, &dialect, None, limit)
         .await?;
     let samples: Vec<_> = samples_with_scores
         .into_iter()

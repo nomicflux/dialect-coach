@@ -5,6 +5,7 @@ use dialect_coach_shared::{
 use rig::completion::Message as RigMessage;
 use std::sync::Arc;
 
+use super::keyword_extraction::KeywordExtractor;
 use super::provider::CompletionAgent;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
@@ -44,4 +45,5 @@ pub struct ResponseContext {
     pub learning_agent: Arc<dyn CompletionAgent>,
     pub qdrant: Arc<QdrantService>,
     pub embeddings: Arc<EmbeddingService>,
+    pub keyword_extractor: Arc<KeywordExtractor>,
 }

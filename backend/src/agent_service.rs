@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use dialect_coach_shared::AgentUsage;
 use std::env;
 use std::sync::Arc;
@@ -89,6 +89,7 @@ pub struct AgentService {
     pub planning_config: ProviderAgentConfig,
     pub qdrant: Arc<QdrantService>,
     pub embeddings: Arc<EmbeddingService>,
+    pub keyword_extractor: Arc<keyword_extraction::KeywordExtractor>,
 }
 
 impl AgentService {
@@ -121,6 +122,11 @@ impl AgentService {
             planning_agent.model()
         );
 
+        let keyword_extractor = Arc::new(
+            keyword_extraction::KeywordExtractor::new()
+                .context("Failed to create keyword extractor")?,
+        );
+
         Ok(Self {
             response_agent,
             learning_agent,
@@ -129,6 +135,7 @@ impl AgentService {
             planning_config,
             qdrant,
             embeddings,
+            keyword_extractor,
         })
     }
 
@@ -145,6 +152,7 @@ impl AgentService {
             learning_agent: self.learning_agent.clone(),
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
+            keyword_extractor: self.keyword_extractor.clone(),
         };
         response::ResponseContext::generate_response(&ctx, params, false).await
     }
@@ -161,6 +169,7 @@ impl AgentService {
             learning_agent: self.learning_agent.clone(),
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
+            keyword_extractor: self.keyword_extractor.clone(),
         };
         let (result, response_usage, _learning_usage) =
             response::ResponseContext::generate_response(&ctx, params, true).await;
@@ -202,6 +211,7 @@ impl AgentService {
             learning_agent: self.learning_agent.clone(),
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
+            keyword_extractor: self.keyword_extractor.clone(),
         };
         response::ResponseContext::generate_simple_response(
             &ctx,

@@ -269,31 +269,6 @@ impl QdrantService {
         Ok(all_results)
     }
 
-    /// DEPRECATED: Temporary wrapper for backwards compatibility. Use search_by_content instead.
-    /// Will be removed in Phase 5.
-    #[allow(dead_code)]
-    pub async fn search_dialect_examples(
-        &self,
-        query_embedding: &[f32],
-        dialect: &Dialect,
-        limit: usize,
-    ) -> Result<Vec<(DialectDocument, f32)>> {
-        self.search_by_content(query_embedding, dialect, None, limit)
-            .await
-    }
-
-    /// DEPRECATED: Random sampling has been deprecated. Returns empty vec.
-    /// Will be removed in Phase 5.
-    #[allow(dead_code)]
-    pub async fn random_dialect_samples(
-        &self,
-        _dialect: Dialect,
-        _formality_levels: Vec<dialect_coach_shared::Formality>,
-        _limit: usize,
-    ) -> Result<Vec<DialectDocument>> {
-        Ok(Vec::new())
-    }
-
     /// Get collection info for debugging
     pub async fn get_collection_info(&self) -> Result<()> {
         let collection_info = self
