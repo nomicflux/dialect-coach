@@ -4,7 +4,7 @@ use rig::completion::Message as RigMessage;
 
 use super::super::util::get_message_text;
 use super::ResponseContext;
-use super::examples::{deduplicate_examples, get_sample_formalities, group_examples_by_formality};
+use super::examples::{deduplicate_examples, group_examples_by_formality};
 use crate::rag_config::RAGConfig;
 
 impl ResponseContext {
@@ -139,11 +139,10 @@ impl ResponseContext {
                 rag_config,
             )
             .await?;
-        let sample_formalities = get_sample_formalities(formality);
         let random_samples = self
             .retrieve_random_samples(
                 dialect.dialect,
-                sample_formalities,
+                Vec::new(),
                 rag_config.content_without_formality_limit,
             )
             .await?;

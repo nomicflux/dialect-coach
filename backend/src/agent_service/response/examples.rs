@@ -57,17 +57,6 @@ pub fn build_examples_message(
     Some(create_examples_user_message(&examples_text))
 }
 
-pub(super) fn get_sample_formalities(formality: Formality) -> Vec<Formality> {
-    match formality {
-        Formality::Formal => vec![Formality::Formal, Formality::ProfessionalCasual],
-        Formality::ProfessionalCasual => {
-            vec![Formality::ProfessionalCasual, Formality::Informal]
-        }
-        Formality::Informal => vec![Formality::Informal, Formality::Slang],
-        Formality::Slang => vec![Formality::Slang, Formality::Informal],
-    }
-}
-
 pub(super) fn deduplicate_examples(
     examples: Vec<DialectDocument>,
     random_samples: Vec<DialectDocument>,
@@ -137,27 +126,6 @@ pub(crate) fn build_conversation_history_with_examples(
 mod tests {
     use super::*;
     use dialect_coach_shared::{Dialect, Formality};
-
-    #[test]
-    fn test_get_sample_formalities() {
-        let formal = get_sample_formalities(Formality::Formal);
-        assert_eq!(
-            formal,
-            vec![Formality::Formal, Formality::ProfessionalCasual]
-        );
-
-        let professional_casual = get_sample_formalities(Formality::ProfessionalCasual);
-        assert_eq!(
-            professional_casual,
-            vec![Formality::ProfessionalCasual, Formality::Informal]
-        );
-
-        let informal = get_sample_formalities(Formality::Informal);
-        assert_eq!(informal, vec![Formality::Informal, Formality::Slang]);
-
-        let slang = get_sample_formalities(Formality::Slang);
-        assert_eq!(slang, vec![Formality::Slang, Formality::Informal]);
-    }
 
     #[test]
     fn test_deduplicate_examples() {
