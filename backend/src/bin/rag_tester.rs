@@ -53,16 +53,18 @@ async fn main() -> Result<()> {
 }
 
 fn get_test_configs() -> Vec<RAGConfig> {
+    // Testing with content_with_formality (old conversation) and content_without_formality (old random)
+    // Other vector types set to 0 for minimal testing until multi-vector retrieval is implemented
     vec![
-        RAGConfig::new(0, 0),
-        RAGConfig::new(5, 0),
-        RAGConfig::new(25, 0),
-        RAGConfig::new(0, 5),
-        RAGConfig::new(0, 25),
-        RAGConfig::new(5, 5),
-        RAGConfig::new(5, 25),
-        RAGConfig::new(25, 5),
-        RAGConfig::new(25, 25),
+        RAGConfig::new(0, 0, 0, 0, 0, 0),
+        RAGConfig::new(5, 0, 0, 0, 0, 0),
+        RAGConfig::new(25, 0, 0, 0, 0, 0),
+        RAGConfig::new(0, 5, 0, 0, 0, 0),
+        RAGConfig::new(0, 25, 0, 0, 0, 0),
+        RAGConfig::new(5, 5, 0, 0, 0, 0),
+        RAGConfig::new(5, 25, 0, 0, 0, 0),
+        RAGConfig::new(25, 5, 0, 0, 0, 0),
+        RAGConfig::new(25, 25, 0, 0, 0, 0),
     ]
 }
 
@@ -90,9 +92,9 @@ fn get_test_dialects() -> Vec<(Dialect, Formality, &'static str)> {
 
 fn print_test_header(config: &RAGConfig, dialect: &Dialect) {
     println!(
-        "[TEST] Testing: {}/{} conversation/random on {}",
-        config.num_conversation_documents,
-        config.num_random_documents,
+        "[TEST] Testing: {}/{} content_with/without_formality on {}",
+        config.content_with_formality_limit,
+        config.content_without_formality_limit,
         dialect.name()
     );
 }
@@ -119,8 +121,8 @@ fn print_summary(results: &[TestStats]) {
         println!(
             "[TEST][SUMMARY] {}. {}/{} on {} - Cosine: {:.6}, L2: {:.6}",
             i + 1,
-            stats.config.num_conversation_documents,
-            stats.config.num_random_documents,
+            stats.config.content_with_formality_limit,
+            stats.config.content_without_formality_limit,
             stats.dialect,
             stats.cosine_mse_mean,
             stats.l2_mse_mean

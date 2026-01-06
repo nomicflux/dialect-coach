@@ -218,7 +218,7 @@ async fn run_agents_parallel(
     )
     .await?;
 
-    let rag_config = RAGConfig::new(20, 5);
+    let rag_config = RAGConfig::default_config();
     let now = chrono::Utc::now().timestamp();
     let params = build_response_params(
         &user_text,
@@ -587,7 +587,7 @@ async fn call_agent_for_conversation_action(
     };
 
     let history_vec = build_context_from_messages(&context_messages);
-    let rag_config = RAGConfig::new(20, 5);
+    let rag_config = RAGConfig::default_config();
     // Extract context: use injected context for ContinueBranch, otherwise derive from user_state
     let (
         mistakes,

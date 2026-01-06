@@ -116,7 +116,7 @@ impl ResponseContext {
             .map(get_message_text)
             .collect::<Vec<String>>();
         let embeddings = self.retrieve_embeddings(user_message, &history_text)?;
-        self.retrieve_examples(dialect, embeddings, config.num_conversation_documents)
+        self.retrieve_examples(dialect, embeddings, config.content_with_formality_limit)
             .await
     }
 
@@ -144,15 +144,15 @@ impl ResponseContext {
             .retrieve_random_samples(
                 dialect.dialect,
                 sample_formalities,
-                rag_config.num_random_documents,
+                rag_config.content_without_formality_limit,
             )
             .await?;
         let unique_examples = deduplicate_examples(examples, random_samples);
         let (primary, secondary) = group_examples_by_formality(
             &unique_examples,
             formality,
-            rag_config.num_conversation_documents,
-            rag_config.num_random_documents,
+            rag_config.content_with_formality_limit,
+            rag_config.content_without_formality_limit,
         );
         Ok((primary, secondary))
     }
