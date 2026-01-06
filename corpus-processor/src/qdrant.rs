@@ -237,8 +237,6 @@ impl QdrantService {
         Ok(())
     }
 
-
-
     pub async fn delete_points(&self, dialect: &String) -> Result<()> {
         let filter = Filter::must([Condition::matches("dialect", (*dialect).clone())]);
         let limit = 100000;
@@ -274,17 +272,26 @@ impl QdrantService {
     }
 
     pub async fn update_points(&self, dialect_from: &String, dialect_to: &String) -> Result<()> {
-        println!("Updating points from '{}' to '{}'...", dialect_from, dialect_to);
+        println!(
+            "Updating points from '{}' to '{}'...",
+            dialect_from, dialect_to
+        );
 
         let filter = Filter::must([Condition::matches("dialect", dialect_from.clone())]);
-        let results = self.client.scroll(
-            ScrollPointsBuilder::new(COLLECTION_NAME)
-                .limit(100000)
-                .filter(filter)
-                .with_payload(true)
-        ).await.context("Failed to search Qdrant")?;
+        let results = self
+            .client
+            .scroll(
+                ScrollPointsBuilder::new(COLLECTION_NAME)
+                    .limit(100000)
+                    .filter(filter)
+                    .with_payload(true),
+            )
+            .await
+            .context("Failed to search Qdrant")?;
 
-        let point_ids: Vec<PointId> = results.result.iter()
+        let point_ids: Vec<PointId> = results
+            .result
+            .iter()
             .map(|point| point.id.clone().unwrap())
             .collect();
 
@@ -298,15 +305,25 @@ impl QdrantService {
         let mut payload = Payload::new();
         payload.insert("dialect", dialect_to.clone());
 
-        let points_selector = PointsSelector { points_selector_one_of: Some(PointsSelectorOneOf::Points(PointsIdsList { ids: point_ids })) };
-        let update_op = PointsUpdateOperation { operation: Some(Operation::SetPayload(SetPayload {
-            payload: payload.into(),
-            points_selector: Some(points_selector),
-            ..Default::default()
-        })) };
+        let points_selector = PointsSelector {
+            points_selector_one_of: Some(PointsSelectorOneOf::Points(PointsIdsList {
+                ids: point_ids,
+            })),
+        };
+        let update_op = PointsUpdateOperation {
+            operation: Some(Operation::SetPayload(SetPayload {
+                payload: payload.into(),
+                points_selector: Some(points_selector),
+                ..Default::default()
+            })),
+        };
 
-        self.client.update_points_batch(UpdateBatchPointsBuilder::new(COLLECTION_NAME, vec![update_op]).wait(true))
-            .await.context("Failed to update points")?;
+        self.client
+            .update_points_batch(
+                UpdateBatchPointsBuilder::new(COLLECTION_NAME, vec![update_op]).wait(true),
+            )
+            .await
+            .context("Failed to update points")?;
 
         println!("Successfully updated dialect field");
         Ok(())

@@ -149,7 +149,11 @@ Input Text: "{text_chunk}"
         // Sort keywords alphabetically for deterministic lookups (Unicode order)
         result.keywords.sort();
         // Lowercase topics for consistency
-        result.topics = result.topics.into_iter().map(|t| t.to_lowercase()).collect();
+        result.topics = result
+            .topics
+            .into_iter()
+            .map(|t| t.to_lowercase())
+            .collect();
 
         // Filtration Logic
         if !result.is_safe || !result.is_target_dialect {

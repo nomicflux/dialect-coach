@@ -113,7 +113,7 @@ enum Commands {
         /// Qdrant API key (optional, can also use QDRANT_API_KEY env var)
         #[arg(short = 'k', long)]
         api_key: Option<String>,
-        
+
         /// Skip confirmation prompt
         #[arg(long)]
         force: bool,
@@ -218,8 +218,8 @@ async fn main() -> Result<()> {
 
             // Count total lines for progress
             let line_count = {
-                let file = fs::File::open(&input)
-                    .context(format!("Failed to open file: {}", input))?;
+                let file =
+                    fs::File::open(&input).context(format!("Failed to open file: {}", input))?;
                 BufReader::new(file).lines().count()
             };
             println!("📊 Total records in file: {}", line_count);
@@ -239,9 +239,10 @@ async fn main() -> Result<()> {
             // Stream and upload in batches
             let file = fs::File::open(&input)?;
             let reader = BufReader::new(file);
-            
+
             const BATCH_SIZE: usize = 100;
-            let mut batch: Vec<crate::processor::EnrichedCorpusTuple> = Vec::with_capacity(BATCH_SIZE);
+            let mut batch: Vec<crate::processor::EnrichedCorpusTuple> =
+                Vec::with_capacity(BATCH_SIZE);
             let mut uploaded_count = 0usize;
             let mut error_count = 0usize;
 
@@ -259,7 +260,8 @@ async fn main() -> Result<()> {
                     continue;
                 }
 
-                let rec: crate::processor::EnrichedCorpusRecord = match serde_json::from_str(&line) {
+                let rec: crate::processor::EnrichedCorpusRecord = match serde_json::from_str(&line)
+                {
                     Ok(r) => r,
                     Err(e) => {
                         eprintln!("[Line {}] ❌ Parse error: {}", line_num + 1, e);
@@ -278,8 +280,11 @@ async fn main() -> Result<()> {
                     } else {
                         uploaded_count += batch.len();
                     }
-                    
-                    println!("[{}/{}] ✅ Uploaded {} records", uploaded_count, line_count, uploaded_count);
+
+                    println!(
+                        "[{}/{}] ✅ Uploaded {} records",
+                        uploaded_count, line_count, uploaded_count
+                    );
                     batch.clear();
                 }
             }
@@ -294,7 +299,10 @@ async fn main() -> Result<()> {
                 }
             }
 
-            println!("\n✅ Upload complete: {} uploaded, {} errors", uploaded_count, error_count);
+            println!(
+                "\n✅ Upload complete: {} uploaded, {} errors",
+                uploaded_count, error_count
+            );
         }
         Commands::List => {
             println!("Available languages and dialects:\n");
@@ -329,23 +337,29 @@ async fn main() -> Result<()> {
             // Get detailed status
             qdrant.get_detailed_status().await?;
         }
-        Commands::ResetCollection { url, api_key, force } => {
-             let qdrant = get_qdrant_service(url, api_key).await?;
-             
-             if !force {
-                 use std::io::Write;
-                 print!("⚠️  WARNING: This will DELETE existing collection 'dialect_documents_v2'. Type 'yes' to confirm: ");
-                 std::io::stdout().flush()?;
-                 let mut input = String::new();
-                 std::io::stdin().read_line(&mut input)?;
-                 if input.trim() != "yes" {
-                     println!("Aborted.");
-                     return Ok(());
-                 }
-             }
-             
-             qdrant.delete_collection().await?;
-             println!("✅ Collection reset. It will be re-created with correct schema on next upload.");
+        Commands::ResetCollection {
+            url,
+            api_key,
+            force,
+        } => {
+            let qdrant = get_qdrant_service(url, api_key).await?;
+
+            if !force {
+                use std::io::Write;
+                print!("⚠️  WARNING: This will DELETE existing collection 'dialect_documents_v2'. Type 'yes' to confirm: ");
+                std::io::stdout().flush()?;
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                if input.trim() != "yes" {
+                    println!("Aborted.");
+                    return Ok(());
+                }
+            }
+
+            qdrant.delete_collection().await?;
+            println!(
+                "✅ Collection reset. It will be re-created with correct schema on next upload."
+            );
         }
     }
 
@@ -360,33 +374,31 @@ fn parse_dialect(_language: &str, dialect_name: &str) -> Result<Dialect> {
         .map_err(|e| anyhow::anyhow!("Invalid dialect: {}. {}", dialect_name, e))
 }
 
-/// Load DialectDocuments from JSONL file
-#[cfg(test)]
-fn load_documents_from_jsonl(path: &str) -> Result<Vec<DialectDocument>> {
-    let content =
-        fs::read_to_string(path).context(format!("Failed to read JSONL file: {}", path))?;
-
-    let mut documents = Vec::new();
-
-    for (line_num, line) in content.lines().enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        let doc: DialectDocument = serde_json::from_str(line)
-            .context(format!("Failed to parse JSON at line {}", line_num + 1))?;
-
-        documents.push(doc);
-    }
-
-    Ok(documents)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::{Dialect, Formality};
+    use dialect_coach_shared::{Dialect, DialectDocument, Formality};
     use tempfile::tempdir;
+
+    fn load_documents_from_jsonl(path: &str) -> Result<Vec<DialectDocument>> {
+        let content =
+            fs::read_to_string(path).context(format!("Failed to read JSONL file: {}", path))?;
+
+        let mut documents = Vec::new();
+
+        for (line_num, line) in content.lines().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            let doc: DialectDocument = serde_json::from_str(line)
+                .context(format!("Failed to parse JSON at line {}", line_num + 1))?;
+
+            documents.push(doc);
+        }
+
+        Ok(documents)
+    }
 
     #[test]
     fn test_parse_dialect_valid() {

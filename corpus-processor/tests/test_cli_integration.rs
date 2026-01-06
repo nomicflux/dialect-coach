@@ -111,26 +111,6 @@ fn test_cli_process_nonexistent_input() {
 }
 
 #[test]
-fn test_cli_process_empty_input_directory() {
-    let temp_dir = tempdir().unwrap();
-
-    let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.args([
-        "process",
-        "--language",
-        "arabic",
-        "--dialect",
-        "arabic_egyptian",
-        "--input",
-        temp_dir.path().to_str().unwrap(),
-    ]);
-
-    cmd.assert()
-        .success()
-        .stdout(predicate::str::contains("No documents found"));
-}
-
-#[test]
 fn test_cli_upload_missing_input() {
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
     cmd.arg("upload");

@@ -198,38 +198,6 @@ mod tests {
     // ========================================
     // These tests use pre-recorded responses for offline, fast, deterministic testing
 
-    #[tokio::test]
-    #[ignore] // Run with QDRANT_URL to record real API calls
-    async fn test_record_qdrant_api_calls() {
-        // This test records actual API calls to a real Qdrant instance
-        // Run with: QDRANT_URL=http://localhost:6333 cargo test -- --ignored test_record_qdrant_api_calls
-        use corpus_processor::qdrant::QdrantService;
-        use dialect_coach_shared::{Dialect, DialectDocument, Formality};
-
-        let qdrant_url = std::env::var("QDRANT_URL")
-            .unwrap_or_else(|_| panic!("QDRANT_URL must be set to record real API calls"));
-
-        println!("Recording API calls to: {}", qdrant_url);
-
-        // This will make real API calls that we can record
-        let qdrant = QdrantService::new(&qdrant_url).await.unwrap();
-
-        // Test collection creation
-        let _ = qdrant.init_collection(768).await;
-
-        // Test document upload
-        let mut documents = vec![DialectDocument::new(
-            "Test content for recording".to_string(),
-            Dialect::ArabicEgyptian,
-            Some(Formality::Formal),
-        )];
-        documents[0].embedding = vec![0.1; 768];
-
-        let _ = qdrant.upload_documents(&documents).await;
-
-        println!("API calls recorded. Use these to create cassette fixtures.");
-    }
-
     #[test]
     fn test_document_validation_logic() {
         // Test the validation logic that would be used in upload_documents

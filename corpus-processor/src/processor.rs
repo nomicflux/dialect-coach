@@ -141,7 +141,8 @@ pub async fn process_corpus_with_embedder(
     );
 
     // Channel for streaming: producer sends enriched chunks, consumer embeds and writes
-    let (tx, mut rx) = mpsc::channel::<(usize, DialectDocument, crate::llm::EnrichedData)>(concurrency * 2);
+    let (tx, mut rx) =
+        mpsc::channel::<(usize, DialectDocument, crate::llm::EnrichedData)>(concurrency * 2);
 
     // Producer: parallel LLM calls, sends results to channel
     let producer = {
@@ -198,13 +199,19 @@ pub async fn process_corpus_with_embedder(
         };
 
         let context_emb = if !context_text.is_empty() {
-            embedding_service.embed_batch(vec![context_text]).ok().and_then(|mut v| v.pop())
+            embedding_service
+                .embed_batch(vec![context_text])
+                .ok()
+                .and_then(|mut v| v.pop())
         } else {
             None
         };
 
         let keyword_emb = if !keyword_text.is_empty() {
-            embedding_service.embed_batch(vec![keyword_text]).ok().and_then(|mut v| v.pop())
+            embedding_service
+                .embed_batch(vec![keyword_text])
+                .ok()
+                .and_then(|mut v| v.pop())
         } else {
             None
         };
