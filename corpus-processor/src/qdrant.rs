@@ -388,4 +388,11 @@ impl QdrantService {
         println!("Successfully updated dialect field");
         Ok(())
     }
+
+    pub async fn delete_collection(&self) -> Result<()> {
+        println!("Deleting collection '{}'...", COLLECTION_NAME);
+        self.client.delete_collection(COLLECTION_NAME).await?;
+        println!("Collection '{}' deleted successfully", COLLECTION_NAME);
+        Ok(())
+    }
 }
