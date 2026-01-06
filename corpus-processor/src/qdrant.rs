@@ -162,7 +162,7 @@ impl QdrantService {
                 .collect();
 
             self.client
-                .upsert_points(UpsertPointsBuilder::new(COLLECTION_NAME, points))
+                .upsert_points(UpsertPointsBuilder::new(COLLECTION_NAME, points).wait(true))
                 .await
                 .context(format!("Failed to upload batch {}", batch_idx + 1))?;
 

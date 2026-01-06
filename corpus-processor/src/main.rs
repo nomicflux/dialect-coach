@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use dialect_coach_shared::{Dialect, DialectDocument, Language};
 use std::fs;
+use std::io::{BufRead, BufReader};
 
 #[derive(Parser)]
 #[command(name = "corpus-processor")]
@@ -116,6 +117,21 @@ enum Commands {
         #[arg(short = 'k', long)]
         api_key: Option<String>,
     },
+
+    /// Reset (Delete & Recreate) the Qdrant collection. WARNING: Destructive!
+    ResetCollection {
+        /// Qdrant server URL (can also use QDRANT_URL env var)
+        #[arg(short, long)]
+        url: Option<String>,
+
+        /// Qdrant API key (optional, can also use QDRANT_API_KEY env var)
+        #[arg(short = 'k', long)]
+        api_key: Option<String>,
+        
+        /// Skip confirmation prompt
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 fn get_qdrant_url(url: Option<String>) -> Result<String> {
@@ -208,38 +224,91 @@ async fn main() -> Result<()> {
             url,
             api_key,
         } => {
-            println!("Uploading documents to Qdrant:");
-            println!("  Input: {}", input);
+            println!("Uploading documents to Qdrant (streaming):");
+            println!("  Input: {}\n", input);
 
-            // Load documents from JSONL file
-            println!("Loading documents from {}...", input);
-            let documents = load_documents_from_jsonl(&input)?;
-            println!("Loaded {} documents\n", documents.len());
-
-            // Connect to Qdrant and upload
+            // Connect to Qdrant first
             let qdrant = get_qdrant_service(url, api_key).await?;
 
-            println!("Uploading to Qdrant...");
+            // Count total lines for progress
+            let line_count = {
+                let file = fs::File::open(&input)
+                    .context(format!("Failed to open file: {}", input))?;
+                BufReader::new(file).lines().count()
+            };
+            println!("📊 Total records in file: {}", line_count);
 
-            // Re-define FullRecord here or import it?
-            // Better to move FullRecord to a shared location in the crate.
-            // For now, I will assume load_documents handles it...
-            // Wait, load_documents_from_jsonl returns Vec<DialectDocument>.
-            // I need a NEW loader for the enriched format.
+            // Initialize collection (get vector size from first record)
+            let file = fs::File::open(&input)?;
+            let mut reader = BufReader::new(file);
+            let mut first_line = String::new();
+            reader.read_line(&mut first_line)?;
+            if !first_line.trim().is_empty() {
+                let first_rec: crate::processor::EnrichedCorpusRecord =
+                    serde_json::from_str(&first_line).context("Failed to parse first record")?;
+                let vector_size = first_rec.doc.embedding.len() as u64;
+                qdrant.init_collection(vector_size).await?;
+            }
 
-            // Let's implement load_enriched_documents in main or loaders.
-            // And pass that to qdrant.
+            // Stream and upload in batches
+            let file = fs::File::open(&input)?;
+            let reader = BufReader::new(file);
+            
+            const BATCH_SIZE: usize = 100;
+            let mut batch: Vec<crate::processor::EnrichedCorpusTuple> = Vec::with_capacity(BATCH_SIZE);
+            let mut uploaded_count = 0usize;
+            let mut error_count = 0usize;
 
-            // TEMPORARY HACK: I will define the struct here to read it.
-            // But qdrant::upload_enriched_documents expects inputs.
+            for (line_num, line_result) in reader.lines().enumerate() {
+                let line = match line_result {
+                    Ok(l) => l,
+                    Err(e) => {
+                        eprintln!("[Line {}] ❌ Read error: {}", line_num + 1, e);
+                        error_count += 1;
+                        continue;
+                    }
+                };
 
-            // Actually, I should just modify load_documents...
-            // But it's time sensitive.
-            // I'll call a new function `load_enriched_from_jsonl`
-            let enriched_docs = load_enriched_from_jsonl(&input)?;
-            qdrant.upload_enriched_documents(&enriched_docs).await?;
+                if line.trim().is_empty() {
+                    continue;
+                }
 
-            println!("\n✓ Upload completed successfully");
+                let rec: crate::processor::EnrichedCorpusRecord = match serde_json::from_str(&line) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("[Line {}] ❌ Parse error: {}", line_num + 1, e);
+                        error_count += 1;
+                        continue;
+                    }
+                };
+
+                batch.push((rec.doc, rec.context_emb, rec.keyword_emb, rec.enriched));
+
+                // Upload when batch is full
+                if batch.len() >= BATCH_SIZE {
+                    if let Err(e) = qdrant.upload_batch(&batch).await {
+                        eprintln!("[Batch] ❌ Upload error: {:?}", e);
+                        error_count += batch.len();
+                    } else {
+                        uploaded_count += batch.len();
+                    }
+                    
+                    println!("[{}/{}] ✅ Uploaded {} records", uploaded_count, line_count, uploaded_count);
+                    batch.clear();
+                }
+            }
+
+            // Upload remaining records
+            if !batch.is_empty() {
+                if let Err(e) = qdrant.upload_batch(&batch).await {
+                    eprintln!("[Batch] ❌ Upload error: {:?}", e);
+                    error_count += batch.len();
+                } else {
+                    uploaded_count += batch.len();
+                }
+            }
+
+            println!("\n✅ Upload complete: {} uploaded, {} errors", uploaded_count, error_count);
         }
         Commands::List => {
             println!("Available languages and dialects:\n");
@@ -273,6 +342,24 @@ async fn main() -> Result<()> {
 
             // Get detailed status
             qdrant.get_detailed_status().await?;
+        }
+        Commands::ResetCollection { url, api_key, force } => {
+             let qdrant = get_qdrant_service(url, api_key).await?;
+             
+             if !force {
+                 use std::io::Write;
+                 print!("⚠️  WARNING: This will DELETE existing collection 'dialect_documents_v2'. Type 'yes' to confirm: ");
+                 std::io::stdout().flush()?;
+                 let mut input = String::new();
+                 std::io::stdin().read_line(&mut input)?;
+                 if input.trim() != "yes" {
+                     println!("Aborted.");
+                     return Ok(());
+                 }
+             }
+             
+             qdrant.delete_collection().await?;
+             println!("✅ Collection reset. It will be re-created with correct schema on next upload.");
         }
     }
 
