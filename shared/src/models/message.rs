@@ -706,7 +706,6 @@ mod tests {
         assert_eq!(deserialized, msg);
     }
 
-
     #[test]
     fn test_user_message_sign_in_serialization() {
         let username = "bob".to_string();
@@ -787,7 +786,6 @@ mod tests {
         let json = serde_json::to_string(&action).unwrap();
         assert!(json.contains("ExplainMessage"));
     }
-
 
     #[test]
     fn test_auth_credentials_password_in_create_user() {

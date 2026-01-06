@@ -106,7 +106,12 @@ pub async fn handle_create_user(
     tracing::info!("Creating user: {} with email {}", username, email);
     let auth_creds = convert_auth_credentials(credentials);
     let response = match create_and_save_user(
-        state, auth_creds, username, email, password, initial_settings,
+        state,
+        auth_creds,
+        username,
+        email,
+        password,
+        initial_settings,
     )
     .await
     {
@@ -127,11 +132,7 @@ fn format_auth_error(e: anyhow::Error) -> String {
     }
 }
 
-async fn build_sign_in_response(
-    state: &AppState,
-    username: &str,
-    password: &str,
-) -> UserMessage {
+async fn build_sign_in_response(state: &AppState, username: &str, password: &str) -> UserMessage {
     match state.auth_service.authenticate(username, password).await {
         Ok(user) => {
             let result = sign_in_user(state, user.id).await;
@@ -202,8 +203,7 @@ mod test {
     #[test]
     fn test_send_user_message_sign_in_response_err() {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let response =
-            UserMessage::SignInResponse(Box::new(Err("User not found".to_string())));
+        let response = UserMessage::SignInResponse(Box::new(Err("User not found".to_string())));
 
         let result = send_user_message(&response, &tx);
         assert!(result.is_ok());

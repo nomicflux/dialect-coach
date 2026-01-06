@@ -161,7 +161,8 @@ pub fn on_signin_response(
     session: UseReducerHandle<SessionState>,
 ) -> Callback<Result<(dialect_coach_shared::User, UserState, String), String>> {
     Callback::from(
-        move |result: Result<(dialect_coach_shared::User, UserState, String), String>| match result {
+        move |result: Result<(dialect_coach_shared::User, UserState, String), String>| match result
+        {
             Ok((user, user_state, token)) => {
                 info!("Sign in successful: {}", user.username);
                 crate::utils::cookies::set_session_token(&token);

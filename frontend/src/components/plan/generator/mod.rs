@@ -59,10 +59,10 @@ pub fn plan_generator(props: &PlanGeneratorProps) -> Html {
                 .into_iter()
                 .find(|l| l.to_string() == input.value())
             {
-                 let dialects = Dialect::for_language(language, false, false);
-                 if let Some(first) = dialects.first() {
-                     selected_dialect.set(*first);
-                 }
+                let dialects = Dialect::for_language(language, false, false);
+                if let Some(first) = dialects.first() {
+                    selected_dialect.set(*first);
+                }
             }
         })
     };

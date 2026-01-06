@@ -98,10 +98,7 @@ impl UserWebSocketService {
 }
 
 /// Process incoming UserMessage
-fn process_message(
-    text: &str,
-    on_signin: &Callback<Result<(User, UserState, String), String>>,
-) {
+fn process_message(text: &str, on_signin: &Callback<Result<(User, UserState, String), String>>) {
     match serde_json::from_str::<UserMessage>(text) {
         Ok(UserMessage::SignInResponse(result)) => {
             info!("Received SignInResponse: {:?}", result.is_ok());
