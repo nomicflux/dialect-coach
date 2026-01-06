@@ -14,7 +14,7 @@ use qdrant_client::{Payload, Qdrant};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-const COLLECTION_NAME: &str = "dialect_documents";
+const COLLECTION_NAME: &str = "dialect_documents_v2";
 
 /// Qdrant client wrapper for uploading dialect documents
 pub struct QdrantService {
@@ -177,6 +177,67 @@ impl QdrantService {
         Ok(())
     }
 
+    /// Upload a single batch of enriched documents (for streaming)
+    /// Caller is responsible for batching and progress reporting
+    pub async fn upload_batch(
+        &self,
+        batch: &[crate::processor::EnrichedCorpusTuple],
+    ) -> Result<()> {
+        if batch.is_empty() {
+            return Ok(());
+        }
+
+        let points: Vec<PointStruct> = batch
+            .iter()
+            .map(|item| {
+                let (doc, context_emb, keyword_emb, data) = item;
+                let namespace = Uuid::NAMESPACE_OID;
+                let name = format!("{}:{}", doc.dialect.name(), doc.content);
+                let uuid = Uuid::new_v5(&namespace, name.as_bytes());
+                let point_id = PointId::from(uuid.to_string());
+
+                // Payload
+                let mut payload = Payload::new();
+                payload.insert("content", doc.content.clone());
+                payload.insert("dialect", doc.dialect.id());
+
+                // Add Enriched Metadata
+                if let Some(f) = &data.formality {
+                    payload.insert("formality", format!("{:?}", f));
+                }
+                if let Some(i) = &data.intent {
+                    payload.insert("intent", format!("{:?}", i));
+                }
+                if let Some(e) = &data.emotion {
+                    payload.insert("emotion", format!("{:?}", e));
+                }
+                payload.insert("topics", data.topics.clone());
+                payload.insert("context_triggers", data.context_triggers.clone());
+                payload.insert("keywords", data.keywords.clone());
+
+                // Named Vectors
+                let mut vectors = HashMap::new();
+                vectors.insert("content".to_string(), doc.embedding.clone());
+
+                if let Some(emb) = context_emb {
+                    vectors.insert("context".to_string(), emb.clone());
+                }
+                if let Some(emb) = keyword_emb {
+                    vectors.insert("keyword".to_string(), emb.clone());
+                }
+
+                PointStruct::new(point_id, vectors, payload)
+            })
+            .collect();
+
+        self.client
+            .upsert_points(UpsertPointsBuilder::new(COLLECTION_NAME, points).wait(true))
+            .await
+            .context("Failed to upload batch")?;
+
+        Ok(())
+    }
+
     /// Get detailed status with counts per dialect
     pub async fn get_detailed_status(&self) -> Result<()> {
         // Get basic collection info first
@@ -253,64 +314,7 @@ impl QdrantService {
         Ok(())
     }
 
-    pub async fn update_points(&self, dialect_from: &String, dialect_to: &String) -> Result<()> {
-        let filter = Filter::must([Condition::matches("dialect", (*dialect_from).clone())]);
-        let limit = 100000;
-        let results = self
-            .client
-            .scroll(
-                ScrollPointsBuilder::new(COLLECTION_NAME)
-                    .limit(limit)
-                    .filter(filter)
-                    .with_payload(true),
-            )
-            .await
-            .context("Failed to search Qdrant")?;
 
-        for (idx, point) in results.result.iter().enumerate() {
-            let payload = &point.payload;
-            let mut new_payload = HashMap::new();
-            let content = payload.get("content").ok_or(anyhow!("No content!"))?;
-            let new_dialect = Value {
-                kind: Some(Kind::StringValue(dialect_to.to_string())),
-            };
-            new_payload.insert(String::from("content"), (*content).clone());
-            new_payload.insert(String::from("dialect"), new_dialect);
-
-            let point_id = match &point.id {
-                Some(id) => vec![id.clone()],
-                None => Vec::new(),
-            };
-            let points_selector = PointsSelector {
-                points_selector_one_of: Some(PointsSelectorOneOf::Points(PointsIdsList {
-                    ids: point_id,
-                })),
-            };
-            let set_payload = PointsUpdateOperation {
-                operation: Some(Operation::SetPayload(SetPayload {
-                    payload: new_payload.clone(),
-                    points_selector: Some(points_selector),
-                    shard_key_selector: None,
-                    key: None,
-                })),
-            };
-
-            println!("{}: Payload: {:?}", idx, *payload);
-            println!("{}: New payload: {:?}", idx, new_payload.clone());
-            let builder = UpdateBatchPointsBuilder::new(COLLECTION_NAME, vec![set_payload]);
-            let res = self
-                .client
-                .update_points_batch(builder.wait(true))
-                .await
-                .context("Failed to update points");
-            match res {
-                Ok(r) => println!("Returned result: {:?}", r),
-                Err(e) => println!("Returned error: {:?}", e),
-            }
-        }
-
-        Ok(())
-    }
 
     pub async fn delete_points(&self, dialect: &String) -> Result<()> {
         let filter = Filter::must([Condition::matches("dialect", (*dialect).clone())]);
@@ -343,6 +347,45 @@ impl QdrantService {
             Err(e) => println!("Returned error: {:?}", e),
         }
 
+        Ok(())
+    }
+
+    pub async fn update_points(&self, dialect_from: &String, dialect_to: &String) -> Result<()> {
+        println!("Updating points from '{}' to '{}'...", dialect_from, dialect_to);
+
+        let filter = Filter::must([Condition::matches("dialect", dialect_from.clone())]);
+        let results = self.client.scroll(
+            ScrollPointsBuilder::new(COLLECTION_NAME)
+                .limit(100000)
+                .filter(filter)
+                .with_payload(true)
+        ).await.context("Failed to search Qdrant")?;
+
+        let point_ids: Vec<PointId> = results.result.iter()
+            .map(|point| point.id.clone().unwrap())
+            .collect();
+
+        if point_ids.is_empty() {
+            println!("No points found with dialect '{}'", dialect_from);
+            return Ok(());
+        }
+
+        println!("Found {} points to update", point_ids.len());
+
+        let mut payload = Payload::new();
+        payload.insert("dialect", dialect_to.clone());
+
+        let points_selector = PointsSelector { points_selector_one_of: Some(PointsSelectorOneOf::Points(PointsIdsList { ids: point_ids })) };
+        let update_op = PointsUpdateOperation { operation: Some(Operation::SetPayload(SetPayload {
+            payload: payload.into(),
+            points_selector: Some(points_selector),
+            ..Default::default()
+        })) };
+
+        self.client.update_points_batch(UpdateBatchPointsBuilder::new(COLLECTION_NAME, vec![update_op]).wait(true))
+            .await.context("Failed to update points")?;
+
+        println!("Successfully updated dialect field");
         Ok(())
     }
 }
