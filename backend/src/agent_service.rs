@@ -9,6 +9,7 @@ use crate::qdrant_service::QdrantService;
 pub mod analysis;
 pub mod enrichment;
 pub mod error_finding;
+pub mod keyword_extraction;
 pub mod language_instructions;
 pub mod learning;
 pub mod ocr;
