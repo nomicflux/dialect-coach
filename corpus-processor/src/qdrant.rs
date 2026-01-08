@@ -4,10 +4,10 @@ use qdrant_client::qdrant::points_selector::PointsSelectorOneOf;
 
 use qdrant_client::qdrant::points_update_operation::{Operation, SetPayload};
 use qdrant_client::qdrant::{
-    Condition, CreateCollectionBuilder, DeletePointsBuilder, Distance, Filter, PointId,
-    PointStruct, PointsIdsList, PointsSelector, PointsUpdateOperation, ScrollPointsBuilder,
-    UpdateBatchPointsBuilder, UpsertPointsBuilder, VectorParamsBuilder, VectorParamsMap,
-    VectorsConfig,
+    Condition, CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DeletePointsBuilder,
+    Distance, FieldType, Filter, PointId, PointStruct, PointsIdsList, PointsSelector,
+    PointsUpdateOperation, ScrollPointsBuilder, UpdateBatchPointsBuilder, UpsertPointsBuilder,
+    VectorParamsBuilder, VectorParamsMap, VectorsConfig,
 };
 use qdrant_client::{Payload, Qdrant};
 use std::collections::HashMap;
@@ -94,7 +94,61 @@ impl QdrantService {
 
             println!("Collection created successfully");
         } else {
-            println!("Collection '{}' already exists. Note: Ensure it has 'content', 'context', and 'keyword' vectors.", COLLECTION_NAME);
+            println!("Collection '{}' already exists", COLLECTION_NAME);
+        }
+
+        // Ensure keyword index exists for "dialect" field (for both new and existing collections)
+        // This enables filtering by dialect in delete_points and update_points operations
+        println!("Ensuring keyword index for 'dialect' field...");
+        match self
+            .client
+            .create_field_index(
+                CreateFieldIndexCollectionBuilder::new(
+                    COLLECTION_NAME,
+                    "dialect",
+                    FieldType::Keyword,
+                )
+                .wait(true),
+            )
+            .await
+        {
+            Ok(_) => println!("Keyword index created successfully"),
+            Err(e) => {
+                // Index might already exist - check if error is about duplicate
+                let err_msg = e.to_string();
+                if err_msg.contains("already exists") || err_msg.contains("duplicate") {
+                    println!("Keyword index already exists");
+                } else {
+                    return Err(e).context("Failed to create keyword index for 'dialect' field");
+                }
+            }
+        }
+
+        // Ensure keyword index exists for "formality" field (for both new and existing collections)
+        // This enables filtering by formality in search operations
+        println!("Ensuring keyword index for 'formality' field...");
+        match self
+            .client
+            .create_field_index(
+                CreateFieldIndexCollectionBuilder::new(
+                    COLLECTION_NAME,
+                    "formality",
+                    FieldType::Keyword,
+                )
+                .wait(true),
+            )
+            .await
+        {
+            Ok(_) => println!("Keyword index created successfully"),
+            Err(e) => {
+                // Index might already exist - check if error is about duplicate
+                let err_msg = e.to_string();
+                if err_msg.contains("already exists") || err_msg.contains("duplicate") {
+                    println!("Keyword index already exists");
+                } else {
+                    return Err(e).context("Failed to create keyword index for 'formality' field");
+                }
+            }
         }
 
         Ok(())
@@ -155,8 +209,7 @@ impl QdrantService {
 
         self.client
             .upsert_points(UpsertPointsBuilder::new(COLLECTION_NAME, points).wait(true))
-            .await
-            .context("Failed to upload batch")?;
+            .await?;
 
         Ok(())
     }
