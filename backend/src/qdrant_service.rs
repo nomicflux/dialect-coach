@@ -249,7 +249,12 @@ impl QdrantService {
         for embedding in keyword_embeddings {
             let results = Self::retry_qdrant_operation(
                 || {
-                    self.search_named_vector("keyword", embedding, filter.clone(), limit_per_keyword)
+                    self.search_named_vector(
+                        "keyword",
+                        embedding,
+                        filter.clone(),
+                        limit_per_keyword,
+                    )
                 },
                 3,
             )
