@@ -224,11 +224,9 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
     use SettingsAction::*;
     match action {
         ChangeDialect(dialect) => {
-            let old_language = next.selected_dialect.language();
-            next.selected_dialect = dialect;
-            next.selected_language = dialect.language();
-
-            if old_language != dialect.language() {
+            if next.selected_dialect != dialect {
+                next.selected_dialect = dialect;
+                next.selected_language = dialect.language();
                 create_new_branch_for_language(next);
             }
         }

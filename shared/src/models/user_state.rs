@@ -298,8 +298,6 @@ impl UserState {
         user_id: Uuid,
         initial_settings: Option<InitialUserSettings>,
     ) -> Self {
-        let initial_branch = ConversationBranch::new(None, None, None, None, vec![]);
-        let initial_branch_id = initial_branch.id;
         let show_experimental_dialects = false;
 
         let (language, dialect, gender, dialect_levels) = match initial_settings {
@@ -309,13 +307,14 @@ impl UserState {
             }
             None => {
                 let lang = Language::Spanish;
-                // Since Spanish is the default language and always has dialects, this unwrap is generally safe,
-                // but we might want to be robust eventually. For now, unwrap_or fallback to a known constant if somehow empty.
                 let dial = Self::default_dialect_for_language(lang, show_experimental_dialects)
-                    .unwrap_or(Dialect::SpanishArgentinian);
+                    .expect("Spanish language must have available dialects");
                 (lang, dial, UserGender::NonBinary, Vec::new())
             }
         };
+
+        let initial_branch = ConversationBranch::new(None, None, None, Some(dialect), vec![]);
+        let initial_branch_id = initial_branch.id;
 
         Self {
             user_id,

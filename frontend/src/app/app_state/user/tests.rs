@@ -725,6 +725,29 @@ fn test_cycle_dialect_action() {
 }
 
 #[test]
+fn test_change_dialect_creates_branch() {
+    let mut state = UserState::new(Uuid::new_v4());
+    state.selected_language = Language::Spanish;
+    state.selected_dialect = Dialect::SpanishMexican;
+
+    let initial_branch_count = state.branches.len();
+    let initial_branch_id = state.active_branch_id;
+
+    // Change to a different Spanish dialect
+    let action = UserStateAction::Settings(SettingsAction::ChangeDialect(Dialect::SpanishArgentinian));
+    state = apply_user_state_action(&state, action).unwrap();
+
+    // Verify new branch was created
+    assert_eq!(state.branches.len(), initial_branch_count + 1);
+    assert_ne!(state.active_branch_id, initial_branch_id);
+    assert_eq!(state.selected_dialect, Dialect::SpanishArgentinian);
+
+    // Verify new branch has the new dialect
+    let new_branch = state.branches.iter().find(|b| b.id == state.active_branch_id).unwrap();
+    assert_eq!(new_branch.dialect, Some(Dialect::SpanishArgentinian));
+}
+
+#[test]
 fn test_cycle_formality_action() {
     let mut state = UserState::new(Uuid::new_v4());
     state.formality = Formality::Formal;
