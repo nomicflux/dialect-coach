@@ -353,7 +353,12 @@ mod tests {
 
         let mut state = UserState::new(Uuid::new_v4());
         Arc::make_mut(&mut state.language_plans).push(plan.clone());
-        state.active_plan_id = Some(plan.id);
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
+            branch.active_plan_id = Some(plan.id);
+        }
 
         // Act
         let system_content = build_plan_system_content(&Some(&plan));

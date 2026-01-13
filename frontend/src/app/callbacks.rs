@@ -32,9 +32,10 @@ pub fn on_send_message(
         )));
 
         // Extract learning items and goals using shared model logic
-        let past_items = state.get_past_learning_items(&state.selected_dialect);
+        let dialect = state.active_branch_dialect();
+        let past_items = state.get_past_learning_items(&dialect);
         let filtered_goals = state
-            .get_learning_goals_for_dialect(&state.selected_dialect)
+            .get_learning_goals_for_dialect(&dialect)
             .into_iter()
             .cloned()
             .collect();

@@ -232,14 +232,15 @@ pub fn delete_learning_goal(mut goals: Vec<LearningGoal>, index: usize) -> Vec<L
     goals
 }
 
-pub fn create_new_branch_for_language(state: &mut UserState) {
+pub fn create_new_branch_for_language(state: &mut UserState, dialect: Dialect) {
+    let plan_id = state.active_branch_plan_id();
     let new_branch = ConversationBranch::new(
         None,
         None,
         None,
-        state.selected_dialect,
+        dialect,
         vec![],
-        state.active_plan_id,
+        plan_id,
     );
     let new_branch_id = new_branch.id;
     Arc::make_mut(&mut state.branches).push(new_branch);
@@ -252,7 +253,6 @@ pub fn sync_to_active_branch(state: &mut UserState) {
         .iter()
         .find(|b| b.id == state.active_branch_id)
     {
-        state.selected_dialect = branch.dialect;
         state.selected_language = branch.dialect.language();
     }
 }

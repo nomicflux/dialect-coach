@@ -49,13 +49,14 @@ pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
     use std::sync::Arc;
     match action {
         AddItems(mistakes, explained, translated, exploratory) => {
+            let dialect = next.active_branch_dialect();
             next.learning_items = Arc::new(add_learning_items_to_vec(
                 (*next.learning_items).clone(),
                 mistakes,
                 explained,
                 translated,
                 exploratory,
-                next.selected_dialect,
+                dialect,
             ));
         }
         UpdateScores(analysis) => {
@@ -77,9 +78,10 @@ pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
             ));
         }
         AddGoal(goal_text) => {
+            let dialect = next.active_branch_dialect();
             let goal = LearningGoal {
                 goal: goal_text,
-                dialect: next.selected_dialect,
+                dialect,
             };
             next.learning_goals = Arc::new(add_learning_goal((*next.learning_goals).clone(), goal));
         }
@@ -105,24 +107,26 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
             }
 
             // Create new branch with dialect from the branching message
+            let fallback_dialect = next.active_branch_dialect();
             let dialect = next
                 .conversation_history
                 .iter()
                 .find(|m| m.id == message_id)
                 .map(|m| m.metadata.dialect)
-                .unwrap_or(next.selected_dialect);
+                .unwrap_or(fallback_dialect);
             let message_ids = next
                 .get_path_to_message(Some(message_id))
                 .into_iter()
                 .map(|m| m.id)
                 .collect();
+            let plan_id = next.active_branch_plan_id();
             let new_branch = ConversationBranch::new(
                 Some(message_id),
                 None,
                 Some(message_id),
                 dialect,
                 message_ids,
-                next.active_plan_id,
+                plan_id,
             );
             let new_branch_id = new_branch.id;
             Arc::make_mut(&mut next.branches).push(new_branch);
@@ -165,12 +169,8 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
         }
         Delete(plan_id) => {
             Arc::make_mut(&mut next.language_plans).retain(|p| p.id != plan_id);
-            if next.active_plan_id == Some(plan_id) {
-                next.active_plan_id = None;
-            }
         }
         SetActive(plan_id) => {
-            next.active_plan_id = plan_id;
 
             let active_branch_id = next.active_branch_id;
             if let Some(branch) = Arc::make_mut(&mut next.branches)
@@ -227,12 +227,13 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
 
 pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
     use SettingsAction::*;
+    use std::sync::Arc;
     match action {
         ChangeDialect(dialect) => {
-            if next.selected_dialect != dialect {
-                next.selected_dialect = dialect;
+            let current_dialect = next.active_branch_dialect();
+            if current_dialect != dialect {
                 next.selected_language = dialect.language();
-                create_new_branch_for_language(next);
+                create_new_branch_for_language(next, dialect);
             }
         }
         ChangeLanguage(language) => {
@@ -251,10 +252,9 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             if let Some(dialect) = dialect {
                 let old_language = next.selected_language;
                 next.selected_language = language;
-                next.selected_dialect = dialect;
 
                 if old_language != language {
-                    create_new_branch_for_language(next);
+                    create_new_branch_for_language(next, dialect);
                 }
             } else {
                 log::warn!("No dialect found for language: {:?}", language);
@@ -270,7 +270,8 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             next.user_gender = gender;
         }
         UpdateLevel(level) => {
-            next.set_level_for_dialect(next.selected_dialect, level);
+            let dialect = next.active_branch_dialect();
+            next.set_level_for_dialect(dialect, level);
         }
         ToggleTTS => {
             next.tts_enabled = !next.tts_enabled;
@@ -279,12 +280,20 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             next.show_experimental_dialects = !next.show_experimental_dialects;
         }
         CycleDialect => {
-            let old_language = next.selected_dialect.language();
-            next.selected_dialect = cycle_dialect(next);
-            let new_language = next.selected_dialect.language();
+            let old_dialect = next.active_branch_dialect();
+            let old_language = old_dialect.language();
+            let new_dialect = cycle_dialect(next);
+            let new_language = new_dialect.language();
 
-            if old_language != new_language {
-                create_new_branch_for_language(next);
+            if old_dialect != new_dialect {
+                if old_language != new_language {
+                    create_new_branch_for_language(next, new_dialect);
+                } else if let Some(branch) = Arc::make_mut(&mut next.branches)
+                    .iter_mut()
+                    .find(|b| b.id == next.active_branch_id)
+                {
+                    branch.dialect = new_dialect;
+                }
             }
         }
         CycleFormality => {
@@ -320,10 +329,11 @@ pub(crate) fn apply_user_state_action(state: &UserState, action: UserStateAction
 
 fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
     use std::sync::Arc;
+    let plan_id = state.active_branch_plan_id();
     if let Some(plan) = state
         .language_plans
         .iter()
-        .find(|p| Some(p.id) == state.active_plan_id)
+        .find(|p| Some(p.id) == plan_id)
         && let Some(step) = plan.steps.get(plan.current_step_index)
         && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
     {
@@ -343,9 +353,10 @@ fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
 
 fn check_step_completion(state: &mut UserState) {
     use std::sync::Arc;
+    let plan_id = state.active_branch_plan_id();
     if let Some(plan) = Arc::make_mut(&mut state.language_plans)
         .iter_mut()
-        .find(|p| Some(p.id) == state.active_plan_id)
+        .find(|p| Some(p.id) == plan_id)
         && let Some(step) = plan.steps.get(plan.current_step_index)
         && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
     {
@@ -402,7 +413,7 @@ mod tests {
     #[test]
     fn test_promote_plan_items() {
         let mut state = UserState::new(Uuid::new_v4());
-        let dialect = Dialect::SpanishMexican;
+        let dialect = state.active_branch_dialect();
         let mut plan = LanguagePlan::new(
             "Test Plan".to_string(),
             dialect,
@@ -431,7 +442,12 @@ mod tests {
         ));
 
         Arc::make_mut(&mut state.language_plans).push(plan.clone());
-        state.active_plan_id = Some(plan.id);
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
+            branch.active_plan_id = Some(plan.id);
+        }
 
         let mut analysis = AgentAnalysis::default();
         analysis
@@ -448,7 +464,7 @@ mod tests {
     #[test]
     fn test_check_step_completion() {
         let mut state = UserState::new(Uuid::new_v4());
-        let dialect = Dialect::SpanishMexican;
+        let dialect = state.active_branch_dialect();
         let mut plan = LanguagePlan::new(
             "Test Plan".to_string(),
             dialect,
@@ -487,7 +503,12 @@ mod tests {
         ));
 
         Arc::make_mut(&mut state.language_plans).push(plan.clone());
-        state.active_plan_id = Some(plan.id);
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
+            branch.active_plan_id = Some(plan.id);
+        }
         Arc::make_mut(&mut state.learning_items).push(active_item);
 
         // Verification: current index should be 0
@@ -506,8 +527,7 @@ mod tests {
     #[test]
     fn test_activate_step_promotion() {
         let mut state = UserState::new(Uuid::new_v4());
-        let dialect = Dialect::SpanishMexican;
-        state.selected_dialect = dialect;
+        let dialect = state.active_branch_dialect();
         let mut plan = LanguagePlan::new(
             "Test Plan".to_string(),
             dialect,
@@ -536,7 +556,12 @@ mod tests {
         ));
 
         Arc::make_mut(&mut state.language_plans).push(plan.clone());
-        state.active_plan_id = Some(plan.id);
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
+            branch.active_plan_id = Some(plan.id);
+        }
 
         // Initially no items
         assert!(state.learning_items.is_empty());

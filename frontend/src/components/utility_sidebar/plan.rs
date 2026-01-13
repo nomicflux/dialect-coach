@@ -119,7 +119,7 @@ fn spawn_import_task(
 // --- Render Helpers ---
 
 fn render_active_plan(user: &Rc<UserState>, dispatch: &Callback<UserDomainAction>) -> Html {
-    let Some(active_plan_id) = user.active_plan_id else {
+    let Some(active_plan_id) = user.active_branch_plan_id() else {
         return html! {};
     };
     let Some(active_plan) = user.language_plans.iter().find(|p| p.id == active_plan_id) else {
@@ -361,7 +361,7 @@ struct PlanContext<'a> {
 }
 
 fn render_plans_content(ctx: PlanContext<'_>) -> Html {
-    if ctx.props.user.active_plan_id.is_some() {
+    if ctx.props.user.active_branch_plan_id().is_some() {
         render_active_plan(&ctx.props.user, &ctx.props.dispatch)
     } else if *ctx.show_create_plan || ctx.editing_plan_id.is_some() || *ctx.show_generator {
         render_edit_mode(
@@ -410,7 +410,7 @@ fn render_edit_mode(
 fn render_list_mode(ctx: &PlanContext<'_>) -> Html {
     html! {
         <>
-            {render_plan_list(ctx.filtered_plans.clone(), ctx.props.user.active_plan_id, ctx.props.dispatch.clone(), ctx.editing_plan_id.clone(), ctx.on_export_plan.clone())}
+            {render_plan_list(ctx.filtered_plans.clone(), ctx.props.user.active_branch_plan_id(), ctx.props.dispatch.clone(), ctx.editing_plan_id.clone(), ctx.on_export_plan.clone())}
             if ctx.props.active_branch_dialect.is_some() {
                 {render_action_buttons(ctx.show_create_plan.clone(), ctx.show_generator.clone(), ctx.editing_plan_id.clone(), ctx.on_import_click.clone(), ctx.on_file_change.clone(), ctx.file_input_ref.clone(), ctx.is_importing)}
             }

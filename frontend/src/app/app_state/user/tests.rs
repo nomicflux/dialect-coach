@@ -724,20 +724,30 @@ fn test_cycle_teaching_mode() {
 fn test_cycle_dialect_action() {
     let mut state = UserState::new(Uuid::new_v4());
     state.selected_language = Language::Spanish;
-    state.selected_dialect = Dialect::SpanishMexican;
+    if let Some(branch) = Arc::make_mut(&mut state.branches)
+        .iter_mut()
+        .find(|b| b.id == state.active_branch_id)
+    {
+        branch.dialect = Dialect::SpanishMexican;
+    }
     state.show_experimental_dialects = true;
 
     let action = UserStateAction::Settings(SettingsAction::CycleDialect);
     state = apply_user_state_action(&state, action).unwrap();
 
-    assert_ne!(state.selected_dialect, Dialect::SpanishMexican);
+    assert_ne!(state.active_branch_dialect(), Dialect::SpanishMexican);
 }
 
 #[test]
 fn test_change_dialect_creates_branch() {
     let mut state = UserState::new(Uuid::new_v4());
     state.selected_language = Language::Spanish;
-    state.selected_dialect = Dialect::SpanishMexican;
+    if let Some(branch) = Arc::make_mut(&mut state.branches)
+        .iter_mut()
+        .find(|b| b.id == state.active_branch_id)
+    {
+        branch.dialect = Dialect::SpanishMexican;
+    }
 
     let initial_branch_count = state.branches.len();
     let initial_branch_id = state.active_branch_id;
@@ -749,7 +759,7 @@ fn test_change_dialect_creates_branch() {
     // Verify new branch was created
     assert_eq!(state.branches.len(), initial_branch_count + 1);
     assert_ne!(state.active_branch_id, initial_branch_id);
-    assert_eq!(state.selected_dialect, Dialect::SpanishArgentinian);
+    assert_eq!(state.active_branch_dialect(), Dialect::SpanishArgentinian);
 
     // Verify new branch has the new dialect
     let new_branch = state.branches.iter().find(|b| b.id == state.active_branch_id).unwrap();
@@ -784,11 +794,12 @@ fn test_language_plan_reducers() {
     };
 
     let mut state = UserState::new(Uuid::new_v4());
+    let branch_dialect = state.active_branch_dialect();
     let plan_id = Uuid::new_v4();
     let plan = LanguagePlan {
         id: plan_id,
         title: "Test Plan".to_string(),
-        dialect: Dialect::SpanishMexican,
+        dialect: branch_dialect,
         description: None,
         steps: vec![
             PlanStep::new(
@@ -825,7 +836,7 @@ fn test_language_plan_reducers() {
         UserStateAction::Plan(PlanAction::SetActive(Some(plan_id))),
     )
     .unwrap();
-    assert_eq!(state.active_plan_id, Some(plan_id));
+    assert_eq!(state.active_branch_plan_id(), Some(plan_id));
     // Should auto-start
     assert_eq!(state.language_plans[0].status, PlanStatus::InProgress);
     assert_eq!(
@@ -853,13 +864,18 @@ fn test_language_plan_reducers() {
     state = apply_user_state_action(&state, UserStateAction::Plan(PlanAction::Delete(plan_id)))
         .unwrap();
     assert!(state.language_plans.is_empty());
-    assert_eq!(state.active_plan_id, None);
+    assert_eq!(state.active_branch_plan_id(), None);
 }
 
 #[test]
 fn test_update_language_level_action() {
     let mut state = UserState::new(Uuid::new_v4());
-    state.selected_dialect = Dialect::SpanishMexican;
+    if let Some(branch) = Arc::make_mut(&mut state.branches)
+        .iter_mut()
+        .find(|b| b.id == state.active_branch_id)
+    {
+        branch.dialect = Dialect::SpanishMexican;
+    }
 
     let action = UserStateAction::Settings(SettingsAction::UpdateLevel(LanguageLevel::Cefr(
         CefrLevel::C1,

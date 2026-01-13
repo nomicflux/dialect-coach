@@ -68,10 +68,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
     };
 
     let current_step_title = us
-        .branches
-        .iter()
-        .find(|b| b.id == us.active_branch_id)
-        .and_then(|branch| branch.active_plan_id)
+        .active_branch_plan_id()
         .and_then(|plan_id| {
             us.language_plans
                 .iter()
@@ -88,8 +85,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     // Memoize filtered items to avoid iterating/cloning on every render
     let filtered_items = use_memo(us.clone(), |user| {
+        let dialect = user.active_branch_dialect();
         let items = user
-            .get_learning_items_for_dialect(&user.selected_dialect)
+            .get_learning_items_for_dialect(&dialect)
             .into_iter()
             .cloned()
             .collect::<Vec<_>>();
@@ -97,15 +95,16 @@ pub fn main_content(props: &MainContentProps) -> Html {
             "get_filtered_items count:",
             items.len(),
             "for dialect:",
-            user.selected_dialect.to_string()
+            dialect.to_string()
         );
         items
     });
 
     // Memoize filtered goals
     let filtered_goals = use_memo(us.clone(), |user| {
+        let dialect = user.active_branch_dialect();
         let goals = user
-            .get_learning_goals_for_dialect(&user.selected_dialect)
+            .get_learning_goals_for_dialect(&dialect)
             .into_iter()
             .cloned()
             .collect::<Vec<_>>();
@@ -359,8 +358,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         learning_goals={(*filtered_goals).clone()}
                         quests={
                             let stats = us.gamification_stats();
+                            let dialect = us.active_branch_dialect();
                             stats.quests.iter()
-                                .filter(|q| q.dialect == us.selected_dialect)
+                                .filter(|q| q.dialect == dialect)
                                 .cloned()
                                 .collect::<Vec<_>>()
                         }
@@ -403,7 +403,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_delete_branch={Some(on_delete_branch)}
                         goal_input_ref={Some(goal_input_ref.clone())}
                         learning_items={filtered_items.clone()}
-                        active_branch_dialect={Some(us.selected_dialect)}
+                        active_branch_dialect={Some(us.active_branch_dialect())}
                         enrichment_service={app_state.enrichment_service.clone()}
                         plan_service={app_state.plan_service.clone()}
                         on_delete_learning_item={on_delete_learning_item}

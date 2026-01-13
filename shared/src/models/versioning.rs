@@ -625,7 +625,6 @@ mod tests {
         let actual_fields = extract_field_names(&json);
         let expected_fields = vec![
             "active_branch_id",
-            "active_plan_id",
             "branches",
             "conversation_history",
             "dialect_levels",
@@ -635,7 +634,6 @@ mod tests {
             "language_plans",
             "learning_goals",
             "learning_items",
-            "selected_dialect",
             "selected_language",
             "show_experimental_dialects",
             "teaching_mode",

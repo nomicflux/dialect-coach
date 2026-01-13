@@ -215,7 +215,6 @@ pub struct UserState {
     pub conversation_history: Arc<Vec<Message>>,
     pub tts_enabled: bool,
     pub selected_language: Language,
-    pub selected_dialect: Dialect,
     pub formality: Formality,
     pub teaching_mode: TeachingMode,
     pub user_gender: UserGender,
@@ -223,7 +222,6 @@ pub struct UserState {
     pub branches: Arc<Vec<ConversationBranch>>,
     pub learning_goals: Arc<Vec<LearningGoal>>,
     pub language_plans: Arc<Vec<LanguagePlan>>,
-    pub active_plan_id: Option<Uuid>,
     pub usage_stats: UsageStats,
     pub language_options: LanguageOptions,
     pub show_experimental_dialects: bool,
@@ -255,12 +253,32 @@ impl UserState {
     }
 
     pub fn active_plan(&self) -> Option<LanguagePlan> {
-        self.active_plan_id.and_then(|id| {
+        self.active_branch_plan_id().and_then(|id| {
             self.language_plans
                 .iter()
                 .find(|plan| plan.id == id)
                 .cloned()
         })
+    }
+
+    pub fn active_branch_dialect(&self) -> Dialect {
+        self.branches
+            .iter()
+            .find(|b| b.id == self.active_branch_id)
+            .map(|b| b.dialect)
+            .expect("Active branch must exist and have dialect")
+    }
+
+    pub fn active_branch_plan_id(&self) -> Option<Uuid> {
+        let branch = self.branches.iter().find(|b| b.id == self.active_branch_id)?;
+        let plan_id = branch.active_plan_id?;
+
+        let plan = self.language_plans.iter().find(|p| p.id == plan_id)?;
+        if plan.dialect == branch.dialect {
+            Some(plan_id)
+        } else {
+            None
+        }
     }
 }
 
@@ -322,7 +340,6 @@ impl UserState {
             conversation_history: Arc::new(Vec::new()),
             tts_enabled: false,
             selected_language: language,
-            selected_dialect: dialect,
             formality: Formality::Informal,
             teaching_mode: TeachingMode::Immersive,
             user_gender: gender,
@@ -330,7 +347,6 @@ impl UserState {
             branches: Arc::new(vec![initial_branch]),
             learning_goals: Arc::new(Vec::new()),
             language_plans: Arc::new(Vec::new()),
-            active_plan_id: None,
             usage_stats: UsageStats::default(),
             language_options: LanguageOptions::default(),
             show_experimental_dialects,
@@ -367,11 +383,12 @@ impl UserState {
     }
 
     pub fn build_action_context(&self) -> ConversationContext {
-        let past_items = self.get_past_learning_items(&self.selected_dialect);
+        let dialect = self.active_branch_dialect();
+        let past_items = self.get_past_learning_items(&dialect);
         ConversationContext {
             active_plan: self.active_plan(),
             learning_goals: self
-                .get_learning_goals_for_dialect(&self.selected_dialect)
+                .get_learning_goals_for_dialect(&dialect)
                 .into_iter()
                 .cloned()
                 .collect(),
@@ -381,7 +398,7 @@ impl UserState {
             past_exploratory: past_items.exploratory,
             user_gender: self.user_gender,
             language_option: self.current_language_option(),
-            dialect: self.selected_dialect,
+            dialect,
             formality: self.formality,
             teaching_mode: self.teaching_mode,
             language_level: self.current_language_level(),
@@ -393,7 +410,7 @@ impl UserState {
     }
 
     pub fn current_dialect(&self) -> Dialect {
-        self.selected_dialect
+        self.active_branch_dialect()
     }
 
     pub fn current_language_option(&self) -> Option<LanguageOption> {
@@ -421,7 +438,8 @@ impl UserState {
     }
 
     pub fn current_language_level(&self) -> LanguageLevel {
-        self.get_level_for_dialect(&self.selected_dialect)
+        let dialect = self.active_branch_dialect();
+        self.get_level_for_dialect(&dialect)
     }
 
     pub fn current_dialects(&self) -> Vec<DialectWithFeatures> {
@@ -561,7 +579,12 @@ impl UserState {
     }
 
     fn reset_branches_to_root(&mut self) {
-        let dialect = self.selected_dialect;
+        let dialect = if self.branches.is_empty() {
+            UserState::default_dialect_for_language(self.selected_language, self.show_experimental_dialects)
+                .unwrap_or(Dialect::SpanishArgentinian)
+        } else {
+            self.active_branch_dialect()
+        };
         let branch = ConversationBranch::new(None, None, None, dialect, vec![], None);
         self.active_branch_id = branch.id;
         self.branches = Arc::new(vec![branch]);
@@ -606,9 +629,15 @@ impl UserState {
 
     fn branch_dialect(&self, leaf_id: Uuid) -> Dialect {
         let path = self.get_path_to_message(Some(leaf_id));
+        let fallback = if self.branches.is_empty() {
+            UserState::default_dialect_for_language(self.selected_language, self.show_experimental_dialects)
+                .unwrap_or(Dialect::SpanishArgentinian)
+        } else {
+            self.active_branch_dialect()
+        };
         path.first()
             .map(|msg| msg.metadata.dialect)
-            .unwrap_or(self.selected_dialect)
+            .unwrap_or(fallback)
     }
 
     fn apply_rebuilt_branches(&mut self, branches: Vec<ConversationBranch>) {
@@ -683,7 +712,7 @@ mod tests {
         };
         let state = UserState::with_initial_settings(Uuid::new_v4(), Some(settings));
         assert_eq!(state.selected_language, Language::Japanese);
-        assert_eq!(state.selected_dialect, Dialect::JapaneseTokyo);
+        assert_eq!(state.active_branch_dialect(), Dialect::JapaneseTokyo);
         assert_eq!(state.user_gender, UserGender::Female);
         assert_eq!(state.dialect_levels.len(), 1);
         assert_eq!(
