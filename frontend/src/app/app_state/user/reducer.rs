@@ -19,7 +19,6 @@ pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
 
             msg.parent_id = current_leaf;
             let new_msg_id = msg.id;
-            let msg_dialect = msg.metadata.dialect;
             Arc::make_mut(&mut next.conversation_history).push(msg);
 
             if let Some(branch) = Arc::make_mut(&mut next.branches)
@@ -28,10 +27,6 @@ pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
             {
                 branch.message_ids.push(new_msg_id);
                 branch.leaf_message_id = Some(new_msg_id);
-                // Set branch dialect from first message if dialect is None
-                if branch.dialect.is_none() {
-                    branch.dialect = Some(msg_dialect);
-                }
             }
         }
         Delete(id) => {
@@ -114,7 +109,8 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 .conversation_history
                 .iter()
                 .find(|m| m.id == message_id)
-                .map(|m| m.metadata.dialect);
+                .map(|m| m.metadata.dialect)
+                .unwrap_or(next.selected_dialect);
             let message_ids = next
                 .get_path_to_message(Some(message_id))
                 .into_iter()
@@ -244,9 +240,9 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             let dialect_from_branch = next
                 .branches
                 .iter()
-                .filter(|b| b.dialect.is_some_and(|d| d.language() == language))
+                .filter(|b| b.dialect.language() == language)
                 .max_by_key(|b| b.created_at)
-                .and_then(|b| b.dialect);
+                .map(|b| b.dialect);
 
             let dialect = dialect_from_branch.or_else(|| {
                 UserState::default_dialect_for_language(language, next.show_experimental_dialects)

@@ -233,7 +233,7 @@ fn test_delete_branch_reducer() {
         None,
         Some("ToDelete".to_string()),
         Some(msg.id),
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![msg.id],
         None,
     ));
@@ -257,7 +257,7 @@ fn test_delete_active_branch_switches_to_first() {
         None,
         Some("NewBranch".to_string()),
         None,
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![],
         None,
     );
@@ -338,7 +338,7 @@ fn test_simple_branch_deletion() {
         Some(msg_b.id),
         Some("C+D".to_string()),
         None,
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![],
         None,
     );
@@ -361,7 +361,7 @@ fn test_simple_branch_deletion() {
         Some(msg_b.id),
         Some("X+Y".to_string()),
         None,
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![],
         None,
     );
@@ -417,7 +417,7 @@ fn test_complex_nested_branch_deletion() {
         Some(msg_b.id),
         Some("C+D".to_string()),
         None,
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![],
         None,
     );
@@ -440,7 +440,7 @@ fn test_complex_nested_branch_deletion() {
         Some(msg_x.id),
         Some("Y".to_string()),
         None,
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![],
         None,
     );
@@ -507,7 +507,7 @@ fn test_delete_branch_with_sub_branches() {
         Some(msg_c.id),
         Some("D+E+F".to_string()),
         None,
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![],
         None,
     );
@@ -560,7 +560,7 @@ fn test_delete_inactive_branch_preserves_active() {
         Some(msg_b.id),
         Some("Inactive".to_string()),
         None,
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![],
         None,
     );
@@ -583,7 +583,7 @@ fn test_delete_inactive_branch_preserves_active() {
         Some(msg_b.id),
         Some("Active".to_string()),
         None,
-        Some(Dialect::SpanishMexican),
+        Dialect::SpanishMexican,
         vec![],
         None,
     );
@@ -753,7 +753,7 @@ fn test_change_dialect_creates_branch() {
 
     // Verify new branch has the new dialect
     let new_branch = state.branches.iter().find(|b| b.id == state.active_branch_id).unwrap();
-    assert_eq!(new_branch.dialect, Some(Dialect::SpanishArgentinian));
+    assert_eq!(new_branch.dialect, Dialect::SpanishArgentinian);
 }
 
 #[test]

@@ -237,7 +237,7 @@ pub fn create_new_branch_for_language(state: &mut UserState) {
         None,
         None,
         None,
-        Some(state.selected_dialect),
+        state.selected_dialect,
         vec![],
         state.active_plan_id,
     );
@@ -251,10 +251,9 @@ pub fn sync_to_active_branch(state: &mut UserState) {
         .branches
         .iter()
         .find(|b| b.id == state.active_branch_id)
-        && let Some(dialect) = branch.dialect
     {
-        state.selected_dialect = dialect;
-        state.selected_language = dialect.language();
+        state.selected_dialect = branch.dialect;
+        state.selected_language = branch.dialect.language();
     }
 }
 

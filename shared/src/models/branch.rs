@@ -12,7 +12,7 @@ pub struct ConversationBranch {
     pub leaf_message_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub name: Option<String>,
-    pub dialect: Option<Dialect>,
+    pub dialect: Dialect,
     #[serde(default)]
     pub message_ids: Vec<Uuid>,
     #[serde(default)]
@@ -24,7 +24,7 @@ impl ConversationBranch {
         parent_message_id: Option<Uuid>,
         name: Option<String>,
         leaf_message_id: Option<Uuid>,
-        dialect: Option<Dialect>,
+        dialect: Dialect,
         message_ids: Vec<Uuid>,
         active_plan_id: Option<Uuid>,
     ) -> Self {
@@ -37,12 +37,6 @@ impl ConversationBranch {
             name,
             dialect,
             active_plan_id,
-        }
-    }
-
-    pub fn set_dialect_if_none(&mut self, dialect: Dialect) {
-        if self.dialect.is_none() {
-            self.dialect = Some(dialect);
         }
     }
 }
@@ -58,7 +52,7 @@ mod tests {
             Some(parent_id),
             None,
             None,
-            Some(Dialect::SpanishMexican),
+            Dialect::SpanishMexican,
             vec![],
             None,
         );
@@ -66,7 +60,7 @@ mod tests {
         assert_eq!(branch.parent_message_id, Some(parent_id));
         assert_eq!(branch.name, None);
         assert_eq!(branch.leaf_message_id, None);
-        assert_eq!(branch.dialect, Some(Dialect::SpanishMexican));
+        assert_eq!(branch.dialect, Dialect::SpanishMexican);
         assert_eq!(branch.message_ids, Vec::<Uuid>::new());
     }
 
@@ -77,7 +71,7 @@ mod tests {
             None,
             Some(name.clone()),
             None,
-            Some(Dialect::SpanishMexican),
+            Dialect::SpanishMexican,
             vec![],
             None,
         );
@@ -85,18 +79,18 @@ mod tests {
         assert_eq!(branch.parent_message_id, None);
         assert_eq!(branch.name, Some(name));
         assert_eq!(branch.leaf_message_id, None);
-        assert_eq!(branch.dialect, Some(Dialect::SpanishMexican));
+        assert_eq!(branch.dialect, Dialect::SpanishMexican);
         assert_eq!(branch.message_ids, Vec::<Uuid>::new());
     }
 
     #[test]
     fn test_new_branch_root() {
-        let branch = ConversationBranch::new(None, None, None, None, vec![], None);
+        let branch = ConversationBranch::new(None, None, None, Dialect::SpanishMexican, vec![], None);
 
         assert_eq!(branch.parent_message_id, None);
         assert_eq!(branch.name, None);
         assert_eq!(branch.leaf_message_id, None);
-        assert_eq!(branch.dialect, None);
+        assert_eq!(branch.dialect, Dialect::SpanishMexican);
         assert_eq!(branch.message_ids, Vec::<Uuid>::new());
     }
 
@@ -107,7 +101,7 @@ mod tests {
             Some(parent_id),
             Some("Test Branch".to_string()),
             None,
-            Some(Dialect::SpanishMexican),
+            Dialect::SpanishMexican,
             vec![],
             None,
         );
@@ -120,24 +114,5 @@ mod tests {
 
         let deserialized: ConversationBranch = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, branch);
-    }
-
-    #[test]
-    fn test_set_dialect_if_none_sets_when_none() {
-        let mut branch = ConversationBranch::new(None, None, None, None, vec![], None);
-        assert_eq!(branch.dialect, None);
-
-        branch.set_dialect_if_none(Dialect::SpanishMexican);
-        assert_eq!(branch.dialect, Some(Dialect::SpanishMexican));
-    }
-
-    #[test]
-    fn test_set_dialect_if_none_does_not_override() {
-        let mut branch =
-            ConversationBranch::new(None, None, None, Some(Dialect::SpanishCuban), vec![], None);
-        assert_eq!(branch.dialect, Some(Dialect::SpanishCuban));
-
-        branch.set_dialect_if_none(Dialect::SpanishMexican);
-        assert_eq!(branch.dialect, Some(Dialect::SpanishCuban));
     }
 }
