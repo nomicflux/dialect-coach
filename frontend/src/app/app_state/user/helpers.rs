@@ -247,15 +247,6 @@ pub fn create_new_branch_for_language(state: &mut UserState, dialect: Dialect) {
     state.active_branch_id = new_branch_id;
 }
 
-pub fn sync_to_active_branch(state: &mut UserState) {
-    if let Some(branch) = state
-        .branches
-        .iter()
-        .find(|b| b.id == state.active_branch_id)
-    {
-        state.selected_language = branch.dialect.language();
-    }
-}
 
 #[cfg(test)]
 mod tests {

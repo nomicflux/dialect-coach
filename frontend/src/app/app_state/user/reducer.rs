@@ -131,11 +131,9 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
             let new_branch_id = new_branch.id;
             Arc::make_mut(&mut next.branches).push(new_branch);
             next.active_branch_id = new_branch_id;
-            sync_to_active_branch(next);
         }
         Switch(branch_id) => {
             next.active_branch_id = branch_id;
-            sync_to_active_branch(next);
         }
         Delete(branch_id) => {
             Arc::make_mut(&mut next.branches).retain(|b| b.id != branch_id);
@@ -146,7 +144,6 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                     .first()
                     .map(|b| b.id)
                     .unwrap_or(next.active_branch_id);
-                sync_to_active_branch(next);
             }
         }
         Rename(branch_id, name) => {
@@ -406,7 +403,7 @@ fn activate_step_items(state: &mut UserState, plan_id: uuid::Uuid) {
 mod tests {
     use super::*;
     use dialect_coach_shared::models::{LearningItemScore, MistakeCategory};
-    use dialect_coach_shared::{Dialect, LanguagePlan, Mistake, PlanContent, PlanStep, StepType};
+    use dialect_coach_shared::{LanguagePlan, Mistake, PlanContent, PlanStep, StepType};
     use std::sync::Arc;
     use uuid::Uuid;
 
