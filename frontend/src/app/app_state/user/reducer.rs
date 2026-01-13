@@ -224,9 +224,11 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
     use SettingsAction::*;
     match action {
         ChangeDialect(dialect) => {
-            if next.selected_dialect != dialect {
-                next.selected_dialect = dialect;
-                next.selected_language = dialect.language();
+            let old_language = next.selected_dialect.language();
+            next.selected_dialect = dialect;
+            next.selected_language = dialect.language();
+
+            if old_language != dialect.language() {
                 create_new_branch_for_language(next);
             }
         }
@@ -549,28 +551,5 @@ mod tests {
             updated_plan.status,
             dialect_coach_shared::models::PlanStatus::InProgress
         );
-    }
-
-    #[test]
-    fn test_change_dialect_creates_branch() {
-        let mut state = UserState::new(Uuid::new_v4());
-        state.selected_dialect = Dialect::SpanishMexican;
-        let initial_branch_id = state.active_branch_id;
-        let initial_branch_count = state.branches.len();
-
-        let action = SettingsAction::ChangeDialect(Dialect::SpanishArgentinian);
-        reduce_settings(&mut state, action);
-
-        // Verify new branch was created
-        assert_eq!(state.branches.len(), initial_branch_count + 1);
-        // Verify active branch changed
-        assert_ne!(state.active_branch_id, initial_branch_id);
-        // Verify new dialect is selected
-        assert_eq!(state.selected_dialect, Dialect::SpanishArgentinian);
-        // Verify old branch still exists with old dialect
-        assert!(state
-            .branches
-            .iter()
-            .any(|b| b.id == initial_branch_id));
     }
 }
