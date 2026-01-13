@@ -126,6 +126,7 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 Some(message_id),
                 dialect,
                 message_ids,
+                next.active_plan_id,
             );
             let new_branch_id = new_branch.id;
             Arc::make_mut(&mut next.branches).push(new_branch);
@@ -174,6 +175,15 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
         }
         SetActive(plan_id) => {
             next.active_plan_id = plan_id;
+
+            let active_branch_id = next.active_branch_id;
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == active_branch_id)
+            {
+                branch.active_plan_id = plan_id;
+            }
+
             if let Some(pid) = plan_id {
                 if let Some(plan) = Arc::make_mut(&mut next.language_plans)
                     .iter_mut()
@@ -181,7 +191,6 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
                 {
                     plan.start();
                 }
-                // Activate the current step's items when plan becomes active
                 activate_step_items(next, pid);
             }
         }

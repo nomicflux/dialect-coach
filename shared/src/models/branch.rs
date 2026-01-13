@@ -15,6 +15,8 @@ pub struct ConversationBranch {
     pub dialect: Option<Dialect>,
     #[serde(default)]
     pub message_ids: Vec<Uuid>,
+    #[serde(default)]
+    pub active_plan_id: Option<Uuid>,
 }
 
 impl ConversationBranch {
@@ -24,6 +26,7 @@ impl ConversationBranch {
         leaf_message_id: Option<Uuid>,
         dialect: Option<Dialect>,
         message_ids: Vec<Uuid>,
+        active_plan_id: Option<Uuid>,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -33,6 +36,7 @@ impl ConversationBranch {
             created_at: Utc::now(),
             name,
             dialect,
+            active_plan_id,
         }
     }
 
@@ -56,6 +60,7 @@ mod tests {
             None,
             Some(Dialect::SpanishMexican),
             vec![],
+            None,
         );
 
         assert_eq!(branch.parent_message_id, Some(parent_id));
@@ -74,6 +79,7 @@ mod tests {
             None,
             Some(Dialect::SpanishMexican),
             vec![],
+            None,
         );
 
         assert_eq!(branch.parent_message_id, None);
@@ -85,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_new_branch_root() {
-        let branch = ConversationBranch::new(None, None, None, None, vec![]);
+        let branch = ConversationBranch::new(None, None, None, None, vec![], None);
 
         assert_eq!(branch.parent_message_id, None);
         assert_eq!(branch.name, None);
@@ -103,6 +109,7 @@ mod tests {
             None,
             Some(Dialect::SpanishMexican),
             vec![],
+            None,
         );
 
         let json = serde_json::to_string(&branch).unwrap();
@@ -117,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_set_dialect_if_none_sets_when_none() {
-        let mut branch = ConversationBranch::new(None, None, None, None, vec![]);
+        let mut branch = ConversationBranch::new(None, None, None, None, vec![], None);
         assert_eq!(branch.dialect, None);
 
         branch.set_dialect_if_none(Dialect::SpanishMexican);
@@ -127,7 +134,7 @@ mod tests {
     #[test]
     fn test_set_dialect_if_none_does_not_override() {
         let mut branch =
-            ConversationBranch::new(None, None, None, Some(Dialect::SpanishCuban), vec![]);
+            ConversationBranch::new(None, None, None, Some(Dialect::SpanishCuban), vec![], None);
         assert_eq!(branch.dialect, Some(Dialect::SpanishCuban));
 
         branch.set_dialect_if_none(Dialect::SpanishMexican);

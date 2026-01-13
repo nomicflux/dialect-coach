@@ -235,6 +235,7 @@ fn test_delete_branch_reducer() {
         Some(msg.id),
         Some(Dialect::SpanishMexican),
         vec![msg.id],
+        None,
     ));
     let branch = state.branches.last().unwrap();
     let branch_id = branch.id;
@@ -258,6 +259,7 @@ fn test_delete_active_branch_switches_to_first() {
         None,
         Some(Dialect::SpanishMexican),
         vec![],
+        None,
     );
     let new_branch_id = new_branch.id;
     Arc::make_mut(&mut state.branches).push(new_branch);
@@ -338,6 +340,7 @@ fn test_simple_branch_deletion() {
         None,
         Some(Dialect::SpanishMexican),
         vec![],
+        None,
     );
     let branch_cd_id = branch_cd.id;
     Arc::make_mut(&mut state.branches).push(branch_cd);
@@ -360,6 +363,7 @@ fn test_simple_branch_deletion() {
         None,
         Some(Dialect::SpanishMexican),
         vec![],
+        None,
     );
     let branch_xy_id = branch_xy.id;
     Arc::make_mut(&mut state.branches).push(branch_xy);
@@ -415,6 +419,7 @@ fn test_complex_nested_branch_deletion() {
         None,
         Some(Dialect::SpanishMexican),
         vec![],
+        None,
     );
     let branch_cd_id = branch_cd.id;
     Arc::make_mut(&mut state.branches).push(branch_cd);
@@ -437,6 +442,7 @@ fn test_complex_nested_branch_deletion() {
         None,
         Some(Dialect::SpanishMexican),
         vec![],
+        None,
     );
     let branch_y_id = branch_y.id;
     Arc::make_mut(&mut state.branches).push(branch_y);
@@ -503,6 +509,7 @@ fn test_delete_branch_with_sub_branches() {
         None,
         Some(Dialect::SpanishMexican),
         vec![],
+        None,
     );
     let branch_def_id = branch_def.id;
     Arc::make_mut(&mut state.branches).push(branch_def);
@@ -555,6 +562,7 @@ fn test_delete_inactive_branch_preserves_active() {
         None,
         Some(Dialect::SpanishMexican),
         vec![],
+        None,
     );
     let branch_cd_id = branch_cd.id;
     Arc::make_mut(&mut state.branches).push(branch_cd);
@@ -577,6 +585,7 @@ fn test_delete_inactive_branch_preserves_active() {
         None,
         Some(Dialect::SpanishMexican),
         vec![],
+        None,
     );
     let branch_xy_id = branch_xy.id;
     Arc::make_mut(&mut state.branches).push(branch_xy);

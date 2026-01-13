@@ -313,7 +313,7 @@ impl UserState {
             }
         };
 
-        let initial_branch = ConversationBranch::new(None, None, None, Some(dialect), vec![]);
+        let initial_branch = ConversationBranch::new(None, None, None, Some(dialect), vec![], None);
         let initial_branch_id = initial_branch.id;
 
         Self {
@@ -561,7 +561,7 @@ impl UserState {
     }
 
     fn reset_branches_to_root(&mut self) {
-        let branch = ConversationBranch::new(None, None, None, None, vec![]);
+        let branch = ConversationBranch::new(None, None, None, None, vec![], None);
         self.active_branch_id = branch.id;
         self.branches = Arc::new(vec![branch]);
     }
@@ -597,6 +597,7 @@ impl UserState {
                 Some(leaf_id),
                 Some(dialect),
                 message_ids,
+                None,
             ));
         }
         branches
@@ -942,6 +943,7 @@ mod tests {
             None,
             Some(Dialect::SpanishMexican),
             vec![],
+            None,
         );
         let branch_id = branch.id;
         Arc::make_mut(&mut state.branches).push(branch);
@@ -961,6 +963,7 @@ mod tests {
             None,
             Some(Dialect::SpanishMexican),
             vec![],
+            None,
         );
         let branch_id = branch.id;
         Arc::make_mut(&mut state.branches).push(branch);
