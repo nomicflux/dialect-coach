@@ -114,13 +114,17 @@ async fn translate_phrase(
     let system_preamble = "Return ONLY valid JSON array format. Each element must have 'target_text' and 'english' fields. No other text, no markdown formatting, just the JSON array.";
 
     let translation_prompt = format!(
-        r#"Translate the phrase \"{}\" into {} ({}), in the context of this sentence: \"{}\"\n\nOnly translate the given phrase, the context is only used for disambiguation of meaning.\n\
-Translate the given phrase \"{}\" exactly; do not translate other portions of the contextual sentence, and do not change the phrase.\n\
-Return JSON array: [{{\"target_text\": \"{}\", \"english\": \"English translation of {}\"}}, ...]"#,
+        r#"The phrase \"{}\" appears in this {} ({}) sentence: \"{}\"\n\n\
+Provide the ENGLISH translation of \"{}\". The context is only used for disambiguation of meaning.\n\n\
+CRITICAL: The 'target_text' field MUST be the EXACT phrase \"{}\" character-for-character.\n\
+Do NOT modify, correct, normalize, or transliterate \"{}\". Copy it exactly as given.\n\n\
+Return JSON array: [{{\"target_text\": \"{}\", \"english\": \"English meaning of {}\"}}, ...]"#,
         phrase,
         dialect.name(),
         formality_desc,
         context,
+        phrase,
+        phrase,
         phrase,
         phrase,
         phrase,
