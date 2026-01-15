@@ -247,6 +247,34 @@ pub fn create_new_branch_for_language(state: &mut UserState, dialect: Dialect) {
     state.active_branch_id = new_branch_id;
 }
 
+pub fn find_or_create_branch_for_dialect(state: &mut UserState, dialect: Dialect) {
+    let existing_branch_id = find_branch_with_most_recent_message(state, dialect);
+
+    if let Some(branch_id) = existing_branch_id {
+        state.active_branch_id = branch_id;
+    } else {
+        create_new_branch_for_language(state, dialect);
+    }
+}
+
+fn find_branch_with_most_recent_message(state: &UserState, dialect: Dialect) -> Option<Uuid> {
+    state.branches
+        .iter()
+        .filter(|b| b.dialect == dialect)
+        .map(|branch| {
+            let timestamp = branch.leaf_message_id
+                .and_then(|msg_id| {
+                    state.conversation_history
+                        .iter()
+                        .find(|m| m.id == msg_id)
+                        .map(|m| m.metadata.timestamp)
+                })
+                .unwrap_or(branch.created_at);
+            (branch.id, timestamp)
+        })
+        .max_by_key(|(_, timestamp)| *timestamp)
+        .map(|(id, _)| id)
+}
 
 #[cfg(test)]
 mod tests {

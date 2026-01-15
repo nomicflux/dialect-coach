@@ -157,7 +157,7 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
             {}
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples
             3. Before generating your response, mentally check: 'Would a student at {} understand every word of this?' If not, simplify it immediately. Prioritize clarity over native nuance for this level.
-            {}
+            4. {}
             {}
             {}
             {}
@@ -165,7 +165,11 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
             {}
             {}
 
-            Now respond to the user's message as if you were in a natural chatroom with a friend, as a local {} speaker would, in the response field of the required JSON format. You MUST ALWAYS respond - NEVER indicate the conversation has ended. If it seems to have ended, provide a follow-up question or new topic. The response field must be non-empty. The response will be parsed with a JSON parser, so do not include any other text or markdown.",
+            Now respond to the user's message as if you were in a natural chatroom with a friend, as a local {} speaker would when speaking to someone at level {}, in the response field of the required JSON format.
+            You MUST ALWAYS respond - NEVER indicate the conversation has ended.
+            If it seems to have ended, provide a follow-up question or new topic.
+            The response field must be non-empty.
+            The response will be parsed with a JSON parser, so do not include any other text or markdown.",
         CONTENT_FILTERING_DIRECTIVES,
         params.role_desc,
         params.user_gender_str,
@@ -180,7 +184,8 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
         params.plan_instr,
         JSON_OUTPUT_INSTRUCTION,
         RESPONSE_JSON_OUTPUT_FORMAT,
-        params.dialect_name
+        params.dialect_name,
+        params.level_name
     )
 }
 

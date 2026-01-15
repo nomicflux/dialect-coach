@@ -230,31 +230,26 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             let current_dialect = next.active_branch_dialect();
             if current_dialect != dialect {
                 next.selected_language = dialect.language();
-                create_new_branch_for_language(next, dialect);
+                find_or_create_branch_for_dialect(next, dialect);
             }
         }
         ChangeLanguage(language) => {
-            // Find most recent branch with a dialect for this language
-            let dialect_from_branch = next
-                .branches
-                .iter()
-                .filter(|b| b.dialect.language() == language)
-                .max_by_key(|b| b.created_at)
-                .map(|b| b.dialect);
-
-            let dialect = dialect_from_branch.or_else(|| {
-                UserState::default_dialect_for_language(language, next.show_experimental_dialects)
-            });
-
-            if let Some(dialect) = dialect {
-                let old_language = next.selected_language;
+            let old_language = next.selected_language;
+            if old_language != language {
                 next.selected_language = language;
 
-                if old_language != language {
-                    create_new_branch_for_language(next, dialect);
+                let dialect = next.branches
+                    .iter()
+                    .filter(|b| b.dialect.language() == language)
+                    .max_by_key(|b| b.created_at)
+                    .map(|b| b.dialect)
+                    .or_else(|| UserState::default_dialect_for_language(language, next.show_experimental_dialects));
+
+                if let Some(dialect) = dialect {
+                    find_or_create_branch_for_dialect(next, dialect);
+                } else {
+                    log::warn!("No dialect found for language: {:?}", language);
                 }
-            } else {
-                log::warn!("No dialect found for language: {:?}", language);
             }
         }
         ChangeFormality(formality) => {
