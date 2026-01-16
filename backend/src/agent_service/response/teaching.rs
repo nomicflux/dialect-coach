@@ -141,6 +141,78 @@ pub(crate) fn mode_checklist(mode: &TeachingMode) -> &'static [&'static str] {
     }
 }
 
+const LEVEL_A1_CHECKLIST: &[&str] = &[
+    "All vocabulary is in top 500 most common words",
+    "No relative clauses, past tense, or conditionals",
+    "Sentences are 4-5 words each",
+];
+
+const LEVEL_A2_CHECKLIST: &[&str] = &[
+    "No complex subordination or abstract nouns",
+    "No passive voice",
+    "Sentences are 5-8 words each",
+];
+
+const LEVEL_B1_CHECKLIST: &[&str] = &[
+    "No highly nuanced academic vocabulary",
+    "No obscure idioms without immediate explanation",
+];
+
+const LEVEL_B2_CHECKLIST: &[&str] = &[
+    "No overly archaic or purely academic vocabulary",
+    "Clarity prioritized over stylistic flourish",
+];
+
+const LEVEL_C1_CHECKLIST: &[&str] = &[
+    "No purely obscure or archaic terms outside general educated use",
+];
+
+const LEVEL_C2_CHECKLIST: &[&str] = &[
+    "Nuance and precision maintained",
+];
+
+const JLPT_N5_CHECKLIST: &[&str] = &[
+    "ONLY Desu/Masu forms used (no casual/dictionary forms)",
+    "Kanji limited to N5 set (~100)",
+    "No complex conjunctions",
+    "Sentences are 4-5 words each",
+];
+
+const JLPT_N4_CHECKLIST: &[&str] = &[
+    "No N3+ grammar points",
+    "Kanji limited to N4 set (~300)",
+    "Sentences are 5-8 words each",
+];
+
+const JLPT_N3_CHECKLIST: &[&str] = &[
+    "No overly formal business Japanese unless role demands",
+    "No rare literary grammar",
+];
+
+const JLPT_N2_CHECKLIST: &[&str] = &[
+    "No highly specialized or archaic N1 vocabulary",
+];
+
+const JLPT_N1_CHECKLIST: &[&str] = &[
+    "Full complexity expected",
+];
+
+pub(crate) fn level_checklist(level: LanguageLevel) -> &'static [&'static str] {
+    match level {
+        LanguageLevel::Cefr(CefrLevel::A1) => LEVEL_A1_CHECKLIST,
+        LanguageLevel::Cefr(CefrLevel::A2) => LEVEL_A2_CHECKLIST,
+        LanguageLevel::Cefr(CefrLevel::B1) => LEVEL_B1_CHECKLIST,
+        LanguageLevel::Cefr(CefrLevel::B2) => LEVEL_B2_CHECKLIST,
+        LanguageLevel::Cefr(CefrLevel::C1) => LEVEL_C1_CHECKLIST,
+        LanguageLevel::Cefr(CefrLevel::C2) => LEVEL_C2_CHECKLIST,
+        LanguageLevel::Jlpt(JlptLevel::N5) => JLPT_N5_CHECKLIST,
+        LanguageLevel::Jlpt(JlptLevel::N4) => JLPT_N4_CHECKLIST,
+        LanguageLevel::Jlpt(JlptLevel::N3) => JLPT_N3_CHECKLIST,
+        LanguageLevel::Jlpt(JlptLevel::N2) => JLPT_N2_CHECKLIST,
+        LanguageLevel::Jlpt(JlptLevel::N1) => JLPT_N1_CHECKLIST,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

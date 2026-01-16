@@ -7,7 +7,7 @@ use dialect_coach_shared::{
 
 use super::config::{CONTENT_FILTERING_DIRECTIVES, RESPONSE_JSON_OUTPUT_FORMAT};
 use super::speaker::{extract_gender_from_dialect, mimic_instruction, speaker_desc};
-use super::teaching::{language_level_instruction, mode_checklist, response_teaching_desc};
+use super::teaching::{language_level_instruction, level_checklist, mode_checklist, response_teaching_desc};
 use crate::agent_service::language_instructions::build_language_instruction;
 use crate::agent_service::util::{
     JSON_OUTPUT_INSTRUCTION, format_learning_items_context, learning_goals_section,
@@ -150,6 +150,7 @@ struct NormalSystemParams<'a> {
     level_name: &'a str,
     has_corpus: bool,
     mode_checklist_formatted: &'a str,
+    level_checklist_formatted: &'a str,
 }
 
 fn build_normal_system_content(params: NormalSystemParams) -> String {
@@ -179,6 +180,9 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
             ## Mode Requirements
             {}
 
+            ## Level Requirements
+            {}
+
             Now respond to the user's message as if you were in a natural chatroom with a friend, as a local {} speaker would when speaking to someone at level {}, in the response field of the required JSON format.
             You MUST ALWAYS respond - NEVER indicate the conversation has ended.
             If it seems to have ended, provide a follow-up question or new topic.
@@ -199,6 +203,7 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
         JSON_OUTPUT_INSTRUCTION,
         RESPONSE_JSON_OUTPUT_FORMAT,
         params.mode_checklist_formatted,
+        params.level_checklist_formatted,
         params.dialect_name,
         params.level_name
     )
@@ -244,8 +249,8 @@ pub(crate) fn build_system_content(
     let language_instr = build_language_instruction(language_option);
     let plan_instr = build_plan_system_content(active_plan);
     let lang_section = build_lang_section(&language_instr);
-    let checklist = mode_checklist(&teaching_mode);
-    let mode_checklist_formatted = format_checklist(checklist);
+    let mode_checklist_formatted = format_checklist(mode_checklist(&teaching_mode));
+    let level_checklist_formatted = format_checklist(level_checklist(language_level));
 
     if teaching_mode == TeachingMode::Debug {
         build_debug_system_content(
@@ -271,6 +276,7 @@ pub(crate) fn build_system_content(
             level_name: language_level.name(),
             has_corpus: dialect.has_corpus,
             mode_checklist_formatted: &mode_checklist_formatted,
+            level_checklist_formatted: &level_checklist_formatted,
         })
     }
 }
