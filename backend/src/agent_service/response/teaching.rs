@@ -34,16 +34,16 @@ Do NOT acknowledge or point out your errors. Speak as if they are natural (the u
 If the user corrects your error, respond positively and encouragingly.
 Never reveal you are making intentional errors. Keep responses brief (1-2 sentences)."#;
 
-const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Beginner): CRITICAL: You are strictly limited to A1 (Beginner) grammar. Do NOT use relative clauses, past tense, or conditional sentences. Do NOT use vocabulary outside the top 500 most common words. Do NOT use idiomatic expressions. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, predictable sentence structures only.";
-const LEVEL_A2: &str = "LANGUAGE LEVEL A2 (Elementary): CRITICAL: Strictly limited to A2 (Elementary). Do NOT use complex subordination or abstract nouns. Do NOT use rare vocabulary. Do NOT use the passive voice. Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct.";
-const LEVEL_B1: &str = "LANGUAGE LEVEL B1 (Intermediate): CRITICAL: Limited to B1 (Intermediate). Do NOT use highly nuanced academic vocabulary or complex literary structures. Do NOT use obscure idioms without immediate explanation. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech. Articulate clearly.";
+const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Beginner): CRITICAL: You are strictly limited to A1 (Beginner) grammar. Do NOT use relative clauses, past tense, or conditional sentences. Do NOT use vocabulary outside the top 500 most common words. Do NOT use idiomatic expressions. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, short, predictable sentence structures only (4-5 words per sentence).";
+const LEVEL_A2: &str = "LANGUAGE LEVEL A2 (Elementary): CRITICAL: Strictly limited to A2 (Elementary). Do NOT use complex subordination or abstract nouns. Do NOT use rare vocabulary. Do NOT use the passive voice. Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct (target 5-8 words per sentence).";
+const LEVEL_B1: &str = "LANGUAGE LEVEL B1 (Intermediate): CRITICAL: Limited to B1 (Intermediate). Do NOT use highly nuanced academic vocabulary or complex literary structures. Do NOT use obscure idioms without immediate explanation. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech.";
 const LEVEL_B2: &str = "LANGUAGE LEVEL B2 (Upper Intermediate): CRITICAL: Limited to B2 (Upper Intermediate). Do NOT use overly archaic or purely academic vocabulary unless the topic demands it. Maintain clarity over stylistic flourish. Speak as if you are talking to a high school exchange student. Natural speed is okay, but avoid obscure cultural references.";
 const LEVEL_C1: &str = "LANGUAGE LEVEL C1 (Advanced): CRITICAL: C1 (Advanced). Avoid purely obscure or archaic terms that are not in general educated use. Speak as if to a university colleague. Full complexity is expected.";
 const LEVEL_C2: &str = "LANGUAGE LEVEL C2 (Proficient): CRITICAL: C2 (Proficient). No grammatical restrictions. Ensure nuance and precision. Speak as if to a native peer with a high level of education.";
 
-const JLPT_N5: &str = "LANGUAGE LEVEL N5 (Beginner): CRITICAL: Strictly limited to N5. Do NOT use any casual/dictionary forms; use ONLY 'Desu/Masu' forms. Do NOT use Kanji outside the standard N5 set (~100). Do NOT use complex conjunctions like 'noni' or 'tame'. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, predictable sentence structures only.";
-const JLPT_N4: &str = "LANGUAGE LEVEL N4 (Elementary): CRITICAL: Strictly limited to N4. Do NOT use N3+ grammar points (like passive/causative unless necessary). Do NOT use Kanji outside the N4 set (~300). Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct.";
-const JLPT_N3: &str = "LANGUAGE LEVEL N3 (Intermediate): CRITICAL: Limited to N3. Do NOT use overly formal business Japanese (Keigo) unless the role demands it. Do NOT use rare literary grammar. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech. Articulate clearly.";
+const JLPT_N5: &str = "LANGUAGE LEVEL N5 (Beginner): CRITICAL: Strictly limited to N5. Do NOT use any casual/dictionary forms; use ONLY 'Desu/Masu' forms. Do NOT use Kanji outside the standard N5 set (~100). Do NOT use complex conjunctions like 'noni' or 'tame'. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, short, predictable sentence structures only (4-5 words per sentence).";
+const JLPT_N4: &str = "LANGUAGE LEVEL N4 (Elementary): CRITICAL: Strictly limited to N4. Do NOT use N3+ grammar points (like passive/causative unless necessary). Do NOT use Kanji outside the N4 set (~300). Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct (target 5-8 words per sentence).";
+const JLPT_N3: &str = "LANGUAGE LEVEL N3 (Intermediate): CRITICAL: Limited to N3. Do NOT use overly formal business Japanese (Keigo) unless the role demands it. Do NOT use rare literary grammar. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech. Articulate clearly iwith direct sentences.";
 const JLPT_N2: &str = "LANGUAGE LEVEL N2 (Upper Intermediate): CRITICAL: Limited to N2. Do NOT use highly specialized or archaic N1 vocabulary. Speak as if you are talking to a high school exchange student. Natural speed is okay, but avoid obscure cultural references.";
 const JLPT_N1: &str = "LANGUAGE LEVEL N1 (Advanced): CRITICAL: N1 (Advanced). No grammatical restrictions. Speak as if to a university colleague. Full complexity is expected.";
 
@@ -93,6 +93,51 @@ pub(crate) fn language_level_instruction(level: LanguageLevel) -> &'static str {
     match level {
         LanguageLevel::Cefr(cefr) => cefr_instruction(cefr),
         LanguageLevel::Jlpt(jlpt) => jlpt_instruction(jlpt),
+    }
+}
+
+const IMMERSIVE_CHECKLIST: &[&str] = &[
+    "Response is brief and conversational",
+    "No explanations or corrections included",
+];
+
+const CORRECTIVE_CHECKLIST: &[&str] = &[
+    "Response is 1-2 short sentences maximum",
+    "Corrections included ONLY if user made mistakes",
+];
+
+const EXPLANATORY_CHECKLIST: &[&str] = &[
+    "Response is exactly 2-3 sentences",
+    "Introduces NEW vocabulary, idiom, or cultural expression",
+    "No corrections included",
+];
+
+const STORYTELLER_CHECKLIST: &[&str] = &[
+    "Response is 2-4 sentences",
+    "Story flows naturally without didactic explanation",
+    "No explicit teaching or corrections",
+];
+
+const ERROR_FINDING_CHECKLIST: &[&str] = &[
+    "Response is 1-2 sentences",
+    "Contains 1-3 intentional errors",
+    "Errors are not acknowledged or pointed out",
+];
+
+const DEBUG_CHECKLIST: &[&str] = &[
+    "Response is in English",
+    "Explains what went wrong clearly",
+    "Provides concrete prompt improvements",
+];
+
+pub(crate) fn mode_checklist(mode: &TeachingMode) -> &'static [&'static str] {
+    match mode {
+        TeachingMode::Immersive => IMMERSIVE_CHECKLIST,
+        TeachingMode::Corrective => CORRECTIVE_CHECKLIST,
+        TeachingMode::Explanatory => EXPLANATORY_CHECKLIST,
+        TeachingMode::StoryTeller => STORYTELLER_CHECKLIST,
+        TeachingMode::Debug => DEBUG_CHECKLIST,
+        TeachingMode::ErrorFinding => ERROR_FINDING_CHECKLIST,
     }
 }
 
