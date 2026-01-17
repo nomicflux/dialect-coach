@@ -36,15 +36,10 @@ fn render_learning_section(title: &str, lines: Vec<String>) -> Option<String> {
 fn mistakes_section(mistakes: &[Mistake]) -> Option<String> {
     let lines = mistakes
         .iter()
-        .map(|m| {
-            format!(
-                "- {} -> {} ({})",
-                m.specific_mistake, m.correction, m.mistake_category
-            )
-        })
+        .map(|m| format!("- {} -> {}", m.specific_mistake, m.correction))
         .collect::<Vec<_>>();
     render_learning_section(
-        "Mistakes to watch - guide the user to correct usage, and demonstrate correct usage naturally of 1-2 items if any exist",
+        "Mistakes to watch - guide the user to correct usage naturally",
         lines,
     )
 }
@@ -63,10 +58,10 @@ fn explained_section(explained: &[Explained]) -> Option<String> {
 fn translated_section(translated: &[Translated]) -> Option<String> {
     let lines = translated
         .iter()
-        .map(|t| format!("- {} -> {}", t.translated_word, t.translated_to))
+        .map(|t| format!("- {}", t.translated_to))
         .collect::<Vec<_>>();
     render_learning_section(
-        "Translations already covered - use 1-3 of these words in your response if any exist, and guide the user to use them",
+        "Vocabulary to use - incorporate naturally in your response",
         lines,
     )
 }
@@ -227,8 +222,9 @@ mod tests {
         assert!(summary.contains("hablar -> habla"));
         assert!(summary.contains("Explained items in progress"));
         assert!(summary.contains("órale"));
-        assert!(summary.contains("Translations already covered"));
-        assert!(summary.contains("house -> casa"));
+        assert!(summary.contains("Vocabulary to use"));
+        assert!(summary.contains("casa"));
+        assert!(!summary.contains("house ->"));
         assert!(summary.contains("Exploratory prompts assigned"));
         assert!(summary.contains("Usa el pretérito"));
     }
