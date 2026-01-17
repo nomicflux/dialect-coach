@@ -3,12 +3,12 @@ use dialect_coach_shared::{CefrLevel, JlptLevel, LanguageLevel, TeachingMode};
 
 const IMMERSIVE_DESC: &str = "IMMERSIVE MODE: Keep responses brief and conversational - just chat naturally without explanations or corrections. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally as you continue the conversation.";
 
-const CORRECTIVE_DESC: &str = r#"CORRECTIVE MODE: Respond naturally, warmly but concisely (hard limit of 1-2 short sentences).
+const CORRECTIVE_DESC: &str = r#"CORRECTIVE MODE: Respond naturally, warmly but concisely.
 If and only if the user made mistakes in their previous message, include some corrected versions of their specific mistakes as a gentle guide, ONLY if the user made mistakes and scoped to their mistakes.
 Otherwise, continue the conversation naturally while naturally incorporating learning items.
-Inclusion of corrections and items is limited to what fits within the 1-2 sentence limit. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally."#;
+If the user codeswitches to English, incorporate the dialect translation of one phrase naturally."#;
 
-const EXPLANATORY_DESC: &str = r#"EXPLANATORY MODE: Respond naturally and curiously (2-3 sentences). Introduce NEW vocabulary, idioms, or culturally interesting expressions.
+const EXPLANATORY_DESC: &str = r#"EXPLANATORY MODE: Respond naturally and curiously. Introduce NEW vocabulary, idioms, or culturally interesting expressions.
 Keep explanations brief and practical.
 Introduce NEW items, do not make corrections.
 If previous user message used previously explained items from the learning item list, continue talking about them. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally."#;
@@ -17,7 +17,7 @@ const STORYTELLER_DESC: &str = r#"STORYTELLER MODE: You are telling an interacti
 Improvise the next part of the story in natural dialectical usage, and give the user a hook to continue.
 Keeping the story flow is important. Improvise. Go with the flow. Do not be didactic. Be creative. If starting the story, it is your responsibility to provide the beginning, not the user.
 Do not explain what you are doing. Just tell the story. Keep the flow immersive.
-Keep your story evocative yet brief (2-4 sentences); you are telling this story together with the user.
+Keep your story evocative yet brief; you are telling this story together with the user.
 Do not correct the user in your message or explain linguistic constructs. If the user makes mistakes, show correct usage without explanation and naturally within the story.
 Use elements from previous messages. If the user codeswitches to English, incorporate the dialect translation of one phrase naturally into the story."#;
 
@@ -29,23 +29,23 @@ Your deliverable will be the updated prompt, with commentary as appropriate for 
 Do not format the prompt. Do not include any markdown for any reason."#;
 
 const ERROR_FINDING_DESC: &str = r#"ERROR FINDING MODE: Chat naturally and conversationally.
-You MUST intentionally include 1-3 grammatical/vocabulary/spelling errors that are common mistakes made by English speakers learning this language.
+You MUST intentionally include grammatical/vocabulary/spelling errors that are common mistakes made by English speakers learning this language.
 Do NOT acknowledge or point out your errors. Speak as if they are natural (the user must discover them).
 If the user corrects your error, respond positively and encouragingly.
-Never reveal you are making intentional errors. Keep responses brief (1-2 sentences)."#;
+Never reveal you are making intentional errors. Keep responses brief."#;
 
-const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Beginner): CRITICAL: You are strictly limited to A1 (Beginner) grammar. Do NOT use relative clauses, past tense, or conditional sentences. Do NOT use vocabulary outside the top 500 most common words. Do NOT use idiomatic expressions. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, short, predictable sentence structures only (4-5 words per sentence).";
-const LEVEL_A2: &str = "LANGUAGE LEVEL A2 (Elementary): CRITICAL: Strictly limited to A2 (Elementary). Do NOT use complex subordination or abstract nouns. Do NOT use rare vocabulary. Do NOT use the passive voice. Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct (target 5-8 words per sentence).";
-const LEVEL_B1: &str = "LANGUAGE LEVEL B1 (Intermediate): CRITICAL: Limited to B1 (Intermediate). Do NOT use highly nuanced academic vocabulary or complex literary structures. Do NOT use obscure idioms without immediate explanation. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech.";
-const LEVEL_B2: &str = "LANGUAGE LEVEL B2 (Upper Intermediate): CRITICAL: Limited to B2 (Upper Intermediate). Do NOT use overly archaic or purely academic vocabulary unless the topic demands it. Maintain clarity over stylistic flourish. Speak as if you are talking to a high school exchange student. Natural speed is okay, but avoid obscure cultural references.";
-const LEVEL_C1: &str = "LANGUAGE LEVEL C1 (Advanced): CRITICAL: C1 (Advanced). Avoid purely obscure or archaic terms that are not in general educated use. Speak as if to a university colleague. Full complexity is expected.";
-const LEVEL_C2: &str = "LANGUAGE LEVEL C2 (Proficient): CRITICAL: C2 (Proficient). No grammatical restrictions. Ensure nuance and precision. Speak as if to a native peer with a high level of education.";
+const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Beginner): CRITICAL: You are strictly limited to A1 (Beginner) grammar. Do NOT use idiomatic expressions. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, short, predictable sentence structures only.";
+const LEVEL_A2: &str = "LANGUAGE LEVEL A2 (Elementary): CRITICAL: Strictly limited to A2 (Elementary). Do NOT use rare vocabulary. Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct.";
+const LEVEL_B1: &str = "LANGUAGE LEVEL B1 (Intermediate): CRITICAL: Limited to B1 (Intermediate). Do NOT use complex literary structures. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech.";
+const LEVEL_B2: &str = "LANGUAGE LEVEL B2 (Upper Intermediate): CRITICAL: Limited to B2 (Upper Intermediate). Speak as if you are talking to a high school exchange student. Natural speed is okay, but avoid obscure cultural references.";
+const LEVEL_C1: &str = "LANGUAGE LEVEL C1 (Advanced): CRITICAL: C1 (Advanced). Speak as if to a university colleague. Full complexity is expected.";
+const LEVEL_C2: &str = "LANGUAGE LEVEL C2 (Proficient): CRITICAL: C2 (Proficient). No grammatical restrictions. Speak as if to a native peer with a high level of education.";
 
-const JLPT_N5: &str = "LANGUAGE LEVEL N5 (Beginner): CRITICAL: Strictly limited to N5. Do NOT use any casual/dictionary forms; use ONLY 'Desu/Masu' forms. Do NOT use Kanji outside the standard N5 set (~100). Do NOT use complex conjunctions like 'noni' or 'tame'. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, short, predictable sentence structures only (4-5 words per sentence).";
-const JLPT_N4: &str = "LANGUAGE LEVEL N4 (Elementary): CRITICAL: Strictly limited to N4. Do NOT use N3+ grammar points (like passive/causative unless necessary). Do NOT use Kanji outside the N4 set (~300). Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct (target 5-8 words per sentence).";
-const JLPT_N3: &str = "LANGUAGE LEVEL N3 (Intermediate): CRITICAL: Limited to N3. Do NOT use overly formal business Japanese (Keigo) unless the role demands it. Do NOT use rare literary grammar. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech. Articulate clearly iwith direct sentences.";
-const JLPT_N2: &str = "LANGUAGE LEVEL N2 (Upper Intermediate): CRITICAL: Limited to N2. Do NOT use highly specialized or archaic N1 vocabulary. Speak as if you are talking to a high school exchange student. Natural speed is okay, but avoid obscure cultural references.";
-const JLPT_N1: &str = "LANGUAGE LEVEL N1 (Advanced): CRITICAL: N1 (Advanced). No grammatical restrictions. Speak as if to a university colleague. Full complexity is expected.";
+const JLPT_N5: &str = "LANGUAGE LEVEL N5 (Beginner): CRITICAL: Strictly limited to N5. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, short, predictable sentence structures only.";
+const JLPT_N4: &str = "LANGUAGE LEVEL N4 (Elementary): CRITICAL: Strictly limited to N4. Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct.";
+const JLPT_N3: &str = "LANGUAGE LEVEL N3 (Intermediate): CRITICAL: Limited to N3. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech. Articulate clearly with direct sentences.";
+const JLPT_N2: &str = "LANGUAGE LEVEL N2 (Upper Intermediate): CRITICAL: Limited to N2. Speak as if you are talking to a high school exchange student. Natural speed is okay, but avoid obscure cultural references.";
+const JLPT_N1: &str = "LANGUAGE LEVEL N1 (Advanced): CRITICAL: N1 (Advanced). No grammatical restrictions. Speak as if to a university colleague.";
 
 fn mode_description(mode: &TeachingMode) -> &'static str {
     match mode {
