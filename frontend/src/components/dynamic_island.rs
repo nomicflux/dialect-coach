@@ -26,34 +26,61 @@ enum ViewState {
 pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
     let state = use_state(|| ViewState::Plan);
 
-    // --- Interaction Logic (Basic Reactive Wiring) ---
-    // The handler does ONE thing: transition the state.
-    // Logic is consolidated here. No splitting state updates.
+    // --- Derived Values (from props) ---
+    let quest_item_ids: Vec<Uuid> = props
+        .quests
+        .iter()
+        .filter(|q| !q.completed)
+        .filter_map(|q| {
+            q.id.strip_prefix("quest_")
+                .and_then(|s| Uuid::parse_str(s).ok())
+        })
+        .collect();
+
+    let available_items: Vec<LearningItem> = props
+        .items
+        .iter()
+        .filter(|item| !quest_item_ids.contains(&item.id()))
+        .cloned()
+        .collect();
+
+    let has_plan = props.current_step_title.is_some();
+    let has_goals = !props.learning_goals.is_empty();
+    let has_items = !available_items.is_empty();
+    let available_modes = get_available_modes(has_plan, has_goals, has_items);
+
+    let selected_mode = mode_from_view_state(&state);
+    let effective_mode = if available_modes.contains(&selected_mode) {
+        Some(selected_mode)
+    } else {
+        available_modes.first().copied()
+    };
+
+    // --- Click Handler ---
     let on_click_container = {
         let state = state.clone();
-        let items = props.items.clone(); // Rc clone
-        let has_plan = props.current_step_title.is_some();
-        let has_goals = !props.learning_goals.is_empty();
-        let has_items = !props.items.is_empty();
+        let available_items_for_click = available_items.clone();
 
         Callback::from(move |_: MouseEvent| {
             let available = get_available_modes(has_plan, has_goals, has_items);
-
             if available.is_empty() {
-                // No modes available, stay in current state
                 return;
             }
 
-            let current = (*state).clone();
-            let current_mode = mode_from_view_state(&current);
+            let selected = mode_from_view_state(&state);
+            let cycle_from = if available.contains(&selected) {
+                selected
+            } else {
+                available[0]
+            };
 
-            if let Some(next_mode) = get_next_mode(current_mode, &available) {
+            if let Some(next_mode) = get_next_mode(cycle_from, &available) {
                 let new_state = match next_mode {
                     Mode::Plan => ViewState::Plan,
                     Mode::Goal => ViewState::Goal,
                     Mode::Items => {
-                        let count = 3.min(items.len());
-                        let uuids = pick_random_uuids(&items, count, &[]);
+                        let count = 3.min(available_items_for_click.len());
+                        let uuids = pick_random_uuids(&available_items_for_click, count, &[]);
                         ViewState::Items(uuids)
                     }
                 };
@@ -62,56 +89,20 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
         })
     };
 
-    // --- Render Logic ---
-    // Collect IDs of items shown as uncompleted quests (to avoid showing duplicates)
-    let quest_item_ids: Vec<_> = props
-        .quests
-        .iter()
-        .filter(|q| !q.completed)
-        .filter_map(|q| {
-            q.id.strip_prefix("quest_")
-                .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        })
-        .collect();
-
-    let has_plan = props.current_step_title.is_some();
-    let has_goals = !props.learning_goals.is_empty();
-    // Items available for display = items not in uncompleted quests
-    let available_items: Vec<_> = props
-        .items
-        .iter()
-        .filter(|item| !quest_item_ids.contains(&item.id()))
-        .cloned()
-        .collect();
-    let has_items = !available_items.is_empty();
-    let available_modes = get_available_modes(has_plan, has_goals, has_items);
-
-    let content = if available_modes.is_empty() {
-        // No content available - show guidance
-        render_guidance_message()
-    } else {
-        match &*state {
-            ViewState::Plan => {
-                if let Some(step_title) = &props.current_step_title {
-                    render_plan(step_title)
-                } else {
-                    render_guidance_message()
+    // --- Render (derived from effective_mode) ---
+    let content = match effective_mode {
+        None => render_guidance_message(),
+        Some(Mode::Plan) => render_plan(props.current_step_title.as_ref().unwrap()),
+        Some(Mode::Goal) => render_goal(&props.learning_goals),
+        Some(Mode::Items) => {
+            let uuids = match &*state {
+                ViewState::Items(u) => u.clone(),
+                _ => {
+                    let count = 3.min(available_items.len());
+                    pick_random_uuids(&available_items, count, &[])
                 }
-            }
-            ViewState::Goal => {
-                if !props.learning_goals.is_empty() {
-                    render_goal(&props.learning_goals)
-                } else {
-                    render_guidance_message()
-                }
-            }
-            ViewState::Items(uuids) => {
-                if available_items.is_empty() {
-                    render_guidance_message()
-                } else {
-                    render_items(&available_items, uuids, state.clone())
-                }
-            }
+            };
+            render_items(&available_items, &uuids, state.clone())
         }
     };
 
