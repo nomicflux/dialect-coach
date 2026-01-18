@@ -1,3 +1,4 @@
+use crate::components::ruby_text::render_text_with_ruby;
 use dialect_coach_shared::{LearningItem, LearningItemType};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -124,8 +125,8 @@ pub fn render_learning_item(item: &LearningItem, on_delete: Callback<Uuid>) -> H
         <li class={classes!("learning-card", state.css_class())} style={format!("--accent-color: {}", accent_color)} title={tooltip}>
             <div class="card-icon">{icon}</div>
             <div class="card-content">
-                <div class="card-title">{title}</div>
-                <div class="card-subtitle">{subtitle}</div>
+                <div class="card-title">{render_text_with_ruby(&title)}</div>
+                <div class="card-subtitle">{render_text_with_ruby(&subtitle)}</div>
             </div>
             <div class="card-meta">
                 <div class="score-ring" style={format!("--score: {}%", score_pct)}>
