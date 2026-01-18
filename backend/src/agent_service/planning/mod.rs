@@ -260,11 +260,10 @@ steps: []
     #[test]
     fn test_build_retry_planning_preamble_yaml() {
         let original = "Original Preamble";
-        let failed = "invalid yaml";
         let error = "some error";
-        let preamble = build_retry_planning_preamble_yaml(original, failed, error);
+        let preamble = build_retry_planning_preamble_yaml(original, error);
         assert!(preamble.contains(original));
-        assert!(preamble.contains("CRITICAL ERROR"));
-        assert!(preamble.contains("MUST return valid YAML"));
+        assert!(preamble.contains("YOUR PREVIOUS OUTPUT FAILED"));
+        assert!(preamble.contains("valid YAML"));
     }
 }

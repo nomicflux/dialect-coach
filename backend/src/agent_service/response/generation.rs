@@ -167,7 +167,6 @@ impl ResponseContext {
                 let initial_error = format!("{}", e);
                 handle_parse_failure_with_retry(RetryHandlingParams {
                     ctx: self,
-                    response,
                     initial_usage,
                     params,
                     system_content,
@@ -321,7 +320,6 @@ async fn attach_learning_with_error_handling(
 }
 struct RetryHandlingParams<'a> {
     ctx: &'a ResponseContext,
-    response: String,
     initial_usage: Vec<AgentUsage>,
     params: &'a GenerateResponseParams<'a>,
     system_content: &'a str,

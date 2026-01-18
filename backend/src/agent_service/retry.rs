@@ -156,18 +156,36 @@ async fn attempt_completion(
     }
 }
 
+fn is_rate_limit_error(error: &str) -> bool {
+    let lower = error.to_lowercase();
+    lower.contains("rate limit") || lower.contains("rate_limit") || lower.contains("429")
+}
+
 async fn handle_completion_retry_delay(attempt: usize, max: usize, error: &str) {
-    tracing::warn!("Retry {}/{}: {}", attempt, max, error);
-    handle_completion_retry_delay_sleep(attempt).await;
+    let is_rate_limit = is_rate_limit_error(error);
+    if is_rate_limit {
+        tracing::warn!("Rate limit hit, retry {}/{}: {}", attempt, max, error);
+    } else {
+        tracing::warn!("Retry {}/{}: {}", attempt, max, error);
+    }
+    handle_completion_retry_delay_sleep(attempt, is_rate_limit).await;
 }
 
 #[cfg(not(test))]
-async fn handle_completion_retry_delay_sleep(attempt: usize) {
-    tokio::time::sleep(tokio::time::Duration::from_secs(2_u64.pow(attempt as u32))).await;
+async fn handle_completion_retry_delay_sleep(attempt: usize, is_rate_limit: bool) {
+    // Base delay: 1, 2, 4 seconds (exponential starting at 1)
+    // Rate limit: 2, 4, 8 seconds (double the normal delay)
+    let base_delay = 1_u64 << (attempt - 1); // 1, 2, 4 for attempts 1, 2, 3
+    let delay = if is_rate_limit {
+        base_delay * 2
+    } else {
+        base_delay
+    };
+    tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
 }
 
 #[cfg(test)]
-async fn handle_completion_retry_delay_sleep(_attempt: usize) {}
+async fn handle_completion_retry_delay_sleep(_attempt: usize, _is_rate_limit: bool) {}
 
 pub async fn retry_completion_call(
     agent: &dyn CompletionAgent,
