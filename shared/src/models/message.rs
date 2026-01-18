@@ -97,6 +97,30 @@ pub struct TranslateResponse {
     pub error: Option<String>,
 }
 
+/// Request to explain grammar of a phrase
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GrammarRequest {
+    pub phrase: String,
+    pub context: String,
+    pub dialect: String,
+}
+
+/// Response from grammar explanation endpoint
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GrammarResponse {
+    pub original_phrase: String,
+    pub explanations: Vec<GrammarExplanation>,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+/// Single grammar explanation element
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GrammarExplanation {
+    pub element: String,
+    pub explanation: String,
+}
+
 /// A message in a chat session
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Message {

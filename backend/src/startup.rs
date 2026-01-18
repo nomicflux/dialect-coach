@@ -1,7 +1,7 @@
 use crate::{
     admin, admin_invites, agent_service, auth_service, embedding_service, enrichment_handler,
-    persistence, planning_handler, qdrant_service, rate_limiter, state::AppState,
-    translation_handler, tts_handler, tts_service, websocket,
+    grammar_handler, persistence, planning_handler, qdrant_service, rate_limiter,
+    state::AppState, translation_handler, tts_handler, tts_service, websocket,
 };
 use anyhow::{Context, Result};
 use axum::{
@@ -121,6 +121,10 @@ pub fn build_router(state: AppState, tts_state: Option<tts_handler::TtsState>) -
         .route(
             "/api/translate",
             post(translation_handler::translate_handler),
+        )
+        .route(
+            "/api/grammar",
+            post(grammar_handler::grammar_handler),
         )
         .route(
             "/api/learning/enrich",
