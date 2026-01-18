@@ -1,3 +1,4 @@
+use crate::components::ruby_text::render_text_with_ruby;
 use crate::components::utility_sidebar::learning_item::{LearningItemState, get_accent_color};
 use dialect_coach_shared::{LearningItem, LearningItemType};
 use uuid::Uuid;
@@ -39,7 +40,7 @@ fn render_flash_item(item: &LearningItem, on_dismiss: Callback<Uuid>) -> Html {
             title="Click to dismiss"
         >
             <span class="state-indicator">{item_state.icon()}</span>
-            <span class="island-text">{text}</span>
+            <span class="island-text">{render_text_with_ruby(&text)}</span>
             <span class="island-score">{format!("{}%", item.score)}</span>
         </div>
     }

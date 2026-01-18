@@ -1,3 +1,4 @@
+use crate::components::ruby_text::render_text_with_ruby;
 use crate::components::utility_sidebar::learning_item::{LearningItemState, get_accent_color};
 use dialect_coach_shared::models::{LearningGoal, LearningItem, LearningItemType, Quest};
 use std::rc::Rc;
@@ -131,7 +132,7 @@ fn render_plan(step_title: &str) -> Html {
             <span class="island-label">{"Current Learning Plan Step"}</span>
             <div class="island-plan-step">
                 <span class="check-icon">{"🎯"}</span>
-                <span class="island-text large">{step_title}</span>
+                <span class="island-text large">{render_text_with_ruby(step_title)}</span>
             </div>
         </div>
     }
@@ -183,7 +184,7 @@ fn render_single_item(
     html! {
         <div class={classes!("island-item", item_state.css_class())} style={format!("--accent-color: {}", accent_color)} {onclick} title={format!("Click to swap • {} ({}%)", item_state.label(), item.score)}>
             <span class="state-indicator">{item_state.icon()}</span>
-            <span class="island-text">{get_item_text(item)}</span>
+            <span class="island-text">{render_text_with_ruby(&get_item_text(item))}</span>
             <span class="island-score">{format!("{}%", item.score)}</span>
         </div>
     }
@@ -202,7 +203,7 @@ fn render_quests(quests: &[Quest]) -> Html {
                 html! {
                     <div class="island-quest-item">
                         <span class="quest-icon">{"🎯"}</span>
-                        <span class="island-text">{&quest.description}</span>
+                        <span class="island-text">{render_text_with_ruby(&quest.description)}</span>
                     </div>
                 }
             })}
@@ -217,7 +218,7 @@ fn render_goal(goals: &[LearningGoal]) -> Html {
                 <span class="island-label">{"Learning Goal"}</span>
                 <div class="island-goal">
                     <span class="goal-icon">{"🎯"}</span>
-                    <span class="island-text large">{&goal.goal}</span>
+                    <span class="island-text large">{render_text_with_ruby(&goal.goal)}</span>
                 </div>
             </div>
         }
