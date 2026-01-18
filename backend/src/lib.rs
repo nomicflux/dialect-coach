@@ -13,6 +13,7 @@ pub mod planning_handler;
 pub mod qdrant_service;
 pub mod rag_config;
 pub mod rate_limiter;
+pub mod selection_cache;
 pub mod similarity;
 pub mod startup;
 pub mod state;

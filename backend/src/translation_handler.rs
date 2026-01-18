@@ -4,6 +4,7 @@ use dialect_coach_shared::models::{
     Dialect, Formality, PhraseTranslation, TranslateRequest, TranslateResponse,
 };
 
+use crate::selection_cache::SelectionCache;
 use crate::AppState;
 
 /// Translation endpoint - translate English phrases to dialect-specific phrases
@@ -55,7 +56,22 @@ pub async fn translate_handler(
         Formality::Informal
     };
 
-    // Translate the phrase
+    // Check cache before translating
+    let cache_key = SelectionCache::generate_key("translate", dialect.id(), &request.phrase);
+    if let Some(cached) = state.translation_cache.get_translation(&cache_key).await {
+        tracing::info!("Cache hit for translation: {}", cache_key);
+        return (
+            StatusCode::OK,
+            Json(TranslateResponse {
+                original_sentence: request.phrase.clone(),
+                segmented_phrases: cached,
+                success: true,
+                error: None,
+            }),
+        );
+    }
+
+    // Cache miss - translate the phrase
     match translate_phrase(
         &state,
         &request.phrase,
@@ -66,11 +82,12 @@ pub async fn translate_handler(
     .await
     {
         Ok(segmented_phrases) => {
-            tracing::info!(
-                "Translation success: '{}' -> {} phrases",
-                request.phrase,
-                segmented_phrases.len()
-            );
+            tracing::info!("Cache miss for translation: {}", cache_key);
+            state
+                .translation_cache
+                .set_translation(&cache_key, segmented_phrases.clone())
+                .await;
+
             (
                 StatusCode::OK,
                 Json(TranslateResponse {

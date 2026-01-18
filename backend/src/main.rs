@@ -1,5 +1,6 @@
 use dialect_coach_backend::AppState;
 use dialect_coach_backend::agent_service;
+use dialect_coach_backend::selection_cache::SelectionCache;
 use dialect_coach_backend::startup;
 
 use anyhow::Result;
@@ -50,6 +51,8 @@ async fn main() -> Result<()> {
         agent.planning_config.clone(),
     ));
 
+    let translation_cache = Arc::new(SelectionCache::new(100));
+
     let state = AppState {
         qdrant,
         agent,
@@ -61,6 +64,7 @@ async fn main() -> Result<()> {
         org_quota_checker,
         user_state_connections,
         planning_generator,
+        translation_cache,
         admin_token,
     };
 

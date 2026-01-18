@@ -4,6 +4,7 @@ use crate::embedding_service;
 use crate::persistence::UserPersistence;
 use crate::qdrant_service;
 use crate::rate_limiter;
+use crate::selection_cache::SelectionCache;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -23,6 +24,7 @@ pub struct AppState {
     pub user_state_connections:
         Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
     pub planning_generator: Arc<agent_service::planning::PlanGenerator>,
+    pub translation_cache: Arc<SelectionCache>,
     pub admin_token: Option<String>,
 }
 
