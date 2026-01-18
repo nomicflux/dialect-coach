@@ -13,7 +13,8 @@ use crate::app::user_state_callbacks::{
 };
 use crate::components::study_drawer_content::DrawerTab;
 use crate::components::{
-    ChatWindow, Drawer, DynamicIsland, InputBox, StudyDrawerContent, TranslationModal,
+    ChatWindow, Drawer, DynamicIsland, InputBox, LearningItemsFlash, StudyDrawerContent,
+    TranslationModal,
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
@@ -233,6 +234,10 @@ pub fn main_content(props: &MainContentProps) -> Html {
         },
     );
 
+    let on_dismiss_flash_item = use_callback(ui_state.clone(), |id: Uuid, ui_state| {
+        ui_state.dispatch(UIStateAction::DismissFlashItem(id));
+    });
+
     let on_undo_delete_learning_item = use_callback(
         (ui_state.clone(), session.clone()),
         |_, (ui_state, session)| {
@@ -411,6 +416,11 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 </Drawer>
 
             {render_modal(&modal_state, &on_close_modal, &on_save_phrase)}
+
+                <LearningItemsFlash
+                    items={ui_state.flashed_items.clone()}
+                    on_dismiss={on_dismiss_flash_item}
+                />
         </>
     }
 }
