@@ -14,12 +14,12 @@ use crate::app::user_state_callbacks::{
 use crate::components::study_drawer_content::DrawerTab;
 use crate::components::{
     ChatWindow, Drawer, DynamicIsland, InputBox, LearningItemsFlash, SelectionModal,
-    SelectionResult, StudyDrawerContent,
+    SelectionResult, StudyDrawerContent, translate_selection_button::SelectionAction,
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
 use crate::utils::perf::PerfGuard;
-use dialect_coach_shared::models::Translated;
+use dialect_coach_shared::models::{Translated, Explained};
 
 use gloo::events::EventListener;
 use std::rc::Rc;
@@ -127,11 +127,23 @@ pub fn main_content(props: &MainContentProps) -> Html {
         let session = session.clone();
         let modal_state = modal_state.clone();
         Callback::from(
-            move |(target, english, context): (String, String, String)| {
-                let translated = Translated::new(english, target, Some(context));
-                session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
-                    LearningAction::AddItems(vec![], vec![], vec![(translated, 0)], vec![]),
-                )));
+            move |(element, meaning, context): (String, String, String)| {
+                if let Some(SelectionModalState::Loaded { result, .. }) = modal_state.as_ref() {
+                    match result {
+                        SelectionResult::Translation(_) => {
+                            let translated = Translated::new(meaning, element, Some(context));
+                            session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
+                                LearningAction::AddItems(vec![], vec![], vec![(translated, 0)], vec![]),
+                            )));
+                        }
+                        SelectionResult::Grammar(_) => {
+                            let explained = Explained::new(element, meaning);
+                            session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
+                                LearningAction::AddItems(vec![], vec![(explained, 0)], vec![], vec![]),
+                            )));
+                        }
+                    }
+                }
                 modal_state.set(None);
             },
         )
@@ -139,20 +151,21 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
     let on_selection_translate_click = {
         let translation_service = app_state.translation_service.clone();
+        let grammar_service = app_state.grammar_service.clone();
         let session_handle = session.clone();
         let modal_state = modal_state.clone();
         let ui_dispatch = ui_state.clone();
 
         Callback::from(
-            move |(message_id, selected_text, context): (Uuid, String, String)| {
+            move |(message_id, action, selected_text, context): (Uuid, SelectionAction, String, String)| {
                 let translation_service = translation_service.clone();
+                let grammar_service = grammar_service.clone();
                 let session_handle = session_handle.clone();
                 let modal_state = modal_state.clone();
                 let ui_dispatch = ui_dispatch.clone();
 
-                // Open modal immediately with loading state
                 modal_state.set(Some(SelectionModalState::Loading {
-                    original_text: context.clone(),
+                    original_text: selected_text.clone(),
                 }));
 
                 ui_dispatch.dispatch(UIStateAction::SetTranslateLoading { message_id });
@@ -160,23 +173,46 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 wasm_bindgen_futures::spawn_local(async move {
                     if let Some(user) = session_handle.user.as_ref() {
                         let dialect = user.current_dialect();
-                        let formality = Some(user.formality);
 
-                        match translation_service
-                            .translate_phrase(&selected_text, context.clone(), dialect, formality)
-                            .await
-                        {
-                            Ok(response) => {
-                                modal_state.set(Some(SelectionModalState::Loaded {
-                                    original_text: context,
-                                    result: SelectionResult::Translation(response.segmented_phrases),
-                                }));
+                        match action {
+                            SelectionAction::Translate => {
+                                let formality = Some(user.formality);
+                                match translation_service
+                                    .translate_phrase(&selected_text, context.clone(), dialect, formality)
+                                    .await
+                                {
+                                    Ok(response) => {
+                                        modal_state.set(Some(SelectionModalState::Loaded {
+                                            original_text: selected_text,
+                                            result: SelectionResult::Translation(response.segmented_phrases),
+                                        }));
+                                    }
+                                    Err(e) => {
+                                        web_sys::console::error_1(
+                                            &format!("Translation failed: {}", e).into(),
+                                        );
+                                        modal_state.set(None);
+                                    }
+                                }
                             }
-                            Err(e) => {
-                                web_sys::console::error_1(
-                                    &format!("Translation failed: {}", e).into(),
-                                );
-                                modal_state.set(None);
+                            SelectionAction::ExplainGrammar => {
+                                match grammar_service
+                                    .explain_grammar(&selected_text, context, dialect)
+                                    .await
+                                {
+                                    Ok(explanations) => {
+                                        modal_state.set(Some(SelectionModalState::Loaded {
+                                            original_text: selected_text,
+                                            result: SelectionResult::Grammar(explanations),
+                                        }));
+                                    }
+                                    Err(e) => {
+                                        web_sys::console::error_1(
+                                            &format!("Grammar explanation failed: {}", e).into(),
+                                        );
+                                        modal_state.set(None);
+                                    }
+                                }
                             }
                         }
                     }

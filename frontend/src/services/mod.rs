@@ -1,5 +1,6 @@
 // Service modules
 pub mod enrichment_service;
+pub mod grammar;
 pub mod persistence;
 pub mod save_queue;
 pub mod speech;
@@ -9,6 +10,7 @@ pub mod user_websocket;
 pub mod websocket;
 
 pub use enrichment_service::EnrichmentService;
+pub use grammar::GrammarService;
 pub use save_queue::PendingSaveQueue;
 pub use speech::{CloudTtsService, SpeechRecognitionService};
 pub use translation::TranslationService;

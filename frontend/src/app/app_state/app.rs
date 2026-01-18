@@ -7,6 +7,7 @@ use uuid::Uuid;
 use yew::prelude::*;
 
 use crate::services::enrichment_service::EnrichmentService;
+use crate::services::grammar::GrammarService;
 use crate::services::plan_service::PlanService;
 use crate::services::save_queue::PendingSaveQueue;
 use crate::services::speech::CloudTtsService;
@@ -56,6 +57,7 @@ pub struct AppState {
     pub user_ws_service: Rc<RefCell<UserWebSocketService>>,
     pub tts_service: Option<Rc<CloudTtsService>>,
     pub translation_service: Rc<TranslationService>,
+    pub grammar_service: Rc<GrammarService>,
     pub enrichment_service: Rc<EnrichmentService>,
     pub plan_service: Rc<PlanService>,
     pub save_queue: Rc<PendingSaveQueue>,
@@ -80,6 +82,7 @@ impl PartialEq for AppState {
                 _ => false,
             }
             && Rc::ptr_eq(&self.translation_service, &other.translation_service)
+            && Rc::ptr_eq(&self.grammar_service, &other.grammar_service)
             && Rc::ptr_eq(&self.enrichment_service, &other.enrichment_service)
             && Rc::ptr_eq(&self.plan_service, &other.plan_service)
             && Rc::ptr_eq(&self.save_queue, &other.save_queue)
@@ -109,6 +112,7 @@ impl Default for AppState {
             user_ws_service: Rc::new(RefCell::new(UserWebSocketService::new(&user_ws_url))),
             tts_service: Some(Rc::new(CloudTtsService::new(&base_url))),
             translation_service: Rc::new(TranslationService::new(&base_url)),
+            grammar_service: Rc::new(GrammarService::new(&base_url)),
             enrichment_service: Rc::new(EnrichmentService::new(&base_url)),
             plan_service: Rc::new(PlanService::new(&base_url)),
             save_queue: Rc::new(PendingSaveQueue::new()),

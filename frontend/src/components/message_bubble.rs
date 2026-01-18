@@ -1,5 +1,5 @@
 use super::ruby_text::render_text_with_ruby;
-use crate::components::TranslateSelectionButton;
+use crate::components::{TranslateSelectionButton, translate_selection_button::SelectionAction};
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Language, LanguageOption, Message};
@@ -35,7 +35,7 @@ pub struct MessageBubbleProps {
     #[prop_or(false)]
     pub is_translate_loading: bool,
     #[prop_or_default]
-    pub on_selection_translate: Option<Callback<(Uuid, String, String)>>,
+    pub on_selection_translate: Option<Callback<(Uuid, SelectionAction, String, String)>>,
 }
 
 fn render_delete_button(on_delete: &Option<Callback<Uuid>>, msg_id: Uuid) -> Html {
@@ -217,14 +217,14 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
         }
     });
 
-    let on_selection_translate = {
+    let on_selection_action = {
         let message_id = props.message.id;
         let callback = props.on_selection_translate.clone();
         let selection_state = selection_state.clone();
 
-        Callback::from(move |(selected_text, context): (String, String)| {
+        Callback::from(move |(action, selected_text, context): (SelectionAction, String, String)| {
             if let Some(cb) = &callback {
-                cb.emit((message_id, selected_text, context));
+                cb.emit((message_id, action, selected_text, context));
             }
             selection_state.set(None);
         })
@@ -269,7 +269,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                             selected_text={selection.text.clone()}
                             message_context={props.message.get_content()}
                             position={selection.position}
-                            on_translate={on_selection_translate}
+                            on_action={on_selection_action}
                             is_loading={props.is_translate_loading}
                         />
                     }

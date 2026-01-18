@@ -7,6 +7,7 @@ use web_sys::{HtmlElement, MouseEvent};
 use yew::prelude::*;
 
 use crate::utils::perf::PerfGuard;
+use crate::components::translate_selection_button::SelectionAction;
 
 use super::MessageBubble;
 use super::icons::NeonRope;
@@ -32,7 +33,7 @@ pub struct ChatWindowProps {
     #[prop_or_default]
     pub translate_loading: HashSet<Uuid>,
     #[prop_or_default]
-    pub on_selection_translate: Option<Callback<(Uuid, String, String)>>,
+    pub on_selection_translate: Option<Callback<(Uuid, SelectionAction, String, String)>>,
 }
 
 fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool {
