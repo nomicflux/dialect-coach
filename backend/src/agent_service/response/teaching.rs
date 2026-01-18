@@ -163,13 +163,10 @@ const LEVEL_B2_CHECKLIST: &[&str] = &[
     "Clarity prioritized over stylistic flourish",
 ];
 
-const LEVEL_C1_CHECKLIST: &[&str] = &[
-    "No purely obscure or archaic terms outside general educated use",
-];
+const LEVEL_C1_CHECKLIST: &[&str] =
+    &["No purely obscure or archaic terms outside general educated use"];
 
-const LEVEL_C2_CHECKLIST: &[&str] = &[
-    "Nuance and precision maintained",
-];
+const LEVEL_C2_CHECKLIST: &[&str] = &["Nuance and precision maintained"];
 
 const JLPT_N5_CHECKLIST: &[&str] = &[
     "ONLY Desu/Masu forms used (no casual/dictionary forms)",
@@ -189,13 +186,9 @@ const JLPT_N3_CHECKLIST: &[&str] = &[
     "No rare literary grammar",
 ];
 
-const JLPT_N2_CHECKLIST: &[&str] = &[
-    "No highly specialized or archaic N1 vocabulary",
-];
+const JLPT_N2_CHECKLIST: &[&str] = &["No highly specialized or archaic N1 vocabulary"];
 
-const JLPT_N1_CHECKLIST: &[&str] = &[
-    "Full complexity expected",
-];
+const JLPT_N1_CHECKLIST: &[&str] = &["Full complexity expected"];
 
 pub(crate) fn level_checklist(level: LanguageLevel) -> &'static [&'static str] {
     match level {

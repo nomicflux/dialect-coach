@@ -67,15 +67,13 @@ pub fn main_content(props: &MainContentProps) -> Html {
         None => return html! {},
     };
 
-    let current_step_title = us
-        .active_branch_plan_id()
-        .and_then(|plan_id| {
-            us.language_plans
-                .iter()
-                .find(|p| p.id == plan_id)
-                .and_then(|plan| plan.steps.get(plan.current_step_index))
-                .map(|step| step.title.clone())
-        });
+    let current_step_title = us.active_branch_plan_id().and_then(|plan_id| {
+        us.language_plans
+            .iter()
+            .find(|p| p.id == plan_id)
+            .and_then(|plan| plan.steps.get(plan.current_step_index))
+            .map(|step| step.title.clone())
+    });
 
     let chat_input_ref = use_node_ref();
     let goal_input_ref = use_node_ref();

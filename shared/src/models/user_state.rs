@@ -270,7 +270,10 @@ impl UserState {
     }
 
     pub fn active_branch_plan_id(&self) -> Option<Uuid> {
-        let branch = self.branches.iter().find(|b| b.id == self.active_branch_id)?;
+        let branch = self
+            .branches
+            .iter()
+            .find(|b| b.id == self.active_branch_id)?;
         let plan_id = branch.active_plan_id?;
 
         let plan = self.language_plans.iter().find(|p| p.id == plan_id)?;
@@ -580,8 +583,11 @@ impl UserState {
 
     fn reset_branches_to_root(&mut self) {
         let dialect = if self.branches.is_empty() {
-            UserState::default_dialect_for_language(self.selected_language, self.show_experimental_dialects)
-                .unwrap_or(Dialect::SpanishArgentinian)
+            UserState::default_dialect_for_language(
+                self.selected_language,
+                self.show_experimental_dialects,
+            )
+            .unwrap_or(Dialect::SpanishArgentinian)
         } else {
             self.active_branch_dialect()
         };
@@ -630,8 +636,11 @@ impl UserState {
     fn branch_dialect(&self, leaf_id: Uuid) -> Dialect {
         let path = self.get_path_to_message(Some(leaf_id));
         let fallback = if self.branches.is_empty() {
-            UserState::default_dialect_for_language(self.selected_language, self.show_experimental_dialects)
-                .unwrap_or(Dialect::SpanishArgentinian)
+            UserState::default_dialect_for_language(
+                self.selected_language,
+                self.show_experimental_dialects,
+            )
+            .unwrap_or(Dialect::SpanishArgentinian)
         } else {
             self.active_branch_dialect()
         };

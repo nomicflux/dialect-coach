@@ -7,7 +7,9 @@ use dialect_coach_shared::{
 
 use super::config::{CONTENT_FILTERING_DIRECTIVES, RESPONSE_JSON_OUTPUT_FORMAT};
 use super::speaker::{extract_gender_from_dialect, mimic_instruction, speaker_desc};
-use super::teaching::{language_level_instruction, level_checklist, mode_checklist, response_teaching_desc};
+use super::teaching::{
+    language_level_instruction, level_checklist, mode_checklist, response_teaching_desc,
+};
 use crate::agent_service::language_instructions::build_language_instruction;
 use crate::agent_service::util::{
     JSON_OUTPUT_INSTRUCTION, format_learning_items_context, learning_goals_section,
@@ -98,7 +100,8 @@ fn build_lang_section(language_instr: &str) -> String {
 }
 
 fn format_checklist(items: &[&str]) -> String {
-    items.iter()
+    items
+        .iter()
         .map(|item| format!("- [ ] {}", item))
         .collect::<Vec<_>>()
         .join("\n")

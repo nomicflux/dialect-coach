@@ -85,7 +85,8 @@ mod tests {
 
     #[test]
     fn test_new_branch_root() {
-        let branch = ConversationBranch::new(None, None, None, Dialect::SpanishMexican, vec![], None);
+        let branch =
+            ConversationBranch::new(None, None, None, Dialect::SpanishMexican, vec![], None);
 
         assert_eq!(branch.parent_message_id, None);
         assert_eq!(branch.name, None);

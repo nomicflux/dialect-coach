@@ -25,6 +25,8 @@ pub enum UIStateAction {
     SetTranslateLoading { message_id: Uuid },
     ClearTranslateLoading { message_id: Uuid },
     SetSignInLoading(bool),
+    QueueFlashItems(Vec<LearningItem>),
+    DismissFlashItem(Uuid),
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -40,6 +42,7 @@ pub struct UIState {
     pub explain_loading: HashSet<Uuid>,
     pub translate_loading: HashSet<Uuid>,
     pub is_signing_in: bool,
+    pub flashed_items: Vec<LearningItem>,
 }
 
 impl UIState {
@@ -95,6 +98,12 @@ impl UIState {
             }
             UIStateAction::SetSignInLoading(loading) => {
                 next.is_signing_in = loading;
+            }
+            UIStateAction::QueueFlashItems(items) => {
+                next.flashed_items.extend(items);
+            }
+            UIStateAction::DismissFlashItem(id) => {
+                next.flashed_items.retain(|item| item.id() != id);
             }
         }
         next

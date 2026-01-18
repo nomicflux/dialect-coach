@@ -743,7 +743,8 @@ fn test_change_dialect_reuses_existing_branch() {
     let mut state = UserState::new(Uuid::new_v4());
 
     // Change to Spanish Argentinian - creates branch
-    let action = UserStateAction::Settings(SettingsAction::ChangeDialect(Dialect::SpanishArgentinian));
+    let action =
+        UserStateAction::Settings(SettingsAction::ChangeDialect(Dialect::SpanishArgentinian));
     state = apply_user_state_action(&state, action).unwrap();
     let arg_branch_id = state.active_branch_id;
 
@@ -754,11 +755,12 @@ fn test_change_dialect_reuses_existing_branch() {
     let branch_count = state.branches.len();
 
     // Change back to Spanish Argentinian - should REUSE first branch
-    let action = UserStateAction::Settings(SettingsAction::ChangeDialect(Dialect::SpanishArgentinian));
+    let action =
+        UserStateAction::Settings(SettingsAction::ChangeDialect(Dialect::SpanishArgentinian));
     state = apply_user_state_action(&state, action).unwrap();
 
-    assert_eq!(state.active_branch_id, arg_branch_id);  // Same branch
-    assert_eq!(state.branches.len(), branch_count);      // No new branch
+    assert_eq!(state.active_branch_id, arg_branch_id); // Same branch
+    assert_eq!(state.branches.len(), branch_count); // No new branch
 }
 
 #[test]

@@ -10,8 +10,50 @@ use crate::app::app_state::{
 };
 use crate::services::websocket::ConnectionState;
 use dialect_coach_shared::models::{Message, MessageContent};
+use dialect_coach_shared::{
+    Dialect, Explained, Exploratory, LearningItem, LearningItemType, Mistake, Translated,
+};
 use log::{error, info};
 use yew::prelude::*;
+
+fn build_flash_items(
+    mistakes: &[(Mistake, u8)],
+    explained: &[(Explained, u8)],
+    translated: &[(Translated, u8)],
+    exploratory: &[(Exploratory, u8)],
+    dialect: Dialect,
+) -> Vec<LearningItem> {
+    let mut items = Vec::new();
+    for (m, s) in mistakes {
+        items.push(LearningItem::with_score(
+            LearningItemType::Mistake(m.clone()),
+            dialect,
+            *s,
+        ));
+    }
+    for (e, s) in explained {
+        items.push(LearningItem::with_score(
+            LearningItemType::Explanation(e.clone()),
+            dialect,
+            *s,
+        ));
+    }
+    for (t, s) in translated {
+        items.push(LearningItem::with_score(
+            LearningItemType::Translation(t.clone()),
+            dialect,
+            *s,
+        ));
+    }
+    for (x, s) in exploratory {
+        items.push(LearningItem::with_score(
+            LearningItemType::Exploration(x.clone()),
+            dialect,
+            *s,
+        ));
+    }
+    items
+}
 
 fn check_rate_limit_error(error_text: &str, app_state: &UseReducerHandle<AppState>) {
     if error_text.contains("Response agent rate limit exceeded")
@@ -97,6 +139,16 @@ pub fn use_chat_websocket(
                                 || !translated.is_empty()
                                 || !exploratory.is_empty()
                             {
+                                if let Some(dialect) = session_handle
+                                    .user
+                                    .as_ref()
+                                    .map(|u| u.active_branch_dialect()) {
+                                        let flash_items = build_flash_items(
+                                            mistakes.as_slice(), explained.as_slice(), translated.as_slice(), exploratory.as_slice(), dialect,
+                                        );
+                                        uis.dispatch(UIStateAction::QueueFlashItems(flash_items));
+                                    }
+
                                 session_handle.dispatch(SessionAction::Domain(UserDomainAction::Learning(
                                     LearningAction::AddItems(
                                         mistakes,

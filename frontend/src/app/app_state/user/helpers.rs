@@ -234,14 +234,7 @@ pub fn delete_learning_goal(mut goals: Vec<LearningGoal>, index: usize) -> Vec<L
 
 pub fn create_new_branch_for_language(state: &mut UserState, dialect: Dialect) {
     let plan_id = state.active_branch_plan_id();
-    let new_branch = ConversationBranch::new(
-        None,
-        None,
-        None,
-        dialect,
-        vec![],
-        plan_id,
-    );
+    let new_branch = ConversationBranch::new(None, None, None, dialect, vec![], plan_id);
     let new_branch_id = new_branch.id;
     Arc::make_mut(&mut state.branches).push(new_branch);
     state.active_branch_id = new_branch_id;
@@ -258,13 +251,16 @@ pub fn find_or_create_branch_for_dialect(state: &mut UserState, dialect: Dialect
 }
 
 fn find_branch_with_most_recent_message(state: &UserState, dialect: Dialect) -> Option<Uuid> {
-    state.branches
+    state
+        .branches
         .iter()
         .filter(|b| b.dialect == dialect)
         .map(|branch| {
-            let timestamp = branch.leaf_message_id
+            let timestamp = branch
+                .leaf_message_id
                 .and_then(|msg_id| {
-                    state.conversation_history
+                    state
+                        .conversation_history
                         .iter()
                         .find(|m| m.id == msg_id)
                         .map(|m| m.metadata.timestamp)

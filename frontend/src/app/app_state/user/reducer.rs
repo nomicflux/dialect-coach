@@ -168,7 +168,6 @@ pub(crate) fn reduce_plan(next: &mut UserState, action: PlanAction) {
             Arc::make_mut(&mut next.language_plans).retain(|p| p.id != plan_id);
         }
         SetActive(plan_id) => {
-
             let active_branch_id = next.active_branch_id;
             if let Some(branch) = Arc::make_mut(&mut next.branches)
                 .iter_mut()
@@ -238,12 +237,18 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             if old_language != language {
                 next.selected_language = language;
 
-                let dialect = next.branches
+                let dialect = next
+                    .branches
                     .iter()
                     .filter(|b| b.dialect.language() == language)
                     .max_by_key(|b| b.created_at)
                     .map(|b| b.dialect)
-                    .or_else(|| UserState::default_dialect_for_language(language, next.show_experimental_dialects));
+                    .or_else(|| {
+                        UserState::default_dialect_for_language(
+                            language,
+                            next.show_experimental_dialects,
+                        )
+                    });
 
                 if let Some(dialect) = dialect {
                     find_or_create_branch_for_dialect(next, dialect);
@@ -322,10 +327,7 @@ pub(crate) fn apply_user_state_action(state: &UserState, action: UserStateAction
 fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
     use std::sync::Arc;
     let plan_id = state.active_branch_plan_id();
-    if let Some(plan) = state
-        .language_plans
-        .iter()
-        .find(|p| Some(p.id) == plan_id)
+    if let Some(plan) = state.language_plans.iter().find(|p| Some(p.id) == plan_id)
         && let Some(step) = plan.steps.get(plan.current_step_index)
         && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
     {

@@ -39,7 +39,7 @@ fn load_reasoning_budget(channel_prefix: &str) -> u32 {
                 .ok()
                 .and_then(|v| v.parse::<u32>().ok())
         })
-        .unwrap_or(200)
+        .unwrap_or(512)
 }
 
 fn load_channel_agent(prefix: &str) -> Result<(Arc<dyn CompletionAgent>, ProviderAgentConfig)> {
@@ -391,7 +391,7 @@ mod tests {
             std::env::remove_var("OPENAI_REASONING_BUDGET");
         }
         let budget = load_reasoning_budget("ANALYSIS");
-        assert_eq!(budget, 200);
+        assert_eq!(budget, 512);
     }
 
     #[test]
