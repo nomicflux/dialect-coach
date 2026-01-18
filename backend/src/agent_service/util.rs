@@ -188,6 +188,31 @@ pub fn detect_json_parse_error() -> String {
     4. DO NOT repeat your previous broken response - CREATE A NEW, CORRECT ONE".to_string()
 }
 
+pub fn diagnose_json_error(error_message: &str) -> String {
+    let lower = error_message.to_lowercase();
+
+    if lower.contains("eof while parsing") || lower.contains("unexpected end") {
+        return "Your output was truncated mid-JSON. Keep your response shorter.".to_string();
+    }
+    if lower.contains("key must be a string") {
+        return "You used an unquoted key. JSON keys must be in double quotes.".to_string();
+    }
+    if lower.contains("expected `:`") || lower.contains("expected colon") {
+        return "Missing colon after a key. Format: \"key\": value".to_string();
+    }
+    if lower.contains("expected `,` or `}`") || lower.contains("expected comma") {
+        return "Missing comma between fields or unclosed brace.".to_string();
+    }
+    if lower.contains("trailing comma") {
+        return "Trailing comma after last field. Remove it.".to_string();
+    }
+    if lower.contains("control character") {
+        return "Invalid control character in string. Escape special characters.".to_string();
+    }
+
+    format!("JSON error: {}", error_message)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

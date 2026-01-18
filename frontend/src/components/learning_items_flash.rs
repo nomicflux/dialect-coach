@@ -1,3 +1,4 @@
+use crate::components::utility_sidebar::learning_item::{LearningItemState, get_accent_color};
 use dialect_coach_shared::{LearningItem, LearningItemType};
 use uuid::Uuid;
 use yew::prelude::*;
@@ -26,23 +27,29 @@ pub fn learning_items_flash(props: &LearningItemsFlashProps) -> Html {
 fn render_flash_item(item: &LearningItem, on_dismiss: Callback<Uuid>) -> Html {
     let id = item.id();
     let onclick = Callback::from(move |_| on_dismiss.emit(id));
-    let (icon, text) = get_item_display(item);
+    let item_state = LearningItemState::from_score(item.score);
+    let accent_color = get_accent_color(&item.item);
+    let text = get_item_text(item);
 
     html! {
-        <div class="flash-item" {onclick} title="Click to dismiss">
-            <span class="flash-item-icon">{icon}</span>
-            <span class="flash-item-text">{text}</span>
+        <div
+            class={classes!("island-item", "flash-item", item_state.css_class())}
+            style={format!("--accent-color: {}", accent_color)}
+            {onclick}
+            title="Click to dismiss"
+        >
+            <span class="state-indicator">{item_state.icon()}</span>
+            <span class="island-text">{text}</span>
+            <span class="island-score">{format!("{}%", item.score)}</span>
         </div>
     }
 }
 
-fn get_item_display(item: &LearningItem) -> (&'static str, String) {
+fn get_item_text(item: &LearningItem) -> String {
     match &item.item {
-        LearningItemType::Mistake(m) => ("🛠️", m.specific_mistake.clone()),
-        LearningItemType::Explanation(e) => ("💡", e.new_phrase.clone()),
-        LearningItemType::Translation(t) => {
-            ("🌐", format!("{} → {}", t.translated_word, t.translated_to))
-        }
-        LearningItemType::Exploration(x) => ("🎯", x.point_to_try.clone()),
+        LearningItemType::Mistake(m) => m.specific_mistake.clone(),
+        LearningItemType::Explanation(e) => e.new_phrase.clone(),
+        LearningItemType::Translation(t) => format!("{} → {}", t.translated_word, t.translated_to),
+        LearningItemType::Exploration(x) => x.point_to_try.clone(),
     }
 }

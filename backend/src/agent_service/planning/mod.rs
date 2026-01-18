@@ -84,13 +84,12 @@ impl PlanGenerator {
                     agent: self.agent.clone(),
                 };
 
-                let preamble_builder = |original: &str, failed: &str, error: &str| {
-                    build_retry_planning_preamble_yaml(original, failed, error)
+                let preamble_builder = |original: &str, error: &str| {
+                    build_retry_planning_preamble_yaml(original, error)
                 };
 
                 let retry_params = retry::RetryPromptParams {
                     original_preamble: &system_prompt,
-                    failed_response: &response,
                     error_message: &error_msg,
                     prompt: &user_prompt,
                     preamble_builder: &preamble_builder,
@@ -133,12 +132,11 @@ pub fn try_parse_plan_output_yaml(response: &str) -> Result<SimpleImportLanguage
     serde_yaml::from_str(&normalized).context("Failed to parse generated plan YAML")
 }
 
-pub fn build_retry_planning_preamble_yaml(original: &str, failed: &str, error: &str) -> String {
+pub fn build_retry_planning_preamble_yaml(original: &str, error: &str) -> String {
     retry::build_retry_preamble(
         original,
-        failed,
         error,
-        "You MUST return valid YAML. Ensure indentation is correct and no markdown fencing is used.",
+        "return valid YAML with correct indentation and no markdown fencing.",
     )
 }
 

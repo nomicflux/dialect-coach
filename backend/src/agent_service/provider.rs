@@ -128,7 +128,9 @@ impl UnifiedCompletionAgent {
             }
         }
         if text.is_empty() {
-            return Err(CompletionAgentError::fatal(anyhow!("No text in response")));
+            return Err(CompletionAgentError::retryable(anyhow!(
+                "No text in response - output may have been truncated"
+            )));
         }
         Ok(text)
     }

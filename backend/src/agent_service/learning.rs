@@ -557,13 +557,12 @@ impl LearningAgent {
                 };
                 let parse_fn = |resp: &str| try_parse_learning_output(resp);
                 let log_success = |parsed: &LearningAgentOutput| log_learning_success(parsed);
-                let preamble_builder = |preamble: &str, failed: &str, error: &str| {
-                    build_retry_learning_preamble(preamble, failed, error)
+                let preamble_builder = |preamble: &str, error: &str| {
+                    build_retry_learning_preamble(preamble, error)
                 };
                 let initial_error = format!("{}", e);
                 let prompt_params = super::retry::RetryPromptParams {
                     original_preamble: system_content,
-                    failed_response: &response,
                     error_message: &initial_error,
                     prompt,
                     preamble_builder: &preamble_builder,

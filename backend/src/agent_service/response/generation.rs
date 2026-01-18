@@ -347,13 +347,12 @@ async fn handle_parse_failure_with_retry(
     let log_success = move |parsed: &dialect_coach_shared::AgentResponse| {
         log_response_success(dialect, parsed);
     };
-    let preamble_builder = move |preamble: &str, failed: &str, error: &str| -> String {
-        build_retry_response_preamble(preamble, failed, error)
+    let preamble_builder = move |preamble: &str, error: &str| -> String {
+        build_retry_response_preamble(preamble, error)
     };
     let max_tokens = tokens_per_mode(&teaching_mode);
     let prompt_params = crate::agent_service::retry::RetryPromptParams {
         original_preamble: input.system_content,
-        failed_response: &input.response,
         error_message: input.initial_error,
         prompt: input.params.user_message,
         preamble_builder: &preamble_builder,
@@ -395,7 +394,7 @@ async fn execute_retry_with_learning<F>(
     Vec<AgentUsage>,
 )>
 where
-    F: Fn(&str, &str, &str) -> String + Sync + Send,
+    F: Fn(&str, &str) -> String + Sync + Send,
 {
     match retry_ctx
         .retry_with_error_feedback_tracked(
