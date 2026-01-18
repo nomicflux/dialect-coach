@@ -41,6 +41,6 @@ pub use ruby_text::render_text_with_ruby;
 pub use speech_controls::SpeechControls;
 pub use study_drawer_content::StudyDrawerContent;
 pub use translate_selection_button::TranslateSelectionButton;
-pub use translation_modal::TranslationModal;
+pub use translation_modal::{SelectionModal, SelectionResult, TranslationModal};
 pub use user_creation::UserCreation;
 pub use welcome_screen::WelcomeScreen;

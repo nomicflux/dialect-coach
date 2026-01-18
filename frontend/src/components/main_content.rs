@@ -13,13 +13,13 @@ use crate::app::user_state_callbacks::{
 };
 use crate::components::study_drawer_content::DrawerTab;
 use crate::components::{
-    ChatWindow, Drawer, DynamicIsland, InputBox, LearningItemsFlash, StudyDrawerContent,
-    TranslationModal,
+    ChatWindow, Drawer, DynamicIsland, InputBox, LearningItemsFlash, SelectionModal,
+    SelectionResult, StudyDrawerContent,
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
 use crate::utils::perf::PerfGuard;
-use dialect_coach_shared::models::{PhraseTranslation, Translated};
+use dialect_coach_shared::models::Translated;
 
 use gloo::events::EventListener;
 use std::rc::Rc;
@@ -29,13 +29,13 @@ use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
 #[derive(Clone, PartialEq)]
-pub enum TranslationModalState {
+pub enum SelectionModalState {
     Loading {
-        original_sentence: String,
+        original_text: String,
     },
     Loaded {
-        original_sentence: String,
-        phrases: Vec<PhraseTranslation>,
+        original_text: String,
+        result: SelectionResult,
     },
 }
 
@@ -80,7 +80,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
     let goal_input_ref = use_node_ref();
 
     let drawer_active_tab = use_state(|| DrawerTab::Branches);
-    let modal_state = use_state(|| None::<TranslationModalState>);
+    let modal_state = use_state(|| None::<SelectionModalState>);
 
     // Memoize filtered items to avoid iterating/cloning on every render
     let filtered_items = use_memo(us.clone(), |user| {
@@ -151,8 +151,8 @@ pub fn main_content(props: &MainContentProps) -> Html {
                 let ui_dispatch = ui_dispatch.clone();
 
                 // Open modal immediately with loading state
-                modal_state.set(Some(TranslationModalState::Loading {
-                    original_sentence: context.clone(),
+                modal_state.set(Some(SelectionModalState::Loading {
+                    original_text: context.clone(),
                 }));
 
                 ui_dispatch.dispatch(UIStateAction::SetTranslateLoading { message_id });
@@ -167,9 +167,9 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             .await
                         {
                             Ok(response) => {
-                                modal_state.set(Some(TranslationModalState::Loaded {
-                                    original_sentence: context,
-                                    phrases: response.segmented_phrases,
+                                modal_state.set(Some(SelectionModalState::Loaded {
+                                    original_text: context,
+                                    result: SelectionResult::Translation(response.segmented_phrases),
                                 }));
                             }
                             Err(e) => {
@@ -426,28 +426,25 @@ pub fn main_content(props: &MainContentProps) -> Html {
 }
 
 fn render_modal(
-    modal_state: &UseStateHandle<Option<TranslationModalState>>,
+    modal_state: &UseStateHandle<Option<SelectionModalState>>,
     on_close: &Callback<()>,
     on_save: &Callback<(String, String, String)>,
 ) -> Html {
     match modal_state.as_ref() {
-        Some(TranslationModalState::Loading { original_sentence }) => html! {
-            <TranslationModal
-                original_sentence={original_sentence.clone()}
-                phrases={None}
+        Some(SelectionModalState::Loading { original_text }) => html! {
+            <SelectionModal
+                original_text={original_text.clone()}
+                result={None}
                 on_close={on_close.clone()}
-                on_save_phrase={on_save.clone()}
+                on_save={on_save.clone()}
             />
         },
-        Some(TranslationModalState::Loaded {
-            original_sentence,
-            phrases,
-        }) => html! {
-            <TranslationModal
-                original_sentence={original_sentence.clone()}
-                phrases={Some(phrases.clone())}
+        Some(SelectionModalState::Loaded { original_text, result }) => html! {
+            <SelectionModal
+                original_text={original_text.clone()}
+                result={Some(result.clone())}
                 on_close={on_close.clone()}
-                on_save_phrase={on_save.clone()}
+                on_save={on_save.clone()}
             />
         },
         None => html! {},

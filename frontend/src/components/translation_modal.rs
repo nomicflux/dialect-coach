@@ -1,16 +1,22 @@
-use dialect_coach_shared::models::PhraseTranslation;
+use dialect_coach_shared::models::{GrammarExplanation, PhraseTranslation};
 use yew::prelude::*;
 
-#[derive(Properties, PartialEq)]
-pub struct TranslationModalProps {
-    pub original_sentence: String,
-    pub phrases: Option<Vec<PhraseTranslation>>,
-    pub on_close: Callback<()>,
-    pub on_save_phrase: Callback<(String, String, String)>,
+#[derive(Clone, PartialEq)]
+pub enum SelectionResult {
+    Translation(Vec<PhraseTranslation>),
+    Grammar(Vec<GrammarExplanation>),
 }
 
-#[function_component(TranslationModal)]
-pub fn translation_modal(props: &TranslationModalProps) -> Html {
+#[derive(Properties, PartialEq)]
+pub struct SelectionModalProps {
+    pub original_text: String,
+    pub result: Option<SelectionResult>,
+    pub on_close: Callback<()>,
+    pub on_save: Callback<(String, String, String)>,
+}
+
+#[function_component(SelectionModal)]
+pub fn selection_modal(props: &SelectionModalProps) -> Html {
     let on_backdrop_click = {
         let on_close = props.on_close.clone();
         Callback::from(move |_| on_close.emit(()))
@@ -24,34 +30,43 @@ pub fn translation_modal(props: &TranslationModalProps) -> Html {
         <div class="modal-overlay" onclick={on_backdrop_click}>
             <div class="modal-container" onclick={on_modal_click}>
                 <div class="modal-header">
-                    <h3>{"Translation"}</h3>
+                    <h3>{get_modal_title(&props.result)}</h3>
                     <button class="modal-close" onclick={props.on_close.reform(|_| ())}>
                         {"×"}
                     </button>
                 </div>
                 <div class="modal-body">
                     <div class="original-sentence">
-                        <strong>{"Original: "}</strong>
-                        <span>{&props.original_sentence}</span>
+                        <strong>{"Selected: "}</strong>
+                        <span>{&props.original_text}</span>
                     </div>
-                    {render_content(&props.phrases, &props.on_save_phrase, &props.original_sentence)}
+                    {render_content(&props.result, &props.on_save, &props.original_text)}
                 </div>
             </div>
         </div>
     }
 }
 
+fn get_modal_title(result: &Option<SelectionResult>) -> &'static str {
+    match result {
+        Some(SelectionResult::Translation(_)) => "Translation",
+        Some(SelectionResult::Grammar(_)) => "Grammar Explanation",
+        None => "Loading...",
+    }
+}
+
 fn render_content(
-    phrases: &Option<Vec<PhraseTranslation>>,
+    result: &Option<SelectionResult>,
     on_save: &Callback<(String, String, String)>,
     context: &str,
 ) -> Html {
-    match phrases {
-        Some(phrases) => html! {
-            <div class="phrases-list">
-                {render_phrases(phrases, on_save, context)}
-            </div>
-        },
+    match result {
+        Some(SelectionResult::Translation(phrases)) => {
+            render_phrases(phrases, on_save, context)
+        }
+        Some(SelectionResult::Grammar(explanations)) => {
+            render_grammar_explanations(explanations, on_save, context)
+        }
         None => render_loading(),
     }
 }
@@ -60,7 +75,7 @@ fn render_loading() -> Html {
     html! {
         <div class="modal-loading">
             <div class="loading-spinner"></div>
-            <p>{"Translating..."}</p>
+            <p>{"Loading..."}</p>
         </div>
     }
 }
@@ -70,10 +85,23 @@ fn render_phrases(
     on_save: &Callback<(String, String, String)>,
     context: &str,
 ) -> Html {
-    phrases
-        .iter()
-        .map(|phrase| render_phrase_row(phrase, on_save, context))
-        .collect()
+    html! {
+        <div class="phrases-list">
+            {phrases.iter().map(|phrase| render_phrase_row(phrase, on_save, context)).collect::<Html>()}
+        </div>
+    }
+}
+
+fn render_grammar_explanations(
+    explanations: &[GrammarExplanation],
+    on_save: &Callback<(String, String, String)>,
+    context: &str,
+) -> Html {
+    html! {
+        <div class="phrases-list">
+            {explanations.iter().map(|exp| render_grammar_row(exp, on_save, context)).collect::<Html>()}
+        </div>
+    }
 }
 
 fn render_phrase_row(
@@ -103,3 +131,34 @@ fn render_phrase_row(
         </div>
     }
 }
+
+fn render_grammar_row(
+    exp: &GrammarExplanation,
+    on_save: &Callback<(String, String, String)>,
+    context: &str,
+) -> Html {
+    let element = exp.element.clone();
+    let explanation = exp.explanation.clone();
+    let ctx = context.to_string();
+
+    let on_save_click = {
+        let on_save = on_save.clone();
+        Callback::from(move |_: MouseEvent| {
+            on_save.emit((element.clone(), explanation.clone(), ctx.clone()));
+        })
+    };
+
+    html! {
+        <div class="phrase-row">
+            <span class="phrase-text">
+                {&exp.element}{" → "}{&exp.explanation}
+            </span>
+            <button class="save-button" onclick={on_save_click}>
+                {"💾 Save"}
+            </button>
+        </div>
+    }
+}
+
+// Backwards compatibility alias
+pub type TranslationModal = SelectionModal;
