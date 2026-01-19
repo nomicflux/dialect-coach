@@ -283,6 +283,14 @@ impl UserState {
             None
         }
     }
+
+    pub fn active_branch_settings(&self) -> &BranchSettings {
+        self.branches
+            .iter()
+            .find(|b| b.id == self.active_branch_id)
+            .map(|b| &b.settings)
+            .expect("Active branch must exist")
+    }
 }
 
 impl UserState {
@@ -348,9 +356,10 @@ impl UserState {
     }
 
     fn create_metadata(&self, session_id: Uuid) -> MessageMetadata {
+        let settings = self.active_branch_settings();
         MessageMetadata::at_now(
-            self.formality,
-            self.teaching_mode,
+            settings.formality,
+            settings.teaching_mode,
             self.selected_language,
             self.current_dialect(),
             session_id,
@@ -372,6 +381,7 @@ impl UserState {
 
     pub fn build_action_context(&self) -> ConversationContext {
         let dialect = self.active_branch_dialect();
+        let settings = self.active_branch_settings();
         let past_items = self.get_past_learning_items(&dialect);
         ConversationContext {
             active_plan: self.active_plan(),
@@ -385,11 +395,11 @@ impl UserState {
             past_translated: past_items.translated,
             past_exploratory: past_items.exploratory,
             user_gender: self.user_gender,
-            language_option: self.current_language_option(),
+            language_option: settings.language_options.for_language(self.selected_language),
             dialect,
-            formality: self.formality,
-            teaching_mode: self.teaching_mode,
-            language_level: self.current_language_level(),
+            formality: settings.formality,
+            teaching_mode: settings.teaching_mode,
+            language_level: settings.language_level,
         }
     }
 
@@ -426,8 +436,7 @@ impl UserState {
     }
 
     pub fn current_language_level(&self) -> LanguageLevel {
-        let dialect = self.active_branch_dialect();
-        self.get_level_for_dialect(&dialect)
+        self.active_branch_settings().language_level
     }
 
     pub fn current_dialects(&self) -> Vec<DialectWithFeatures> {
@@ -439,7 +448,7 @@ impl UserState {
     }
 
     pub fn formality_display(&self) -> &'static str {
-        match self.formality {
+        match self.active_branch_settings().formality {
             Formality::Formal => "Formal",
             Formality::ProfessionalCasual => "Professional Casual",
             Formality::Informal => "Informal",
@@ -448,7 +457,7 @@ impl UserState {
     }
 
     pub fn teaching_mode_display(&self) -> &'static str {
-        match self.teaching_mode {
+        match self.active_branch_settings().teaching_mode {
             TeachingMode::Immersive => "Immersive",
             TeachingMode::Corrective => "Corrective",
             TeachingMode::Explanatory => "Explanatory",
