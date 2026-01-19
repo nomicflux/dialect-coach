@@ -25,9 +25,12 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
     openssl \
+    libbz2-1.0 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/backend /usr/local/bin/dialect-coach-backend
 COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/admin /usr/local/bin/admin
 COPY --from=builder /usr/local/lib/libpdfium.so /usr/local/lib/
+COPY --from=builder /app/backend/vendor /app/backend/vendor
 ENV LD_LIBRARY_PATH=/usr/local/lib
+WORKDIR /app
 CMD ["dialect-coach-backend"]

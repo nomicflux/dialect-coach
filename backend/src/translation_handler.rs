@@ -4,8 +4,8 @@ use dialect_coach_shared::models::{
     Dialect, Formality, PhraseTranslation, TranslateRequest, TranslateResponse,
 };
 
-use crate::selection_cache::SelectionCache;
 use crate::AppState;
+use crate::selection_cache::SelectionCache;
 
 /// Translation endpoint - translate English phrases to dialect-specific phrases
 pub async fn translate_handler(

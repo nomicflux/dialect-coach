@@ -61,9 +61,7 @@ fn render_content(
     context: &str,
 ) -> Html {
     match result {
-        Some(SelectionResult::Translation(phrases)) => {
-            render_phrases(phrases, on_save, context)
-        }
+        Some(SelectionResult::Translation(phrases)) => render_phrases(phrases, on_save, context),
         Some(SelectionResult::Grammar(explanations)) => {
             render_grammar_explanations(explanations, on_save, context)
         }

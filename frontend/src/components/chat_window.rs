@@ -6,8 +6,8 @@ use uuid::Uuid;
 use web_sys::{HtmlElement, MouseEvent};
 use yew::prelude::*;
 
-use crate::utils::perf::PerfGuard;
 use crate::components::translate_selection_button::SelectionAction;
+use crate::utils::perf::PerfGuard;
 
 use super::MessageBubble;
 use super::icons::NeonRope;

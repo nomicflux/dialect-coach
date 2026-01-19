@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use dialect_coach_shared::models::{Dialect, GrammarRequest, GrammarResponse, GrammarExplanation};
+use dialect_coach_shared::models::{Dialect, GrammarExplanation, GrammarRequest, GrammarResponse};
 use gloo_net::http::Request;
 
 #[derive(Clone)]
@@ -49,7 +49,9 @@ impl GrammarService {
         if !grammar_response.success {
             return Err(anyhow::anyhow!(
                 "Grammar explanation failed: {}",
-                grammar_response.error.unwrap_or_else(|| "Unknown error".to_string())
+                grammar_response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             ));
         }
 

@@ -27,7 +27,11 @@ pub fn selection_action_buttons(props: &Props) -> Html {
         Callback::from(move |e: MouseEvent| {
             if !is_loading {
                 e.stop_propagation();
-                on_action.emit((SelectionAction::Translate, selected_text.clone(), context.clone()));
+                on_action.emit((
+                    SelectionAction::Translate,
+                    selected_text.clone(),
+                    context.clone(),
+                ));
             }
         })
     };
@@ -41,7 +45,11 @@ pub fn selection_action_buttons(props: &Props) -> Html {
         Callback::from(move |e: MouseEvent| {
             if !is_loading {
                 e.stop_propagation();
-                on_action.emit((SelectionAction::ExplainGrammar, selected_text.clone(), context.clone()));
+                on_action.emit((
+                    SelectionAction::ExplainGrammar,
+                    selected_text.clone(),
+                    context.clone(),
+                ));
             }
         })
     };

@@ -19,7 +19,7 @@ use crate::components::{
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
 use crate::services::websocket::ConnectionState;
 use crate::utils::perf::PerfGuard;
-use dialect_coach_shared::models::{Translated, Explained};
+use dialect_coach_shared::models::{Explained, Translated};
 
 use gloo::events::EventListener;
 use std::rc::Rc;
@@ -133,13 +133,23 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         SelectionResult::Translation(_) => {
                             let translated = Translated::new(meaning, element, Some(context));
                             session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
-                                LearningAction::AddItems(vec![], vec![], vec![(translated, 0)], vec![]),
+                                LearningAction::AddItems(
+                                    vec![],
+                                    vec![],
+                                    vec![(translated, 0)],
+                                    vec![],
+                                ),
                             )));
                         }
                         SelectionResult::Grammar(_) => {
                             let explained = Explained::new(element, meaning);
                             session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
-                                LearningAction::AddItems(vec![], vec![(explained, 0)], vec![], vec![]),
+                                LearningAction::AddItems(
+                                    vec![],
+                                    vec![(explained, 0)],
+                                    vec![],
+                                    vec![],
+                                ),
                             )));
                         }
                     }
@@ -157,7 +167,12 @@ pub fn main_content(props: &MainContentProps) -> Html {
         let ui_dispatch = ui_state.clone();
 
         Callback::from(
-            move |(message_id, action, selected_text, context): (Uuid, SelectionAction, String, String)| {
+            move |(message_id, action, selected_text, context): (
+                Uuid,
+                SelectionAction,
+                String,
+                String,
+            )| {
                 let translation_service = translation_service.clone();
                 let grammar_service = grammar_service.clone();
                 let session_handle = session_handle.clone();
@@ -178,13 +193,20 @@ pub fn main_content(props: &MainContentProps) -> Html {
                             SelectionAction::Translate => {
                                 let formality = Some(user.formality);
                                 match translation_service
-                                    .translate_phrase(&selected_text, context.clone(), dialect, formality)
+                                    .translate_phrase(
+                                        &selected_text,
+                                        context.clone(),
+                                        dialect,
+                                        formality,
+                                    )
                                     .await
                                 {
                                     Ok(response) => {
                                         modal_state.set(Some(SelectionModalState::Loaded {
                                             original_text: selected_text,
-                                            result: SelectionResult::Translation(response.segmented_phrases),
+                                            result: SelectionResult::Translation(
+                                                response.segmented_phrases,
+                                            ),
                                         }));
                                     }
                                     Err(e) => {
@@ -475,7 +497,10 @@ fn render_modal(
                 on_save={on_save.clone()}
             />
         },
-        Some(SelectionModalState::Loaded { original_text, result }) => html! {
+        Some(SelectionModalState::Loaded {
+            original_text,
+            result,
+        }) => html! {
             <SelectionModal
                 original_text={original_text.clone()}
                 result={Some(result.clone())}

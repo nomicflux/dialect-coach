@@ -9,6 +9,7 @@ RUN dpkg --add-architecture amd64 && \
     libc6-dev-amd64-cross \
     libstdc++-12-dev-amd64-cross \
     libssl-dev:amd64 \
+    libbz2-dev:amd64 \
     pkg-config \
     curl \
     && rm -rf /var/lib/apt/lists/*

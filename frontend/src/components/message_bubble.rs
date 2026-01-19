@@ -222,12 +222,14 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
         let callback = props.on_selection_translate.clone();
         let selection_state = selection_state.clone();
 
-        Callback::from(move |(action, selected_text, context): (SelectionAction, String, String)| {
-            if let Some(cb) = &callback {
-                cb.emit((message_id, action, selected_text, context));
-            }
-            selection_state.set(None);
-        })
+        Callback::from(
+            move |(action, selected_text, context): (SelectionAction, String, String)| {
+                if let Some(cb) = &callback {
+                    cb.emit((message_id, action, selected_text, context));
+                }
+                selection_state.set(None);
+            },
+        )
     };
 
     let (msg_class, avatar_class, bubble_class, avatar_text) =

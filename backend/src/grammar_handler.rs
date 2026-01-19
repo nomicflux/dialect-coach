@@ -1,11 +1,9 @@
 use anyhow::{Context, Result};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use dialect_coach_shared::models::{
-    Dialect, GrammarExplanation, GrammarRequest, GrammarResponse,
-};
+use dialect_coach_shared::models::{Dialect, GrammarExplanation, GrammarRequest, GrammarResponse};
 
-use crate::selection_cache::SelectionCache;
 use crate::AppState;
+use crate::selection_cache::SelectionCache;
 
 pub async fn grammar_handler(
     State(state): State<AppState>,
@@ -86,13 +84,17 @@ async fn explain_grammar(
     let prompt = format!(
         r#"Explain the grammar of "{}" as it appears in this {} sentence: "{}"
 
-For each grammatical element worth explaining (particles, verb conjugations, sentence structures, honorifics, etc.), provide:
+For each grammatical element worth explaining (particles, verb conjugations, sentence structures, honorifics, constructions, etc.), provide:
 - element: The specific grammatical element or pattern
 - explanation: A clear, brief explanation suitable for a language learner
 
-Return JSON array: [{{"element": "...", "explanation": "..."}}]
-If there is nothing notable to explain, return []"#,
-        phrase, dialect.name(), context
+Find the top 1-3 salient grammatical points in the selection "{}". The user chose this specific selection, so focus on what this selection does grammatically in the full context.
+
+Return JSON array: [{{"element": "...", "explanation": "..."}}]"#,
+        phrase,
+        dialect.name(),
+        context,
+        phrase,
     );
 
     let response = state
@@ -127,9 +129,7 @@ mod tests {
         let explanations = result.unwrap();
         assert_eq!(explanations.len(), 1);
         assert_eq!(explanations[0].element, "subject verb order");
-        assert!(explanations[0]
-            .explanation
-            .contains("verb comes before"));
+        assert!(explanations[0].explanation.contains("verb comes before"));
     }
 
     #[test]

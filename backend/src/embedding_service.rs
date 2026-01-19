@@ -1,22 +1,56 @@
 use anyhow::{Context, Result};
-use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+use bzip2::read::BzDecoder;
+use fastembed::{TextEmbedding, TokenizerFiles, UserDefinedEmbeddingModel};
+use std::io;
 
 /// Embedding service using Fastembed
 pub struct EmbeddingService {
     model: TextEmbedding,
 }
 
+/// Decompress model.onnx.bz2 and return bytes
+fn load_model_onnx() -> Result<Vec<u8>> {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let bz2_path = format!("{}/vendor/model.onnx.bz2", manifest_dir);
+
+    let bz2_file =
+        std::fs::File::open(&bz2_path).context(format!("Model file not found at {}", bz2_path))?;
+
+    let mut decoder = BzDecoder::new(bz2_file);
+    let mut onnx_bytes = Vec::new();
+    io::copy(&mut decoder, &mut onnx_bytes).context("Failed to decompress model")?;
+
+    Ok(onnx_bytes)
+}
+
+/// Load tokenizer files from vendor directory
+fn load_tokenizer_files() -> Result<TokenizerFiles> {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let vendor_dir = format!("{}/vendor", manifest_dir);
+
+    Ok(TokenizerFiles {
+        tokenizer_file: std::fs::read(format!("{}/tokenizer.json", vendor_dir))?,
+        config_file: std::fs::read(format!("{}/config.json", vendor_dir))?,
+        special_tokens_map_file: std::fs::read(format!("{}/special_tokens_map.json", vendor_dir))?,
+        tokenizer_config_file: std::fs::read(format!("{}/tokenizer_config.json", vendor_dir))?,
+    })
+}
+
 impl EmbeddingService {
-    /// Initialize embedding service with MultilingualE5Base model
+    /// Initialize embedding service with local bundled model
     pub fn new() -> Result<Self> {
-        tracing::info!("Initializing Fastembed model (MultilingualE5Base)...");
+        tracing::info!("Loading embedding model from bundled files...");
 
-        let model = TextEmbedding::try_new(
-            InitOptions::new(EmbeddingModel::MultilingualE5Base).with_show_download_progress(true),
-        )
-        .context("Failed to initialize Fastembed model")?;
+        let onnx_bytes = load_model_onnx().context("Failed to load model.onnx")?;
 
-        tracing::info!("Fastembed model initialized successfully");
+        let tokenizer_files = load_tokenizer_files().context("Failed to load tokenizer files")?;
+
+        let user_model = UserDefinedEmbeddingModel::new(onnx_bytes, tokenizer_files);
+
+        let model = TextEmbedding::try_new_from_user_defined(user_model, Default::default())
+            .context("Failed to initialize embedding model")?;
+
+        tracing::info!("Embedding model loaded successfully");
 
         Ok(Self { model })
     }
