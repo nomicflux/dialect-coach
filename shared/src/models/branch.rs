@@ -2,7 +2,38 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::models::Dialect;
+use crate::models::{Dialect, Formality, LanguageLevel, LanguageOptions, TeachingMode};
+
+/// Per-branch conversation settings
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BranchSettings {
+    pub formality: Formality,
+    pub teaching_mode: TeachingMode,
+    pub language_level: LanguageLevel,
+    pub language_options: LanguageOptions,
+}
+
+impl Default for BranchSettings {
+    fn default() -> Self {
+        Self {
+            formality: Formality::Informal,
+            teaching_mode: TeachingMode::Immersive,
+            language_level: LanguageLevel::default(),
+            language_options: LanguageOptions::default(),
+        }
+    }
+}
+
+impl BranchSettings {
+    pub fn for_dialect(dialect: Dialect) -> Self {
+        Self {
+            formality: Formality::Informal,
+            teaching_mode: TeachingMode::Immersive,
+            language_level: LanguageLevel::default_for_language(dialect.language()),
+            language_options: LanguageOptions::default(),
+        }
+    }
+}
 
 /// A branch in the conversation tree
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,6 +48,8 @@ pub struct ConversationBranch {
     pub message_ids: Vec<Uuid>,
     #[serde(default)]
     pub active_plan_id: Option<Uuid>,
+    #[serde(default)]
+    pub settings: BranchSettings,
 }
 
 impl ConversationBranch {
@@ -27,6 +60,7 @@ impl ConversationBranch {
         dialect: Dialect,
         message_ids: Vec<Uuid>,
         active_plan_id: Option<Uuid>,
+        settings: BranchSettings,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -37,6 +71,7 @@ impl ConversationBranch {
             name,
             dialect,
             active_plan_id,
+            settings,
         }
     }
 }
@@ -55,6 +90,7 @@ mod tests {
             Dialect::SpanishMexican,
             vec![],
             None,
+            BranchSettings::for_dialect(Dialect::SpanishMexican),
         );
 
         assert_eq!(branch.parent_message_id, Some(parent_id));
@@ -74,6 +110,7 @@ mod tests {
             Dialect::SpanishMexican,
             vec![],
             None,
+            BranchSettings::for_dialect(Dialect::SpanishMexican),
         );
 
         assert_eq!(branch.parent_message_id, None);
@@ -85,8 +122,15 @@ mod tests {
 
     #[test]
     fn test_new_branch_root() {
-        let branch =
-            ConversationBranch::new(None, None, None, Dialect::SpanishMexican, vec![], None);
+        let branch = ConversationBranch::new(
+            None,
+            None,
+            None,
+            Dialect::SpanishMexican,
+            vec![],
+            None,
+            BranchSettings::for_dialect(Dialect::SpanishMexican),
+        );
 
         assert_eq!(branch.parent_message_id, None);
         assert_eq!(branch.name, None);
@@ -105,6 +149,7 @@ mod tests {
             Dialect::SpanishMexican,
             vec![],
             None,
+            BranchSettings::for_dialect(Dialect::SpanishMexican),
         );
 
         let json = serde_json::to_string(&branch).unwrap();
@@ -115,5 +160,26 @@ mod tests {
 
         let deserialized: ConversationBranch = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, branch);
+    }
+
+    #[test]
+    fn test_branch_settings_default() {
+        let settings = BranchSettings::default();
+        assert_eq!(settings.formality, Formality::Informal);
+        assert_eq!(settings.teaching_mode, TeachingMode::Immersive);
+    }
+
+    #[test]
+    fn test_branch_settings_for_dialect() {
+        let settings = BranchSettings::for_dialect(Dialect::JapaneseTokyo);
+        assert!(matches!(settings.language_level, LanguageLevel::Jlpt(_)));
+    }
+
+    #[test]
+    fn test_branch_settings_serialization() {
+        let settings = BranchSettings::default();
+        let json = serde_json::to_string(&settings).unwrap();
+        let deserialized: BranchSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(settings, deserialized);
     }
 }

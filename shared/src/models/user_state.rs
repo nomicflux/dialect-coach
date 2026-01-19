@@ -5,10 +5,10 @@ use uuid::Uuid;
 
 use super::dialect::dialect_features;
 use super::{
-    ConversationBranch, ConversationContext, Dialect, DialectWithFeatures, Formality,
-    InitialUserSettings, Language, LanguageOption, LanguageOptions, LanguagePlan, LearningGoal,
-    LearningItem, LearningItemType, Message, MessageMetadata, PastLearningItems, TeachingMode,
-    UsageStats,
+    BranchSettings, ConversationBranch, ConversationContext, Dialect, DialectWithFeatures,
+    Formality, InitialUserSettings, Language, LanguageOption, LanguageOptions, LanguagePlan,
+    LearningGoal, LearningItem, LearningItemType, Message, MessageMetadata, PastLearningItems,
+    TeachingMode, UsageStats,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -290,29 +290,12 @@ impl UserState {
         language: Language,
         show_experimental: bool,
     ) -> Option<Dialect> {
-        let all_for_language = Dialect::for_language(language, false, false);
-
-        // 1. Try to find one that matches the experimental filter
-        let filtered = all_for_language
+        Dialect::for_language(language, false, false)
             .iter()
             .map(|&d| dialect_features(d))
             .filter(|d| show_experimental || !d.is_experimental)
             .map(|d| d.dialect)
-            .next();
-
-        if let Some(d) = filtered {
-            return Some(d);
-        }
-
-        // 2. Fallback: If filter removed everything (e.g. Japanese only has experimental dialects),
-        // return the first available dialect for THIS language.
-        // This prevents leaking "SpanishArgentinian" into "Japanese" state.
-        if let Some(&first) = all_for_language.first() {
-            return Some(first);
-        }
-
-        // 3. No dialects found for language at all
-        None
+            .next()
     }
 
     pub fn with_initial_settings(
@@ -334,7 +317,9 @@ impl UserState {
             }
         };
 
-        let initial_branch = ConversationBranch::new(None, None, None, dialect, vec![], None);
+        let settings = BranchSettings::for_dialect(dialect);
+        let initial_branch =
+            ConversationBranch::new(None, None, None, dialect, vec![], None, settings);
         let initial_branch_id = initial_branch.id;
 
         Self {
@@ -473,19 +458,22 @@ impl UserState {
         }
     }
 
+    pub fn has_branch(&self, id: Uuid) -> bool {
+        self
+            .branches
+            .iter()
+            .any(|branch| branch.id == id)
+    }
+
     pub fn get_active_branch_messages(&self) -> Vec<&Message> {
         if self.branches.is_empty() {
             return Vec::new();
         }
 
-        let branch_id = if self
-            .branches
-            .iter()
-            .any(|branch| branch.id == self.active_branch_id)
-        {
+        let branch_id = if self.has_branch(self.active_branch_id) {
             self.active_branch_id
         } else {
-            self.select_active_branch(&self.branches)
+            self.select_default_branch(&self.branches)
         };
 
         let branch = match self.branches.iter().find(|b| b.id == branch_id) {
@@ -591,7 +579,8 @@ impl UserState {
         } else {
             self.active_branch_dialect()
         };
-        let branch = ConversationBranch::new(None, None, None, dialect, vec![], None);
+        let settings = BranchSettings::for_dialect(dialect);
+        let branch = ConversationBranch::new(None, None, None, dialect, vec![], None, settings);
         self.active_branch_id = branch.id;
         self.branches = Arc::new(vec![branch]);
     }
@@ -621,6 +610,7 @@ impl UserState {
                 .into_iter()
                 .map(|m| m.id)
                 .collect();
+            let settings = BranchSettings::for_dialect(dialect);
             branches.push(ConversationBranch::new(
                 parent_id,
                 None,
@@ -628,6 +618,7 @@ impl UserState {
                 dialect,
                 message_ids,
                 None,
+                settings,
             ));
         }
         branches
@@ -655,12 +646,12 @@ impl UserState {
             return;
         }
 
-        let active_branch_id = self.select_active_branch(&branches);
+        let active_branch_id = self.select_default_branch(&branches);
         self.active_branch_id = active_branch_id;
         self.branches = Arc::new(branches);
     }
 
-    fn select_active_branch(&self, branches: &[ConversationBranch]) -> Uuid {
+    fn select_default_branch(&self, branches: &[ConversationBranch]) -> Uuid {
         self.branch_with_latest_leaf(branches)
             .unwrap_or_else(|| branches[0].id)
     }
@@ -686,8 +677,8 @@ impl UserState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ConversationBranch, Dialect, Formality, InitialUserSettings, Language, LearningItem,
-        Message, MessageMetadata, TeachingMode, UserGender, UserState,
+        BranchSettings, ConversationBranch, Dialect, Formality, InitialUserSettings, Language,
+        LearningItem, Message, MessageMetadata, TeachingMode, UserGender, UserState,
     };
     use std::sync::Arc;
     use uuid::Uuid;
@@ -983,6 +974,7 @@ mod tests {
             Dialect::SpanishMexican,
             vec![],
             None,
+            BranchSettings::for_dialect(Dialect::SpanishMexican),
         );
         let branch_id = branch.id;
         Arc::make_mut(&mut state.branches).push(branch);
@@ -1003,6 +995,7 @@ mod tests {
             Dialect::SpanishMexican,
             vec![],
             None,
+            BranchSettings::for_dialect(Dialect::SpanishMexican),
         );
         let branch_id = branch.id;
         Arc::make_mut(&mut state.branches).push(branch);

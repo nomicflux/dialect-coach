@@ -1,5 +1,7 @@
 use dialect_coach_shared::models::gamification::{GamificationStats, derive_gamification_stats};
-use dialect_coach_shared::models::{ConversationBranch, Dialect, Formality, Message, TeachingMode};
+use dialect_coach_shared::models::{
+    BranchSettings, ConversationBranch, Dialect, Formality, Message, TeachingMode,
+};
 use dialect_coach_shared::{
     AgentAnalysis, Explained, Exploratory, LearningGoal, LearningItem, LearningItemType, Mistake,
     Translated, UserState,
@@ -234,7 +236,8 @@ pub fn delete_learning_goal(mut goals: Vec<LearningGoal>, index: usize) -> Vec<L
 
 pub fn create_new_branch_for_language(state: &mut UserState, dialect: Dialect) {
     let plan_id = state.active_branch_plan_id();
-    let new_branch = ConversationBranch::new(None, None, None, dialect, vec![], plan_id);
+    let settings = BranchSettings::for_dialect(dialect);
+    let new_branch = ConversationBranch::new(None, None, None, dialect, vec![], plan_id, settings);
     let new_branch_id = new_branch.id;
     Arc::make_mut(&mut state.branches).push(new_branch);
     state.active_branch_id = new_branch_id;

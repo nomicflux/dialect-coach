@@ -3,7 +3,7 @@ use super::actions::{
 };
 use super::helpers::*;
 use dialect_coach_shared::UserState;
-use dialect_coach_shared::models::ConversationBranch;
+use dialect_coach_shared::models::{BranchSettings, ConversationBranch};
 use dialect_coach_shared::{AgentAnalysis, LearningGoal, LearningItem, LearningItemType};
 
 pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
@@ -120,6 +120,7 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 .map(|m| m.id)
                 .collect();
             let plan_id = next.active_branch_plan_id();
+            let settings = BranchSettings::for_dialect(dialect);
             let new_branch = ConversationBranch::new(
                 Some(message_id),
                 None,
@@ -127,6 +128,7 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 dialect,
                 message_ids,
                 plan_id,
+                settings,
             );
             let new_branch_id = new_branch.id;
             Arc::make_mut(&mut next.branches).push(new_branch);
