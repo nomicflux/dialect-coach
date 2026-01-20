@@ -107,31 +107,46 @@ pub fn settings(props: &SettingsProps) -> Html {
             </div>
 
             <div class="panel-section">
-                <h4 class="panel-section-title">{"Conversation Style"}</h4>
+                <h4 class="panel-section-title">{"Conversation Settings"}</h4>
+                <div class="panel-section-description">{"These settings apply to the current branch"}</div>
 
                 <div class="field-group">
                     <div class="panel-field">
                         <label for="formality-select">{"Formality Level"}</label>
                         <select id="formality-select" onchange={on_formality_change(dispatch.clone())}>
-                            <option value="formal" selected={us.formality == Formality::Formal}>{"Formal"}</option>
-                            <option value="professional_casual" selected={us.formality == Formality::ProfessionalCasual}>{"Professional Casual"}</option>
-                            <option value="informal" selected={us.formality == Formality::Informal}>{"Informal"}</option>
-                            <option value="slang" selected={us.formality == Formality::Slang}>{"Slang"}</option>
+                            {{
+                                let settings = us.active_branch_settings();
+                                html! {
+                                    <>
+                                        <option value="formal" selected={settings.formality == Formality::Formal}>{"Formal"}</option>
+                                        <option value="professional_casual" selected={settings.formality == Formality::ProfessionalCasual}>{"Professional Casual"}</option>
+                                        <option value="informal" selected={settings.formality == Formality::Informal}>{"Informal"}</option>
+                                        <option value="slang" selected={settings.formality == Formality::Slang}>{"Slang"}</option>
+                                    </>
+                                }
+                            }}
                         </select>
                     </div>
 
                     <div class="panel-field">
                         <label for="teaching-mode-select">{"Teaching Mode"}</label>
                         <select id="teaching-mode-select" onchange={on_teaching_mode_change(dispatch.clone())}>
-                            <option value="immersive" selected={us.teaching_mode == TeachingMode::Immersive}>{"Immersive"}</option>
-                            <option value="corrective" selected={us.teaching_mode == TeachingMode::Corrective}>{"Corrective"}</option>
-                            <option value="explanatory" selected={us.teaching_mode == TeachingMode::Explanatory}>{"Explanatory"}</option>
-                            <option value="storyteller" selected={us.teaching_mode == TeachingMode::StoryTeller}>{"Story Teller"}</option>
-                            <option value="error_finding" selected={us.teaching_mode == TeachingMode::ErrorFinding}>{"Find Agent Errors"}</option>
-                            {if *is_admin {
-                                html! { <option value="debug" selected={us.teaching_mode == TeachingMode::Debug}>{"Debug"}</option> }
-                            } else {
-                                html! {}
+                            {{
+                                let settings = us.active_branch_settings();
+                                html! {
+                                    <>
+                                        <option value="immersive" selected={settings.teaching_mode == TeachingMode::Immersive}>{"Immersive"}</option>
+                                        <option value="corrective" selected={settings.teaching_mode == TeachingMode::Corrective}>{"Corrective"}</option>
+                                        <option value="explanatory" selected={settings.teaching_mode == TeachingMode::Explanatory}>{"Explanatory"}</option>
+                                        <option value="storyteller" selected={settings.teaching_mode == TeachingMode::StoryTeller}>{"Story Teller"}</option>
+                                        <option value="error_finding" selected={settings.teaching_mode == TeachingMode::ErrorFinding}>{"Find Agent Errors"}</option>
+                                        {if *is_admin {
+                                            html! { <option value="debug" selected={settings.teaching_mode == TeachingMode::Debug}>{"Debug"}</option> }
+                                        } else {
+                                            html! {}
+                                        }}
+                                    </>
+                                }
                             }}
                         </select>
                     </div>
@@ -150,12 +165,12 @@ pub fn settings(props: &SettingsProps) -> Html {
                         <select
                             id="language-level-select"
                             key={us.selected_language.code()}
-                            value={us.current_language_level().id()}
+                            value={us.active_branch_settings().language_level.id()}
                             onchange={on_language_level_change(dispatch.clone())}
                         >
                             {{
                                 let levels = LanguageLevel::for_language(us.selected_language);
-                                let current_level = us.current_language_level();
+                                let current_level = us.active_branch_settings().language_level;
                                 levels.iter().map(|level| {
                                     let is_selected = *level == current_level;
                                     html! {
@@ -179,6 +194,7 @@ pub fn settings(props: &SettingsProps) -> Html {
 
             {match us.selected_language {
                 Language::Arabic => {
+                    let settings = us.active_branch_settings();
                     html! {
                         <div class="panel-section">
                             <h4 class="panel-section-title">{"Display Options"}</h4>
@@ -188,11 +204,11 @@ pub fn settings(props: &SettingsProps) -> Html {
                                     <select
                                         id="arabic-script-select"
                                         onchange={on_arabic_script_change(dispatch.clone())}
-                                        value={us.language_options.arabic_script.to_string()}
+                                        value={settings.language_options.arabic_script.to_string()}
                                     >
-                                        <option value="naskh" selected={us.language_options.arabic_script == ArabicScript::Naskh}>{"Naskh"}</option>
-                                        <option value="ruqa" selected={us.language_options.arabic_script == ArabicScript::Ruqa}>{"Ruq'a"}</option>
-                                        <option value="latin" selected={us.language_options.arabic_script == ArabicScript::Latin}>{"Latin (Romanized)"}</option>
+                                        <option value="naskh" selected={settings.language_options.arabic_script == ArabicScript::Naskh}>{"Naskh"}</option>
+                                        <option value="ruqa" selected={settings.language_options.arabic_script == ArabicScript::Ruqa}>{"Ruq'a"}</option>
+                                        <option value="latin" selected={settings.language_options.arabic_script == ArabicScript::Latin}>{"Latin (Romanized)"}</option>
                                     </select>
                                 </div>
                             </div>
@@ -200,6 +216,7 @@ pub fn settings(props: &SettingsProps) -> Html {
                     }
                 }
                 Language::Japanese => {
+                    let settings = us.active_branch_settings();
                     html! {
                         <div class="panel-section">
                             <h4 class="panel-section-title">{"Display Options"}</h4>
@@ -209,12 +226,12 @@ pub fn settings(props: &SettingsProps) -> Html {
                                     <select
                                         id="japanese-script-select"
                                         onchange={on_japanese_script_change(dispatch.clone())}
-                                        value={us.language_options.japanese_script.to_string()}
+                                        value={settings.language_options.japanese_script.to_string()}
                                     >
-                                        <option value="romaji" selected={us.language_options.japanese_script == JapaneseScript::Romaji}>{"Romaji"}</option>
-                                        <option value="only_kana" selected={us.language_options.japanese_script == JapaneseScript::OnlyKana}>{"Kana Only"}</option>
-                                        <option value="kanji_with_ruby" selected={us.language_options.japanese_script == JapaneseScript::KanjiWithRuby}>{"Kanji with Furigana"}</option>
-                                        <option value="kanji" selected={us.language_options.japanese_script == JapaneseScript::Kanji}>{"Kanji"}</option>
+                                        <option value="romaji" selected={settings.language_options.japanese_script == JapaneseScript::Romaji}>{"Romaji"}</option>
+                                        <option value="only_kana" selected={settings.language_options.japanese_script == JapaneseScript::OnlyKana}>{"Kana Only"}</option>
+                                        <option value="kanji_with_ruby" selected={settings.language_options.japanese_script == JapaneseScript::KanjiWithRuby}>{"Kanji with Furigana"}</option>
+                                        <option value="kanji" selected={settings.language_options.japanese_script == JapaneseScript::Kanji}>{"Kanji"}</option>
                                     </select>
                                 </div>
                             </div>
