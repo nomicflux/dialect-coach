@@ -777,8 +777,8 @@ fn test_change_language_reuses_existing_branch() {
     let mut state = UserState::new(Uuid::new_v4());
     let spanish_branch_id = state.active_branch_id;
 
-    // Change to French - creates new branch
-    let action = UserStateAction::Settings(SettingsAction::ChangeLanguage(Language::French));
+    // Change to Arabic - creates new branch (Arabic Levantine is non-experimental)
+    let action = UserStateAction::Settings(SettingsAction::ChangeLanguage(Language::Arabic));
     state = apply_user_state_action(&state, action).unwrap();
     assert_ne!(state.active_branch_id, spanish_branch_id);
     let branch_count = state.branches.len();
@@ -793,24 +793,44 @@ fn test_change_language_reuses_existing_branch() {
 
 #[test]
 fn test_cycle_formality_action() {
+    use std::sync::Arc;
     let mut state = UserState::new(Uuid::new_v4());
-    state.formality = Formality::Formal;
+    // Set branch formality to Formal
+    if let Some(branch) = Arc::make_mut(&mut state.branches)
+        .iter_mut()
+        .find(|b| b.id == state.active_branch_id)
+    {
+        branch.settings.formality = Formality::Formal;
+    }
 
     let action = UserStateAction::Settings(SettingsAction::CycleFormality);
     state = apply_user_state_action(&state, action).unwrap();
 
-    assert_eq!(state.formality, Formality::ProfessionalCasual);
+    assert_eq!(
+        state.active_branch_settings().formality,
+        Formality::ProfessionalCasual
+    );
 }
 
 #[test]
 fn test_cycle_teaching_mode_action() {
+    use std::sync::Arc;
     let mut state = UserState::new(Uuid::new_v4());
-    state.teaching_mode = TeachingMode::Immersive;
+    // Set branch teaching_mode to Immersive
+    if let Some(branch) = Arc::make_mut(&mut state.branches)
+        .iter_mut()
+        .find(|b| b.id == state.active_branch_id)
+    {
+        branch.settings.teaching_mode = TeachingMode::Immersive;
+    }
 
     let action = UserStateAction::Settings(SettingsAction::CycleTeachingMode(true));
     state = apply_user_state_action(&state, action).unwrap();
 
-    assert_eq!(state.teaching_mode, TeachingMode::Corrective);
+    assert_eq!(
+        state.active_branch_settings().teaching_mode,
+        TeachingMode::Corrective
+    );
 }
 #[test]
 fn test_language_plan_reducers() {
@@ -907,8 +927,9 @@ fn test_update_language_level_action() {
     )));
     let updated = apply_user_state_action(&state, action).unwrap();
 
+    // Level is now stored in branch settings
     assert_eq!(
-        updated.get_level_for_dialect(&Dialect::SpanishMexican),
+        updated.active_branch_settings().language_level,
         LanguageLevel::Cefr(CefrLevel::C1)
     );
 }

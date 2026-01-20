@@ -3,7 +3,7 @@ use super::actions::{
 };
 use super::helpers::*;
 use dialect_coach_shared::UserState;
-use dialect_coach_shared::models::{BranchSettings, ConversationBranch};
+use dialect_coach_shared::models::ConversationBranch;
 use dialect_coach_shared::{AgentAnalysis, LearningGoal, LearningItem, LearningItemType};
 
 pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
@@ -97,6 +97,14 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
     use std::sync::Arc;
     match action {
         Create(message_id) => {
+            // Get parent branch settings before mutable borrow
+            let parent_settings = next
+                .branches
+                .iter()
+                .find(|b| b.id == next.active_branch_id)
+                .map(|b| b.settings.clone())
+                .unwrap_or_default();
+
             // Update the current branch's parent_message_id if it's None
             if let Some(current_branch) = Arc::make_mut(&mut next.branches)
                 .iter_mut()
@@ -120,7 +128,7 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 .map(|m| m.id)
                 .collect();
             let plan_id = next.active_branch_plan_id();
-            let settings = BranchSettings::for_dialect(dialect);
+            // Inherit settings from parent branch
             let new_branch = ConversationBranch::new(
                 Some(message_id),
                 None,
@@ -128,7 +136,7 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 dialect,
                 message_ids,
                 plan_id,
-                settings,
+                parent_settings,
             );
             let new_branch_id = new_branch.id;
             Arc::make_mut(&mut next.branches).push(new_branch);
@@ -136,6 +144,10 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
         }
         Switch(branch_id) => {
             next.active_branch_id = branch_id;
+            // Update selected_language to match the branch's dialect
+            if let Some(branch) = next.branches.iter().find(|b| b.id == branch_id) {
+                next.selected_language = branch.dialect.language();
+            }
         }
         Delete(branch_id) => {
             Arc::make_mut(&mut next.branches).retain(|b| b.id != branch_id);
@@ -260,17 +272,31 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             }
         }
         ChangeFormality(formality) => {
-            next.formality = formality;
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+            {
+                branch.settings.formality = formality;
+            }
         }
         ChangeTeachingMode(tm) => {
-            next.teaching_mode = tm;
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+            {
+                branch.settings.teaching_mode = tm;
+            }
         }
         UpdateGender(gender) => {
             next.user_gender = gender;
         }
         UpdateLevel(level) => {
-            let dialect = next.active_branch_dialect();
-            next.set_level_for_dialect(dialect, level);
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+            {
+                branch.settings.language_level = level;
+            }
         }
         ToggleTTS => {
             next.tts_enabled = !next.tts_enabled;
@@ -296,16 +322,40 @@ pub(crate) fn reduce_settings(next: &mut UserState, action: SettingsAction) {
             }
         }
         CycleFormality => {
-            next.formality = cycle_formality(next.formality);
+            let current = next.active_branch_settings().formality;
+            let new_formality = cycle_formality(current);
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+            {
+                branch.settings.formality = new_formality;
+            }
         }
         CycleTeachingMode(is_admin) => {
-            next.teaching_mode = cycle_teaching_mode(next.teaching_mode, is_admin);
+            let current = next.active_branch_settings().teaching_mode;
+            let new_mode = cycle_teaching_mode(current, is_admin);
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+            {
+                branch.settings.teaching_mode = new_mode;
+            }
         }
         SetArabicScript(script) => {
-            next.language_options.arabic_script = script;
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+            {
+                branch.settings.language_options.arabic_script = script;
+            }
         }
         SetJapaneseScript(script) => {
-            next.language_options.japanese_script = script;
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == next.active_branch_id)
+            {
+                branch.settings.language_options.japanese_script = script;
+            }
         }
     }
 }

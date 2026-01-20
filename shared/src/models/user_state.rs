@@ -302,12 +302,21 @@ impl UserState {
         language: Language,
         show_experimental: bool,
     ) -> Option<Dialect> {
-        Dialect::for_language(language, false, false)
+        let dialects: Vec<_> = Dialect::for_language(language, false, false)
             .iter()
             .map(|&d| dialect_features(d))
+            .collect();
+
+        // Try non-experimental first (unless show_experimental is true)
+        let result = dialects
+            .iter()
             .filter(|d| show_experimental || !d.is_experimental)
             .map(|d| d.dialect)
-            .next()
+            .next();
+
+        // Fallback: if no non-experimental dialect exists for this language,
+        // return any dialect of the requested language to avoid "leaking" to another language
+        result.or_else(|| dialects.first().map(|d| d.dialect))
     }
 
     pub fn with_initial_settings(
