@@ -512,13 +512,14 @@ pub fn dialect_features(dialect: Dialect) -> DialectWithFeatures {
 }
 
 /// Formality level of language use
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Formality {
     #[serde(rename = "formal")]
     Formal,
     #[serde(rename = "professional_casual")]
     ProfessionalCasual,
+    #[default]
     #[serde(rename = "informal")]
     Informal,
     #[serde(rename = "slang")]
@@ -599,9 +600,10 @@ pub struct DialectConfig {
 }
 
 /// Teaching mode for the dialect coach
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TeachingMode {
+    #[default]
     #[serde(rename = "immersive", alias = "interleaved")]
     Immersive,
     #[serde(rename = "corrective")]

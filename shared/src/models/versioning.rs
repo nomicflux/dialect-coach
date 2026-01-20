@@ -15,8 +15,9 @@ pub enum UserVersion {
 pub enum UserStateVersion {
     V1,
     V2ScoredItems,
-    #[default]
     V3LanguageLevels,
+    #[default]
+    V4BranchSettings,
 }
 
 pub type UserStateV1 = UserState;
@@ -29,7 +30,7 @@ pub struct UserV1Data {
 }
 
 pub const CURRENT_USER_VERSION: UserVersion = UserVersion::V2Admin;
-pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V3LanguageLevels;
+pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V4BranchSettings;
 
 /// Generic wrapper for versioned data stored in sled
 /// Stores the version enum and raw JSON data separately.
@@ -79,6 +80,12 @@ pub const USER_STATE_MIGRATIONS: &[UserStateMigrationStep] = &[
         to: UserStateVersion::V3LanguageLevels,
         forward: v2_to_v3_forward,
         backward: v2_to_v3_backward,
+    },
+    UserStateMigrationStep {
+        from: UserStateVersion::V3LanguageLevels,
+        to: UserStateVersion::V4BranchSettings,
+        forward: v3_to_v4_forward,
+        backward: v3_to_v4_backward,
     },
 ];
 
@@ -288,6 +295,126 @@ fn extract_level_from_v3(level_obj: &serde_json::Value) -> String {
     "B1".to_string()
 }
 
+// ============ V3 → V4 Migration Functions ============
+
+fn v3_to_v4_forward(mut data: serde_json::Value) -> serde_json::Value {
+    tracing::debug!("V3→V4 migration: starting forward migration");
+    add_settings_to_branches(&mut data);
+    remove_settings_from_root(&mut data);
+    data
+}
+
+fn v3_to_v4_backward(mut data: serde_json::Value) -> serde_json::Value {
+    tracing::debug!("V4→V3 migration: starting backward migration");
+    extract_settings_from_branches(&mut data);
+    remove_settings_from_branches(&mut data);
+    data
+}
+
+fn add_settings_to_branches(data: &mut serde_json::Value) {
+    let formality = data.get("formality").cloned().unwrap_or(serde_json::json!("informal"));
+    let teaching_mode = data.get("teaching_mode").cloned().unwrap_or(serde_json::json!("immersive"));
+    let language_options = data.get("language_options").cloned().unwrap_or(serde_json::json!({}));
+    let dialect_levels = data
+        .get("dialect_levels")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let branches = match data.get_mut("branches").and_then(|v| v.as_array_mut()) {
+        Some(b) => b,
+        None => {
+            tracing::debug!("V3→V4 migration: no branches found");
+            return;
+        }
+    };
+
+    tracing::debug!("V3→V4 migration: processing {} branches", branches.len());
+
+    for branch in branches {
+        let dialect = branch.get("dialect").and_then(|v| v.as_str()).unwrap_or("");
+        let level = find_level_for_dialect(&dialect_levels, dialect);
+
+        branch["settings"] = serde_json::json!({
+            "formality": formality,
+            "teaching_mode": teaching_mode,
+            "language_level": level,
+            "language_options": language_options.clone()
+        });
+    }
+}
+
+fn find_level_for_dialect(dialect_levels: &[serde_json::Value], dialect: &str) -> serde_json::Value {
+    for dl in dialect_levels {
+        if let Some(dl_dialect) = dl.get("dialect").and_then(|v| v.as_str())
+            && dl_dialect == dialect
+            && let Some(level) = dl.get("level")
+        {
+            return level.clone();
+        }
+    }
+    // Default: CEFR B1 for non-Japanese, JLPT N3 for Japanese
+    if dialect.starts_with("japanese") {
+        serde_json::json!({"Jlpt": "N3"})
+    } else {
+        serde_json::json!({"Cefr": "B1"})
+    }
+}
+
+fn remove_settings_from_root(data: &mut serde_json::Value) {
+    if let Some(obj) = data.as_object_mut() {
+        obj.remove("formality");
+        obj.remove("teaching_mode");
+        obj.remove("language_options");
+        obj.remove("dialect_levels");
+    }
+}
+
+fn extract_settings_from_branches(data: &mut serde_json::Value) {
+    let branches = match data.get("branches").and_then(|v| v.as_array()).cloned() {
+        Some(b) if !b.is_empty() => b,
+        _ => {
+            // No branches - use defaults
+            data["formality"] = serde_json::json!("informal");
+            data["teaching_mode"] = serde_json::json!("immersive");
+            data["language_options"] = serde_json::json!({});
+            data["dialect_levels"] = serde_json::json!([]);
+            return;
+        }
+    };
+
+    // Extract settings from first branch
+    if let Some(settings) = branches[0].get("settings") {
+        data["formality"] = settings.get("formality").cloned().unwrap_or(serde_json::json!("informal"));
+        data["teaching_mode"] = settings.get("teaching_mode").cloned().unwrap_or(serde_json::json!("immersive"));
+        data["language_options"] = settings.get("language_options").cloned().unwrap_or(serde_json::json!({}));
+
+        // Reconstruct dialect_levels from all branches
+        let mut dialect_levels = Vec::new();
+        for branch in &branches {
+            if let (Some(dialect), Some(settings)) = (branch.get("dialect"), branch.get("settings"))
+                && let Some(level) = settings.get("language_level")
+            {
+                dialect_levels.push(serde_json::json!({
+                    "dialect": dialect,
+                    "level": level
+                }));
+            }
+        }
+        data["dialect_levels"] = serde_json::json!(dialect_levels);
+    }
+}
+
+fn remove_settings_from_branches(data: &mut serde_json::Value) {
+    if let Some(branches) = data.get_mut("branches").and_then(|v| v.as_array_mut()) {
+        for branch in branches {
+            if let Some(obj) = branch.as_object_mut() {
+                obj.remove("settings");
+            }
+        }
+    }
+}
+
 // ============ Migration Runner ============
 
 /// Run all migrations from given version to current, using the registry
@@ -333,7 +460,7 @@ mod tests {
     fn test_user_state_version_default() {
         assert_eq!(
             UserStateVersion::default(),
-            UserStateVersion::V3LanguageLevels
+            UserStateVersion::V4BranchSettings
         );
     }
 
@@ -367,7 +494,7 @@ mod tests {
         let data = serde_json::json!({"user_id": "test-id", "learning_items": []});
         let versioned = VersionedData::<UserStateVersion>::new(data.clone());
 
-        assert_eq!(versioned.version, UserStateVersion::V3LanguageLevels);
+        assert_eq!(versioned.version, UserStateVersion::V4BranchSettings);
         assert_eq!(versioned.data, data);
     }
 
@@ -573,18 +700,27 @@ mod tests {
 
     #[test]
     fn test_run_migrations_current_version_no_change() {
-        let v3_data = serde_json::json!({
+        let v4_data = serde_json::json!({
             "user_id": "test",
             "conversation_history": [],
-            "dialect_levels": []
+            "branches": [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "dialect": "spanish_mexican",
+                "settings": {
+                    "formality": "informal",
+                    "teaching_mode": "immersive",
+                    "language_level": {"Cefr": "B1"},
+                    "language_options": {}
+                }
+            }]
         });
 
         let result = super::run_user_state_migrations(
-            super::UserStateVersion::V3LanguageLevels,
-            v3_data.clone(),
+            super::UserStateVersion::V4BranchSettings,
+            v4_data.clone(),
         );
 
-        assert_eq!(result, v3_data);
+        assert_eq!(result, v4_data);
     }
 
     fn extract_field_names(value: &serde_json::Value) -> Vec<String> {
@@ -1003,7 +1139,7 @@ mod tests {
     }
 
     #[test]
-    fn test_run_migrations_v1_to_v3() {
+    fn test_run_migrations_v1_to_v4() {
         let v1_data = serde_json::json!({
             "user_id": "test",
             "conversation_history": [{
@@ -1016,18 +1152,175 @@ mod tests {
                     }
                 }
             }],
+            "formality": "formal",
+            "teaching_mode": "corrective",
+            "language_options": {},
             "dialect_levels": [
                 {"dialect": "spanish_mexican", "level": "B1"}
-            ]
+            ],
+            "branches": [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "dialect": "spanish_mexican"
+            }]
         });
 
         let result = super::run_user_state_migrations(super::UserStateVersion::V1, v1_data);
 
+        // V2 changes: mistakes wrapped as tuples
         let history = result["conversation_history"].as_array().unwrap();
         let mistakes = &history[0]["content"]["AgentMessage"]["content"]["mistakes"];
         assert!(mistakes[0].as_array().is_some());
 
-        let levels = result["dialect_levels"].as_array().unwrap();
-        assert_eq!(levels[0]["level"], serde_json::json!({"Cefr": "B1"}));
+        // V4 changes: settings moved to branch, removed from root
+        assert!(result.get("formality").is_none(), "formality should be removed from root");
+        assert!(result.get("teaching_mode").is_none(), "teaching_mode should be removed from root");
+        assert!(result.get("dialect_levels").is_none(), "dialect_levels should be removed from root");
+
+        let branches = result["branches"].as_array().unwrap();
+        let settings = &branches[0]["settings"];
+        assert_eq!(settings["formality"], "formal");
+        assert_eq!(settings["teaching_mode"], "corrective");
+        assert_eq!(settings["language_level"], serde_json::json!({"Cefr": "B1"}));
+    }
+
+    // ============ V3 → V4 Migration Tests ============
+
+    #[test]
+    fn test_v3_to_v4_forward_adds_settings_to_branches() {
+        let v3_data = serde_json::json!({
+            "user_id": "test",
+            "formality": "formal",
+            "teaching_mode": "explanatory",
+            "language_options": {"japanese_script": "Hiragana"},
+            "dialect_levels": [
+                {"dialect": "spanish_mexican", "level": {"Cefr": "C1"}}
+            ],
+            "branches": [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "dialect": "spanish_mexican"
+            }]
+        });
+
+        let v4_data = super::v3_to_v4_forward(v3_data);
+
+        // Settings should be added to branch
+        let branches = v4_data["branches"].as_array().unwrap();
+        let settings = &branches[0]["settings"];
+        assert_eq!(settings["formality"], "formal");
+        assert_eq!(settings["teaching_mode"], "explanatory");
+        assert_eq!(settings["language_level"], serde_json::json!({"Cefr": "C1"}));
+        assert_eq!(settings["language_options"], serde_json::json!({"japanese_script": "Hiragana"}));
+
+        // Old fields should be removed from root
+        assert!(v4_data.get("formality").is_none());
+        assert!(v4_data.get("teaching_mode").is_none());
+        assert!(v4_data.get("dialect_levels").is_none());
+        assert!(v4_data.get("language_options").is_none());
+    }
+
+    #[test]
+    fn test_v3_to_v4_forward_uses_dialect_specific_levels() {
+        let v3_data = serde_json::json!({
+            "user_id": "test",
+            "formality": "informal",
+            "teaching_mode": "immersive",
+            "language_options": {},
+            "dialect_levels": [
+                {"dialect": "spanish_mexican", "level": {"Cefr": "A1"}},
+                {"dialect": "japanese_tokyo", "level": {"Jlpt": "N5"}}
+            ],
+            "branches": [
+                {"id": "00000000-0000-0000-0000-000000000001", "dialect": "spanish_mexican"},
+                {"id": "00000000-0000-0000-0000-000000000002", "dialect": "japanese_tokyo"}
+            ]
+        });
+
+        let v4_data = super::v3_to_v4_forward(v3_data);
+
+        let branches = v4_data["branches"].as_array().unwrap();
+        assert_eq!(branches[0]["settings"]["language_level"], serde_json::json!({"Cefr": "A1"}));
+        assert_eq!(branches[1]["settings"]["language_level"], serde_json::json!({"Jlpt": "N5"}));
+    }
+
+    #[test]
+    fn test_v3_to_v4_forward_uses_default_level_for_unknown_dialect() {
+        let v3_data = serde_json::json!({
+            "user_id": "test",
+            "formality": "informal",
+            "teaching_mode": "immersive",
+            "language_options": {},
+            "dialect_levels": [],
+            "branches": [
+                {"id": "00000000-0000-0000-0000-000000000001", "dialect": "french_parisian"}
+            ]
+        });
+
+        let v4_data = super::v3_to_v4_forward(v3_data);
+
+        let branches = v4_data["branches"].as_array().unwrap();
+        // Should use default CEFR B1 for non-Japanese
+        assert_eq!(branches[0]["settings"]["language_level"], serde_json::json!({"Cefr": "B1"}));
+    }
+
+    #[test]
+    fn test_v3_to_v4_backward_extracts_settings_from_branch() {
+        let v4_data = serde_json::json!({
+            "user_id": "test",
+            "branches": [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "dialect": "spanish_mexican",
+                "settings": {
+                    "formality": "formal",
+                    "teaching_mode": "corrective",
+                    "language_level": {"Cefr": "C2"},
+                    "language_options": {"arabic_script": "Naskh"}
+                }
+            }]
+        });
+
+        let v3_data = super::v3_to_v4_backward(v4_data);
+
+        // Settings should be extracted to root
+        assert_eq!(v3_data["formality"], "formal");
+        assert_eq!(v3_data["teaching_mode"], "corrective");
+        assert_eq!(v3_data["language_options"], serde_json::json!({"arabic_script": "Naskh"}));
+
+        // dialect_levels should be reconstructed
+        let levels = v3_data["dialect_levels"].as_array().unwrap();
+        assert_eq!(levels.len(), 1);
+        assert_eq!(levels[0]["dialect"], "spanish_mexican");
+        assert_eq!(levels[0]["level"], serde_json::json!({"Cefr": "C2"}));
+
+        // Settings should be removed from branches
+        let branches = v3_data["branches"].as_array().unwrap();
+        assert!(branches[0].get("settings").is_none());
+    }
+
+    #[test]
+    fn test_v4_migration_roundtrip() {
+        let original = serde_json::json!({
+            "user_id": "test",
+            "formality": "slang",
+            "teaching_mode": "storyteller",
+            "language_options": {},
+            "dialect_levels": [
+                {"dialect": "spanish_mexican", "level": {"Cefr": "B2"}}
+            ],
+            "branches": [
+                {"id": "00000000-0000-0000-0000-000000000001", "dialect": "spanish_mexican"}
+            ]
+        });
+
+        let v4 = super::v3_to_v4_forward(original.clone());
+        let back_to_v3 = super::v3_to_v4_backward(v4);
+
+        // Verify core settings are preserved
+        assert_eq!(back_to_v3["formality"], "slang");
+        assert_eq!(back_to_v3["teaching_mode"], "storyteller");
+
+        // Verify dialect_levels are reconstructed
+        let levels = back_to_v3["dialect_levels"].as_array().unwrap();
+        assert_eq!(levels[0]["dialect"], "spanish_mexican");
+        assert_eq!(levels[0]["level"], serde_json::json!({"Cefr": "B2"}));
     }
 }

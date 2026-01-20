@@ -215,7 +215,9 @@ pub struct UserState {
     pub conversation_history: Arc<Vec<Message>>,
     pub tts_enabled: bool,
     pub selected_language: Language,
+    #[serde(default)]
     pub formality: Formality,
+    #[serde(default)]
     pub teaching_mode: TeachingMode,
     pub user_gender: UserGender,
     pub active_branch_id: Uuid,
@@ -223,8 +225,10 @@ pub struct UserState {
     pub learning_goals: Arc<Vec<LearningGoal>>,
     pub language_plans: Arc<Vec<LanguagePlan>>,
     pub usage_stats: UsageStats,
+    #[serde(default)]
     pub language_options: LanguageOptions,
     pub show_experimental_dialects: bool,
+    #[serde(default)]
     pub dialect_levels: Vec<DialectLevel>,
     #[serde(default)]
     pub is_admin: bool,
