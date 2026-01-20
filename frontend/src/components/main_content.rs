@@ -191,7 +191,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
 
                         match action {
                             SelectionAction::Translate => {
-                                let formality = Some(user.formality);
+                                let formality = Some(user.active_branch_settings().formality);
                                 match translation_service
                                     .translate_phrase(
                                         &selected_text,

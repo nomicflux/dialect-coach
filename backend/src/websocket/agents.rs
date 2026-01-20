@@ -419,12 +419,15 @@ pub async fn process_ai_action_request(
             context.teaching_mode,
             context.user_gender,
         ),
-        _ => (
-            user_state.current_dialect(),
-            user_state.formality,
-            user_state.teaching_mode,
-            user_state.user_gender,
-        ),
+        _ => {
+            let settings = user_state.active_branch_settings();
+            (
+                user_state.current_dialect(),
+                settings.formality,
+                settings.teaching_mode,
+                user_state.user_gender,
+            )
+        }
     };
 
     let context = build_action_context(&action, &user_state, dialect, formality, user_gender);
@@ -567,12 +570,15 @@ async fn call_agent_for_conversation_action(
             context.teaching_mode,
             context.user_gender,
         ),
-        _ => (
-            user_state.current_dialect(),
-            user_state.formality,
-            user_state.teaching_mode,
-            user_state.user_gender,
-        ),
+        _ => {
+            let settings = user_state.active_branch_settings();
+            (
+                user_state.current_dialect(),
+                settings.formality,
+                settings.teaching_mode,
+                user_state.user_gender,
+            )
+        }
     };
 
     user_state::check_rate_limits(state, user_id, teaching_mode, false).await?;

@@ -759,20 +759,18 @@ mod tests {
 
         let json = serde_json::to_value(&state).unwrap();
         let actual_fields = extract_field_names(&json);
+        // Note: formality, teaching_mode, language_options, dialect_levels
+        // have been moved to BranchSettings (stored in branches[].settings)
         let expected_fields = vec![
             "active_branch_id",
             "branches",
             "conversation_history",
-            "dialect_levels",
-            "formality",
             "is_admin",
-            "language_options",
             "language_plans",
             "learning_goals",
             "learning_items",
             "selected_language",
             "show_experimental_dialects",
-            "teaching_mode",
             "tts_enabled",
             "usage_stats",
             "user_gender",

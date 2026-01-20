@@ -217,9 +217,10 @@ pub fn create_metadata_from_user_state(
     user_state: &UserState,
     session_id: Uuid,
 ) -> MessageMetadata {
+    let settings = user_state.active_branch_settings();
     MessageMetadata::at_now(
-        user_state.formality,
-        user_state.teaching_mode,
+        settings.formality,
+        settings.teaching_mode,
         user_state.current_dialect().language(),
         user_state.current_dialect(),
         session_id,

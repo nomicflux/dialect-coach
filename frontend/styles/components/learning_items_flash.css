@@ -3,7 +3,6 @@
 
 .learning-items-flash {
     position: fixed;
-    top: var(--s-4);
     right: var(--s-4);
     z-index: 1000;
     display: flex;
@@ -12,6 +11,7 @@
     max-width: 320px;
     max-height: calc(100vh - var(--s-8));
     overflow-y: auto;
+    padding-left: 16px;
     pointer-events: none;
 }
 

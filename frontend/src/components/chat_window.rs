@@ -134,7 +134,7 @@ fn render_messages_list(props: &ChatWindowProps, active_messages: &[&Message]) -
             {for active_messages.iter().map(|msg| {
                 let is_own = !msg.is_agent();
                 let has_children = has_child_branches(msg.id, &props.user.branches);
-                let language_option = props.user.language_options.for_language(msg.metadata.language);
+                let language_option = props.user.active_branch_settings().language_options.for_language(msg.metadata.language);
 
                 render_message_with_rope(props, msg, is_own, has_children, language_option)
             })}

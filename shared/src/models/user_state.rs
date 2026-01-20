@@ -6,7 +6,7 @@ use uuid::Uuid;
 use super::dialect::dialect_features;
 use super::{
     BranchSettings, ConversationBranch, ConversationContext, Dialect, DialectWithFeatures,
-    Formality, InitialUserSettings, Language, LanguageOption, LanguageOptions, LanguagePlan,
+    Formality, InitialUserSettings, Language, LanguageOption, LanguagePlan,
     LearningGoal, LearningItem, LearningItemType, Message, MessageMetadata, PastLearningItems,
     TeachingMode, UsageStats,
 };
@@ -215,21 +215,13 @@ pub struct UserState {
     pub conversation_history: Arc<Vec<Message>>,
     pub tts_enabled: bool,
     pub selected_language: Language,
-    #[serde(default)]
-    pub formality: Formality,
-    #[serde(default)]
-    pub teaching_mode: TeachingMode,
     pub user_gender: UserGender,
     pub active_branch_id: Uuid,
     pub branches: Arc<Vec<ConversationBranch>>,
     pub learning_goals: Arc<Vec<LearningGoal>>,
     pub language_plans: Arc<Vec<LanguagePlan>>,
     pub usage_stats: UsageStats,
-    #[serde(default)]
-    pub language_options: LanguageOptions,
     pub show_experimental_dialects: bool,
-    #[serde(default)]
-    pub dialect_levels: Vec<DialectLevel>,
     #[serde(default)]
     pub is_admin: bool,
 }
@@ -325,20 +317,18 @@ impl UserState {
     ) -> Self {
         let show_experimental_dialects = false;
 
-        let (language, dialect, gender, dialect_levels) = match initial_settings {
-            Some(s) => {
-                let dl = DialectLevel::new(s.dialect, s.level);
-                (s.language, s.dialect, s.gender, vec![dl])
-            }
+        let (language, dialect, gender, level) = match initial_settings {
+            Some(s) => (s.language, s.dialect, s.gender, s.level),
             None => {
                 let lang = Language::Spanish;
                 let dial = Self::default_dialect_for_language(lang, show_experimental_dialects)
                     .expect("Spanish language must have available dialects");
-                (lang, dial, UserGender::NonBinary, Vec::new())
+                (lang, dial, UserGender::NonBinary, LanguageLevel::default())
             }
         };
 
-        let settings = BranchSettings::for_dialect(dialect);
+        let mut settings = BranchSettings::for_dialect(dialect);
+        settings.language_level = level;
         let initial_branch =
             ConversationBranch::new(None, None, None, dialect, vec![], None, settings);
         let initial_branch_id = initial_branch.id;
@@ -349,17 +339,13 @@ impl UserState {
             conversation_history: Arc::new(Vec::new()),
             tts_enabled: false,
             selected_language: language,
-            formality: Formality::Informal,
-            teaching_mode: TeachingMode::Immersive,
             user_gender: gender,
             active_branch_id: initial_branch_id,
             branches: Arc::new(vec![initial_branch]),
             learning_goals: Arc::new(Vec::new()),
             language_plans: Arc::new(Vec::new()),
             usage_stats: UsageStats::default(),
-            language_options: LanguageOptions::default(),
             show_experimental_dialects,
-            dialect_levels,
             is_admin: false,
         }
     }
@@ -425,27 +411,9 @@ impl UserState {
     }
 
     pub fn current_language_option(&self) -> Option<LanguageOption> {
-        self.language_options.for_language(self.selected_language)
-    }
-
-    pub fn get_level_for_dialect(&self, dialect: &Dialect) -> LanguageLevel {
-        self.dialect_levels
-            .iter()
-            .find(|dl| &dl.dialect == dialect)
-            .map(|dl| dl.level)
-            .unwrap_or_default()
-    }
-
-    pub fn set_level_for_dialect(&mut self, dialect: Dialect, level: LanguageLevel) {
-        if let Some(dl) = self
-            .dialect_levels
-            .iter_mut()
-            .find(|dl| dl.dialect == dialect)
-        {
-            dl.level = level;
-        } else {
-            self.dialect_levels.push(DialectLevel::new(dialect, level));
-        }
+        self.active_branch_settings()
+            .language_options
+            .for_language(self.selected_language)
     }
 
     pub fn current_language_level(&self) -> LanguageLevel {
@@ -736,9 +704,9 @@ mod tests {
         assert_eq!(state.selected_language, Language::Japanese);
         assert_eq!(state.active_branch_dialect(), Dialect::JapaneseTokyo);
         assert_eq!(state.user_gender, UserGender::Female);
-        assert_eq!(state.dialect_levels.len(), 1);
+        // Language level is now stored in branch settings
         assert_eq!(
-            state.dialect_levels[0].level,
+            state.active_branch_settings().language_level,
             LanguageLevel::Jlpt(JlptLevel::N4)
         );
     }
@@ -1082,10 +1050,17 @@ mod tests {
     #[test]
     fn test_current_language_option_with_arabic() {
         use crate::models::language_options::{ArabicScript, LanguageOption};
+        use std::sync::Arc;
 
         let mut state = create_test_user_state();
         state.selected_language = Language::Arabic;
-        state.language_options.arabic_script = ArabicScript::Ruqa;
+        // Set language options on the active branch
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
+            branch.settings.language_options.arabic_script = ArabicScript::Ruqa;
+        }
 
         let option = state.current_language_option();
         assert_eq!(option, Some(LanguageOption::Arabic(ArabicScript::Ruqa)));
@@ -1094,10 +1069,17 @@ mod tests {
     #[test]
     fn test_current_language_option_with_japanese() {
         use crate::models::language_options::{JapaneseScript, LanguageOption};
+        use std::sync::Arc;
 
         let mut state = create_test_user_state();
         state.selected_language = Language::Japanese;
-        state.language_options.japanese_script = JapaneseScript::Romaji;
+        // Set language options on the active branch
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
+            branch.settings.language_options.japanese_script = JapaneseScript::Romaji;
+        }
 
         let option = state.current_language_option();
         assert_eq!(
@@ -1120,35 +1102,23 @@ mod tests {
     }
 
     #[test]
-    fn test_get_level_for_dialect_returns_default_when_not_set() {
+    fn test_current_language_level_reads_from_branch() {
         use super::{CefrLevel, LanguageLevel};
-        let state = create_test_user_state();
-        let level = state.get_level_for_dialect(&Dialect::SpanishMexican);
-        assert_eq!(level, LanguageLevel::Cefr(CefrLevel::B1));
-    }
+        use std::sync::Arc;
 
-    #[test]
-    fn test_set_and_get_level_for_dialect() {
-        use super::{CefrLevel, LanguageLevel};
         let mut state = create_test_user_state();
-        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::Cefr(CefrLevel::C1));
+        // Set level on the active branch
+        if let Some(branch) = Arc::make_mut(&mut state.branches)
+            .iter_mut()
+            .find(|b| b.id == state.active_branch_id)
+        {
+            branch.settings.language_level = LanguageLevel::Cefr(CefrLevel::C1);
+        }
+
         assert_eq!(
-            state.get_level_for_dialect(&Dialect::SpanishMexican),
+            state.current_language_level(),
             LanguageLevel::Cefr(CefrLevel::C1)
         );
-    }
-
-    #[test]
-    fn test_set_level_updates_existing() {
-        use super::{CefrLevel, LanguageLevel};
-        let mut state = create_test_user_state();
-        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::Cefr(CefrLevel::A1));
-        state.set_level_for_dialect(Dialect::SpanishMexican, LanguageLevel::Cefr(CefrLevel::C2));
-        assert_eq!(
-            state.get_level_for_dialect(&Dialect::SpanishMexican),
-            LanguageLevel::Cefr(CefrLevel::C2)
-        );
-        assert_eq!(state.dialect_levels.len(), 1);
     }
 
     #[test]
