@@ -22,6 +22,7 @@ services:
     environment:
       DATABASE_URL: postgres://dialect_coach:dialect_coach_dev@postgres:5432/dialect_coach
       BIND_ADDRESS: 0.0.0.0:3000
+      RUST_LOG: info
     depends_on:
       postgres:
         condition: service_healthy
