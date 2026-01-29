@@ -30,3 +30,14 @@ pub(crate) const CONTENT_FILTERING_DIRECTIVES: &str = r#"### CONTENT FILTERING D
 
 pub(crate) const RESPONSE_JSON_OUTPUT_FORMAT: &str =
     r#"Response format: {"response": "<your full conversational response here>"}"#;
+
+pub(crate) const RESPONSE_JSON_OUTPUT_FORMAT_WITH_PRONUNCIATION: &str =
+    r#"Response format: {"response": "<your conversational response>", "pronunciation_text": "<same response with pronunciation guides>"}"#;
+
+pub(crate) fn get_json_output_format(needs_pronunciation: bool) -> &'static str {
+    if needs_pronunciation {
+        RESPONSE_JSON_OUTPUT_FORMAT_WITH_PRONUNCIATION
+    } else {
+        RESPONSE_JSON_OUTPUT_FORMAT
+    }
+}

@@ -74,6 +74,19 @@ impl LanguageOptions {
     }
 }
 
+/// Determines if separate pronunciation text is needed for TTS.
+pub fn needs_pronunciation_text(language_option: &Option<LanguageOption>) -> bool {
+    match language_option {
+        Some(LanguageOption::Arabic(script)) => {
+            !matches!(script, ArabicScript::Latin | ArabicScript::FullyVoweled)
+        }
+        Some(LanguageOption::Japanese(script)) => {
+            matches!(script, JapaneseScript::Kanji)
+        }
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,5 +191,40 @@ mod tests {
     fn test_language_option_japanese_variant() {
         let opt = LanguageOption::Japanese(JapaneseScript::OnlyKana);
         assert_eq!(opt, LanguageOption::Japanese(JapaneseScript::OnlyKana));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_arabic_naskh() {
+        let opt = Some(LanguageOption::Arabic(ArabicScript::Naskh));
+        assert!(needs_pronunciation_text(&opt));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_arabic_latin() {
+        let opt = Some(LanguageOption::Arabic(ArabicScript::Latin));
+        assert!(!needs_pronunciation_text(&opt));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_arabic_fully_voweled() {
+        let opt = Some(LanguageOption::Arabic(ArabicScript::FullyVoweled));
+        assert!(!needs_pronunciation_text(&opt));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_japanese_kanji() {
+        let opt = Some(LanguageOption::Japanese(JapaneseScript::Kanji));
+        assert!(needs_pronunciation_text(&opt));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_japanese_kanji_with_ruby() {
+        let opt = Some(LanguageOption::Japanese(JapaneseScript::KanjiWithRuby));
+        assert!(!needs_pronunciation_text(&opt));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_none() {
+        assert!(!needs_pronunciation_text(&None));
     }
 }
