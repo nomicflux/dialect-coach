@@ -266,7 +266,8 @@ pub(crate) fn build_system_content(
     let level_checklist_formatted = format_checklist(level_checklist(language_level));
 
     let needs_pronunciation = needs_pronunciation_text(language_option);
-    let pronunciation_instruction = build_pronunciation_instruction(language_option);
+    let pronunciation_instruction =
+        build_pronunciation_instruction(language_option, dialect.dialect.name());
     let json_output_format = get_json_output_format(needs_pronunciation);
 
     if teaching_mode == TeachingMode::Debug {
