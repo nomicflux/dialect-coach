@@ -150,7 +150,7 @@ impl AppState {
                 }
                 let tts_service = next.tts_service.clone();
                 let user_id = next.current_user.as_ref().map(|u| u.id);
-                let text = msg.get_content();
+                let text = msg.get_tts_content();
                 wasm_bindgen_futures::spawn_local(async move {
                     if let Some(tts) = tts_service
                         && let Some(uid) = user_id
@@ -197,7 +197,7 @@ impl AppState {
                     }
                     let tts_service = next.tts_service.clone();
                     let user_id = next.current_user.as_ref().map(|u| u.id);
-                    let text = msg.get_content();
+                    let text = msg.get_tts_content();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(tts) = tts_service
                             && let Some(uid) = user_id

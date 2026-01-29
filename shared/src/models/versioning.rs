@@ -961,6 +961,7 @@ mod tests {
             translated: None,
             exploratory: None,
             analysis: None,
+            pronunciation_text: None,
         };
 
         // Create a real Message
@@ -1051,6 +1052,7 @@ mod tests {
             translated: None,
             exploratory: None,
             analysis: None,
+            pronunciation_text: None,
         };
 
         let json = serde_json::to_value(&response).unwrap();
@@ -1060,6 +1062,7 @@ mod tests {
             "explained",
             "exploratory",
             "mistakes",
+            "pronunciation_text",
             "response",
             "translated",
         ];

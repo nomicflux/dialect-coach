@@ -319,6 +319,8 @@ pub struct AgentResponse {
     pub translated: Option<Vec<(Translated, u8)>>,
     pub exploratory: Option<Vec<(Exploratory, u8)>>,
     pub analysis: Option<AgentAnalysis>,
+    #[serde(default)]
+    pub pronunciation_text: Option<String>,
 }
 
 impl AgentResponse {
@@ -330,11 +332,16 @@ impl AgentResponse {
             translated: None,
             exploratory: None,
             analysis: None,
+            pronunciation_text: None,
         }
     }
 
     pub fn as_str(&self) -> &str {
         self.response.as_str()
+    }
+
+    pub fn get_tts_text(&self) -> &str {
+        self.pronunciation_text.as_deref().unwrap_or(&self.response)
     }
 }
 
@@ -482,6 +489,26 @@ mod tests {
         assert!(json.contains("\"response\":\"Hello\""));
         assert!(json.contains("\"mistakes\":null"));
         assert!(json.contains("\"explained\":null"));
+    }
+
+    #[test]
+    fn test_agent_response_pronunciation_text_defaults_to_none() {
+        let old_json = r#"{"response":"Hello"}"#;
+        let response: AgentResponse = serde_json::from_str(old_json).unwrap();
+        assert_eq!(response.pronunciation_text, None);
+    }
+
+    #[test]
+    fn test_get_tts_text_returns_pronunciation_when_present() {
+        let mut response = AgentResponse::from("Display");
+        response.pronunciation_text = Some("Pronunciation".to_string());
+        assert_eq!(response.get_tts_text(), "Pronunciation");
+    }
+
+    #[test]
+    fn test_get_tts_text_returns_response_when_no_pronunciation() {
+        let response = AgentResponse::from("Display");
+        assert_eq!(response.get_tts_text(), "Display");
     }
 
     #[test]

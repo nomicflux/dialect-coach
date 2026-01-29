@@ -220,6 +220,13 @@ impl Message {
         }
     }
 
+    pub fn get_tts_content(&self) -> String {
+        match &self.content {
+            MessageContent::UserMessage { content } => content.clone(),
+            MessageContent::AgentMessage { content } => content.get_tts_text().to_string(),
+        }
+    }
+
     pub fn is_agent(&self) -> bool {
         matches!(self.content, MessageContent::AgentMessage { .. })
     }
