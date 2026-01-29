@@ -16,8 +16,9 @@ pub enum UserStateVersion {
     V1,
     V2ScoredItems,
     V3LanguageLevels,
-    #[default]
     V4BranchSettings,
+    #[default]
+    V5PronunciationText,
 }
 
 pub type UserStateV1 = UserState;
@@ -30,7 +31,7 @@ pub struct UserV1Data {
 }
 
 pub const CURRENT_USER_VERSION: UserVersion = UserVersion::V2Admin;
-pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V4BranchSettings;
+pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V5PronunciationText;
 
 /// Generic wrapper for versioned data stored in sled
 /// Stores the version enum and raw JSON data separately.
@@ -86,6 +87,12 @@ pub const USER_STATE_MIGRATIONS: &[UserStateMigrationStep] = &[
         to: UserStateVersion::V4BranchSettings,
         forward: v3_to_v4_forward,
         backward: v3_to_v4_backward,
+    },
+    UserStateMigrationStep {
+        from: UserStateVersion::V4BranchSettings,
+        to: UserStateVersion::V5PronunciationText,
+        forward: v4_to_v5_forward,
+        backward: v4_to_v5_backward,
     },
 ];
 
@@ -415,6 +422,51 @@ fn remove_settings_from_branches(data: &mut serde_json::Value) {
     }
 }
 
+// ============ V4 → V5 Migration Functions ============
+
+/// V4→V5: No transformation needed - serde(default) handles missing pronunciation_text
+fn v4_to_v5_forward(data: serde_json::Value) -> serde_json::Value {
+    tracing::debug!("V4→V5 migration: forward (no-op, serde handles defaults)");
+    data
+}
+
+/// V5→V4: Strip pronunciation_text from all AgentResponse objects
+fn v4_to_v5_backward(mut data: serde_json::Value) -> serde_json::Value {
+    tracing::debug!("V4→V5 migration: backward (strip pronunciation_text)");
+    strip_pronunciation_text_from_conversation_history(&mut data);
+    data
+}
+
+fn strip_pronunciation_text_from_conversation_history(data: &mut serde_json::Value) {
+    let branches = data.get_mut("branches").and_then(|b| b.as_array_mut());
+    if let Some(branches) = branches {
+        for branch in branches {
+            strip_pronunciation_text_from_branch(branch);
+        }
+    }
+}
+
+fn strip_pronunciation_text_from_branch(branch: &mut serde_json::Value) {
+    let history = branch
+        .get_mut("conversation_history")
+        .and_then(|h| h.as_array_mut());
+    if let Some(history) = history {
+        for msg in history {
+            strip_pronunciation_text_from_message(msg);
+        }
+    }
+}
+
+fn strip_pronunciation_text_from_message(msg: &mut serde_json::Value) {
+    let agent_content = msg
+        .get_mut("content")
+        .and_then(|c| c.get_mut("AgentMessage"))
+        .and_then(|am| am.get_mut("content"));
+    if let Some(obj) = agent_content.and_then(|ac| ac.as_object_mut()) {
+        obj.remove("pronunciation_text");
+    }
+}
+
 // ============ Migration Runner ============
 
 /// Run all migrations from given version to current, using the registry
@@ -460,7 +512,7 @@ mod tests {
     fn test_user_state_version_default() {
         assert_eq!(
             UserStateVersion::default(),
-            UserStateVersion::V4BranchSettings
+            UserStateVersion::V5PronunciationText
         );
     }
 
@@ -494,7 +546,7 @@ mod tests {
         let data = serde_json::json!({"user_id": "test-id", "learning_items": []});
         let versioned = VersionedData::<UserStateVersion>::new(data.clone());
 
-        assert_eq!(versioned.version, UserStateVersion::V4BranchSettings);
+        assert_eq!(versioned.version, UserStateVersion::V5PronunciationText);
         assert_eq!(versioned.data, data);
     }
 
@@ -700,7 +752,7 @@ mod tests {
 
     #[test]
     fn test_run_migrations_current_version_no_change() {
-        let v4_data = serde_json::json!({
+        let v5_data = serde_json::json!({
             "user_id": "test",
             "conversation_history": [],
             "branches": [{
@@ -716,11 +768,11 @@ mod tests {
         });
 
         let result = super::run_user_state_migrations(
-            super::UserStateVersion::V4BranchSettings,
-            v4_data.clone(),
+            super::UserStateVersion::V5PronunciationText,
+            v5_data.clone(),
         );
 
-        assert_eq!(result, v4_data);
+        assert_eq!(result, v5_data);
     }
 
     fn extract_field_names(value: &serde_json::Value) -> Vec<String> {
@@ -1320,5 +1372,48 @@ mod tests {
         let levels = back_to_v3["dialect_levels"].as_array().unwrap();
         assert_eq!(levels[0]["dialect"], "spanish_mexican");
         assert_eq!(levels[0]["level"], serde_json::json!({"Cefr": "B2"}));
+    }
+
+    // ============ V4 → V5 Migration Tests ============
+
+    #[test]
+    fn test_v4_to_v5_forward_preserves_data() {
+        let v4_data = serde_json::json!({
+            "branches": [{
+                "conversation_history": [{
+                    "content": {
+                        "AgentMessage": {
+                            "content": {
+                                "response": "Hello"
+                            }
+                        }
+                    }
+                }]
+            }]
+        });
+        let v5_data = super::v4_to_v5_forward(v4_data.clone());
+        assert_eq!(v4_data, v5_data);
+    }
+
+    #[test]
+    fn test_v4_to_v5_backward_strips_pronunciation_text() {
+        let v5_data = serde_json::json!({
+            "branches": [{
+                "conversation_history": [{
+                    "content": {
+                        "AgentMessage": {
+                            "content": {
+                                "response": "Hello",
+                                "pronunciation_text": "Hellooo"
+                            }
+                        }
+                    }
+                }]
+            }]
+        });
+        let v4_data = super::v4_to_v5_backward(v5_data);
+        let agent_content = &v4_data["branches"][0]["conversation_history"][0]["content"]["AgentMessage"]["content"];
+        assert!(agent_content.get("pronunciation_text").is_none());
+        assert_eq!(agent_content["response"], "Hello");
     }
 }
