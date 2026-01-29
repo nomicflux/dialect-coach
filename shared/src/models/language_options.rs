@@ -11,6 +11,7 @@ pub enum ArabicScript {
     Naskh,
     Ruqa,
     Latin,
+    FullyVoweled,
 }
 
 impl fmt::Display for ArabicScript {
@@ -19,6 +20,7 @@ impl fmt::Display for ArabicScript {
             ArabicScript::Naskh => "Naskh",
             ArabicScript::Ruqa => "Ruq'a",
             ArabicScript::Latin => "Latin (Romanized)",
+            ArabicScript::FullyVoweled => "Fully Voweled (with Harakat)",
         };
         write!(f, "{}", label)
     }
@@ -86,6 +88,10 @@ mod tests {
         assert_eq!(ArabicScript::Naskh.to_string(), "Naskh");
         assert_eq!(ArabicScript::Ruqa.to_string(), "Ruq'a");
         assert_eq!(ArabicScript::Latin.to_string(), "Latin (Romanized)");
+        assert_eq!(
+            ArabicScript::FullyVoweled.to_string(),
+            "Fully Voweled (with Harakat)"
+        );
     }
 
     #[test]

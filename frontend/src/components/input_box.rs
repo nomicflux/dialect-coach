@@ -8,6 +8,7 @@ fn font_class(lang_option: &Option<LanguageOption>) -> &'static str {
             ArabicScript::Naskh => "arabic-naskh",
             ArabicScript::Ruqa => "arabic-ruqa",
             ArabicScript::Latin => "arabic-latin",
+            ArabicScript::FullyVoweled => "arabic-naskh",
         },
         _ => "",
     }

@@ -209,6 +209,7 @@ pub fn settings(props: &SettingsProps) -> Html {
                                         <option value="naskh" selected={settings.language_options.arabic_script == ArabicScript::Naskh}>{"Naskh"}</option>
                                         <option value="ruqa" selected={settings.language_options.arabic_script == ArabicScript::Ruqa}>{"Ruq'a"}</option>
                                         <option value="latin" selected={settings.language_options.arabic_script == ArabicScript::Latin}>{"Latin (Romanized)"}</option>
+                                        <option value="fully_voweled" selected={settings.language_options.arabic_script == ArabicScript::FullyVoweled}>{"Fully Voweled (with Harakat)"}</option>
                                     </select>
                                 </div>
                             </div>

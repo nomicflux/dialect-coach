@@ -12,6 +12,9 @@ pub fn build_language_instruction(language_option: &Option<LanguageOption>) -> S
         Some(LanguageOption::Arabic(ArabicScript::Latin)) => {
             "You must respond using romanized Arabic script. Use the appropriate romanization system for the user's dialect.".to_string()
         }
+        Some(LanguageOption::Arabic(ArabicScript::FullyVoweled)) => {
+            "You must respond using fully-voweled Arabic script with complete harakat (tashkeel) on all letters.".to_string()
+        }
         Some(LanguageOption::Japanese(JapaneseScript::Romaji)) => {
             "You must respond using romanized Japanese (romaji).".to_string()
         }
@@ -60,6 +63,15 @@ mod tests {
         assert_eq!(
             build_language_instruction(&option),
             "You must respond using romanized Arabic script. Use the appropriate romanization system for the user's dialect."
+        );
+    }
+
+    #[test]
+    fn test_arabic_fully_voweled() {
+        let option = Some(LanguageOption::Arabic(ArabicScript::FullyVoweled));
+        assert_eq!(
+            build_language_instruction(&option),
+            "You must respond using fully-voweled Arabic script with complete harakat (tashkeel) on all letters."
         );
     }
 
