@@ -2,8 +2,8 @@ use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType
 use dialect_coach_shared::models::plan::{LanguagePlan, PlanStep, StepType};
 use dialect_coach_shared::models::{LanguageOption, needs_pronunciation_text};
 use dialect_coach_shared::{
-    DialectWithFeatures, Formality, LanguageLevel, LearningGoal, PastLearningItems,
-    TeachingMode, UserGender,
+    DialectWithFeatures, Formality, LanguageLevel, LearningGoal, PastLearningItems, TeachingMode,
+    UserGender,
 };
 
 use super::config::{CONTENT_FILTERING_DIRECTIVES, get_json_output_format};
@@ -11,7 +11,9 @@ use super::speaker::{extract_gender_from_dialect, mimic_instruction, speaker_des
 use super::teaching::{
     language_level_instruction, level_checklist, mode_checklist, response_teaching_desc,
 };
-use crate::agent_service::language_instructions::{build_language_instruction, build_pronunciation_instruction};
+use crate::agent_service::language_instructions::{
+    build_language_instruction, build_pronunciation_instruction,
+};
 use crate::agent_service::util::{
     JSON_OUTPUT_INSTRUCTION, format_learning_items_context, learning_goals_section,
 };

@@ -32,14 +32,6 @@ impl TranslationAgentOutput {
     }
 }
 
-fn calculate_max_translated(past_count: usize) -> u8 {
-    if past_count == 0 { 2 } else { 1 }
-}
-
-fn should_skip_translation(_past_translated: &[Translated]) -> bool {
-    false // Never skip translation logic
-}
-
 #[derive(Debug, Deserialize)]
 struct RawTranslationOutput {
     #[serde(default)]
@@ -63,16 +55,8 @@ impl TranslationAgent {
             "TranslationAgent: generate_translations called for dialect: {}",
             params.dialect
         );
-        if should_skip_translation(params.past_translated) {
-            tracing::debug!(
-                "TranslationAgent: Skipping due to item limit ({})",
-                params.past_translated.len()
-            );
-            return (Ok(TranslationAgentOutput::empty()), Vec::new());
-        }
 
-        let max_translated = calculate_max_translated(params.past_translated.len());
-        let system_content = build_translation_system_content(params, max_translated);
+        let system_content = build_translation_system_content(params);
         tracing::debug!("Translation Agent System Content:\n{}", system_content);
         let prompt = build_translation_prompt(params);
         tracing::debug!("Translation Agent Prompt:\n{}", prompt);
@@ -107,7 +91,7 @@ impl TranslationAgent {
     }
 }
 
-fn build_translation_system_content(params: &TranslationAgentParams<'_>, max_items: u8) -> String {
+fn build_translation_system_content(params: &TranslationAgentParams<'_>) -> String {
     let language_instr = build_language_instruction(params.language_option);
     let lang_section = if !language_instr.is_empty() {
         format!("\n\nLANGUAGE INSTRUCTION: {}\n", language_instr)
@@ -134,7 +118,7 @@ Only translate when the user is clearly code-switching back to English, NOT usin
 # RULES
 - Log translations only, not conversational responses
 - Do not duplicate previously logged translations
-- Maximum {} item(s)
+- Translate the full phrases that the user requests
 
 # OUTPUT FORMAT
 {}
@@ -145,7 +129,6 @@ Return {{"translated": []}} when nothing requires translation."#,
         params.dialect.name(),
         params.formality.name(),
         lang_section,
-        max_items,
         JSON_OUTPUT_INSTRUCTION,
     )
 }
@@ -183,29 +166,6 @@ fn log_translation_success(output: &TranslationAgentOutput) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_should_skip_translation_under_limit() {
-        assert!(!should_skip_translation(&[]));
-    }
-
-    #[test]
-    fn test_should_skip_translation_at_limit() {
-        let items: Vec<Translated> = (0..20)
-            .map(|i| Translated::new(format!("word{}", i), format!("trans{}", i), None))
-            .collect();
-        assert!(!should_skip_translation(&items));
-    }
-
-    #[test]
-    fn test_calculate_max_translated_empty() {
-        assert_eq!(calculate_max_translated(0), 2);
-    }
-
-    #[test]
-    fn test_calculate_max_translated_has_items() {
-        assert_eq!(calculate_max_translated(5), 1);
-    }
 
     #[test]
     fn test_translation_output_empty() {

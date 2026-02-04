@@ -45,7 +45,8 @@ CRITICAL: The harakat MUST reflect {dialect_name} pronunciation, NOT Modern Stan
 - Use dialect-specific vowel patterns (e.g., "i" sounds that would be "a" in MSA)
 - Reflect dropped or altered vowels common in {dialect_name}
 - Show sukun where consonant clusters occur in the dialect
-The pronunciation_text must sound like natural {dialect_name} when read aloud, not like formal Arabic."#,
+- Change consonants to how they would sound in {dialect_name}
+The pronunciation_text must sound like natural {dialect_name} when spoken aloud, not like formal Arabic."#,
                 dialect_name = dialect_name
             )
         }
@@ -55,8 +56,7 @@ The pronunciation_text must sound like natural {dialect_name} when read aloud, n
 
 CRITICAL: The furigana MUST reflect {dialect_name} pronunciation. Use readings that match how a native {dialect_name} speaker actually pronounces each word, including:
 - Dialect-specific readings for common words
-- Regional pronunciation variations
-- Colloquial contractions and sound changes typical of {dialect_name}
+
 The pronunciation_text must sound like natural {dialect_name} when read aloud."#,
                 dialect_name = dialect_name
             )
