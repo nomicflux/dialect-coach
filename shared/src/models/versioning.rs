@@ -319,9 +319,18 @@ fn v3_to_v4_backward(mut data: serde_json::Value) -> serde_json::Value {
 }
 
 fn add_settings_to_branches(data: &mut serde_json::Value) {
-    let formality = data.get("formality").cloned().unwrap_or(serde_json::json!("informal"));
-    let teaching_mode = data.get("teaching_mode").cloned().unwrap_or(serde_json::json!("immersive"));
-    let language_options = data.get("language_options").cloned().unwrap_or(serde_json::json!({}));
+    let formality = data
+        .get("formality")
+        .cloned()
+        .unwrap_or(serde_json::json!("informal"));
+    let teaching_mode = data
+        .get("teaching_mode")
+        .cloned()
+        .unwrap_or(serde_json::json!("immersive"));
+    let language_options = data
+        .get("language_options")
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
     let dialect_levels = data
         .get("dialect_levels")
         .and_then(|v| v.as_array())
@@ -351,7 +360,10 @@ fn add_settings_to_branches(data: &mut serde_json::Value) {
     }
 }
 
-fn find_level_for_dialect(dialect_levels: &[serde_json::Value], dialect: &str) -> serde_json::Value {
+fn find_level_for_dialect(
+    dialect_levels: &[serde_json::Value],
+    dialect: &str,
+) -> serde_json::Value {
     for dl in dialect_levels {
         if let Some(dl_dialect) = dl.get("dialect").and_then(|v| v.as_str())
             && dl_dialect == dialect
@@ -392,9 +404,18 @@ fn extract_settings_from_branches(data: &mut serde_json::Value) {
 
     // Extract settings from first branch
     if let Some(settings) = branches[0].get("settings") {
-        data["formality"] = settings.get("formality").cloned().unwrap_or(serde_json::json!("informal"));
-        data["teaching_mode"] = settings.get("teaching_mode").cloned().unwrap_or(serde_json::json!("immersive"));
-        data["language_options"] = settings.get("language_options").cloned().unwrap_or(serde_json::json!({}));
+        data["formality"] = settings
+            .get("formality")
+            .cloned()
+            .unwrap_or(serde_json::json!("informal"));
+        data["teaching_mode"] = settings
+            .get("teaching_mode")
+            .cloned()
+            .unwrap_or(serde_json::json!("immersive"));
+        data["language_options"] = settings
+            .get("language_options")
+            .cloned()
+            .unwrap_or(serde_json::json!({}));
 
         // Reconstruct dialect_levels from all branches
         let mut dialect_levels = Vec::new();
@@ -1225,15 +1246,27 @@ mod tests {
         assert!(mistakes[0].as_array().is_some());
 
         // V4 changes: settings moved to branch, removed from root
-        assert!(result.get("formality").is_none(), "formality should be removed from root");
-        assert!(result.get("teaching_mode").is_none(), "teaching_mode should be removed from root");
-        assert!(result.get("dialect_levels").is_none(), "dialect_levels should be removed from root");
+        assert!(
+            result.get("formality").is_none(),
+            "formality should be removed from root"
+        );
+        assert!(
+            result.get("teaching_mode").is_none(),
+            "teaching_mode should be removed from root"
+        );
+        assert!(
+            result.get("dialect_levels").is_none(),
+            "dialect_levels should be removed from root"
+        );
 
         let branches = result["branches"].as_array().unwrap();
         let settings = &branches[0]["settings"];
         assert_eq!(settings["formality"], "formal");
         assert_eq!(settings["teaching_mode"], "corrective");
-        assert_eq!(settings["language_level"], serde_json::json!({"Cefr": "B1"}));
+        assert_eq!(
+            settings["language_level"],
+            serde_json::json!({"Cefr": "B1"})
+        );
     }
 
     // ============ V3 → V4 Migration Tests ============
@@ -1261,8 +1294,14 @@ mod tests {
         let settings = &branches[0]["settings"];
         assert_eq!(settings["formality"], "formal");
         assert_eq!(settings["teaching_mode"], "explanatory");
-        assert_eq!(settings["language_level"], serde_json::json!({"Cefr": "C1"}));
-        assert_eq!(settings["language_options"], serde_json::json!({"japanese_script": "Hiragana"}));
+        assert_eq!(
+            settings["language_level"],
+            serde_json::json!({"Cefr": "C1"})
+        );
+        assert_eq!(
+            settings["language_options"],
+            serde_json::json!({"japanese_script": "Hiragana"})
+        );
 
         // Old fields should be removed from root
         assert!(v4_data.get("formality").is_none());
@@ -1291,8 +1330,14 @@ mod tests {
         let v4_data = super::v3_to_v4_forward(v3_data);
 
         let branches = v4_data["branches"].as_array().unwrap();
-        assert_eq!(branches[0]["settings"]["language_level"], serde_json::json!({"Cefr": "A1"}));
-        assert_eq!(branches[1]["settings"]["language_level"], serde_json::json!({"Jlpt": "N5"}));
+        assert_eq!(
+            branches[0]["settings"]["language_level"],
+            serde_json::json!({"Cefr": "A1"})
+        );
+        assert_eq!(
+            branches[1]["settings"]["language_level"],
+            serde_json::json!({"Jlpt": "N5"})
+        );
     }
 
     #[test]
@@ -1312,7 +1357,10 @@ mod tests {
 
         let branches = v4_data["branches"].as_array().unwrap();
         // Should use default CEFR B1 for non-Japanese
-        assert_eq!(branches[0]["settings"]["language_level"], serde_json::json!({"Cefr": "B1"}));
+        assert_eq!(
+            branches[0]["settings"]["language_level"],
+            serde_json::json!({"Cefr": "B1"})
+        );
     }
 
     #[test]
@@ -1336,7 +1384,10 @@ mod tests {
         // Settings should be extracted to root
         assert_eq!(v3_data["formality"], "formal");
         assert_eq!(v3_data["teaching_mode"], "corrective");
-        assert_eq!(v3_data["language_options"], serde_json::json!({"arabic_script": "Naskh"}));
+        assert_eq!(
+            v3_data["language_options"],
+            serde_json::json!({"arabic_script": "Naskh"})
+        );
 
         // dialect_levels should be reconstructed
         let levels = v3_data["dialect_levels"].as_array().unwrap();
@@ -1415,7 +1466,8 @@ mod tests {
             }]
         });
         let v4_data = super::v4_to_v5_backward(v5_data);
-        let agent_content = &v4_data["branches"][0]["conversation_history"][0]["content"]["AgentMessage"]["content"];
+        let agent_content = &v4_data["branches"][0]["conversation_history"][0]["content"]["AgentMessage"]
+            ["content"];
         assert!(agent_content.get("pronunciation_text").is_none());
         assert_eq!(agent_content["response"], "Hello");
     }

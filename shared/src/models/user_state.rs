@@ -6,9 +6,9 @@ use uuid::Uuid;
 use super::dialect::dialect_features;
 use super::{
     BranchSettings, ConversationBranch, ConversationContext, Dialect, DialectWithFeatures,
-    Formality, InitialUserSettings, Language, LanguageOption, LanguagePlan,
-    LearningGoal, LearningItem, LearningItemType, Message, MessageMetadata, PastLearningItems,
-    TeachingMode, UsageStats,
+    Formality, InitialUserSettings, Language, LanguageOption, LanguagePlan, LearningGoal,
+    LearningItem, LearningItemType, Message, MessageMetadata, PastLearningItems, TeachingMode,
+    UsageStats,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -394,7 +394,9 @@ impl UserState {
             past_translated: past_items.translated,
             past_exploratory: past_items.exploratory,
             user_gender: self.user_gender,
-            language_option: settings.language_options.for_language(self.selected_language),
+            language_option: settings
+                .language_options
+                .for_language(self.selected_language),
             dialect,
             formality: settings.formality,
             teaching_mode: settings.teaching_mode,
@@ -449,10 +451,7 @@ impl UserState {
     }
 
     pub fn has_branch(&self, id: Uuid) -> bool {
-        self
-            .branches
-            .iter()
-            .any(|branch| branch.id == id)
+        self.branches.iter().any(|branch| branch.id == id)
     }
 
     pub fn get_active_branch_messages(&self) -> Vec<&Message> {
