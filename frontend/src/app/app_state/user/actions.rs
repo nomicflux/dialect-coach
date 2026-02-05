@@ -32,6 +32,7 @@ pub enum LearningAction {
 #[derive(Clone, PartialEq, Debug)]
 pub enum BranchAction {
     Create(Uuid),
+    CreateNew,
     Switch(Uuid),
     Delete(Uuid),
     Rename(Uuid, String),

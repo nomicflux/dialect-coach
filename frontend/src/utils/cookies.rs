@@ -1,5 +1,5 @@
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlDocument, window};
+use web_sys::{HtmlDocument, console, window};
 
 const SESSION_COOKIE_NAME: &str = "dialect_coach_session";
 const MAX_AGE_SECONDS: i32 = 86400; // 24 hours
@@ -12,14 +12,22 @@ pub fn set_session_token(token: &str) {
             "{}={}; max-age={}; path=/; SameSite=Lax",
             SESSION_COOKIE_NAME, token, MAX_AGE_SECONDS
         );
-        html_doc.set_cookie(&cookie).ok();
+        if let Err(e) = html_doc.set_cookie(&cookie) {
+            console::error_1(&format!("[COOKIE] set_cookie failed: {:?}", e).into());
+        }
     }
 }
 
 pub fn get_session_token() -> Option<String> {
     let document = window()?.document()?;
     let html_doc = document.dyn_into::<HtmlDocument>().ok()?;
-    let cookies = html_doc.cookie().ok()?;
+    let cookies = match html_doc.cookie() {
+        Ok(c) => c,
+        Err(e) => {
+            console::error_1(&format!("[COOKIE] cookie() read failed: {:?}", e).into());
+            return None;
+        }
+    };
     parse_cookie(&cookies, SESSION_COOKIE_NAME)
 }
 
@@ -28,7 +36,9 @@ pub fn clear_session_token() {
         && let Ok(html_doc) = document.dyn_into::<HtmlDocument>()
     {
         let cookie = format!("{}=; max-age=0; path=/", SESSION_COOKIE_NAME);
-        html_doc.set_cookie(&cookie).ok();
+        if let Err(e) = html_doc.set_cookie(&cookie) {
+            console::error_1(&format!("[COOKIE] clear_session_token failed: {:?}", e).into());
+        }
     }
 }
 

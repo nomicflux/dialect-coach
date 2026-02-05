@@ -79,3 +79,24 @@
     font-size: 1.25em;
     line-height: 1;
 }
+
+/* Container for both buttons */
+.dashboard-buttons-container {
+    position: fixed;
+    top: var(--s-4);
+    left: var(--s-4);
+    z-index: 1000;
+    display: flex;
+    gap: var(--s-2);
+}
+
+/* Remove position from individual button since container handles it */
+.dashboard-float-container {
+    position: static;
+    z-index: auto;
+}
+
+/* New Conversation button - inherits from btn-dashboard-float */
+.btn-new-conversation {
+    /* Uses same base styles via btn-dashboard-float class */
+}

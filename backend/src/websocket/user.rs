@@ -164,7 +164,11 @@ pub async fn handle_validate_session(
 ) -> Result<(), ()> {
     let response = match crypto::jwt::validate_token(&token) {
         Ok(user_id) => {
+            tracing::info!("Session token valid for user_id: {}", user_id);
             let result = sign_in_user(state, user_id).await;
+            if result.is_err() {
+                tracing::error!("sign_in_user failed: {:?}", result);
+            }
             UserMessage::SignInResponse(Box::new(result))
         }
         Err(e) => {

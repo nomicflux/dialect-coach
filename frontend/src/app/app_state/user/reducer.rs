@@ -3,7 +3,7 @@ use super::actions::{
 };
 use super::helpers::*;
 use dialect_coach_shared::UserState;
-use dialect_coach_shared::models::ConversationBranch;
+use dialect_coach_shared::models::{BranchSettings, ConversationBranch};
 use dialect_coach_shared::{AgentAnalysis, LearningGoal, LearningItem, LearningItemType};
 
 pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
@@ -138,6 +138,21 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 plan_id,
                 parent_settings,
             );
+            let new_branch_id = new_branch.id;
+            Arc::make_mut(&mut next.branches).push(new_branch);
+            next.active_branch_id = new_branch_id;
+        }
+        CreateNew => {
+            let (dialect, settings) = next
+                .branches
+                .iter()
+                .find(|b| b.id == next.active_branch_id)
+                .map(|b| (b.dialect, b.settings.clone()))
+                .unwrap_or_else(|| (next.current_dialect(), BranchSettings::default()));
+
+            let plan_id = next.active_branch_plan_id();
+            let new_branch =
+                ConversationBranch::new(None, None, None, dialect, vec![], plan_id, settings);
             let new_branch_id = new_branch.id;
             Arc::make_mut(&mut next.branches).push(new_branch);
             next.active_branch_id = new_branch_id;
@@ -625,5 +640,36 @@ mod tests {
             updated_plan.status,
             dialect_coach_shared::models::PlanStatus::InProgress
         );
+    }
+
+    #[test]
+    fn test_create_new_branch_action() {
+        let mut state = UserState::new(Uuid::new_v4());
+        let current_branch_id = state.active_branch_id;
+        let original_dialect = state.active_branch_dialect();
+        let original_settings = state.active_branch_settings().clone();
+
+        // Dispatch CreateNew action
+        let action = BranchAction::CreateNew;
+        reduce_branch(&mut state, action);
+
+        // Verify a new branch was created
+        assert_eq!(state.branches.len(), 2);
+        // Verify we switched to the new branch
+        assert_ne!(state.active_branch_id, current_branch_id);
+
+        // Verify new branch has no parent message
+        let new_branch = state
+            .branches
+            .iter()
+            .find(|b| b.id == state.active_branch_id)
+            .unwrap();
+        assert_eq!(new_branch.parent_message_id, None);
+        assert_eq!(new_branch.leaf_message_id, None);
+        assert_eq!(new_branch.message_ids.len(), 0);
+
+        // Verify dialect and settings were copied from current branch
+        assert_eq!(new_branch.dialect, original_dialect);
+        assert_eq!(new_branch.settings, original_settings);
     }
 }

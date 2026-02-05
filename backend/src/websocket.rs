@@ -136,6 +136,10 @@ async fn process_user_message_ws(state: &AppState, text: &str, tx: &mpsc::Unboun
             let _ = user::handle_sign_in(state, username, password, tx).await;
         }
         Ok(UserMessage::ValidateSession { token }) => {
+            tracing::info!(
+                "Received ValidateSession request, token length: {}",
+                token.len()
+            );
             let _ = user::handle_validate_session(state, token, tx).await;
         }
         Ok(_) => {

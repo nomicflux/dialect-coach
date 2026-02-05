@@ -1,7 +1,5 @@
 use dialect_coach_shared::models::gamification::{GamificationStats, derive_gamification_stats};
-use dialect_coach_shared::models::{
-    ConversationBranch, Dialect, Formality, Message, TeachingMode,
-};
+use dialect_coach_shared::models::{ConversationBranch, Dialect, Formality, Message, TeachingMode};
 use dialect_coach_shared::{
     AgentAnalysis, Explained, Exploratory, LearningGoal, LearningItem, LearningItemType, Mistake,
     Translated, UserState,

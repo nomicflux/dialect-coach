@@ -20,7 +20,8 @@ use log::{error, info};
 use yew::prelude::*;
 
 use crate::components::{
-    DashboardButton, Header, LoadingScreen, MainContent, UserCreation, WelcomeScreen,
+    DashboardButton, Header, LoadingScreen, MainContent, NewConversationButton, UserCreation,
+    WelcomeScreen,
 };
 use crate::hooks::use_debounced_save;
 
@@ -92,10 +93,15 @@ pub fn app() -> Html {
                 class="app-main"
                 data-learning-panel-collapsed={if ui_state.learning_panel_collapsed { "true" } else { "false" }}
             >
-                <DashboardButton
-                    app_state={app_state.clone()}
-                    ui_state={ui_state.clone()}
-                />
+                <div class="dashboard-buttons-container">
+                    <DashboardButton
+                        app_state={app_state.clone()}
+                        ui_state={ui_state.clone()}
+                    />
+                    <NewConversationButton
+                        session={session.clone()}
+                    />
+                </div>
                 {if ui_state.is_signing_in {
                     html! { <LoadingScreen /> }
                 } else if ui_state.show_user_creation_page {
