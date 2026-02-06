@@ -154,9 +154,6 @@ async fn run_agents_with_analysis(
     );
 
     let user_text = msg_with_context.message.get_content();
-    let active_plan = user_state.active_plan();
-    let all_items = combine_plan_and_user_items(&user_state.learning_items, active_plan.as_ref());
-    let (m, e, t, x) = extract_learning_items(&all_items, dialect);
 
     let ((response_result, response_usage, learning_usage), (analysis_result, analysis_usage)) = tokio::join!(
         state.agent.generate_response(params),
@@ -165,10 +162,10 @@ async fn run_agents_with_analysis(
             .generate_analysis(crate::agent_service::analysis::AnalysisRequestParams {
                 dialect,
                 msg: &user_text,
-                mistakes: &m,
-                explained: &e,
-                translated: &t,
-                exploratory: &x,
+                mistakes: &msg_with_context.past_mistakes,
+                explained: &msg_with_context.past_explained,
+                translated: &msg_with_context.past_translated,
+                exploratory: &msg_with_context.past_exploratory,
                 language_option: &msg_with_context.language_option,
             })
     );
