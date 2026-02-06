@@ -76,25 +76,26 @@ pub async fn handle_agent_error(
 
 async fn handle_parallel_agents_success(
     state: &AppState,
-    user_state: dialect_coach_shared::UserState,
+    user_id: Uuid,
+    usage_stats: dialect_coach_shared::UsageStats,
     response_result: Result<AgentResponse, anyhow::Error>,
     analysis_result: Result<dialect_coach_shared::AgentAnalysis, anyhow::Error>,
-    usage_stats: &AgentUsageStats,
+    agent_usage: &AgentUsageStats,
     now: i64,
 ) -> Result<AgentResponse, anyhow::Error> {
     match (response_result, analysis_result) {
         (Ok(mut agent_response), Ok(analysis)) => {
             agent_response.analysis = Some(analysis);
-            user_state::update_and_save_usage(state, user_state, usage_stats, now).await;
+            user_state::update_and_save_usage(state, user_id, usage_stats, agent_usage, now).await;
             Ok(agent_response)
         }
         (Ok(agent_response), Err(e)) => {
             tracing::error!("Analysis agent failed: {}", e);
-            user_state::update_and_save_usage(state, user_state, usage_stats, now).await;
+            user_state::update_and_save_usage(state, user_id, usage_stats, agent_usage, now).await;
             Ok(agent_response)
         }
         (Err(e), _) => {
-            user_state::update_and_save_usage(state, user_state, usage_stats, now).await;
+            user_state::update_and_save_usage(state, user_id, usage_stats, agent_usage, now).await;
             Err(e)
         }
     }
@@ -141,7 +142,8 @@ async fn run_agents_with_analysis(
     params: &GenerateResponseParams<'_>,
     msg_with_context: &UserMessageWithContext,
     dialect: Dialect,
-    user_state: dialect_coach_shared::UserState,
+    user_id: Uuid,
+    usage_stats: dialect_coach_shared::UsageStats,
     now: i64,
 ) -> Result<AgentResponse, anyhow::Error> {
     // Use learning items from msg_with_context - frontend has already filtered by dialect
@@ -170,7 +172,7 @@ async fn run_agents_with_analysis(
             })
     );
 
-    let usage_stats = AgentUsageStats {
+    let agent_usage = AgentUsageStats {
         response_usage,
         learning_usage,
         analysis_usage,
@@ -178,10 +180,11 @@ async fn run_agents_with_analysis(
 
     handle_parallel_agents_success(
         state,
-        user_state,
+        user_id,
+        usage_stats,
         response_result,
         analysis_result,
-        &usage_stats,
+        &agent_usage,
         now,
     )
     .await
@@ -207,13 +210,14 @@ async fn run_agents_parallel(
         msg_with_context.past_translated.len(),
         msg_with_context.past_exploratory.len()
     );
-    let user_state = user_state::check_rate_limits(
+    let usage_stats = user_state::check_rate_limits(
         state,
         msg_with_context.user_id,
         teaching_mode,
         has_learning_items,
     )
     .await?;
+    let user_id = msg_with_context.user_id;
 
     let rag_config = RAGConfig::default_config();
     let now = chrono::Utc::now().timestamp();
@@ -227,10 +231,10 @@ async fn run_agents_parallel(
 
     if !has_learning_items {
         tracing::info!("Taking run_response_only path (no learning items)");
-        run_response_only(state, &params, user_state, now).await
+        run_response_only(state, &params, user_id, usage_stats, now).await
     } else {
         tracing::info!("Taking run_agents_with_analysis path (has learning items)");
-        run_agents_with_analysis(state, &params, msg_with_context, dialect, user_state, now).await
+        run_agents_with_analysis(state, &params, msg_with_context, dialect, user_id, usage_stats, now).await
     }
 }
 
@@ -458,16 +462,17 @@ pub async fn process_ai_action_request(
 async fn run_response_only(
     state: &AppState,
     params: &GenerateResponseParams<'_>,
-    user_state: dialect_coach_shared::UserState,
+    user_id: Uuid,
+    usage_stats: dialect_coach_shared::UsageStats,
     now: i64,
 ) -> Result<AgentResponse, anyhow::Error> {
     let (result, response_usage, learning_usage) = state.agent.generate_response(params).await;
-    let usage_stats = AgentUsageStats {
+    let agent_usage = AgentUsageStats {
         response_usage,
         learning_usage,
         analysis_usage: Vec::new(),
     };
-    user_state::update_and_save_usage(state, user_state, &usage_stats, now).await;
+    user_state::update_and_save_usage(state, user_id, usage_stats, &agent_usage, now).await;
     result
 }
 
@@ -578,7 +583,7 @@ async fn call_agent_for_conversation_action(
         }
     };
 
-    user_state::check_rate_limits(state, user_id, teaching_mode, false).await?;
+    let usage_stats = user_state::check_rate_limits(state, user_id, teaching_mode, false).await?;
 
     let instruction = build_action_context(action, user_state, dialect, formality, user_gender);
     let context_messages = match action {
@@ -657,13 +662,13 @@ async fn call_agent_for_conversation_action(
 
     let (result, response_usage) = state.agent.generate_response_for_action(&params).await;
 
-    let usage_stats = AgentUsageStats {
+    let agent_usage = AgentUsageStats {
         response_usage,
         learning_usage: Vec::new(),
         analysis_usage: Vec::new(),
     };
     let now = chrono::Utc::now().timestamp();
-    user_state::update_and_save_usage(state, user_state.clone(), &usage_stats, now).await;
+    user_state::update_and_save_usage(state, user_id, usage_stats, &agent_usage, now).await;
 
     result
 }

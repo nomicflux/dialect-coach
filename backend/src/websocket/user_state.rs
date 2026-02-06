@@ -229,42 +229,41 @@ pub fn create_metadata_from_user_state(
 
 pub async fn update_and_save_usage(
     state: &AppState,
-    mut user_state: dialect_coach_shared::UserState,
-    usage_stats: &AgentUsageStats,
+    user_id: Uuid,
+    mut usage_stats: dialect_coach_shared::UsageStats,
+    agent_usage: &AgentUsageStats,
     now: i64,
 ) {
-    let user_id = user_state.user_id;
-    log_response_usage(&user_id, &usage_stats.response_usage);
+    log_response_usage(&user_id, &agent_usage.response_usage);
     crate::usage_tracker::add_response_usage(
-        &mut user_state.usage_stats,
-        usage_stats.response_usage.clone(),
+        &mut usage_stats,
+        agent_usage.response_usage.clone(),
         now,
         24,
     );
 
-    if !usage_stats.learning_usage.is_empty() {
-        log_learning_usage(&user_id, &usage_stats.learning_usage);
+    if !agent_usage.learning_usage.is_empty() {
+        log_learning_usage(&user_id, &agent_usage.learning_usage);
         crate::usage_tracker::add_learning_usage(
-            &mut user_state.usage_stats,
-            usage_stats.learning_usage.clone(),
+            &mut usage_stats,
+            agent_usage.learning_usage.clone(),
             now,
             24,
         );
     }
 
-    if !usage_stats.analysis_usage.is_empty() {
-        log_analysis_usage(&user_id, &usage_stats.analysis_usage);
+    if !agent_usage.analysis_usage.is_empty() {
+        log_analysis_usage(&user_id, &agent_usage.analysis_usage);
         crate::usage_tracker::add_analysis_usage(
-            &mut user_state.usage_stats,
-            usage_stats.analysis_usage.clone(),
+            &mut usage_stats,
+            agent_usage.analysis_usage.clone(),
             now,
             24,
         );
     }
 
-    log_total_usage(&user_id, &user_state.usage_stats);
-    let usage_stats = user_state.usage_stats.clone();
-    save_usage_and_notify(state, user_state, usage_stats, user_id).await;
+    log_total_usage(&user_id, &usage_stats);
+    save_usage_and_notify(state, usage_stats, user_id).await;
 }
 
 fn log_response_usage(
@@ -361,7 +360,6 @@ pub fn log_branch_metadata(event: &str, state: &dialect_coach_shared::UserState)
 
 async fn save_usage_and_notify(
     state: &AppState,
-    _user_state: dialect_coach_shared::UserState,
     usage_stats: dialect_coach_shared::UsageStats,
     user_id: Uuid,
 ) {
@@ -410,12 +408,12 @@ pub async fn check_rate_limits(
     user_id: Uuid,
     teaching_mode: dialect_coach_shared::TeachingMode,
     needs_analysis: bool,
-) -> Result<dialect_coach_shared::UserState, anyhow::Error> {
-    let user_state = state
+) -> Result<dialect_coach_shared::UsageStats, anyhow::Error> {
+    let usage_stats = state
         .user_persistence
-        .load(user_id)
+        .load_usage_stats(user_id)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("User state not found"))?;
+        .ok_or_else(|| anyhow::anyhow!("Usage stats not found"))?;
 
     if !state.rate_limiter.anthropic_has_quota().await {
         return Err(anyhow::anyhow!("Anthropic quota exceeded"));
@@ -423,7 +421,7 @@ pub async fn check_rate_limits(
 
     if !state
         .rate_limiter
-        .can_make_response_call(&user_state.usage_stats, &state.rate_limit_config)
+        .can_make_response_call(&usage_stats, &state.rate_limit_config)
     {
         return Err(anyhow::anyhow!("Response agent rate limit exceeded"));
     }
@@ -431,12 +429,12 @@ pub async fn check_rate_limits(
     if should_check_analysis_limit(teaching_mode, needs_analysis)
         && !state
             .rate_limiter
-            .can_make_analysis_call(&user_state.usage_stats, &state.rate_limit_config)
+            .can_make_analysis_call(&usage_stats, &state.rate_limit_config)
     {
         return Err(anyhow::anyhow!("Analysis agent rate limit exceeded"));
     }
 
-    Ok(user_state)
+    Ok(usage_stats)
 }
 
 pub fn create_load_response(user_id: Uuid, user_state: Option<UserState>) -> UserStateMessage {
