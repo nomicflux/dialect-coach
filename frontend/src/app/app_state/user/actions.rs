@@ -87,7 +87,6 @@ pub enum UserDomainAction {
     Branch(BranchAction),
     Plan(PlanAction),
     Settings(SettingsAction),
-    UsageStats(UsageStats),
 }
 
 impl From<UserDomainAction> for UserStateAction {
@@ -98,7 +97,6 @@ impl From<UserDomainAction> for UserStateAction {
             UserDomainAction::Branch(a) => UserStateAction::Branch(a),
             UserDomainAction::Plan(a) => UserStateAction::Plan(a),
             UserDomainAction::Settings(a) => UserStateAction::Settings(a),
-            UserDomainAction::UsageStats(a) => UserStateAction::UpdateUsageStats(a),
         }
     }
 }

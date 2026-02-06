@@ -12,6 +12,7 @@ pub enum SessionAction {
     Domain(UserDomainAction),
     Saved,
     MarkDirty,
+    UpdateUsageStats(dialect_coach_shared::UsageStats),
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -63,6 +64,19 @@ impl Reducible for SessionState {
                 needs_save: self.user.is_some(),
             }
             .into(),
+            SessionAction::UpdateUsageStats(stats) => {
+                if let Some(user) = &self.user {
+                    let mut next = user.clone();
+                    next.usage_stats = stats;
+                    SessionState {
+                        user: Some(next),
+                        needs_save: self.needs_save,
+                    }
+                    .into()
+                } else {
+                    self
+                }
+            }
         }
     }
 }

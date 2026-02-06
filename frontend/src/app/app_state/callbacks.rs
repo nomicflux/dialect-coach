@@ -1,4 +1,3 @@
-use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{AppState, AppStateAction, SessionAction, SessionState};
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::Message;
@@ -54,8 +53,6 @@ pub fn on_user_state_usage_stats_update(
 ) -> Callback<dialect_coach_shared::UsageStats> {
     Callback::from(move |usage_stats: dialect_coach_shared::UsageStats| {
         info!("Received usage stats update");
-        session.dispatch(SessionAction::Domain(UserDomainAction::UsageStats(
-            usage_stats,
-        )));
+        session.dispatch(SessionAction::UpdateUsageStats(usage_stats));
     })
 }

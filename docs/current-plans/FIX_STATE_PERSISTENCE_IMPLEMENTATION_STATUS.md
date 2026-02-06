@@ -159,4 +159,4 @@ Note: `UserStateAction::UpdateUsageStats` stays in the enum and reducer - it's u
 ## Status
 
 - [x] Phase 1: Complete — PendingSaveQueue deleted, MarkDirty added, all tests pass, clippy clean
-- [ ] Phase 2: Not started
+- [x] Phase 2: Complete — UsageStats routed through non-save path, all tests pass, clippy clean
