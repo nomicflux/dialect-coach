@@ -232,7 +232,16 @@ async fn run_agents_parallel(
         run_response_only(state, &params, user_id, usage_stats, now).await
     } else {
         tracing::info!("Taking run_agents_with_analysis path (has learning items)");
-        run_agents_with_analysis(state, &params, msg_with_context, dialect, user_id, usage_stats, now).await
+        run_agents_with_analysis(
+            state,
+            &params,
+            msg_with_context,
+            dialect,
+            user_id,
+            usage_stats,
+            now,
+        )
+        .await
     }
 }
 
