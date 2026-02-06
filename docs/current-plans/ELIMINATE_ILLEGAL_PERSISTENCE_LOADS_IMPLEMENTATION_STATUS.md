@@ -89,9 +89,11 @@ This phase specifies **kiss-code-generator**. You MUST launch that subagent. You
 
 ---
 
-## Phase 2: check_rate_limits Returns UsageStats Only
+## Phase 2: check_rate_limits Returns UsageStats Only — COMPLETE
 
+**Status**: COMPLETE (commit 8adae69c)
 **Subagent**: kiss-code-generator
+**Result**: `check_rate_limits` now uses `load_usage_stats` and returns `UsageStats`. `update_and_save_usage` takes `(Uuid, UsageStats)`. `save_usage_and_notify` no longer takes `UserState`. All callers in agents.rs updated. 271 tests pass, 0 clippy warnings.
 
 ### Code Style Checklist
 - [ ] Planning Documentation: This document
@@ -245,6 +247,23 @@ This phase specifies **kiss-code-generator**. You MUST launch that subagent. You
 ### Deliverables
 StartConversation and ContinueBranch are fully self-contained. `call_agent_for_conversation_action` has zero dependency on loaded UserState. Five dead functions removed.
 
+### Phase 3 Completion Status — DONE
+
+**All changes implemented:**
+1. `shared/src/models/message.rs`: Added `context_messages: Vec<Message>` to `ConversationContext`; changed `StartConversation` to carry `Box<ConversationContext>`; updated test.
+2. `shared/src/models/user_state.rs`: `build_action_context` now takes `context_messages: Vec<Message>` parameter.
+3. `frontend/src/app/callbacks.rs`: `on_auto_start` sends `StartConversation { context }` with empty messages; `on_continue_branch` builds context_messages up to parent and passes to `build_action_context`.
+4. `backend/src/websocket/agents.rs`:
+   - Replaced `build_action_context` with `build_conversation_instruction` (no user_state) and `build_explain_translate_instruction` (still uses user_state for Phase 4).
+   - Split `process_ai_action_request` into `process_conversation_action` (uses context from request, no user_state) and `process_explain_translate_action` (still loads user_state for now).
+   - `call_agent_for_conversation_action` no longer takes `user_state`; extracts all data from `ConversationContext`.
+   - **Deleted 7 items**: `clone_messages_up_to_index`, `get_branch_messages_up_to`, `extract_learning_items`, `get_item_id`, `combine_plan_and_user_items`, `test_extract_learning_items`, `test_combine_plan_and_user_items`.
+   - Removed `HashSet`, `LearningItem`, `LearningItemType`, `LanguagePlan` imports.
+
+**Verification:**
+- `cargo test`: 220 backend + all shared + all frontend tests pass (100%)
+- `cargo clippy`: zero warnings
+
 ### Phase Completion Gate — MANDATORY
 At the end of this phase, the orchestrating agent MUST execute these steps IN ORDER:
 1. `cargo test` — 100% pass rate required. If ANY test fails: FIX IT before proceeding.
@@ -342,6 +361,7 @@ This phase specifies **modular-builder**. You MUST launch that subagent. You MUS
 | 3 | `get_item_id` | agents.rs | Only used in combine_plan_and_user_items |
 | 3 | `get_branch_messages_up_to` | agents.rs | Frontend sends history |
 | 3 | `clone_messages_up_to_index` | agents.rs | Only used in get_branch_messages_up_to |
+| 3 | `build_action_context` (backend) | agents.rs | Replaced by `build_conversation_instruction` + `build_explain_translate_instruction` |
 | 4 | `load_user_state_for_action` | user_state.rs | Illegal persistence load eliminated |
 | 4 | `create_metadata_from_user_state` | user_state.rs | Replaced by context-based metadata |
 | 4 | `TranslateMessage` variant + handler | message.rs, agents.rs | Dead code (never sent by frontend) |

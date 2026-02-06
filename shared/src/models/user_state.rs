@@ -378,7 +378,7 @@ impl UserState {
         items
     }
 
-    pub fn build_action_context(&self) -> ConversationContext {
+    pub fn build_action_context(&self, context_messages: Vec<Message>) -> ConversationContext {
         let dialect = self.active_branch_dialect();
         let settings = self.active_branch_settings();
         let past_items = self.get_past_learning_items(&dialect);
@@ -401,6 +401,7 @@ impl UserState {
             formality: settings.formality,
             teaching_mode: settings.teaching_mode,
             language_level: settings.language_level,
+            context_messages,
         }
     }
 

@@ -210,8 +210,12 @@ pub fn on_auto_start(
 
         info!("Sending auto-start conversation request");
 
+        let context = state.build_action_context(vec![]);
+
         match app_state.ws_service.borrow().send_ai_action(
-            AIActionRequest::StartConversation,
+            AIActionRequest::StartConversation {
+                context: Box::new(context),
+            },
             session_id,
             user_id,
         ) {
@@ -245,8 +249,13 @@ pub fn on_continue_branch(
 
         info!("Sending continue branch request");
 
-        // Use shared logic to build context
-        let context = state.build_action_context();
+        let all_msgs = state.get_active_branch_messages();
+        let parent_idx = all_msgs.iter().position(|m| m.id == parent_message_id);
+        let context_messages: Vec<dialect_coach_shared::Message> = match parent_idx {
+            Some(idx) => all_msgs[..=idx].iter().map(|m| (*m).clone()).collect(),
+            None => vec![],
+        };
+        let context = state.build_action_context(context_messages);
 
         match app_state.ws_service.borrow().send_ai_action(
             AIActionRequest::ContinueBranch {

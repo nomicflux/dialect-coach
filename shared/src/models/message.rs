@@ -56,11 +56,14 @@ pub struct ConversationContext {
     pub formality: Formality,
     pub teaching_mode: TeachingMode,
     pub language_level: super::LanguageLevel,
+    pub context_messages: Vec<Message>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AIActionRequest {
-    StartConversation,
+    StartConversation {
+        context: Box<ConversationContext>,
+    },
     ContinueBranch {
         parent_message_id: Uuid,
         context: Box<ConversationContext>,
@@ -807,7 +810,24 @@ mod tests {
 
     #[test]
     fn test_ai_action_request_serialization() {
-        let action = AIActionRequest::StartConversation;
+        let context = ConversationContext {
+            active_plan: None,
+            learning_goals: vec![],
+            past_mistakes: vec![],
+            past_explained: vec![],
+            past_translated: vec![],
+            past_exploratory: vec![],
+            user_gender: UserGender::NonBinary,
+            language_option: None,
+            dialect: Dialect::SpanishArgentinian,
+            formality: Formality::Informal,
+            teaching_mode: TeachingMode::Immersive,
+            language_level: LanguageLevel::Cefr(CefrLevel::B1),
+            context_messages: vec![],
+        };
+        let action = AIActionRequest::StartConversation {
+            context: Box::new(context),
+        };
         let json = serde_json::to_string(&action).unwrap();
         assert!(json.contains("StartConversation"));
 
