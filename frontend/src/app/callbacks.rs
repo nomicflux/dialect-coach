@@ -294,13 +294,29 @@ pub fn on_explain_message(
             }
         };
 
+        let message_content = match state.msg_by_id(message_id) {
+            Some(msg) => msg.get_content().to_string(),
+            None => {
+                error!("Message not found for explain");
+                return;
+            }
+        };
+
+        let settings = state.active_branch_settings();
+        let dialect = state.active_branch_dialect();
+        let formality = settings.formality;
+
         let session_id = app_state.session_id().unwrap_or_else(Uuid::new_v4);
         let user_id = state.user_id;
 
         info!("Sending explain message request");
 
         match app_state.ws_service.borrow().send_ai_action(
-            AIActionRequest::ExplainMessage { message_id },
+            AIActionRequest::ExplainMessage {
+                message_content,
+                dialect,
+                formality,
+            },
             session_id,
             user_id,
         ) {

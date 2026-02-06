@@ -69,10 +69,9 @@ pub enum AIActionRequest {
         context: Box<ConversationContext>,
     },
     ExplainMessage {
-        message_id: Uuid,
-    },
-    TranslateMessage {
-        message_id: Uuid,
+        message_content: String,
+        dialect: Dialect,
+        formality: Formality,
     },
 }
 
@@ -832,7 +831,9 @@ mod tests {
         assert!(json.contains("StartConversation"));
 
         let action = AIActionRequest::ExplainMessage {
-            message_id: Uuid::new_v4(),
+            message_content: "Hola, ¿cómo estás?".to_string(),
+            dialect: Dialect::SpanishArgentinian,
+            formality: Formality::Informal,
         };
         let json = serde_json::to_string(&action).unwrap();
         assert!(json.contains("ExplainMessage"));

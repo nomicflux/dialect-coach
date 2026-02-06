@@ -5,7 +5,7 @@ use axum::{
     },
     response::Response,
 };
-use dialect_coach_shared::{AgentUsageStats, MessageMetadata, UserState, UserStateMessage};
+use dialect_coach_shared::{AgentUsageStats, UserState, UserStateMessage};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -200,31 +200,6 @@ async fn handle_user_state_socket(socket: WebSocket, state: AppState) {
 
     let _ = send_task.await;
     tracing::info!("User state WebSocket connection closed: {}", connection_id);
-}
-
-pub async fn load_user_state_for_action(state: &AppState, user_id: Uuid) -> Option<UserState> {
-    match state.user_persistence.load(user_id).await {
-        Ok(Some(us)) => Some(us),
-        Ok(None) => None,
-        Err(e) => {
-            tracing::error!(user_id = %user_id, "Failed to load user state: {}", e);
-            None
-        }
-    }
-}
-
-pub fn create_metadata_from_user_state(
-    user_state: &UserState,
-    session_id: Uuid,
-) -> MessageMetadata {
-    let settings = user_state.active_branch_settings();
-    MessageMetadata::at_now(
-        settings.formality,
-        settings.teaching_mode,
-        user_state.current_dialect().language(),
-        user_state.current_dialect(),
-        session_id,
-    )
 }
 
 pub async fn update_and_save_usage(

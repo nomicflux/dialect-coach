@@ -277,9 +277,11 @@ This phase specifies **modular-builder**. You MUST launch that subagent. You MUS
 
 ---
 
-## Phase 4: ExplainMessage Carries Content; Remove All Remaining Illegal Loads
+## Phase 4: ExplainMessage Carries Content; Remove All Remaining Illegal Loads — COMPLETE
 
+**Status**: COMPLETE (commit ef9d4ea4)
 **Subagent**: modular-builder
+**Result**: `ExplainMessage` now carries `message_content`, `dialect`, `formality`. `TranslateMessage` variant deleted (dead code). `load_user_state_for_action` deleted. `create_metadata_from_user_state` deleted. `build_explain_translate_instruction` replaced by `build_explain_instruction`. `process_explain_translate_action` deleted. All tests pass, 0 clippy warnings.
 
 ### Code Style Checklist
 - [ ] Planning Documentation: This document

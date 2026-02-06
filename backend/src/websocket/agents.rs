@@ -8,7 +8,7 @@ use uuid::Uuid;
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::{
     AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Gender, Message, MessageContent,
-    MessageMetadata, UserGender, UserMessageWithContext, UserState,
+    MessageMetadata, UserGender, UserMessageWithContext,
 };
 
 use crate::rag_config::RAGConfig;
@@ -364,42 +364,15 @@ fn build_conversation_instruction(
     }
 }
 
-fn build_explain_translate_instruction(
-    action: &AIActionRequest,
-    user_state: &UserState,
-    dialect: Dialect,
-) -> String {
+fn build_explain_instruction(message_content: &str, dialect: Dialect) -> String {
     let dialect_name = dialect.name();
-    match action {
-        AIActionRequest::ExplainMessage { message_id } => {
-            let message: Option<Message> = user_state.msg_by_id(*message_id);
-            format!(
-                r#"[System: You are rewording the following prompt in {} for a beginner.
+    format!(
+        r#"[System: You are rewording the following prompt in {} for a beginner.
 Reword this response in simpler terms, using fewer and more basic words.
 Focus on ease of understanding for a beginning learner; do not change words if they are already basic enough.]
 {}"#,
-                dialect_name,
-                message
-                    .iter()
-                    .fold("[Ignore, no message given]", |_, msg| msg.as_str())
-            )
-        }
-        AIActionRequest::TranslateMessage { message_id } => {
-            let message: Option<Message> = user_state.msg_by_id(*message_id);
-            format!(
-                r#"[System: Provide phrase-by-phrase translation of your previous response.
-Format with newlines between phrases, like such:\n\
-- <target phrase>: <English translation>\n\
-- <next target phrase>: <next English transaction>\n
-]
-{}"#,
-                message
-                    .iter()
-                    .fold("[Ignore, no message given]", |_, msg| msg.as_str())
-            )
-        }
-        _ => unreachable!("Only explain/translate actions handled here"),
-    }
+        dialect_name, message_content
+    )
 }
 
 pub async fn process_ai_action_request(
@@ -416,8 +389,21 @@ pub async fn process_ai_action_request(
         | AIActionRequest::ContinueBranch { context, .. } => {
             process_conversation_action(state, &action, context, user_id, session_id, tx).await
         }
-        AIActionRequest::ExplainMessage { .. } | AIActionRequest::TranslateMessage { .. } => {
-            process_explain_translate_action(state, &action, user_id, session_id, tx).await
+        AIActionRequest::ExplainMessage {
+            message_content,
+            dialect,
+            formality,
+        } => {
+            let instruction = build_explain_instruction(message_content, *dialect);
+            let metadata = MessageMetadata::at_now(
+                *formality,
+                dialect_coach_shared::TeachingMode::Immersive,
+                dialect.language(),
+                *dialect,
+                session_id,
+            );
+            let prompt_message = Message::user_message(instruction, metadata, None);
+            simple_call_and_respond(state, &prompt_message, tx).await
         }
     }
 }
@@ -458,27 +444,6 @@ async fn process_conversation_action(
             Ok(())
         }
     }
-}
-
-async fn process_explain_translate_action(
-    state: &AppState,
-    action: &AIActionRequest,
-    user_id: Uuid,
-    session_id: Uuid,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
-    let user_state = match user_state::load_user_state_for_action(state, user_id).await {
-        Some(us) => us,
-        None => {
-            tracing::error!(user_id = %user_id, "User state not found for AI action");
-            return Err(());
-        }
-    };
-    let dialect = user_state.current_dialect();
-    let instruction = build_explain_translate_instruction(action, &user_state, dialect);
-    let metadata = user_state::create_metadata_from_user_state(&user_state, session_id);
-    let prompt_message = Message::user_message(instruction, metadata, None);
-    simple_call_and_respond(state, &prompt_message, tx).await
 }
 
 async fn run_response_only(
