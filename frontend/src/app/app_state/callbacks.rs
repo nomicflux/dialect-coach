@@ -13,9 +13,7 @@ pub fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Mess
     })
 }
 
-pub fn on_user_state_ws_open(
-    session: UseReducerHandle<SessionState>,
-) -> Callback<()> {
+pub fn on_user_state_ws_open(session: UseReducerHandle<SessionState>) -> Callback<()> {
     Callback::from(move |_| {
         info!("User state WebSocket opened");
         session.dispatch(SessionAction::MarkDirty);
