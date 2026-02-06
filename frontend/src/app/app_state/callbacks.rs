@@ -3,7 +3,6 @@ use crate::app::app_state::{AppState, AppStateAction, SessionAction, SessionStat
 use dialect_coach_shared::UserState;
 use dialect_coach_shared::models::Message;
 use log::{error, info};
-use uuid::Uuid;
 use yew::prelude::*;
 
 pub fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Message> {
@@ -16,14 +15,11 @@ pub fn on_replay_message(app_state: UseReducerHandle<AppState>) -> Callback<Mess
 }
 
 pub fn on_user_state_ws_open(
-    app_state: UseReducerHandle<AppState>,
-    _user_id: Uuid,
+    session: UseReducerHandle<SessionState>,
 ) -> Callback<()> {
     Callback::from(move |_| {
         info!("User state WebSocket opened");
-        // State is loaded via SetUser at sign-in, NOT here.
-        // Only retry pending saves on reconnection.
-        app_state.dispatch(AppStateAction::RetryPendingSaves);
+        session.dispatch(SessionAction::MarkDirty);
     })
 }
 

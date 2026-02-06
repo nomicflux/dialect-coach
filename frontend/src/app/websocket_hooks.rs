@@ -196,11 +196,6 @@ pub fn use_chat_websocket(
                         })
                         .forget();
                     }
-
-                    // Retry pending saves when connected
-                    if matches!(new_state, ConnectionState::Connected) {
-                        asc.dispatch(AppStateAction::RetryPendingSaves);
-                    }
                 }));
 
                 // Connect
@@ -237,10 +232,9 @@ pub fn use_user_state_websocket(
                 "User authenticated - initializing user state WebSocket connection for user: {}",
                 user.id
             );
-            let user_id = user.id;
             let mut ws = ws_service_clone.borrow_mut();
 
-            ws.set_on_open(on_user_state_ws_open(app_state.clone(), user_id));
+            ws.set_on_open(on_user_state_ws_open(session.clone()));
             ws.set_on_load_response(on_user_state_load_response(
                 app_state.clone(),
                 session.clone(),

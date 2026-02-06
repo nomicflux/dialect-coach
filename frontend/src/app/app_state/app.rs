@@ -1,5 +1,5 @@
 use dialect_coach_shared::models::dialect::dialect_features;
-use dialect_coach_shared::models::{Message, User, UserState};
+use dialect_coach_shared::models::{Message, User};
 use log::error;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -9,7 +9,6 @@ use yew::prelude::*;
 use crate::services::enrichment_service::EnrichmentService;
 use crate::services::grammar::GrammarService;
 use crate::services::plan_service::PlanService;
-use crate::services::save_queue::PendingSaveQueue;
 use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
 use crate::services::user_state_websocket::UserStateWebSocketService;
@@ -23,8 +22,6 @@ pub enum AppStateAction {
     ClearError,
     SetConnectionState(ConnectionState),
     Speak(Message),
-    QueuePendingSave(Box<UserState>),
-    RetryPendingSaves,
     SetUser(User),
     ClearUser,
     LoadUserState(Uuid),
@@ -60,7 +57,6 @@ pub struct AppState {
     pub grammar_service: Rc<GrammarService>,
     pub enrichment_service: Rc<EnrichmentService>,
     pub plan_service: Rc<PlanService>,
-    pub save_queue: Rc<PendingSaveQueue>,
     pub autoplay_enabled: bool,
     pub rate_limit_state: RateLimitState,
     pub pending_initial_settings: Option<dialect_coach_shared::InitialUserSettings>,
@@ -85,7 +81,6 @@ impl PartialEq for AppState {
             && Rc::ptr_eq(&self.grammar_service, &other.grammar_service)
             && Rc::ptr_eq(&self.enrichment_service, &other.enrichment_service)
             && Rc::ptr_eq(&self.plan_service, &other.plan_service)
-            && Rc::ptr_eq(&self.save_queue, &other.save_queue)
             && self.autoplay_enabled == other.autoplay_enabled
             && self.rate_limit_state == other.rate_limit_state
             && self.pending_initial_settings == other.pending_initial_settings
@@ -115,7 +110,6 @@ impl Default for AppState {
             grammar_service: Rc::new(GrammarService::new(&base_url)),
             enrichment_service: Rc::new(EnrichmentService::new(&base_url)),
             plan_service: Rc::new(PlanService::new(&base_url)),
-            save_queue: Rc::new(PendingSaveQueue::new()),
             autoplay_enabled: false,
             rate_limit_state: RateLimitState::default(),
             pending_initial_settings: None,
@@ -159,15 +153,6 @@ impl AppState {
                         error!("Failed to replay message with TTS: {}", e);
                     }
                 });
-            }
-            AppStateAction::QueuePendingSave(state) => {
-                next.save_queue.enqueue(*state);
-            }
-            AppStateAction::RetryPendingSaves => {
-                let ws_service = next.user_state_ws_service.borrow();
-                if let Err(e) = next.save_queue.retry_all(&ws_service) {
-                    error!("Failed to retry pending saves: {}", e);
-                }
             }
             AppStateAction::SetUser(user) => {
                 load_user_state(&next.user_state_ws_service, user.id);

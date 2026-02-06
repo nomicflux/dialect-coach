@@ -11,6 +11,7 @@ pub enum SessionAction {
     UpdateUser(UserState),
     Domain(UserDomainAction),
     Saved,
+    MarkDirty,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -55,6 +56,11 @@ impl Reducible for SessionState {
             SessionAction::Saved => SessionState {
                 user: self.user.clone(),
                 needs_save: false,
+            }
+            .into(),
+            SessionAction::MarkDirty => SessionState {
+                user: self.user.clone(),
+                needs_save: self.user.is_some(),
             }
             .into(),
         }
