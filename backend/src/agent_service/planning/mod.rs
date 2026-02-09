@@ -188,7 +188,7 @@ steps:
         let mock_agent = Arc::new(MockAgent);
         let config = crate::agent_service::provider::ProviderAgentConfig::openai(
             "test".to_string(),
-            None,
+            "gpt-4o".to_string(),
             200,
         );
         let generator = PlanGenerator::new(mock_agent, config);

@@ -42,7 +42,8 @@ fn load_channel_agent(
             let api_key = channel_api_key
                 .or_else(|| env::var("ANTHROPIC_API_KEY").ok())
                 .ok_or_else(|| anyhow!("Missing API key for {} channel", channel_name))?;
-            let model = channel.model.clone().or_else(|| llm_config.anthropic.model.clone());
+            let model = channel.model.clone()
+                .unwrap_or_else(|| llm_config.anthropic.model.clone());
             let config = ProviderAgentConfig::anthropic(api_key, model, reasoning_budget);
             Ok((Arc::from(CompletionAgentFactory::build(config.clone())?), config))
         }
@@ -50,7 +51,8 @@ fn load_channel_agent(
             let api_key = channel_api_key
                 .or_else(|| env::var("OPENAI_API_KEY").ok())
                 .ok_or_else(|| anyhow!("Missing API key for {} channel", channel_name))?;
-            let model = channel.model.clone().or_else(|| llm_config.openai.model.clone());
+            let model = channel.model.clone()
+                .unwrap_or_else(|| llm_config.openai.model.clone());
             let config = ProviderAgentConfig::openai(api_key, model, reasoning_budget);
             Ok((Arc::from(CompletionAgentFactory::build(config.clone())?), config))
         }
@@ -231,11 +233,11 @@ mod tests {
     fn make_llm_config() -> LlmConfig {
         LlmConfig {
             anthropic: AnthropicProviderConfig {
-                model: None,
+                model: "claude-haiku-4-5".to_string(),
                 org_id: None,
             },
             openai: OpenAiProviderConfig {
-                model: None,
+                model: "gpt-4o".to_string(),
                 reasoning_budget: 512,
             },
             channels: make_channels_config("anthropic"),

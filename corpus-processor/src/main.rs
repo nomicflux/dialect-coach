@@ -563,11 +563,11 @@ mod tests {
             },
             llm: dialect_coach_shared::config::LlmConfig {
                 anthropic: dialect_coach_shared::config::AnthropicProviderConfig {
-                    model: None,
+                    model: "claude-haiku-4-5".to_string(),
                     org_id: None,
                 },
                 openai: dialect_coach_shared::config::OpenAiProviderConfig {
-                    model: None,
+                    model: "gpt-4o".to_string(),
                     reasoning_budget: 512,
                 },
                 channels: dialect_coach_shared::config::ChannelsConfig {

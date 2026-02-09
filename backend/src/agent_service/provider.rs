@@ -8,9 +8,9 @@ use rig::completion::{
 };
 use rig::one_or_many::OneOrMany;
 use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
-use rig::providers::anthropic::{CLAUDE_3_5_SONNET, Client as AnthropicClient};
+use rig::providers::anthropic::{Client as AnthropicClient};
 use rig::providers::openai::responses_api::ResponsesCompletionModel as OpenAICompletionModel;
-use rig::providers::openai::{Client as OpenAIClient, GPT_4O};
+use rig::providers::openai::{Client as OpenAIClient};
 
 pub const ANTHROPIC_PROVIDER: &str = "anthropic";
 pub const OPENAI_PROVIDER: &str = "openai";
@@ -75,19 +75,19 @@ pub struct ProviderAgentConfig {
 }
 
 impl ProviderAgentConfig {
-    pub fn anthropic(api_key: String, model: Option<String>, reasoning_budget: u32) -> Self {
+    pub fn anthropic(api_key: String, model: String, reasoning_budget: u32) -> Self {
         ProviderAgentConfig {
             provider: ANTHROPIC_PROVIDER.to_string(),
-            model: model.unwrap_or_else(|| CLAUDE_3_5_SONNET.to_string()),
+            model,
             api_key,
             reasoning_budget,
         }
     }
 
-    pub fn openai(api_key: String, model: Option<String>, reasoning_budget: u32) -> Self {
+    pub fn openai(api_key: String, model: String, reasoning_budget: u32) -> Self {
         ProviderAgentConfig {
             provider: OPENAI_PROVIDER.to_string(),
-            model: model.unwrap_or_else(|| GPT_4O.to_string()),
+            model,
             api_key,
             reasoning_budget,
         }
@@ -305,19 +305,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_provider_agent_config_openai_default_model() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None, 200);
-        assert_eq!(config.provider, OPENAI_PROVIDER);
-        assert_eq!(config.model, GPT_4O);
-        assert_eq!(config.api_key, "sk-test-key");
-        assert_eq!(config.reasoning_budget, 200);
-    }
-
-    #[test]
     fn test_provider_agent_config_openai_custom_model() {
         let config = ProviderAgentConfig::openai(
             "sk-test-key".to_string(),
-            Some("gpt-4-turbo".to_string()),
+            "gpt-4-turbo".to_string(),
             300,
         );
         assert_eq!(config.provider, OPENAI_PROVIDER);
@@ -327,19 +318,10 @@ mod tests {
     }
 
     #[test]
-    fn test_provider_agent_config_anthropic_default_model() {
-        let config = ProviderAgentConfig::anthropic("test-key".to_string(), None, 200);
-        assert_eq!(config.provider, ANTHROPIC_PROVIDER);
-        assert_eq!(config.model, CLAUDE_3_5_SONNET);
-        assert_eq!(config.api_key, "test-key");
-        assert_eq!(config.reasoning_budget, 200);
-    }
-
-    #[test]
     fn test_provider_agent_config_anthropic_custom_model() {
         let config = ProviderAgentConfig::anthropic(
             "test-key".to_string(),
-            Some("claude-3-opus".to_string()),
+            "claude-3-opus".to_string(),
             250,
         );
         assert_eq!(config.provider, ANTHROPIC_PROVIDER);
@@ -350,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_completion_agent_factory_anthropic() {
-        let config = ProviderAgentConfig::anthropic("test-key".to_string(), None, 200);
+        let config = ProviderAgentConfig::anthropic("test-key".to_string(), "claude-sonnet-4-5".to_string(), 200);
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_ok());
         let agent = result.unwrap();
@@ -359,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_completion_agent_factory_openai() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None, 200);
+        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 200);
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_ok());
         let agent = result.unwrap();
@@ -384,7 +366,7 @@ mod tests {
 
     #[test]
     fn test_unified_completion_agent_uses_reasoning_budget() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None, 350);
+        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 350);
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_ok());
         let _agent = result.unwrap();
@@ -392,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_provider_agent_config_stores_reasoning_budget() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), None, 275);
+        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 275);
         assert_eq!(config.reasoning_budget, 275);
     }
 }

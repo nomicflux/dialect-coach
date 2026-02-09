@@ -36,13 +36,13 @@ pub struct LlmConfig {
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct AnthropicProviderConfig {
-    pub model: Option<String>,
+    pub model: String,
     pub org_id: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct OpenAiProviderConfig {
-    pub model: Option<String>,
+    pub model: String,
     pub reasoning_budget: u32,
 }
 
@@ -116,7 +116,7 @@ llm:
     model: "claude-haiku-4-5"
     org_id: ~
   openai:
-    model: ~
+    model: "gpt-4o"
     reasoning_budget: 512
   channels:
     response:
@@ -165,7 +165,6 @@ rate_limits:
     fn test_optional_fields_deserialize_as_none() {
         let config: AppConfig = serde_yaml::from_str(TEST_YAML).unwrap();
         assert!(config.llm.anthropic.org_id.is_none());
-        assert!(config.llm.openai.model.is_none());
         assert!(config.llm.channels.response.model.is_none());
         assert!(config.llm.channels.response.reasoning_budget.is_none());
     }
@@ -216,9 +215,9 @@ rate_limits:
   window_hours: 12
 "#;
         let config: AppConfig = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(config.llm.anthropic.model.as_deref(), Some("claude-sonnet-4-5"));
+        assert_eq!(config.llm.anthropic.model, "claude-sonnet-4-5");
         assert_eq!(config.llm.anthropic.org_id.as_deref(), Some("org-123"));
-        assert_eq!(config.llm.openai.model.as_deref(), Some("gpt-4o"));
+        assert_eq!(config.llm.openai.model, "gpt-4o");
         assert_eq!(config.llm.channels.response.model.as_deref(), Some("gpt-4o-mini"));
         assert_eq!(config.llm.channels.response.reasoning_budget, Some(256));
     }
