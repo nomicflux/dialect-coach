@@ -1,12 +1,12 @@
 use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
 use dialect_coach_shared::models::plan::{LanguagePlan, PlanStep, StepType};
-use dialect_coach_shared::models::{LanguageOption, needs_pronunciation_text};
+use dialect_coach_shared::models::LanguageOption;
 use dialect_coach_shared::{
     DialectWithFeatures, Formality, LanguageLevel, LearningGoal, PastLearningItems, TeachingMode,
     UserGender,
 };
 
-use super::config::{CONTENT_FILTERING_DIRECTIVES, get_json_output_format};
+use super::config::{CONTENT_FILTERING_DIRECTIVES, RESPONSE_JSON_OUTPUT_FORMAT};
 use super::speaker::{extract_gender_from_dialect, mimic_instruction, speaker_desc};
 use super::teaching::{
     language_level_instruction, level_checklist, mode_checklist, response_teaching_desc,
@@ -158,7 +158,6 @@ struct NormalSystemParams<'a> {
     mode_checklist_formatted: &'a str,
     level_checklist_formatted: &'a str,
     pronunciation_instruction: &'a str,
-    json_output_format: &'a str,
 }
 
 fn build_normal_system_content(params: NormalSystemParams) -> String {
@@ -215,7 +214,7 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
         params.learning_items_context,
         params.plan_instr,
         JSON_OUTPUT_INSTRUCTION,
-        params.json_output_format,
+        RESPONSE_JSON_OUTPUT_FORMAT,
         pronunciation_section,
         params.mode_checklist_formatted,
         params.level_checklist_formatted,
@@ -267,10 +266,8 @@ pub(crate) fn build_system_content(
     let mode_checklist_formatted = format_checklist(mode_checklist(&teaching_mode));
     let level_checklist_formatted = format_checklist(level_checklist(language_level));
 
-    let needs_pronunciation = needs_pronunciation_text(language_option);
     let pronunciation_instruction =
         build_pronunciation_instruction(language_option, dialect.dialect.name());
-    let json_output_format = get_json_output_format(needs_pronunciation);
 
     if teaching_mode == TeachingMode::Debug {
         build_debug_system_content(
@@ -298,7 +295,6 @@ pub(crate) fn build_system_content(
             mode_checklist_formatted: &mode_checklist_formatted,
             level_checklist_formatted: &level_checklist_formatted,
             pronunciation_instruction: &pronunciation_instruction,
-            json_output_format,
         })
     }
 }

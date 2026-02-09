@@ -604,3 +604,15 @@ After all deliverables:
 - All code paths now run pronunciation agent in parallel with learning/translation
 - `cargo test`: 271 passed, 0 failed
 - `cargo clippy`: zero warnings
+
+### Phase 3: COMPLETE
+- Deleted `RESPONSE_JSON_OUTPUT_FORMAT_WITH_PRONUNCIATION` constant from `config.rs`
+- Deleted `get_json_output_format` function from `config.rs`
+- Updated imports in `system_content.rs`: removed `needs_pronunciation_text`, replaced `get_json_output_format` with `RESPONSE_JSON_OUTPUT_FORMAT`
+- Deleted `json_output_format` field from `NormalSystemParams` struct
+- Updated `build_normal_system_content` to use `RESPONSE_JSON_OUTPUT_FORMAT` directly instead of from params
+- Removed `needs_pronunciation` variable and `json_output_format` calculation from `build_system_content`
+- Removed `json_output_format` from `NormalSystemParams` construction
+- Response agent JSON format always `{"response": "..."}` - never mentions `pronunciation_text`
+- `cargo test`: 271 passed, 0 failed
+- `cargo clippy`: zero warnings
