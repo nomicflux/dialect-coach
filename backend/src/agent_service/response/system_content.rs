@@ -11,9 +11,7 @@ use super::speaker::{extract_gender_from_dialect, mimic_instruction, speaker_des
 use super::teaching::{
     language_level_instruction, level_checklist, mode_checklist, response_teaching_desc,
 };
-use crate::agent_service::language_instructions::{
-    build_language_instruction, build_pronunciation_instruction,
-};
+use crate::agent_service::language_instructions::build_language_instruction;
 use crate::agent_service::util::{
     JSON_OUTPUT_INSTRUCTION, format_learning_items_context, learning_goals_section,
 };
@@ -157,16 +155,9 @@ struct NormalSystemParams<'a> {
     has_corpus: bool,
     mode_checklist_formatted: &'a str,
     level_checklist_formatted: &'a str,
-    pronunciation_instruction: &'a str,
 }
 
 fn build_normal_system_content(params: NormalSystemParams) -> String {
-    let pronunciation_section = if params.pronunciation_instruction.is_empty() {
-        String::new()
-    } else {
-        format!("\n            {}", params.pronunciation_instruction)
-    };
-
     format!(
         "{}\n\n\
             # YOUR ROLE
@@ -185,7 +176,7 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
             {}
             # OUTPUT FORMAT REQUIRED
             {}
-            {}{}
+            {}
 
             # SELF-CHECK BEFORE RESPONDING
             Draft your response, then verify each item. If ANY check fails, revise before outputting.
@@ -215,7 +206,6 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
         params.plan_instr,
         JSON_OUTPUT_INSTRUCTION,
         RESPONSE_JSON_OUTPUT_FORMAT,
-        pronunciation_section,
         params.mode_checklist_formatted,
         params.level_checklist_formatted,
         params.dialect_name,
@@ -266,9 +256,6 @@ pub(crate) fn build_system_content(
     let mode_checklist_formatted = format_checklist(mode_checklist(&teaching_mode));
     let level_checklist_formatted = format_checklist(level_checklist(language_level));
 
-    let pronunciation_instruction =
-        build_pronunciation_instruction(language_option, dialect.dialect.name());
-
     if teaching_mode == TeachingMode::Debug {
         build_debug_system_content(
             &role_desc,
@@ -294,7 +281,6 @@ pub(crate) fn build_system_content(
             has_corpus: dialect.has_corpus,
             mode_checklist_formatted: &mode_checklist_formatted,
             level_checklist_formatted: &level_checklist_formatted,
-            pronunciation_instruction: &pronunciation_instruction,
         })
     }
 }

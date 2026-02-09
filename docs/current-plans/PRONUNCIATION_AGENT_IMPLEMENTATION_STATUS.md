@@ -616,3 +616,25 @@ After all deliverables:
 - Response agent JSON format always `{"response": "..."}` - never mentions `pronunciation_text`
 - `cargo test`: 271 passed, 0 failed
 - `cargo clippy`: zero warnings
+
+### Phase 4: COMPLETE
+- Deleted import of `build_pronunciation_instruction` from `system_content.rs`
+- Deleted `pronunciation_instruction` field from `NormalSystemParams` struct
+- Deleted `pronunciation_section` variable from `build_normal_system_content` function
+- Removed `pronunciation_section` placeholder and format argument from format string in `build_normal_system_content`
+- Deleted `pronunciation_instruction` variable calculation from `build_system_content`
+- Removed `pronunciation_instruction` field from `NormalSystemParams` construction
+- Deleted entire `build_pronunciation_instruction` function from `language_instructions.rs`
+- Deleted all 7 pronunciation tests from `language_instructions.rs`:
+  - `test_pronunciation_instruction_arabic_naskh`
+  - `test_pronunciation_instruction_arabic_ruqa`
+  - `test_pronunciation_instruction_arabic_latin`
+  - `test_pronunciation_instruction_arabic_fully_voweled`
+  - `test_pronunciation_instruction_japanese_kanji`
+  - `test_pronunciation_instruction_japanese_kanji_with_ruby`
+  - `test_pronunciation_instruction_none`
+- Kept all `build_language_instruction` tests and function unchanged
+- Response agent system prompt contains zero mention of pronunciation
+- Pronunciation now comes entirely from pronunciation agent (Phase 1)
+- `cargo test`: 271 passed, 0 failed
+- `cargo clippy`: zero warnings

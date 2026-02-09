@@ -30,41 +30,6 @@ pub fn build_language_instruction(language_option: &Option<LanguageOption>) -> S
     }
 }
 
-/// Returns instructions for generating pronunciation text for TTS.
-/// The dialect_name is used to ensure pronunciation matches the specific dialect.
-pub fn build_pronunciation_instruction(
-    language_option: &Option<LanguageOption>,
-    dialect_name: &str,
-) -> String {
-    match language_option {
-        Some(LanguageOption::Arabic(ArabicScript::Naskh | ArabicScript::Ruqa)) => {
-            format!(
-                r#"PRONUNCIATION FOR TTS: Also provide a "pronunciation_text" field containing the same response but with full harakat (tashkeel vowel marks) on all letters so TTS can pronounce it correctly.
-
-CRITICAL: The harakat MUST reflect {dialect_name} pronunciation, NOT Modern Standard Arabic (Fus7a). Place vowel marks to show how a native {dialect_name} speaker actually pronounces each word. For example:
-- Use dialect-specific vowel patterns (e.g., "i" sounds that would be "a" in MSA)
-- Reflect dropped or altered vowels common in {dialect_name}
-- Show sukun where consonant clusters occur in the dialect
-- Change consonants to how they would sound in {dialect_name}
-The pronunciation_text must sound like natural {dialect_name} when spoken aloud, not like formal Arabic."#,
-                dialect_name = dialect_name
-            )
-        }
-        Some(LanguageOption::Japanese(JapaneseScript::Kanji)) => {
-            format!(
-                r#"PRONUNCIATION FOR TTS: Also provide a "pronunciation_text" field containing the same response but with furigana using ruby tags (e.g., <ruby>漢字<rt>かんじ</rt></ruby>) so TTS can pronounce kanji correctly.
-
-CRITICAL: The furigana MUST reflect {dialect_name} pronunciation. Use readings that match how a native {dialect_name} speaker actually pronounces each word, including:
-- Dialect-specific readings for common words
-
-The pronunciation_text must sound like natural {dialect_name} when read aloud."#,
-                dialect_name = dialect_name
-            )
-        }
-        _ => String::new(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,54 +111,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_pronunciation_instruction_arabic_naskh() {
-        let option = Some(LanguageOption::Arabic(ArabicScript::Naskh));
-        let result = build_pronunciation_instruction(&option, "Levantine Arabic");
-        assert!(result.contains("pronunciation_text"));
-        assert!(result.contains("harakat"));
-        assert!(result.contains("Levantine Arabic"));
-        assert!(result.contains("NOT Modern Standard Arabic"));
-    }
-
-    #[test]
-    fn test_pronunciation_instruction_arabic_ruqa() {
-        let option = Some(LanguageOption::Arabic(ArabicScript::Ruqa));
-        let result = build_pronunciation_instruction(&option, "Egyptian Arabic");
-        assert!(result.contains("pronunciation_text"));
-        assert!(result.contains("harakat"));
-        assert!(result.contains("Egyptian Arabic"));
-    }
-
-    #[test]
-    fn test_pronunciation_instruction_arabic_latin() {
-        let option = Some(LanguageOption::Arabic(ArabicScript::Latin));
-        assert!(build_pronunciation_instruction(&option, "Levantine Arabic").is_empty());
-    }
-
-    #[test]
-    fn test_pronunciation_instruction_arabic_fully_voweled() {
-        let option = Some(LanguageOption::Arabic(ArabicScript::FullyVoweled));
-        assert!(build_pronunciation_instruction(&option, "Levantine Arabic").is_empty());
-    }
-
-    #[test]
-    fn test_pronunciation_instruction_japanese_kanji() {
-        let option = Some(LanguageOption::Japanese(JapaneseScript::Kanji));
-        let result = build_pronunciation_instruction(&option, "Kansai Japanese");
-        assert!(result.contains("pronunciation_text"));
-        assert!(result.contains("furigana"));
-        assert!(result.contains("Kansai Japanese"));
-    }
-
-    #[test]
-    fn test_pronunciation_instruction_japanese_kanji_with_ruby() {
-        let option = Some(LanguageOption::Japanese(JapaneseScript::KanjiWithRuby));
-        assert!(build_pronunciation_instruction(&option, "Tokyo Japanese").is_empty());
-    }
-
-    #[test]
-    fn test_pronunciation_instruction_none() {
-        assert!(build_pronunciation_instruction(&None, "Spanish").is_empty());
-    }
 }
