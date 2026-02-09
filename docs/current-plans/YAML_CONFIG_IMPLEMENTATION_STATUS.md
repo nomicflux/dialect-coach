@@ -88,6 +88,22 @@ Moving non-sensitive configuration from `.env` to `config.yaml`.
 ### Clippy
 - Clean, no warnings
 
+## Phase 5: Make Models Required + Remove Provider Defaults - COMPLETE
+
+### What Was Done
+- `shared/src/config.rs` - Changed `AnthropicProviderConfig.model` and `OpenAiProviderConfig.model` from `Option<String>` to `String`
+- `config.yaml` - Changed `openai.model: ~` to `openai.model: "gpt-4o"`
+- `backend/src/agent_service/provider.rs` - Changed `anthropic()` and `openai()` constructors from `model: Option<String>` to `model: String`, removed hardcoded `CLAUDE_3_5_SONNET`/`GPT_4O` fallbacks, removed unused imports, deleted default-model tests, updated all remaining tests to pass explicit model strings
+- `backend/src/agent_service.rs` - Updated `load_channel_agent` model resolution to use `unwrap_or_else` (channel → provider hierarchy), updated test helper `make_llm_config` with explicit model strings
+- `backend/src/agent_service/planning/mod.rs` - Updated test to pass explicit model string
+- `backend/src/planning_handler.rs` - Updated test to pass explicit model string
+- `corpus-processor/src/main.rs` - Updated test `AppConfig` construction with explicit model strings
+
+### Tests
+- All workspace tests pass (217 backend + shared + frontend)
+- All 10 corpus-processor tests pass
+- Clippy clean
+
 ## Final State
 
 All non-sensitive configuration now lives in `config.yaml`. `.env` contains only secrets:
