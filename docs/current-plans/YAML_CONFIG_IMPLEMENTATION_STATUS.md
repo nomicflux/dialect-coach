@@ -104,6 +104,21 @@ Moving non-sensitive configuration from `.env` to `config.yaml`.
 - All 10 corpus-processor tests pass
 - Clippy clean
 
+## Phase 6: Eliminate Hardcoded Defaults and Silent Failures - COMPLETE
+
+### What Was Done
+- `backend/src/rate_limiter/config.rs` - Deleted `from_fetch()`, `parse_value()`, `Default` impl, and 4 associated tests. Only `new()`, `from_yaml_config()`, and `test_from_yaml_config` remain.
+- `backend/src/rate_limiter/service.rs` - Replaced `RateLimitConfig::default()` with `load_test_rate_limit_config()` helper that loads from config.yaml. Tests now use single source of truth.
+- `backend/src/tts_handler.rs` - Replaced `RateLimitConfig::default()` with config.yaml loading in test.
+- `corpus-processor/src/main.rs` - Config loading moved after `Cli::parse()` (so `--help` and arg validation work without config). Commands that need config (`Delete`, `Upload`, `Update`, `Status`, `ResetCollection`) call `load_required_config()` which fails fast with descriptive error. `Process` and `List` don't require config. `get_qdrant_url` signature changed to `&AppConfig` (infallible return). `get_qdrant_service` signature changed to `&AppConfig`.
+- `corpus-processor/tests/test_cli_integration.rs` - Deleted 4 tests (`test_cli_upload_missing_qdrant_url`, `test_cli_upload_empty_qdrant_url`, `test_cli_status_missing_qdrant_url`, `test_cli_status_empty_qdrant_url`) — these tested scenarios that can't occur now that config.yaml always provides a qdrant URL.
+- `backend/src/qdrant_service.rs` - Changed `search_named_vector` from `.map()` to `.filter_map()`, replacing `unwrap_or(Dialect::SpanishMexican)` with `tracing::warn` + skip for unrecognized dialects.
+
+### Tests
+- All workspace tests pass (210 backend + 275 shared + 9 frontend)
+- All 91 corpus-processor tests pass (9 CLI integration + 82 unit/integration)
+- Clippy clean
+
 ## Final State
 
 All non-sensitive configuration now lives in `config.yaml`. `.env` contains only secrets:

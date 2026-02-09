@@ -7,10 +7,10 @@ use rig::completion::{
     Message as RigMessage,
 };
 use rig::one_or_many::OneOrMany;
+use rig::providers::anthropic::Client as AnthropicClient;
 use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
-use rig::providers::anthropic::{Client as AnthropicClient};
+use rig::providers::openai::Client as OpenAIClient;
 use rig::providers::openai::responses_api::ResponsesCompletionModel as OpenAICompletionModel;
-use rig::providers::openai::{Client as OpenAIClient};
 
 pub const ANTHROPIC_PROVIDER: &str = "anthropic";
 pub const OPENAI_PROVIDER: &str = "openai";
@@ -306,11 +306,8 @@ mod tests {
 
     #[test]
     fn test_provider_agent_config_openai_custom_model() {
-        let config = ProviderAgentConfig::openai(
-            "sk-test-key".to_string(),
-            "gpt-4-turbo".to_string(),
-            300,
-        );
+        let config =
+            ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4-turbo".to_string(), 300);
         assert_eq!(config.provider, OPENAI_PROVIDER);
         assert_eq!(config.model, "gpt-4-turbo");
         assert_eq!(config.api_key, "sk-test-key");
@@ -332,7 +329,11 @@ mod tests {
 
     #[test]
     fn test_completion_agent_factory_anthropic() {
-        let config = ProviderAgentConfig::anthropic("test-key".to_string(), "claude-sonnet-4-5".to_string(), 200);
+        let config = ProviderAgentConfig::anthropic(
+            "test-key".to_string(),
+            "claude-sonnet-4-5".to_string(),
+            200,
+        );
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_ok());
         let agent = result.unwrap();
@@ -341,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_completion_agent_factory_openai() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 200);
+        let config =
+            ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 200);
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_ok());
         let agent = result.unwrap();
@@ -366,7 +368,8 @@ mod tests {
 
     #[test]
     fn test_unified_completion_agent_uses_reasoning_budget() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 350);
+        let config =
+            ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 350);
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_ok());
         let _agent = result.unwrap();
@@ -374,7 +377,8 @@ mod tests {
 
     #[test]
     fn test_provider_agent_config_stores_reasoning_budget() {
-        let config = ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 275);
+        let config =
+            ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 275);
         assert_eq!(config.reasoning_budget, 275);
     }
 }

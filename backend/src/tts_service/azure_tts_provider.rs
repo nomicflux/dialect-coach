@@ -26,9 +26,10 @@ impl AzureTtsProvider {
         }
     }
 
-    pub fn from_config(config: &dialect_coach_shared::config::AzureTtsConfig) -> Result<Self, TtsError> {
-        let key = std::env::var("AZURE_SPEECH_KEY")
-            .map_err(|_| TtsError::AuthenticationFailed)?;
+    pub fn from_config(
+        config: &dialect_coach_shared::config::AzureTtsConfig,
+    ) -> Result<Self, TtsError> {
+        let key = std::env::var("AZURE_SPEECH_KEY").map_err(|_| TtsError::AuthenticationFailed)?;
         if key.is_empty() {
             return Err(TtsError::AuthenticationFailed);
         }

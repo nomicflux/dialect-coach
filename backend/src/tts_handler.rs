@@ -416,6 +416,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_track_tts_usage_sends_usage_stats_update() {
+        let app_config = dialect_coach_shared::config::load_config(&format!(
+            "{}/../config.yaml",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+
         let user_id = Uuid::new_v4();
         let (tx, mut rx) = mpsc::unbounded_channel();
 
@@ -427,7 +433,7 @@ mod tests {
             service: Arc::new(TtsService::new(Arc::new(NoopProvider))),
             user_persistence: persistence.clone(),
             rate_limiter: Arc::new(RateLimiter::new(Arc::new(OrgQuotaChecker::new()))),
-            rate_limit_config: Arc::new(RateLimitConfig::default()),
+            rate_limit_config: Arc::new(RateLimitConfig::from_yaml_config(&app_config.rate_limits)),
             user_state_connections: connections.clone(),
         };
 

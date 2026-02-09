@@ -218,7 +218,10 @@ rate_limits:
         assert_eq!(config.llm.anthropic.model, "claude-sonnet-4-5");
         assert_eq!(config.llm.anthropic.org_id.as_deref(), Some("org-123"));
         assert_eq!(config.llm.openai.model, "gpt-4o");
-        assert_eq!(config.llm.channels.response.model.as_deref(), Some("gpt-4o-mini"));
+        assert_eq!(
+            config.llm.channels.response.model.as_deref(),
+            Some("gpt-4o-mini")
+        );
         assert_eq!(config.llm.channels.response.reasoning_budget, Some(256));
     }
 

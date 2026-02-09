@@ -24,9 +24,11 @@ impl ElevenLabsTtsProvider {
         }
     }
 
-    pub fn from_config(config: &dialect_coach_shared::config::ElevenLabsTtsConfig) -> Result<Self, TtsError> {
-        let api_key = std::env::var("ELEVEN_LABS_API_KEY")
-            .map_err(|_| TtsError::AuthenticationFailed)?;
+    pub fn from_config(
+        config: &dialect_coach_shared::config::ElevenLabsTtsConfig,
+    ) -> Result<Self, TtsError> {
+        let api_key =
+            std::env::var("ELEVEN_LABS_API_KEY").map_err(|_| TtsError::AuthenticationFailed)?;
         if api_key.is_empty() {
             return Err(TtsError::AuthenticationFailed);
         }

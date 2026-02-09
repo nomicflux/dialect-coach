@@ -3,7 +3,7 @@ server:
   backend_url: "http://localhost:3000"
 
 qdrant:
-  url: "https://your-qdrant-instance.cloud.qdrant.io:6334"
+  url: "https://ebc1f227-4b58-43ee-8eba-cd8742eba4b6.us-east4-0.gcp.cloud.qdrant.io:6334"
 
 persistence:
   db_path: "data/dialect-coach.db"
@@ -11,19 +11,22 @@ persistence:
 llm:
   anthropic:
     model: "claude-haiku-4-5"
-    org_id: ~
   openai:
-    model: "gpt-4o"
+    model: "gpt-5"
     reasoning_budget: 512
   channels:
     response:
-      provider: "anthropic"
+      provider: "openai"
+      model: "gpt-5.1"
     learning:
       provider: "anthropic"
+      model: "claude-sonnet-4-5"
     analysis:
       provider: "anthropic"
+      model: "claude-haiku-4-5"
     pronunciation:
-      provider: "anthropic"
+      provider: "openai"
+      model: "gpt-5.1"
     planning:
       provider: "anthropic"
 

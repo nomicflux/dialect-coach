@@ -132,6 +132,15 @@ mod tests {
     use super::*;
     use dialect_coach_shared::models::usage_stats::{AgentUsage, TtsUsage};
 
+    fn load_test_rate_limit_config() -> RateLimitConfig {
+        let app_config = dialect_coach_shared::config::load_config(&format!(
+            "{}/../config.yaml",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        RateLimitConfig::from_yaml_config(&app_config.rate_limits)
+    }
+
     fn sample_usage(
         timestamp: i64,
         input_tokens: u64,
@@ -153,7 +162,7 @@ mod tests {
     #[test]
     fn test_can_make_response_call_within_limits() {
         let limiter = RateLimiter::default();
-        let config = RateLimitConfig::default();
+        let config = load_test_rate_limit_config();
         let now = chrono::Utc::now().timestamp();
 
         let stats = UsageStats {
@@ -171,7 +180,7 @@ mod tests {
         let limiter = RateLimiter::default();
         let config = RateLimitConfig {
             response_calls_limit: 2,
-            ..Default::default()
+            ..load_test_rate_limit_config()
         };
         let now = chrono::Utc::now().timestamp();
 
@@ -193,7 +202,7 @@ mod tests {
         let limiter = RateLimiter::default();
         let config = RateLimitConfig {
             response_tokens_limit: 2000,
-            ..Default::default()
+            ..load_test_rate_limit_config()
         };
         let now = chrono::Utc::now().timestamp();
 
@@ -210,7 +219,7 @@ mod tests {
     #[test]
     fn test_can_make_tts_call_within_limits() {
         let limiter = RateLimiter::default();
-        let config = RateLimitConfig::default();
+        let config = load_test_rate_limit_config();
         let now = chrono::Utc::now().timestamp();
 
         let stats = UsageStats {

@@ -42,19 +42,29 @@ fn load_channel_agent(
             let api_key = channel_api_key
                 .or_else(|| env::var("ANTHROPIC_API_KEY").ok())
                 .ok_or_else(|| anyhow!("Missing API key for {} channel", channel_name))?;
-            let model = channel.model.clone()
+            let model = channel
+                .model
+                .clone()
                 .unwrap_or_else(|| llm_config.anthropic.model.clone());
             let config = ProviderAgentConfig::anthropic(api_key, model, reasoning_budget);
-            Ok((Arc::from(CompletionAgentFactory::build(config.clone())?), config))
+            Ok((
+                Arc::from(CompletionAgentFactory::build(config.clone())?),
+                config,
+            ))
         }
         OPENAI_PROVIDER => {
             let api_key = channel_api_key
                 .or_else(|| env::var("OPENAI_API_KEY").ok())
                 .ok_or_else(|| anyhow!("Missing API key for {} channel", channel_name))?;
-            let model = channel.model.clone()
+            let model = channel
+                .model
+                .clone()
                 .unwrap_or_else(|| llm_config.openai.model.clone());
             let config = ProviderAgentConfig::openai(api_key, model, reasoning_budget);
-            Ok((Arc::from(CompletionAgentFactory::build(config.clone())?), config))
+            Ok((
+                Arc::from(CompletionAgentFactory::build(config.clone())?),
+                config,
+            ))
         }
         other => Err(anyhow!(
             "Unsupported provider '{}' for {} channel",
@@ -83,13 +93,20 @@ impl AgentService {
         qdrant: Arc<QdrantService>,
         embeddings: Arc<EmbeddingService>,
     ) -> Result<Self> {
-        let response_agent = load_channel_agent(&llm_config.channels.response, "RESPONSE", llm_config)?.0;
-        let learning_agent = load_channel_agent(&llm_config.channels.learning, "LEARNING", llm_config)?.0;
-        let analysis_agent = load_channel_agent(&llm_config.channels.analysis, "ANALYSIS", llm_config)?.0;
+        let response_agent =
+            load_channel_agent(&llm_config.channels.response, "RESPONSE", llm_config)?.0;
+        let learning_agent =
+            load_channel_agent(&llm_config.channels.learning, "LEARNING", llm_config)?.0;
+        let analysis_agent =
+            load_channel_agent(&llm_config.channels.analysis, "ANALYSIS", llm_config)?.0;
         let (planning_agent, planning_config) =
             load_channel_agent(&llm_config.channels.planning, "PLANNING", llm_config)?;
-        let pronunciation_agent =
-            load_channel_agent(&llm_config.channels.pronunciation, "PRONUNCIATION", llm_config)?.0;
+        let pronunciation_agent = load_channel_agent(
+            &llm_config.channels.pronunciation,
+            "PRONUNCIATION",
+            llm_config,
+        )?
+        .0;
 
         let keyword_extractor = Arc::new(
             keyword_extraction::KeywordExtractor::new()
@@ -268,7 +285,8 @@ mod tests {
         let qdrant_key = std::env::var("QDRANT_API_KEY").unwrap();
         let qdrant = QdrantService::new(&qdrant_url, &qdrant_key).await.unwrap();
         let embeddings = EmbeddingService::new().unwrap();
-        let agent = AgentService::from_config(&config.llm, Arc::new(qdrant), Arc::new(embeddings)).unwrap();
+        let agent =
+            AgentService::from_config(&config.llm, Arc::new(qdrant), Arc::new(embeddings)).unwrap();
         assert_eq!(agent.response_agent.provider(), ANTHROPIC_PROVIDER);
         assert!(!agent.response_agent.model().is_empty());
     }
@@ -338,7 +356,11 @@ mod tests {
     #[test]
     fn test_channel_reasoning_budget_default() {
         let llm = make_llm_config();
-        let budget = llm.channels.response.reasoning_budget.unwrap_or(llm.openai.reasoning_budget);
+        let budget = llm
+            .channels
+            .response
+            .reasoning_budget
+            .unwrap_or(llm.openai.reasoning_budget);
         assert_eq!(budget, 512);
     }
 }

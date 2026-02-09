@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dialect_coach_shared::*;
 use reqwest::StatusCode;
 use reqwest::blocking::Client;
@@ -19,10 +19,10 @@ fn main() -> Result<()> {
 fn get_admin_config() -> Result<(Client, String, String)> {
     dotenvy::dotenv().ok();
     let config = dialect_coach_shared::config::load_config("config.yaml")
-        .expect("Failed to load config.yaml");
+        .context("FATAL: config.yaml not found or invalid. Ensure config.yaml exists in the working directory.")?;
     let backend_url = config.server.backend_url;
     let admin_token =
-        env::var("ADMIN_TOKEN").expect("ADMIN_TOKEN environment variable must be set");
+        env::var("ADMIN_TOKEN").context("FATAL: ADMIN_TOKEN environment variable must be set.")?;
     let client = Client::new();
     Ok((client, backend_url, admin_token))
 }

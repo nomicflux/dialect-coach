@@ -135,7 +135,7 @@ impl QdrantService {
         Ok(search_result
             .result
             .into_iter()
-            .map(|point| {
+            .filter_map(|point| {
                 let payload = point.payload;
                 let score = point.score;
 
@@ -163,9 +163,18 @@ impl QdrantService {
                     .and_then(|v| v.as_str())
                     .map_or("", |v| v);
 
-                let dialect = Dialect::from_id(dialect_str).unwrap_or(Dialect::SpanishMexican);
+                let dialect = match Dialect::from_id(dialect_str) {
+                    Some(d) => d,
+                    None => {
+                        tracing::warn!(
+                            "Unrecognized dialect '{}' in Qdrant result, skipping",
+                            dialect_str
+                        );
+                        return None;
+                    }
+                };
 
-                (
+                Some((
                     DialectDocument {
                         content,
                         dialect,
@@ -173,7 +182,7 @@ impl QdrantService {
                         embedding: Vec::new(),
                     },
                     score,
-                )
+                ))
             })
             .collect())
     }

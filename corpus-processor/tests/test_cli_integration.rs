@@ -3,6 +3,9 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::tempdir;
 
+// Note: Tests for "missing QDRANT_URL" scenarios were removed because
+// config.yaml (now required for qdrant commands) always provides a URL fallback.
+
 #[test]
 fn test_cli_help() {
     let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
@@ -120,71 +123,3 @@ fn test_cli_upload_missing_input() {
         .stderr(predicate::str::contains("input"));
 }
 
-#[test]
-fn test_cli_upload_missing_qdrant_url() {
-    let temp_dir = tempdir().unwrap();
-    let input_file = temp_dir.path().join("test.jsonl");
-    fs::write(
-        &input_file,
-        r#"{"content":"test","dialect":"arabic_egyptian","embedding":[0.1,0.2,0.3]}"#,
-    )
-    .unwrap();
-
-    // Test with completely missing QDRANT_URL - run in temp dir to avoid .env file
-    let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.current_dir(&temp_dir);
-    cmd.env_remove("QDRANT_URL");
-    cmd.env_remove("QDRANT_API_KEY");
-    cmd.args(["upload", "--input", input_file.to_str().unwrap()]);
-
-    cmd.assert()
-        .failure()
-        .stderr(predicate::str::contains("QDRANT_URL must be provided"));
-}
-
-#[test]
-fn test_cli_upload_empty_qdrant_url() {
-    let temp_dir = tempdir().unwrap();
-    let input_file = temp_dir.path().join("test.jsonl");
-    fs::write(
-        &input_file,
-        r#"{"content":"test","dialect":"arabic_egyptian","embedding":[0.1,0.2,0.3]}"#,
-    )
-    .unwrap();
-
-    // Test with empty QDRANT_URL
-    let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.env("QDRANT_URL", "");
-    cmd.args(["upload", "--input", input_file.to_str().unwrap()]);
-
-    cmd.assert()
-        .failure()
-        .stderr(predicate::str::contains("QDRANT_URL must be provided"));
-}
-
-#[test]
-fn test_cli_status_missing_qdrant_url() {
-    let temp_dir = tempdir().unwrap();
-
-    // Test with completely missing QDRANT_URL - run in temp dir to avoid .env file
-    let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.current_dir(&temp_dir);
-    cmd.env_remove("QDRANT_URL");
-    cmd.env_remove("QDRANT_API_KEY");
-    cmd.arg("status");
-
-    cmd.assert()
-        .failure()
-        .stderr(predicate::str::contains("QDRANT_URL must be provided"));
-}
-
-#[test]
-fn test_cli_status_empty_qdrant_url() {
-    let mut cmd = Command::cargo_bin("corpus-processor").unwrap();
-    cmd.env("QDRANT_URL", "");
-    cmd.arg("status");
-
-    cmd.assert()
-        .failure()
-        .stderr(predicate::str::contains("QDRANT_URL must be provided"));
-}

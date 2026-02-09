@@ -122,11 +122,10 @@ enum Commands {
 
 fn get_qdrant_url(
     url: Option<String>,
-    config: Option<&dialect_coach_shared::config::AppConfig>,
-) -> Result<String> {
+    config: &dialect_coach_shared::config::AppConfig,
+) -> String {
     url.or_else(|| std::env::var("QDRANT_URL").ok().filter(|s| !s.is_empty()))
-        .or_else(|| config.map(|c| c.qdrant.url.clone()))
-        .context("QDRANT_URL must be provided via --url, QDRANT_URL env var, or config.yaml")
+        .unwrap_or_else(|| config.qdrant.url.clone())
 }
 
 fn get_qdrant_key(api_key: Option<String>) -> Option<String> {
@@ -136,9 +135,9 @@ fn get_qdrant_key(api_key: Option<String>) -> Option<String> {
 async fn get_qdrant_service(
     url: Option<String>,
     api_key: Option<String>,
-    config: Option<&dialect_coach_shared::config::AppConfig>,
+    config: &dialect_coach_shared::config::AppConfig,
 ) -> Result<qdrant::QdrantService> {
-    let qdrant_url = get_qdrant_url(url, config)?;
+    let qdrant_url = get_qdrant_url(url, config);
     println!("Connecting to: {}", qdrant_url);
     let qdrant_api_key = get_qdrant_key(api_key);
     if let Some(key) = qdrant_api_key {
@@ -148,12 +147,15 @@ async fn get_qdrant_service(
     }
 }
 
+fn load_required_config() -> Result<dialect_coach_shared::config::AppConfig> {
+    dialect_coach_shared::config::load_config("config.yaml")
+        .context("Failed to load config.yaml")
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Load .env file if it exists
     dotenvy::dotenv().ok();
-
-    let config = dialect_coach_shared::config::load_config("config.yaml").ok();
 
     // Initialize tracing
     tracing_subscriber::fmt()
@@ -202,14 +204,27 @@ async fn main() -> Result<()> {
 
             println!("\n✓ Processing completed successfully");
         }
+        Commands::List => {
+            println!("Available languages and dialects:\n");
+
+            for lang in Language::all() {
+                println!("{}:", lang.name());
+                let dialects = Dialect::for_language(lang, true, true);
+                for dialect in dialects {
+                    println!("  - {} ({})", dialect.name(), dialect.id());
+                }
+                println!();
+            }
+        }
         Commands::Delete {
             dialect,
             url,
             api_key,
         } => {
+            let config = load_required_config()?;
             println!("Deleting points from Qdrant:");
             println!("  Dialect: {}", dialect);
-            let qdrant = get_qdrant_service(url, api_key, config.as_ref()).await?;
+            let qdrant = get_qdrant_service(url, api_key, &config).await?;
             qdrant.delete_points(&dialect).await?;
         }
         Commands::Upload {
@@ -217,11 +232,12 @@ async fn main() -> Result<()> {
             url,
             api_key,
         } => {
+            let config = load_required_config()?;
             println!("Uploading documents to Qdrant (streaming):");
             println!("  Input: {}\n", input);
 
             // Connect to Qdrant first
-            let qdrant = get_qdrant_service(url, api_key, config.as_ref()).await?;
+            let qdrant = get_qdrant_service(url, api_key, &config).await?;
 
             // Count total lines for progress
             let line_count = {
@@ -311,35 +327,25 @@ async fn main() -> Result<()> {
                 uploaded_count, error_count
             );
         }
-        Commands::List => {
-            println!("Available languages and dialects:\n");
-
-            for lang in Language::all() {
-                println!("{}:", lang.name());
-                let dialects = Dialect::for_language(lang, true, true);
-                for dialect in dialects {
-                    println!("  - {} ({})", dialect.name(), dialect.id());
-                }
-                println!();
-            }
-        }
         Commands::Update {
             url,
             api_key,
             dialect_from,
             dialect_to,
         } => {
+            let config = load_required_config()?;
             println!("Retrieving points to update");
-            let qdrant = get_qdrant_service(url, api_key, config.as_ref()).await?;
+            let qdrant = get_qdrant_service(url, api_key, &config).await?;
 
             qdrant.update_points(&dialect_from, &dialect_to).await?;
         }
         Commands::Status { url, api_key } => {
+            let config = load_required_config()?;
             println!("🔍 Checking Qdrant Status");
             println!("{}\n", "=".repeat(50));
 
             // Connect to Qdrant
-            let qdrant = get_qdrant_service(url, api_key, config.as_ref()).await?;
+            let qdrant = get_qdrant_service(url, api_key, &config).await?;
 
             // Get detailed status
             qdrant.get_detailed_status().await?;
@@ -349,7 +355,8 @@ async fn main() -> Result<()> {
             api_key,
             force,
         } => {
-            let qdrant = get_qdrant_service(url, api_key, config.as_ref()).await?;
+            let config = load_required_config()?;
+            let qdrant = get_qdrant_service(url, api_key, &config).await?;
 
             if !force {
                 use std::io::Write;
@@ -544,8 +551,11 @@ mod tests {
 
     #[test]
     fn test_get_qdrant_url_cli_flag() {
-        let result = get_qdrant_url(Some("http://localhost:6334".to_string()), None);
-        assert_eq!(result.unwrap(), "http://localhost:6334");
+        let config = dialect_coach_shared::config::load_config(
+            &format!("{}/../config.yaml", env!("CARGO_MANIFEST_DIR"))
+        ).unwrap();
+        let result = get_qdrant_url(Some("http://localhost:6334".to_string()), &config);
+        assert_eq!(result, "http://localhost:6334");
     }
 
     #[test]
@@ -617,13 +627,7 @@ mod tests {
                 window_hours: 24,
             },
         };
-        let result = get_qdrant_url(None, Some(&config));
-        assert_eq!(result.unwrap(), "http://config-qdrant:6334");
-    }
-
-    #[test]
-    fn test_get_qdrant_url_none_fails() {
-        let result = get_qdrant_url(None, None);
-        assert!(result.is_err());
+        let result = get_qdrant_url(None, &config);
+        assert_eq!(result, "http://config-qdrant:6334");
     }
 }

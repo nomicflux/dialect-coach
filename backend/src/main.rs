@@ -3,7 +3,7 @@ use dialect_coach_backend::agent_service;
 use dialect_coach_backend::selection_cache::SelectionCache;
 use dialect_coach_backend::startup;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -14,11 +14,12 @@ use uuid::Uuid;
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     let config = dialect_coach_shared::config::load_config("config.yaml")
-        .expect("Failed to load config.yaml");
+        .context("FATAL: config.yaml not found or invalid. Ensure config.yaml exists in the working directory.")?;
 
     startup::init_logging();
 
-    let qdrant = startup::init_qdrant(&config.qdrant.url, &std::env::var("QDRANT_API_KEY")?).await?;
+    let qdrant =
+        startup::init_qdrant(&config.qdrant.url, &std::env::var("QDRANT_API_KEY")?).await?;
     let embeddings = startup::init_embeddings()?;
     let agent = startup::init_agent(&config.llm, qdrant.clone(), embeddings.clone())?;
 
