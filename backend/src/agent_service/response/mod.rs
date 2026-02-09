@@ -43,6 +43,7 @@ pub struct GenerateResponseParams<'a> {
 pub struct ResponseContext {
     pub response_agent: Arc<dyn CompletionAgent>,
     pub learning_agent: Arc<dyn CompletionAgent>,
+    pub pronunciation_agent: Arc<dyn CompletionAgent>,
     pub qdrant: Arc<QdrantService>,
     pub embeddings: Arc<EmbeddingService>,
     pub keyword_extractor: Arc<KeywordExtractor>,

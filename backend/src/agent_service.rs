@@ -14,6 +14,7 @@ pub mod language_instructions;
 pub mod learning;
 pub mod ocr;
 pub mod planning;
+pub mod pronunciation;
 pub mod provider;
 pub mod response;
 pub mod retry;
@@ -87,6 +88,7 @@ pub struct AgentService {
     pub analysis_agent: Arc<dyn CompletionAgent>,
     pub planning_agent: Arc<dyn CompletionAgent>,
     pub planning_config: ProviderAgentConfig,
+    pub pronunciation_agent: Arc<dyn CompletionAgent>,
     pub qdrant: Arc<QdrantService>,
     pub embeddings: Arc<EmbeddingService>,
     pub keyword_extractor: Arc<keyword_extraction::KeywordExtractor>,
@@ -100,6 +102,13 @@ impl AgentService {
         let analysis_agent = load_channel_agent("ANALYSIS")?.0;
 
         let (planning_agent, planning_config) = load_channel_agent("PLANNING")?;
+
+        let pronunciation_agent = load_channel_agent("PRONUNCIATION")
+            .map(|(agent, _)| agent)
+            .unwrap_or_else(|_| {
+                tracing::info!("No PRONUNCIATION channel configured, using LEARNING agent");
+                learning_agent.clone()
+            });
 
         tracing::info!(
             "Response agent configured: provider={}, model={}",
@@ -121,6 +130,11 @@ impl AgentService {
             planning_agent.provider(),
             planning_agent.model()
         );
+        tracing::info!(
+            "Pronunciation agent configured: provider={}, model={}",
+            pronunciation_agent.provider(),
+            pronunciation_agent.model()
+        );
 
         let keyword_extractor = Arc::new(
             keyword_extraction::KeywordExtractor::new()
@@ -133,6 +147,7 @@ impl AgentService {
             analysis_agent,
             planning_agent,
             planning_config,
+            pronunciation_agent,
             qdrant,
             embeddings,
             keyword_extractor,
@@ -150,6 +165,7 @@ impl AgentService {
         let ctx = ResponseContext {
             response_agent: self.response_agent.clone(),
             learning_agent: self.learning_agent.clone(),
+            pronunciation_agent: self.pronunciation_agent.clone(),
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
             keyword_extractor: self.keyword_extractor.clone(),
@@ -167,6 +183,7 @@ impl AgentService {
         let ctx = ResponseContext {
             response_agent: self.response_agent.clone(),
             learning_agent: self.learning_agent.clone(),
+            pronunciation_agent: self.pronunciation_agent.clone(),
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
             keyword_extractor: self.keyword_extractor.clone(),
@@ -209,6 +226,7 @@ impl AgentService {
         let ctx = ResponseContext {
             response_agent: self.response_agent.clone(),
             learning_agent: self.learning_agent.clone(),
+            pronunciation_agent: self.pronunciation_agent.clone(),
             qdrant: self.qdrant.clone(),
             embeddings: self.embeddings.clone(),
             keyword_extractor: self.keyword_extractor.clone(),

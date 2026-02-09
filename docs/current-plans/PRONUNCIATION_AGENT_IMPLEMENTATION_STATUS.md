@@ -46,6 +46,20 @@ When a phase specifies "Subagent: X", the orchestrator MUST launch that subagent
 - For `skip_learning=true` paths (AI actions), pronunciation agent runs alone
 - Final `AgentResponse` shape is unchanged (`pronunciation_text` populated when applicable)
 - Pronunciation failure is non-fatal (log error, response works without pronunciation)
+- Dedicated `PRONUNCIATION` agent channel with env var configuration, falling back to learning agent
+
+### Environment Variables
+
+The pronunciation agent uses a dedicated `PRONUNCIATION` channel following the existing channel pattern:
+
+| Variable | Purpose | Fallback |
+|---|---|---|
+| `PRONUNCIATION_PROVIDER` | Provider name (`anthropic` or `openai`) | Defaults to `anthropic` |
+| `PRONUNCIATION_API_KEY` | API key for pronunciation channel | Falls back to `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` |
+| `PRONUNCIATION_MODEL` | Model override for pronunciation | Falls back to `ANTHROPIC_MODEL` or `OPENAI_MODEL` or provider default |
+| `PRONUNCIATION_REASONING_BUDGET` | Reasoning budget (OpenAI reasoning models) | Falls back to `OPENAI_REASONING_BUDGET` or default `512` |
+
+If `load_channel_agent("PRONUNCIATION")` fails entirely (no API key available), the system falls back to cloning `learning_agent`.
 
 ### Architecture Pattern
 Follow `TranslationAgent` (`backend/src/agent_service/translation.rs`):
@@ -101,7 +115,8 @@ Then in parallel:
 - `backend/src/agent_service/pronunciation.rs`
 
 ### Files to Modify
-- `backend/src/agent_service.rs` - add `pub mod pronunciation;`
+- `backend/src/agent_service.rs` - add `pub mod pronunciation;`, load pronunciation agent with fallback, pass through `ResponseContext`
+- `backend/src/agent_service/response/mod.rs` - add `pronunciation_agent` field to `ResponseContext`
 - `backend/src/agent_service/response/generation.rs` - add pronunciation calls in `skip_learning=true` branches
 
 ### Actionable Steps
@@ -135,7 +150,7 @@ pub struct PronunciationAgent {
 - `generate_pronunciation(&self, params) -> (Result<PronunciationAgentOutput>, Vec<AgentUsage>)`
   - Early return `empty()` when `!needs_pronunciation_text(params.language_option)`
   - Build system content + prompt, prefill `{` for Anthropic
-  - `CompletionRequest { max_tokens: 512, temperature: 0.0 }`
+  - `CompletionRequest { max_tokens: 2048, temperature: 0.0 }`
   - `retry_completion_call(agent, request, 3)`, parse result
 
 **Pure helper functions (<20 lines each):**
@@ -167,9 +182,49 @@ pub struct PronunciationAgent {
 - `test_system_content_japanese_kanji` - contains "furigana" and dialect name
 - `test_prompt_includes_response_text` - prompt contains passed-in text
 
-#### Step 2: Register module in `backend/src/agent_service.rs`
+#### Step 2: Wire pronunciation agent channel
+
+**In `backend/src/agent_service.rs`:**
 
 Add `pub mod pronunciation;` at line ~17 (between `pub mod planning;` and `pub mod provider;`).
+
+Add `pronunciation_agent` field to `AgentService` struct (after `planning_config`):
+```rust
+pub pronunciation_agent: Arc<dyn CompletionAgent>,
+```
+
+In `AgentService::from_env`, load the pronunciation agent with learning-agent fallback:
+```rust
+let pronunciation_agent = load_channel_agent("PRONUNCIATION")
+    .map(|(agent, _)| agent)
+    .unwrap_or_else(|_| {
+        tracing::info!("No PRONUNCIATION channel configured, using LEARNING agent");
+        learning_agent.clone()
+    });
+```
+
+Add log line after the planning agent log:
+```rust
+tracing::info!(
+    "Pronunciation agent configured: provider={}, model={}",
+    pronunciation_agent.provider(),
+    pronunciation_agent.model()
+);
+```
+
+Add `pronunciation_agent` to the `Ok(Self { ... })` construction.
+
+Pass `pronunciation_agent` through both `ResponseContext` constructions (in `generate_response`, `generate_response_for_action`, and `generate_simple_response`):
+```rust
+pronunciation_agent: self.pronunciation_agent.clone(),
+```
+
+**In `backend/src/agent_service/response/mod.rs`:**
+
+Add `pronunciation_agent` field to `ResponseContext`:
+```rust
+pub pronunciation_agent: Arc<dyn CompletionAgent>,
+```
 
 #### Step 3: Integrate into `skip_learning=true` paths in `generation.rs`
 
@@ -187,7 +242,7 @@ async fn generate_pronunciation_content(
     params: &GenerateResponseParams<'_>,
     response_text: &str,
 ) -> (Result<PronunciationAgentOutput>, Vec<AgentUsage>) {
-    let agent = PronunciationAgent::new(self.learning_agent.clone());
+    let agent = PronunciationAgent::new(self.pronunciation_agent.clone());
     let pron_params = PronunciationAgentParams {
         response_text,
         dialect: params.dialect.dialect,
@@ -258,6 +313,8 @@ if skip_learning {
 
 ### Phase 1 Deliverables
 - `pronunciation.rs` created with full agent implementation and 7 tests
+- `PRONUNCIATION` agent channel loaded in `AgentService` with learning-agent fallback
+- `pronunciation_agent` field added to `ResponseContext` and wired through all 3 construction sites
 - Module registered in `agent_service.rs`
 - `skip_learning=true` paths call pronunciation agent via 3 new functions + 2 modified branches in `generation.rs`
 - Response agent still generates pronunciation too (redundant, functional)
@@ -512,14 +569,29 @@ After all deliverables:
 
 ## Agreements Made
 
-(User agreements will be recorded here as the implementation proceeds)
+- 2026-02-09: Pronunciation agent gets dedicated `PRONUNCIATION` agent channel with env vars (`PRONUNCIATION_PROVIDER`, `PRONUNCIATION_API_KEY`, `PRONUNCIATION_MODEL`, `PRONUNCIATION_REASONING_BUDGET`), falling back to learning agent if not configured
+- 2026-02-09: `max_tokens` for pronunciation agent bumped from 512 to 2048 (Japanese furigana ruby tags can ~2x the token count of the original response text)
 
 ## Explicitly Rejected
 
 - Multi-phase split where Phase 1 creates agent and Phase 2 uses it (violates PSP: creates dead code in Phase 1)
 - Making pronunciation failure fatal (non-fatal is consistent with current best-effort behavior)
 - Single-phase plan combining all changes into one phase (rejected by user: violates PSP minimum 3 phases, too complex for review, no intermediate verification points)
+- Reusing `learning_agent` for pronunciation (rejected: pronunciation needs its own configurable channel with env vars)
 
 ## Issues Encountered
 
-(Issues and their resolutions will be recorded here)
+### Phase 1
+- Subagent reported success but IDE diagnostics showed errors — turned out to be stale IDE diagnostics from intermediate file states. Verified manually: `cargo test` 100% pass (0 failures), `cargo clippy` zero warnings.
+
+## Phase Completion Log
+
+### Phase 1: COMPLETE
+- `pronunciation.rs` created with 7 tests (all pass)
+- `PRONUNCIATION` agent channel loaded in `AgentService::from_env` with learning-agent fallback
+- `pronunciation_agent` field added to `AgentService`, `ResponseContext`, wired through all 3 construction sites
+- `pub mod pronunciation;` registered in `agent_service.rs`
+- Both `skip_learning=true` branches updated in `handle_parse_success` and `execute_retry_with_learning`
+- 3 new functions: `generate_pronunciation_content` (method), `apply_pronunciation_result`, `generate_and_apply_pronunciation`
+- `cargo test`: 100% pass
+- `cargo clippy`: zero warnings

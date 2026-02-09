@@ -1,4 +1,7 @@
 use super::*;
+use crate::agent_service::pronunciation::{
+    PronunciationAgent, PronunciationAgentOutput, PronunciationAgentParams,
+};
 use crate::agent_service::translation::{
     TranslationAgent, TranslationAgentOutput, TranslationAgentParams,
 };
@@ -24,6 +27,20 @@ use crate::agent_service::retry::{
 use crate::agent_service::util::{GenerationConfig, contains_illegal_characters};
 
 impl ResponseContext {
+    async fn generate_pronunciation_content(
+        &self,
+        params: &GenerateResponseParams<'_>,
+        response_text: &str,
+    ) -> (Result<PronunciationAgentOutput>, Vec<AgentUsage>) {
+        let agent = PronunciationAgent::new(self.pronunciation_agent.clone());
+        let pron_params = PronunciationAgentParams {
+            response_text,
+            dialect: params.dialect.dialect,
+            language_option: params.language_option,
+        };
+        agent.generate_pronunciation(&pron_params).await
+    }
+
     pub(super) async fn attach_learning_items(
         &self,
         params: &GenerateResponseParams<'_>,
@@ -290,7 +307,9 @@ async fn handle_parse_success(
     }
     log_response_success(params.dialect.dialect, &parsed_response);
     if skip_learning {
-        Ok((parsed_response, initial_usage, Vec::new()))
+        let (response, pron_usage) =
+            generate_and_apply_pronunciation(ctx, params, parsed_response).await;
+        Ok((response, initial_usage, pron_usage))
     } else {
         attach_learning_with_error_handling(ctx, params, parsed_response, initial_usage).await
     }
@@ -408,7 +427,9 @@ where
             let mut all_response_usage = initial_usage;
             all_response_usage.extend(retry_usage);
             if skip_learning {
-                Ok((parsed_response, all_response_usage, Vec::new()))
+                let (response, pron_usage) =
+                    generate_and_apply_pronunciation(ctx, params, parsed_response).await;
+                Ok((response, all_response_usage, pron_usage))
             } else {
                 attach_learning_after_retry(ctx, params, parsed_response, all_response_usage).await
             }
@@ -433,6 +454,28 @@ async fn attach_learning_after_retry(
         }
         Err(e) => Err(e),
     }
+}
+
+fn apply_pronunciation_result(
+    response: &mut dialect_coach_shared::AgentResponse,
+    result: Result<PronunciationAgentOutput>,
+) {
+    match result {
+        Ok(output) => response.pronunciation_text = output.pronunciation_text,
+        Err(e) => tracing::error!(error = %e, "Pronunciation agent failed"),
+    }
+}
+
+async fn generate_and_apply_pronunciation(
+    ctx: &ResponseContext,
+    params: &GenerateResponseParams<'_>,
+    mut response: dialect_coach_shared::AgentResponse,
+) -> (dialect_coach_shared::AgentResponse, Vec<AgentUsage>) {
+    let (result, usage) = ctx
+        .generate_pronunciation_content(params, &response.response)
+        .await;
+    apply_pronunciation_result(&mut response, result);
+    (response, usage)
 }
 
 fn validate_user_message(message: &str, dialect: dialect_coach_shared::Dialect) -> Result<()> {
