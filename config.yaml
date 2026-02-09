@@ -1,0 +1,44 @@
+server:
+  bind_address: "0.0.0.0:3000"
+  backend_url: "http://localhost:3000"
+
+qdrant:
+  url: "https://your-qdrant-instance.cloud.qdrant.io:6334"
+
+persistence:
+  db_path: "data/dialect-coach.db"
+
+llm:
+  anthropic:
+    model: "claude-haiku-4-5"
+    org_id: ~
+  openai:
+    model: ~
+    reasoning_budget: 512
+  channels:
+    response:
+      provider: "anthropic"
+    learning:
+      provider: "anthropic"
+    analysis:
+      provider: "anthropic"
+    pronunciation:
+      provider: "anthropic"
+    planning:
+      provider: "anthropic"
+
+tts:
+  eleven_labs:
+    url: "https://api.elevenlabs.io/v1/"
+    model: "eleven_multilingual_v2"
+  azure:
+    region: "eastus"
+
+rate_limits:
+  response_calls: 100
+  response_tokens: 100000
+  analysis_calls: 100
+  analysis_tokens: 50000
+  tts_calls: 200
+  tts_characters: 50000
+  window_hours: 24
