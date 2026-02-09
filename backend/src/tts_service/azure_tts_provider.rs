@@ -26,17 +26,13 @@ impl AzureTtsProvider {
         }
     }
 
-    pub fn from_env() -> Result<Self, TtsError> {
-        let subscription_key =
-            std::env::var("AZURE_SPEECH_KEY").map_err(|_| TtsError::AuthenticationFailed)?;
-        let region =
-            std::env::var("AZURE_SPEECH_REGION").map_err(|_| TtsError::AuthenticationFailed)?;
-
-        if subscription_key.is_empty() || region.is_empty() {
+    pub fn from_config(config: &dialect_coach_shared::config::AzureTtsConfig) -> Result<Self, TtsError> {
+        let key = std::env::var("AZURE_SPEECH_KEY")
+            .map_err(|_| TtsError::AuthenticationFailed)?;
+        if key.is_empty() {
             return Err(TtsError::AuthenticationFailed);
         }
-
-        Ok(Self::new(subscription_key, region))
+        Ok(Self::new(key, config.region.clone()))
     }
 
     fn get_voice_id(

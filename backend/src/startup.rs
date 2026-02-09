@@ -44,10 +44,11 @@ pub fn init_embeddings() -> Result<Arc<embedding_service::EmbeddingService>> {
 }
 
 pub fn init_agent(
+    llm_config: &dialect_coach_shared::config::LlmConfig,
     qdrant: Arc<qdrant_service::QdrantService>,
     embeddings: Arc<embedding_service::EmbeddingService>,
 ) -> Result<Arc<agent_service::AgentService>> {
-    let agent = agent_service::AgentService::from_env(qdrant, embeddings)
+    let agent = agent_service::AgentService::from_config(llm_config, qdrant, embeddings)
         .context("Failed to initialize agent service")?;
     Ok(Arc::new(agent))
 }
@@ -88,12 +89,13 @@ pub fn init_rate_limiter(
 }
 
 pub fn init_tts(
+    tts_config: &dialect_coach_shared::config::TtsConfig,
     user_persistence: Arc<dyn UserPersistence>,
     rate_limiter: Arc<rate_limiter::service::RateLimiter>,
     rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
     user_state_connections: Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
 ) -> Option<tts_handler::TtsState> {
-    match ElevenLabsTtsProvider::from_env() {
+    match ElevenLabsTtsProvider::from_config(&tts_config.eleven_labs) {
         Ok(tts_provider) => {
             let tts_service = tts_service::TtsService::new(Arc::new(tts_provider));
             tracing::info!("TTS service is available");

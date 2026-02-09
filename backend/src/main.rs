@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
 
     let qdrant = startup::init_qdrant(&config.qdrant.url, &std::env::var("QDRANT_API_KEY")?).await?;
     let embeddings = startup::init_embeddings()?;
-    let agent = startup::init_agent(qdrant.clone(), embeddings.clone())?;
+    let agent = startup::init_agent(&config.llm, qdrant.clone(), embeddings.clone())?;
 
     tracing::info!("Initializing user persistence...");
     let user_persistence = startup::init_persistence(
@@ -39,6 +39,7 @@ async fn main() -> Result<()> {
     > = Arc::new(Mutex::new(HashMap::new()));
 
     let tts_state = startup::init_tts(
+        &config.tts,
         user_persistence.clone(),
         rate_limiter.clone(),
         rate_limit_config.clone(),

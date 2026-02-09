@@ -51,6 +51,27 @@ Moving non-sensitive configuration from `.env` to `config.yaml`.
 ### Clippy
 - Clean, no warnings
 
-## Phase 3: Wire Agent Service + TTS Providers - PENDING
+## Phase 3: Wire Agent Service + TTS Providers - COMPLETE
+
+### What Was Done
+- `backend/src/agent_service.rs` - Deleted `channel_env()`, `load_reasoning_budget()`. Replaced `load_channel_agent()` to accept `&ChannelConfig` + `&LlmConfig`. Replaced `from_env()` with `from_config(&LlmConfig)`. Replaced all tests with config-struct-based tests.
+- `backend/src/startup.rs` - Changed `init_agent` to accept `&LlmConfig`, `init_tts` to accept `&TtsConfig`
+- `backend/src/main.rs` - Pass `&config.llm` to `init_agent`, `&config.tts` to `init_tts`
+- `backend/src/tts_service/eleven_labs_tts_provider.rs` - Replaced `from_env()` with `from_config(&ElevenLabsTtsConfig)`
+- `backend/src/tts_service/azure_tts_provider.rs` - Replaced `from_env()` with `from_config(&AzureTtsConfig)`
+- `backend/src/bin/rag_tester.rs` - Uses `AgentService::from_config()` with config.yaml
+
+### Config sources after Phase 3
+- All channel providers, models, reasoning budgets: `config.yaml`
+- All API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, per-channel overrides): `.env`
+- ElevenLabs URL + model: `config.yaml` / API key: `.env`
+- Azure region: `config.yaml` / speech key: `.env`
+
+### Tests
+- All tests pass (0 failures across all crates)
+- Replaced env-var-based agent tests with config-struct-based tests
+
+### Clippy
+- Clean, no warnings
 
 ## Phase 4: Corpus-Processor + .env Cleanup - PENDING

@@ -24,19 +24,13 @@ impl ElevenLabsTtsProvider {
         }
     }
 
-    pub fn from_env() -> Result<Self, TtsError> {
-        let subscription_key =
-            std::env::var("ELEVEN_LABS_API_KEY").map_err(|_| TtsError::AuthenticationFailed)?;
-        let endpoint =
-            std::env::var("ELEVEN_LABS_URL").map_err(|_| TtsError::AuthenticationFailed)?;
-        let model =
-            std::env::var("ELEVEN_LABS_MODEL").map_err(|_| TtsError::AuthenticationFailed)?;
-
-        if subscription_key.is_empty() || endpoint.is_empty() || model.is_empty() {
+    pub fn from_config(config: &dialect_coach_shared::config::ElevenLabsTtsConfig) -> Result<Self, TtsError> {
+        let api_key = std::env::var("ELEVEN_LABS_API_KEY")
+            .map_err(|_| TtsError::AuthenticationFailed)?;
+        if api_key.is_empty() {
             return Err(TtsError::AuthenticationFailed);
         }
-
-        Ok(Self::new(subscription_key, endpoint, model))
+        Ok(Self::new(api_key, config.url.clone(), config.model.clone()))
     }
 
     fn get_voice_id(
