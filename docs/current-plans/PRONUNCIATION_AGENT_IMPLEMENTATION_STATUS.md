@@ -595,3 +595,12 @@ After all deliverables:
 - 3 new functions: `generate_pronunciation_content` (method), `apply_pronunciation_result`, `generate_and_apply_pronunciation`
 - `cargo test`: 100% pass
 - `cargo clippy`: zero warnings
+
+### Phase 2: COMPLETE
+- `run_post_response_agents` added to `generation.rs` - runs pronunciation in parallel with learning/translation via `tokio::join!`
+- Updated `handle_parse_success` `skip_learning=false` branch to call `run_post_response_agents`
+- Updated `execute_retry_with_learning` `skip_learning=false` branch to call `run_post_response_agents`
+- Deleted dead code: `attach_learning_with_error_handling`, `attach_learning_after_retry`
+- All code paths now run pronunciation agent in parallel with learning/translation
+- `cargo test`: 271 passed, 0 failed
+- `cargo clippy`: zero warnings

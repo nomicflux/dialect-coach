@@ -311,27 +311,36 @@ async fn handle_parse_success(
             generate_and_apply_pronunciation(ctx, params, parsed_response).await;
         Ok((response, initial_usage, pron_usage))
     } else {
-        attach_learning_with_error_handling(ctx, params, parsed_response, initial_usage).await
+        run_post_response_agents(ctx, params, parsed_response, initial_usage).await
     }
 }
 
-async fn attach_learning_with_error_handling(
+async fn run_post_response_agents(
     ctx: &ResponseContext,
     params: &GenerateResponseParams<'_>,
     parsed_response: dialect_coach_shared::AgentResponse,
-    initial_usage: Vec<AgentUsage>,
+    response_usage: Vec<AgentUsage>,
 ) -> Result<(
     dialect_coach_shared::AgentResponse,
     Vec<AgentUsage>,
     Vec<AgentUsage>,
 )> {
-    match ctx.attach_learning_items(params, parsed_response).await {
-        Ok((final_response, learning_usage)) => Ok((final_response, initial_usage, learning_usage)),
+    let response_text = parsed_response.response.clone();
+    let (learning_result, (pron_result, pron_usage)) = tokio::join!(
+        ctx.attach_learning_items(params, parsed_response),
+        ctx.generate_pronunciation_content(params, &response_text)
+    );
+    match learning_result {
+        Ok((mut response, learning_usage)) => {
+            apply_pronunciation_result(&mut response, pron_result);
+            let mut all_learning = learning_usage;
+            all_learning.extend(pron_usage);
+            Ok((response, response_usage, all_learning))
+        }
         Err(e) => {
             tracing::error!(
                 dialect = %params.dialect.dialect.name(),
-                error = %e,
-                "Failed to attach learning items to parsed response"
+                error = %e, "Post-response agents failed"
             );
             Err(e)
         }
@@ -431,26 +440,8 @@ where
                     generate_and_apply_pronunciation(ctx, params, parsed_response).await;
                 Ok((response, all_response_usage, pron_usage))
             } else {
-                attach_learning_after_retry(ctx, params, parsed_response, all_response_usage).await
+                run_post_response_agents(ctx, params, parsed_response, all_response_usage).await
             }
-        }
-        Err(e) => Err(e),
-    }
-}
-
-async fn attach_learning_after_retry(
-    ctx: &ResponseContext,
-    params: &GenerateResponseParams<'_>,
-    parsed_response: dialect_coach_shared::AgentResponse,
-    all_response_usage: Vec<AgentUsage>,
-) -> Result<(
-    dialect_coach_shared::AgentResponse,
-    Vec<AgentUsage>,
-    Vec<AgentUsage>,
-)> {
-    match ctx.attach_learning_items(params, parsed_response).await {
-        Ok((final_response, learning_usage)) => {
-            Ok((final_response, all_response_usage, learning_usage))
         }
         Err(e) => Err(e),
     }
