@@ -1,6 +1,6 @@
 use anyhow::Result;
 use dialect_coach_shared::models::needs_pronunciation_text;
-use dialect_coach_shared::{AgentUsage, Dialect, LanguageOption};
+use dialect_coach_shared::{AgentUsage, Dialect, Language, LanguageOption};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -46,12 +46,12 @@ impl PronunciationAgent {
         &self,
         params: &PronunciationAgentParams<'_>,
     ) -> (Result<PronunciationAgentOutput>, Vec<AgentUsage>) {
-        if !needs_pronunciation_text(params.language_option) {
+        if !needs_pronunciation_text(params.dialect, params.language_option) {
             return (Ok(PronunciationAgentOutput::empty()), Vec::new());
         }
 
         let system_content =
-            build_pronunciation_system_content(params.dialect.name(), params.language_option);
+            build_pronunciation_system_content(params.dialect, params.language_option);
         let prompt = build_pronunciation_prompt(params.response_text);
 
         let mut history = Vec::new();
@@ -79,13 +79,14 @@ impl PronunciationAgent {
 }
 
 fn build_pronunciation_system_content(
-    dialect_name: &str,
+    dialect: Dialect,
     language_option: &Option<LanguageOption>,
 ) -> String {
+    let dialect_name = dialect.name();
     let specific_instructions = match language_option {
         Some(LanguageOption::Arabic(_)) => build_arabic_pronunciation_system(dialect_name),
         Some(LanguageOption::Japanese(_)) => build_japanese_pronunciation_system(dialect_name),
-        None => String::new(),
+        None => build_pronunciation_system_for_language(dialect),
     };
 
     format!(
@@ -97,6 +98,40 @@ Rewrite the given {dialect_name} text as it would actually be pronounced by a na
 # OUTPUT FORMAT
 {JSON_OUTPUT_INSTRUCTION}
 {{"pronunciation_text": "...text as pronounced in {dialect_name}..."}}"#
+    )
+}
+
+fn build_pronunciation_system_for_language(dialect: Dialect) -> String {
+    match dialect.language() {
+        Language::Spanish => build_spanish_pronunciation_system(dialect.name()),
+        Language::French => build_french_pronunciation_system(dialect.name()),
+        _ => String::new(),
+    }
+}
+
+fn build_spanish_pronunciation_system(dialect_name: &str) -> String {
+    format!(
+        r#"# TASK
+Rewrite the text to reflect actual {dialect_name} pronunciation for TTS rendering.
+
+# CRITICAL RULES
+- Apply {dialect_name}-specific sound changes to the text
+- Modify spelling to reflect how words are actually pronounced in this dialect
+- Preserve meaning while adjusting pronunciation representation
+- The output must sound like natural {dialect_name} when read by a TTS engine"#
+    )
+}
+
+fn build_french_pronunciation_system(dialect_name: &str) -> String {
+    format!(
+        r#"# TASK
+Rewrite the text to reflect actual {dialect_name} pronunciation for TTS rendering.
+
+# CRITICAL RULES
+- Apply {dialect_name}-specific sound changes to the text
+- Modify spelling to reflect how words are actually pronounced in this dialect
+- Preserve meaning while adjusting pronunciation representation
+- The output must sound like natural {dialect_name} when read by a TTS engine"#
     )
 }
 
@@ -167,7 +202,7 @@ mod tests {
     #[test]
     fn test_system_content_arabic_naskh() {
         let opt = Some(LanguageOption::Arabic(ArabicScript::Naskh));
-        let content = build_pronunciation_system_content("Levantine Arabic", &opt);
+        let content = build_pronunciation_system_content(Dialect::ArabicLevantine, &opt);
         assert!(content.contains("harakat"));
         assert!(content.contains("Levantine Arabic"));
     }
@@ -175,7 +210,7 @@ mod tests {
     #[test]
     fn test_system_content_arabic_ruqa() {
         let opt = Some(LanguageOption::Arabic(ArabicScript::Ruqa));
-        let content = build_pronunciation_system_content("Egyptian Arabic", &opt);
+        let content = build_pronunciation_system_content(Dialect::ArabicEgyptian, &opt);
         assert!(content.contains("harakat"));
         assert!(content.contains("Egyptian Arabic"));
     }
@@ -183,7 +218,7 @@ mod tests {
     #[test]
     fn test_system_content_japanese_kanji() {
         let opt = Some(LanguageOption::Japanese(JapaneseScript::Kanji));
-        let content = build_pronunciation_system_content("Kansai Japanese", &opt);
+        let content = build_pronunciation_system_content(Dialect::JapaneseKansai, &opt);
         assert!(content.contains("furigana"));
         assert!(content.contains("Kansai Japanese"));
     }
@@ -192,5 +227,31 @@ mod tests {
     fn test_prompt_includes_response_text() {
         let prompt = build_pronunciation_prompt("Hello world");
         assert!(prompt.contains("Hello world"));
+    }
+
+    #[test]
+    fn test_system_content_spanish_mexican() {
+        let content = build_pronunciation_system_content(Dialect::SpanishMexican, &None);
+        assert!(content.contains("pronunciation"));
+        assert!(content.contains("Mexican Spanish"));
+    }
+
+    #[test]
+    fn test_system_content_french_quebecois() {
+        let content = build_pronunciation_system_content(Dialect::FrenchQuebecois, &None);
+        assert!(content.contains("pronunciation"));
+        assert!(content.contains("Quebec French"));
+    }
+
+    #[test]
+    fn test_pronunciation_system_for_language_spanish() {
+        let result = build_pronunciation_system_for_language(Dialect::SpanishMexican);
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn test_pronunciation_system_for_language_english() {
+        let result = build_pronunciation_system_for_language(Dialect::EnglishGeneralAmerican);
+        assert!(result.is_empty());
     }
 }

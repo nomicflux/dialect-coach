@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use super::dialect::Dialect;
 use super::language::Language;
 
 /// Arabic script options for learning
@@ -75,7 +76,7 @@ impl LanguageOptions {
 }
 
 /// Determines if separate pronunciation text is needed for TTS.
-pub fn needs_pronunciation_text(language_option: &Option<LanguageOption>) -> bool {
+pub fn needs_pronunciation_text(dialect: Dialect, language_option: &Option<LanguageOption>) -> bool {
     match language_option {
         Some(LanguageOption::Arabic(script)) => {
             !matches!(script, ArabicScript::Latin | ArabicScript::FullyVoweled)
@@ -83,8 +84,20 @@ pub fn needs_pronunciation_text(language_option: &Option<LanguageOption>) -> boo
         Some(LanguageOption::Japanese(script)) => {
             matches!(script, JapaneseScript::Kanji)
         }
-        None => false,
+        None => has_dialect_pronunciation_guide(dialect),
     }
+}
+
+fn has_dialect_pronunciation_guide(dialect: Dialect) -> bool {
+    matches!(
+        dialect,
+        Dialect::SpanishMexican
+            | Dialect::SpanishArgentinian
+            | Dialect::SpanishCuban
+            | Dialect::SpanishColombian
+            | Dialect::FrenchQuebecois
+            | Dialect::FrenchAfrican
+    )
 }
 
 #[cfg(test)]
@@ -196,35 +209,73 @@ mod tests {
     #[test]
     fn test_needs_pronunciation_arabic_naskh() {
         let opt = Some(LanguageOption::Arabic(ArabicScript::Naskh));
-        assert!(needs_pronunciation_text(&opt));
+        assert!(needs_pronunciation_text(Dialect::ArabicEgyptian, &opt));
     }
 
     #[test]
     fn test_needs_pronunciation_arabic_latin() {
         let opt = Some(LanguageOption::Arabic(ArabicScript::Latin));
-        assert!(!needs_pronunciation_text(&opt));
+        assert!(!needs_pronunciation_text(Dialect::ArabicEgyptian, &opt));
     }
 
     #[test]
     fn test_needs_pronunciation_arabic_fully_voweled() {
         let opt = Some(LanguageOption::Arabic(ArabicScript::FullyVoweled));
-        assert!(!needs_pronunciation_text(&opt));
+        assert!(!needs_pronunciation_text(Dialect::ArabicEgyptian, &opt));
     }
 
     #[test]
     fn test_needs_pronunciation_japanese_kanji() {
         let opt = Some(LanguageOption::Japanese(JapaneseScript::Kanji));
-        assert!(needs_pronunciation_text(&opt));
+        assert!(needs_pronunciation_text(Dialect::JapaneseTokyo, &opt));
     }
 
     #[test]
     fn test_needs_pronunciation_japanese_kanji_with_ruby() {
         let opt = Some(LanguageOption::Japanese(JapaneseScript::KanjiWithRuby));
-        assert!(!needs_pronunciation_text(&opt));
+        assert!(!needs_pronunciation_text(Dialect::JapaneseTokyo, &opt));
     }
 
     #[test]
     fn test_needs_pronunciation_none() {
-        assert!(!needs_pronunciation_text(&None));
+        assert!(!needs_pronunciation_text(Dialect::EnglishGeneralAmerican, &None));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_spanish_mexican() {
+        assert!(needs_pronunciation_text(Dialect::SpanishMexican, &None));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_spanish_cuban() {
+        assert!(needs_pronunciation_text(Dialect::SpanishCuban, &None));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_french_quebecois() {
+        assert!(needs_pronunciation_text(Dialect::FrenchQuebecois, &None));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_french_african() {
+        assert!(needs_pronunciation_text(Dialect::FrenchAfrican, &None));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_english_no_guide() {
+        assert!(!needs_pronunciation_text(Dialect::EnglishRP, &None));
+    }
+
+    #[test]
+    fn test_needs_pronunciation_spanish_castilian_no_guide() {
+        assert!(!needs_pronunciation_text(Dialect::SpanishCastilian, &None));
+    }
+
+    #[test]
+    fn test_has_dialect_pronunciation_guide() {
+        assert!(has_dialect_pronunciation_guide(Dialect::SpanishMexican));
+        assert!(has_dialect_pronunciation_guide(Dialect::FrenchQuebecois));
+        assert!(!has_dialect_pronunciation_guide(Dialect::EnglishRP));
+        assert!(!has_dialect_pronunciation_guide(Dialect::SpanishCastilian));
     }
 }
