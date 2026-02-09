@@ -74,4 +74,24 @@ Moving non-sensitive configuration from `.env` to `config.yaml`.
 ### Clippy
 - Clean, no warnings
 
-## Phase 4: Corpus-Processor + .env Cleanup - PENDING
+## Phase 4: Corpus-Processor + .env Cleanup - COMPLETE
+
+### What Was Done
+- `corpus-processor/Cargo.toml` - Added `serde_yaml = "0.9"`
+- `corpus-processor/src/main.rs` - Loads `config.yaml` optionally, `get_qdrant_url()` and `get_qdrant_service()` accept config as fallback, all 5 callers updated
+- `.env.example` - Replaced with secrets-only version (API keys, JWT_SECRET, ADMIN_TOKEN, DATABASE_URL, per-channel API key overrides)
+
+### Tests
+- All 96 corpus-processor tests pass (including 3 new `get_qdrant_url` tests)
+- All workspace tests pass (0 failures)
+
+### Clippy
+- Clean, no warnings
+
+## Final State
+
+All non-sensitive configuration now lives in `config.yaml`. `.env` contains only secrets:
+- API keys: QDRANT_API_KEY, ANTHROPIC_API_KEY, ANTHROPIC_ADMIN_API_KEY, OPENAI_API_KEY, ELEVEN_LABS_API_KEY, AZURE_SPEECH_KEY
+- Auth: JWT_SECRET, ADMIN_TOKEN
+- Database: DATABASE_URL (contains embedded credentials)
+- Per-channel: {CHANNEL}_API_KEY overrides
