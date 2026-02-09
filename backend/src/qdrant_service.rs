@@ -32,15 +32,6 @@ impl QdrantService {
         &self.client
     }
 
-    /// Create from environment variables
-    pub async fn from_env() -> Result<Self> {
-        let url = std::env::var("QDRANT_URL").context("QDRANT_URL environment variable not set")?;
-        let api_key = std::env::var("QDRANT_API_KEY")
-            .context("QDRANT_API_KEY environment variable not set")?;
-
-        Self::new(&url, &api_key).await
-    }
-
     fn is_retryable_error(error: &QdrantError) -> bool {
         matches!(error, QdrantError::Io(_) | QdrantError::Reqwest(_))
     }
@@ -326,7 +317,9 @@ mod tests {
     #[ignore] // Only run with real credentials
     async fn test_connection() {
         // This test requires QDRANT_URL and QDRANT_API_KEY env vars
-        if let Ok(service) = QdrantService::from_env().await {
+        let url = std::env::var("QDRANT_URL").unwrap();
+        let api_key = std::env::var("QDRANT_API_KEY").unwrap();
+        if let Ok(service) = QdrantService::new(&url, &api_key).await {
             service.get_collection_info().await.unwrap();
         }
     }

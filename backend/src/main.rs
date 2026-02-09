@@ -13,19 +13,26 @@ use uuid::Uuid;
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
+    let config = dialect_coach_shared::config::load_config("config.yaml")
+        .expect("Failed to load config.yaml");
 
     startup::init_logging();
 
-    let qdrant = startup::init_qdrant().await?;
+    let qdrant = startup::init_qdrant(&config.qdrant.url, &std::env::var("QDRANT_API_KEY")?).await?;
     let embeddings = startup::init_embeddings()?;
     let agent = startup::init_agent(qdrant.clone(), embeddings.clone())?;
 
     tracing::info!("Initializing user persistence...");
-    let user_persistence = startup::init_persistence().await?;
+    let user_persistence = startup::init_persistence(
+        std::env::var("DATABASE_URL").ok().as_deref(),
+        &config.persistence.db_path,
+    )
+    .await?;
 
     let auth_service = startup::init_auth(user_persistence.clone());
 
-    let (rate_limit_config, org_quota_checker, rate_limiter) = startup::init_rate_limiter();
+    let (rate_limit_config, org_quota_checker, rate_limiter) =
+        startup::init_rate_limiter(&config.rate_limits);
 
     let user_state_connections: Arc<
         Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>,
@@ -71,8 +78,7 @@ async fn main() -> Result<()> {
     let app = startup::build_router(state, tts_state);
 
     // Start server
-    let bind_addr = std::env::var("BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
-    let addr: SocketAddr = bind_addr.parse()?;
+    let addr: SocketAddr = config.server.bind_address.parse()?;
     tracing::info!("Backend server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

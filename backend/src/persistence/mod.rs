@@ -17,21 +17,6 @@ pub struct UserRecord {
     pub password_hash: String,
 }
 
-pub fn get_db_path() -> String {
-    std::env::var("DB_PATH").unwrap_or_else(|_| {
-        let workspace_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("Failed to get workspace root")
-            .to_path_buf();
-        workspace_root
-            .join("data")
-            .join("dialect-coach.db")
-            .to_str()
-            .expect("Invalid path")
-            .to_string()
-    })
-}
-
 /// Trait for persisting user state
 ///
 /// Implementations can use any storage backend and handle their own interior mutability.
@@ -198,12 +183,14 @@ pub trait UserPersistence: Send + Sync {
     async fn delete_invite_code(&self, code: &str) -> Result<()>;
 }
 
-pub async fn create_persistence() -> Result<Arc<dyn UserPersistence>> {
-    if let Ok(database_url) = std::env::var("DATABASE_URL") {
-        let pool = sqlx::PgPool::connect(&database_url).await?;
+pub async fn create_persistence(
+    database_url: Option<&str>,
+    db_path: &str,
+) -> Result<Arc<dyn UserPersistence>> {
+    if let Some(url) = database_url {
+        let pool = sqlx::PgPool::connect(url).await?;
         Ok(Arc::new(PostgresPersistence::new(pool)))
     } else {
-        let db_path = get_db_path();
-        Ok(Arc::new(SledPersistence::new(&db_path)?))
+        Ok(Arc::new(SledPersistence::new(db_path)?))
     }
 }

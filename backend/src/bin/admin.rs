@@ -17,8 +17,10 @@ fn main() -> Result<()> {
 }
 
 fn get_admin_config() -> Result<(Client, String, String)> {
-    let backend_url =
-        env::var("BACKEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
+    dotenvy::dotenv().ok();
+    let config = dialect_coach_shared::config::load_config("config.yaml")
+        .expect("Failed to load config.yaml");
+    let backend_url = config.server.backend_url;
     let admin_token =
         env::var("ADMIN_TOKEN").expect("ADMIN_TOKEN environment variable must be set");
     let client = Client::new();

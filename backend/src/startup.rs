@@ -29,8 +29,8 @@ pub fn init_logging() {
         .init();
 }
 
-pub async fn init_qdrant() -> Result<Arc<qdrant_service::QdrantService>> {
-    let qdrant = qdrant_service::QdrantService::from_env()
+pub async fn init_qdrant(url: &str, api_key: &str) -> Result<Arc<qdrant_service::QdrantService>> {
+    let qdrant = qdrant_service::QdrantService::new(url, api_key)
         .await
         .context("Failed to initialize Qdrant service")?;
     qdrant.get_collection_info().await?;
@@ -52,8 +52,11 @@ pub fn init_agent(
     Ok(Arc::new(agent))
 }
 
-pub async fn init_persistence() -> Result<Arc<dyn UserPersistence>> {
-    let user_persistence = persistence::create_persistence()
+pub async fn init_persistence(
+    database_url: Option<&str>,
+    db_path: &str,
+) -> Result<Arc<dyn UserPersistence>> {
+    let user_persistence = persistence::create_persistence(database_url, db_path)
         .await
         .context("Failed to create persistence")?;
     user_persistence
@@ -67,12 +70,16 @@ pub fn init_auth(user_persistence: Arc<dyn UserPersistence>) -> Arc<dyn auth_ser
     Arc::new(auth_service::InviteCodeAuthService::new(user_persistence))
 }
 
-pub fn init_rate_limiter() -> (
+pub fn init_rate_limiter(
+    rate_limits: &dialect_coach_shared::config::RateLimitsConfig,
+) -> (
     Arc<rate_limiter::config::RateLimitConfig>,
     Arc<rate_limiter::org_quota::OrgQuotaChecker>,
     Arc<rate_limiter::service::RateLimiter>,
 ) {
-    let config = Arc::new(rate_limiter::config::RateLimitConfig::from_env());
+    let config = Arc::new(rate_limiter::config::RateLimitConfig::from_yaml_config(
+        rate_limits,
+    ));
     let org_quota_checker = Arc::new(rate_limiter::org_quota::OrgQuotaChecker::new());
     let rate_limiter = Arc::new(rate_limiter::service::RateLimiter::new(
         org_quota_checker.clone(),

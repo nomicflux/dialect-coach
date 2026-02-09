@@ -27,7 +27,29 @@ Moving non-sensitive configuration from `.env` to `config.yaml`.
 ### Clippy
 - Clean, no warnings
 
-## Phase 2: Wire Simple Backend Services - PENDING
+## Phase 2: Wire Simple Backend Services - COMPLETE
+
+### What Was Done
+- `backend/src/main.rs` - Loads `config.yaml` after dotenvy, passes config sections to init functions, bind address from config
+- `backend/src/startup.rs` - Changed signatures: `init_qdrant(url, api_key)`, `init_persistence(database_url, db_path)`, `init_rate_limiter(&RateLimitsConfig)`
+- `backend/src/qdrant_service.rs` - Deleted `from_env()` method, updated ignored test to use `new()` directly
+- `backend/src/persistence/mod.rs` - Deleted `get_db_path()`, changed `create_persistence()` to accept `database_url` and `db_path` params
+- `backend/src/rate_limiter/config.rs` - Deleted `from_env()`, removed `use std::env`, added `from_yaml_config(&RateLimitsConfig)`, added test
+- `backend/src/bin/admin.rs` - Loads `config.yaml`, uses `config.server.backend_url`
+
+### Config sources after Phase 2
+- Qdrant URL: `config.yaml` / API key: `.env`
+- Bind address: `config.yaml`
+- DB path: `config.yaml` / DATABASE_URL: `.env`
+- Rate limits: `config.yaml`
+- Admin backend URL: `config.yaml` / ADMIN_TOKEN: `.env`
+
+### Tests
+- All tests pass (0 failures across all crates)
+- New test: `test_from_yaml_config` in rate_limiter/config.rs
+
+### Clippy
+- Clean, no warnings
 
 ## Phase 3: Wire Agent Service + TTS Providers - PENDING
 
