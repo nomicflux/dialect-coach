@@ -7,6 +7,7 @@ use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
 pub mod analysis;
+pub mod dialect_pronunciation_guides;
 pub mod enrichment;
 pub mod error_finding;
 pub mod keyword_extraction;

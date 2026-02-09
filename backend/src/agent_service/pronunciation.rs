@@ -4,6 +4,7 @@ use dialect_coach_shared::{AgentUsage, Dialect, Language, LanguageOption};
 use serde::Deserialize;
 use std::sync::Arc;
 
+use super::dialect_pronunciation_guides::build_dialect_pronunciation_guide;
 use super::provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionRequest};
 use super::retry::retry_completion_call;
 use super::util::{
@@ -88,13 +89,15 @@ fn build_pronunciation_system_content(
         Some(LanguageOption::Japanese(_)) => build_japanese_pronunciation_system(dialect_name),
         None => build_pronunciation_system_for_language(dialect),
     };
+    let dialect_guide = build_dialect_pronunciation_guide(dialect);
+    let dialect_guide_section = format_dialect_guide_section(dialect_guide);
 
     format!(
         r#"# PRONUNCIATION AGENT
 Rewrite the given {dialect_name} text as it would actually be pronounced by a native speaker, for TTS rendering.
 
 {specific_instructions}
-
+{dialect_guide_section}
 # OUTPUT FORMAT
 {JSON_OUTPUT_INSTRUCTION}
 {{"pronunciation_text": "...text as pronounced in {dialect_name}..."}}"#
@@ -133,6 +136,14 @@ Rewrite the text to reflect actual {dialect_name} pronunciation for TTS renderin
 - Preserve meaning while adjusting pronunciation representation
 - The output must sound like natural {dialect_name} when read by a TTS engine"#
     )
+}
+
+fn format_dialect_guide_section(guide: &str) -> String {
+    if guide.is_empty() {
+        String::new()
+    } else {
+        format!("\n# DIALECT-SPECIFIC PRONUNCIATION RULES\n{guide}\n")
+    }
 }
 
 fn build_arabic_pronunciation_system(dialect_name: &str) -> String {
@@ -253,5 +264,36 @@ mod tests {
     fn test_pronunciation_system_for_language_english() {
         let result = build_pronunciation_system_for_language(Dialect::EnglishGeneralAmerican);
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_system_content_mexican_has_guide() {
+        let content = build_pronunciation_system_content(Dialect::SpanishMexican, &None);
+        assert!(content.contains("/s/ fully retained"));
+    }
+
+    #[test]
+    fn test_system_content_cuban_has_guide() {
+        let content = build_pronunciation_system_content(Dialect::SpanishCuban, &None);
+        assert!(content.contains("Lambdacism"));
+    }
+
+    #[test]
+    fn test_system_content_quebec_has_guide() {
+        let content = build_pronunciation_system_content(Dialect::FrenchQuebecois, &None);
+        assert!(content.contains("Affrication"));
+    }
+
+    #[test]
+    fn test_format_dialect_guide_section_empty() {
+        let result = format_dialect_guide_section("");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_format_dialect_guide_section_content() {
+        let result = format_dialect_guide_section("some guide");
+        assert!(result.contains("DIALECT-SPECIFIC PRONUNCIATION RULES"));
+        assert!(result.contains("some guide"));
     }
 }
