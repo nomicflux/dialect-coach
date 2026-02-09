@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use super::provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionRequest};
 use super::retry::retry_completion_call;
-use super::util::{JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, normalize_json_response};
+use super::util::{
+    JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, normalize_json_response,
+};
 
 pub struct PronunciationAgentParams<'a> {
     pub response_text: &'a str,
@@ -87,29 +89,29 @@ fn build_pronunciation_system_content(
     };
 
     format!(
-        r#"# PRONUNCIATION ANNOTATION AGENT
-You add pronunciation annotations to text for TTS rendering.
+        r#"# PRONUNCIATION AGENT
+Rewrite the given {dialect_name} text as it would actually be pronounced by a native speaker, for TTS rendering.
 
 {specific_instructions}
 
 # OUTPUT FORMAT
 {JSON_OUTPUT_INSTRUCTION}
-{{"pronunciation_text": "...annotated text..."}}"#
+{{"pronunciation_text": "...text as pronounced in {dialect_name}..."}}"#
     )
 }
 
 fn build_arabic_pronunciation_system(dialect_name: &str) -> String {
     format!(
         r#"# TASK
-Add full harakat (tashkeel vowel marks) to ALL letters so TTS can pronounce it correctly.
+Rewrite the text as it is actually pronounced in {dialect_name}, with full harakat (tashkeel) on all letters.
 
 # CRITICAL RULES
+- Replace consonants with their {dialect_name} equivalents (e.g., ق→أ in Egyptian Arabic)
 - The harakat MUST reflect {dialect_name} pronunciation, NOT Modern Standard Arabic (Fus7a)
 - Use dialect-specific vowel patterns (e.g., "i" sounds that would be "a" in MSA)
 - Reflect dropped or altered vowels common in {dialect_name}
 - Show sukun where consonant clusters occur in the dialect
-- Change consonants to how they would sound in {dialect_name}
-- The pronunciation_text must sound like natural {dialect_name} when spoken aloud"#
+- The output must sound like natural {dialect_name} when spoken aloud, not like formal Arabic"#
     )
 }
 
@@ -127,7 +129,7 @@ Add furigana ruby tags to kanji (e.g., <ruby>漢字<rt>かんじ</rt></ruby>) so
 }
 
 fn build_pronunciation_prompt(response_text: &str) -> String {
-    format!("Add pronunciation annotations to the following text:\n\n{response_text}")
+    format!("Write the pronunciation version of the following text:\n\n{response_text}")
 }
 
 fn try_parse_pronunciation_output(response: &str) -> Result<PronunciationAgentOutput> {

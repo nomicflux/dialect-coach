@@ -1,6 +1,6 @@
+use dialect_coach_shared::models::LanguageOption;
 use dialect_coach_shared::models::learning_item::{LearningItem, LearningItemType};
 use dialect_coach_shared::models::plan::{LanguagePlan, PlanStep, StepType};
-use dialect_coach_shared::models::LanguageOption;
 use dialect_coach_shared::{
     DialectWithFeatures, Formality, LanguageLevel, LearningGoal, PastLearningItems, TeachingMode,
     UserGender,

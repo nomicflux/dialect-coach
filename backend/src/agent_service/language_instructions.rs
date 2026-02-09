@@ -110,5 +110,4 @@ mod tests {
             "You must respond using standard kanji without annotations."
         );
     }
-
 }
