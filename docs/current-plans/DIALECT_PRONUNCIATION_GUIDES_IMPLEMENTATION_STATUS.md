@@ -27,5 +27,12 @@
 - **Tests**: 282 pass (cargo test), zero clippy warnings
 
 ## Phase 3: Arabic + Japanese Dialect Pronunciation Guides
-- **Status**: PENDING
+- **Status**: COMPLETE
 - **Subagent**: kiss-code-generator
+- **Files modified**: `backend/src/agent_service/dialect_pronunciation_guides.rs`, `backend/src/agent_service/pronunciation.rs`
+- **Changes**:
+  - Added 5 new IPA guides: Egyptian Arabic, Levantine Arabic, Gulf Arabic, Tokyo Japanese, Kansai Japanese
+  - Updated `build_dialect_pronunciation_guide` match to include all 11 TTS dialects
+  - Added integration tests verifying Arabic/Japanese system content includes guide content
+- **Tests**: All pass (cargo test), zero clippy warnings
+- **Coverage**: All 11 TTS dialects now have dialect-specific IPA pronunciation rules

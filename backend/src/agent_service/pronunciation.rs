@@ -296,4 +296,18 @@ mod tests {
         assert!(result.contains("DIALECT-SPECIFIC PRONUNCIATION RULES"));
         assert!(result.contains("some guide"));
     }
+
+    #[test]
+    fn test_system_content_egyptian_has_guide() {
+        let opt = Some(LanguageOption::Arabic(ArabicScript::Naskh));
+        let content = build_pronunciation_system_content(Dialect::ArabicEgyptian, &opt);
+        assert!(content.contains("glottal stop"));
+    }
+
+    #[test]
+    fn test_system_content_kansai_has_guide() {
+        let opt = Some(LanguageOption::Japanese(JapaneseScript::Kanji));
+        let content = build_pronunciation_system_content(Dialect::JapaneseKansai, &opt);
+        assert!(content.contains("devoicing RARE"));
+    }
 }

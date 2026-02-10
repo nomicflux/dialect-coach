@@ -56,6 +56,52 @@ const AFRICAN_FRENCH_GUIDE: &str = r#"
 - Syllable-timed, even stress distribution
 "#;
 
+const EGYPTIAN_ARABIC_GUIDE: &str = r#"
+- /q/ (qaf) → [ʔ] glottal stop: "qalb" → [ʔalb]
+- /dʒ/ (jim) → [ɡ] voiced velar stop: "jabal" → [ɡæbæl] (most distinctive feature)
+- /θ/ → [s]: "thalatha" → [salaːsa]
+- /ð/ → [z]: "dhahab" → [zahab]
+- Short /a/ splits: [æ] default, [ɑ] near emphatics (spreads through word)
+- Diphthongs monophthongize: /aj/ → [eː], /aw/ → [oː]: "bayt" → [beːt]
+"#;
+
+const LEVANTINE_ARABIC_GUIDE: &str = r#"
+- /q/ → [ʔ] (urban): "qaal" → [ʔaːl]
+- /dʒ/ → [ʒ] voiced postalveolar fricative: "jamiil" → [ʒamiːl]
+- /θ/ → [t] or [s]: "thalatha" → [tlaːte]
+- /ð/ → [d] or [z]: "haadha" → [haːda]
+- Imala: /aː/ → [eː] in front environments: "kitaab" → [kteːb]
+- Word-final ta marbuta raised: /a/ → [e] or [i]: "madrasa" → [madrase]
+- Consonant clusters allowed word-initially: [ktaːb], [tneːn]
+"#;
+
+const GULF_ARABIC_GUIDE: &str = r#"
+- /q/ → [ɡ] voiced velar stop: "qaal" → [ɡaːl]
+- /dʒ/ → [j] palatal approximant (Emirati): "jadiid" → [jadiːd]
+- /k/ → [tʃ] before front vowels (kashkasha): "kiif" → [tʃiːf]
+- /θ ð ðˤ/ generally RETAINED (more conservative than Egyptian/Levantine)
+- Short vowel reduction: all may reduce to [ə] unstressed
+- Emphasis spreading: [a] → [ɑ] → [ɒ] near emphatics
+"#;
+
+const TOKYO_JAPANESE_GUIDE: &str = r#"
+- High vowel devoicing (MAJOR feature): /i ɯ/ devoice between voiceless consonants
+  - "suki" → [sɯ̥ki], "desu" → [desɯ̥] or [des]
+- /h/ → [ç] before /i/, → [ɸ] before /u/
+- /s/ → [ɕ] before /i/, /t/ → [tɕ] before /i/, → [ts] before /u/
+- Geminate consonants contrastive: "kite" vs "kitte"
+- Tokyo pitch accent: downstep-only system, LH start pattern
+"#;
+
+const KANSAI_JAPANESE_GUIDE: &str = r#"
+- Vowel devoicing RARE (key difference from Tokyo): full vowels preserved
+  - Tokyo [des] vs Kansai [desɯ]
+- Geminate → long vowel in verb past tense: "itta" → "yuːta", "katta" → "koːta"
+- Monomoraic noun lengthening: /ki/ → [kiː], /me/ → [meː]
+- Two-register pitch accent (H-group and L-group): more patterns than Tokyo
+- Common word pitch differs: "ame" (rain) Tokyo LH, Kansai HL
+"#;
+
 pub fn build_dialect_pronunciation_guide(dialect: Dialect) -> &'static str {
     match dialect {
         Dialect::SpanishMexican => MEXICAN_SPANISH_GUIDE,
@@ -64,6 +110,11 @@ pub fn build_dialect_pronunciation_guide(dialect: Dialect) -> &'static str {
         Dialect::SpanishColombian => COLOMBIAN_SPANISH_GUIDE,
         Dialect::FrenchQuebecois => QUEBEC_FRENCH_GUIDE,
         Dialect::FrenchAfrican => AFRICAN_FRENCH_GUIDE,
+        Dialect::ArabicEgyptian => EGYPTIAN_ARABIC_GUIDE,
+        Dialect::ArabicLevantine => LEVANTINE_ARABIC_GUIDE,
+        Dialect::ArabicGulf => GULF_ARABIC_GUIDE,
+        Dialect::JapaneseTokyo => TOKYO_JAPANESE_GUIDE,
+        Dialect::JapaneseKansai => KANSAI_JAPANESE_GUIDE,
         _ => "",
     }
 }
@@ -118,5 +169,40 @@ mod tests {
     fn test_guide_no_guide_dialect() {
         let guide = build_dialect_pronunciation_guide(Dialect::SpanishCastilian);
         assert!(guide.is_empty());
+    }
+
+    #[test]
+    fn test_guide_egyptian() {
+        let guide = build_dialect_pronunciation_guide(Dialect::ArabicEgyptian);
+        assert!(!guide.is_empty());
+        assert!(guide.contains("glottal stop"));
+    }
+
+    #[test]
+    fn test_guide_levantine() {
+        let guide = build_dialect_pronunciation_guide(Dialect::ArabicLevantine);
+        assert!(!guide.is_empty());
+        assert!(guide.contains("ʒ"));
+    }
+
+    #[test]
+    fn test_guide_gulf() {
+        let guide = build_dialect_pronunciation_guide(Dialect::ArabicGulf);
+        assert!(!guide.is_empty());
+        assert!(guide.contains("kashkasha"));
+    }
+
+    #[test]
+    fn test_guide_tokyo() {
+        let guide = build_dialect_pronunciation_guide(Dialect::JapaneseTokyo);
+        assert!(!guide.is_empty());
+        assert!(guide.contains("devoicing"));
+    }
+
+    #[test]
+    fn test_guide_kansai() {
+        let guide = build_dialect_pronunciation_guide(Dialect::JapaneseKansai);
+        assert!(!guide.is_empty());
+        assert!(guide.contains("devoicing RARE"));
     }
 }
