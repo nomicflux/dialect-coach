@@ -120,12 +120,9 @@ enum Commands {
     },
 }
 
-fn get_qdrant_url(
-    url: Option<String>,
-    config: &dialect_coach_shared::config::AppConfig,
-) -> String {
+fn get_qdrant_url(url: Option<String>) -> String {
     url.or_else(|| std::env::var("QDRANT_URL").ok().filter(|s| !s.is_empty()))
-        .unwrap_or_else(|| config.qdrant.url.clone())
+        .expect("Qdrant URL must be provided via --url flag or QDRANT_URL env var")
 }
 
 fn get_qdrant_key(api_key: Option<String>) -> Option<String> {
@@ -135,9 +132,8 @@ fn get_qdrant_key(api_key: Option<String>) -> Option<String> {
 async fn get_qdrant_service(
     url: Option<String>,
     api_key: Option<String>,
-    config: &dialect_coach_shared::config::AppConfig,
 ) -> Result<qdrant::QdrantService> {
-    let qdrant_url = get_qdrant_url(url, config);
+    let qdrant_url = get_qdrant_url(url);
     println!("Connecting to: {}", qdrant_url);
     let qdrant_api_key = get_qdrant_key(api_key);
     if let Some(key) = qdrant_api_key {
@@ -147,10 +143,6 @@ async fn get_qdrant_service(
     }
 }
 
-fn load_required_config() -> Result<dialect_coach_shared::config::AppConfig> {
-    dialect_coach_shared::config::load_config("config.yaml")
-        .context("Failed to load config.yaml")
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -221,10 +213,9 @@ async fn main() -> Result<()> {
             url,
             api_key,
         } => {
-            let config = load_required_config()?;
             println!("Deleting points from Qdrant:");
             println!("  Dialect: {}", dialect);
-            let qdrant = get_qdrant_service(url, api_key, &config).await?;
+            let qdrant = get_qdrant_service(url, api_key).await?;
             qdrant.delete_points(&dialect).await?;
         }
         Commands::Upload {
@@ -232,12 +223,11 @@ async fn main() -> Result<()> {
             url,
             api_key,
         } => {
-            let config = load_required_config()?;
             println!("Uploading documents to Qdrant (streaming):");
             println!("  Input: {}\n", input);
 
             // Connect to Qdrant first
-            let qdrant = get_qdrant_service(url, api_key, &config).await?;
+            let qdrant = get_qdrant_service(url, api_key).await?;
 
             // Count total lines for progress
             let line_count = {
@@ -333,19 +323,17 @@ async fn main() -> Result<()> {
             dialect_from,
             dialect_to,
         } => {
-            let config = load_required_config()?;
             println!("Retrieving points to update");
-            let qdrant = get_qdrant_service(url, api_key, &config).await?;
+            let qdrant = get_qdrant_service(url, api_key).await?;
 
             qdrant.update_points(&dialect_from, &dialect_to).await?;
         }
         Commands::Status { url, api_key } => {
-            let config = load_required_config()?;
             println!("🔍 Checking Qdrant Status");
             println!("{}\n", "=".repeat(50));
 
             // Connect to Qdrant
-            let qdrant = get_qdrant_service(url, api_key, &config).await?;
+            let qdrant = get_qdrant_service(url, api_key).await?;
 
             // Get detailed status
             qdrant.get_detailed_status().await?;
@@ -355,8 +343,7 @@ async fn main() -> Result<()> {
             api_key,
             force,
         } => {
-            let config = load_required_config()?;
-            let qdrant = get_qdrant_service(url, api_key, &config).await?;
+            let qdrant = get_qdrant_service(url, api_key).await?;
 
             if !force {
                 use std::io::Write;
@@ -551,83 +538,15 @@ mod tests {
 
     #[test]
     fn test_get_qdrant_url_cli_flag() {
-        let config = dialect_coach_shared::config::load_config(
-            &format!("{}/../config.yaml", env!("CARGO_MANIFEST_DIR"))
-        ).unwrap();
-        let result = get_qdrant_url(Some("http://localhost:6334".to_string()), &config);
+        let result = get_qdrant_url(Some("http://localhost:6334".to_string()));
         assert_eq!(result, "http://localhost:6334");
     }
 
     #[test]
-    fn test_get_qdrant_url_config_fallback() {
-        let config = dialect_coach_shared::config::AppConfig {
-            server: dialect_coach_shared::config::ServerConfig {
-                bind_address: "0.0.0.0:3000".to_string(),
-                backend_url: "http://localhost:3000".to_string(),
-            },
-            qdrant: dialect_coach_shared::config::QdrantConfig {
-                url: "http://config-qdrant:6334".to_string(),
-            },
-            persistence: dialect_coach_shared::config::PersistenceConfig {
-                db_path: "data/test.db".to_string(),
-            },
-            llm: dialect_coach_shared::config::LlmConfig {
-                anthropic: dialect_coach_shared::config::AnthropicProviderConfig {
-                    model: "claude-haiku-4-5".to_string(),
-                    org_id: None,
-                },
-                openai: dialect_coach_shared::config::OpenAiProviderConfig {
-                    model: "gpt-4o".to_string(),
-                    reasoning_budget: 512,
-                },
-                channels: dialect_coach_shared::config::ChannelsConfig {
-                    response: dialect_coach_shared::config::ChannelConfig {
-                        provider: "anthropic".to_string(),
-                        model: None,
-                        reasoning_budget: None,
-                    },
-                    learning: dialect_coach_shared::config::ChannelConfig {
-                        provider: "anthropic".to_string(),
-                        model: None,
-                        reasoning_budget: None,
-                    },
-                    analysis: dialect_coach_shared::config::ChannelConfig {
-                        provider: "anthropic".to_string(),
-                        model: None,
-                        reasoning_budget: None,
-                    },
-                    pronunciation: dialect_coach_shared::config::ChannelConfig {
-                        provider: "anthropic".to_string(),
-                        model: None,
-                        reasoning_budget: None,
-                    },
-                    planning: dialect_coach_shared::config::ChannelConfig {
-                        provider: "anthropic".to_string(),
-                        model: None,
-                        reasoning_budget: None,
-                    },
-                },
-            },
-            tts: dialect_coach_shared::config::TtsConfig {
-                eleven_labs: dialect_coach_shared::config::ElevenLabsTtsConfig {
-                    url: "https://api.elevenlabs.io/v1/".to_string(),
-                    model: "eleven_multilingual_v2".to_string(),
-                },
-                azure: dialect_coach_shared::config::AzureTtsConfig {
-                    region: "eastus".to_string(),
-                },
-            },
-            rate_limits: dialect_coach_shared::config::RateLimitsConfig {
-                response_calls: 100,
-                response_tokens: 100000,
-                analysis_calls: 100,
-                analysis_tokens: 50000,
-                tts_calls: 200,
-                tts_characters: 50000,
-                window_hours: 24,
-            },
-        };
-        let result = get_qdrant_url(None, &config);
-        assert_eq!(result, "http://config-qdrant:6334");
+    fn test_get_qdrant_url_env_var() {
+        std::env::set_var("QDRANT_URL", "http://env-qdrant:6334");
+        let result = get_qdrant_url(None);
+        assert_eq!(result, "http://env-qdrant:6334");
+        std::env::remove_var("QDRANT_URL");
     }
 }

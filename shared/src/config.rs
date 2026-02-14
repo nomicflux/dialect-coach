@@ -4,7 +4,6 @@ use serde::Deserialize;
 #[derive(Deserialize, Clone, Debug)]
 pub struct AppConfig {
     pub server: ServerConfig,
-    pub qdrant: QdrantConfig,
     pub persistence: PersistenceConfig,
     pub llm: LlmConfig,
     pub tts: TtsConfig,
@@ -17,10 +16,6 @@ pub struct ServerConfig {
     pub backend_url: String,
 }
 
-#[derive(Deserialize, Clone, Debug)]
-pub struct QdrantConfig {
-    pub url: String,
-}
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct PersistenceConfig {
@@ -105,9 +100,6 @@ server:
   bind_address: "0.0.0.0:3000"
   backend_url: "http://localhost:3000"
 
-qdrant:
-  url: "https://qdrant.example.com:6334"
-
 persistence:
   db_path: "data/dialect-coach.db"
 
@@ -152,7 +144,6 @@ rate_limits:
         let config: AppConfig = serde_yaml::from_str(TEST_YAML).unwrap();
         assert_eq!(config.server.bind_address, "0.0.0.0:3000");
         assert_eq!(config.server.backend_url, "http://localhost:3000");
-        assert_eq!(config.qdrant.url, "https://qdrant.example.com:6334");
         assert_eq!(config.persistence.db_path, "data/dialect-coach.db");
         assert_eq!(config.llm.openai.reasoning_budget, 512);
         assert_eq!(config.llm.channels.response.provider, "anthropic");
@@ -175,8 +166,6 @@ rate_limits:
 server:
   bind_address: "0.0.0.0:3000"
   backend_url: "http://localhost:3000"
-qdrant:
-  url: "https://qdrant.example.com:6334"
 persistence:
   db_path: "data/test.db"
 llm:

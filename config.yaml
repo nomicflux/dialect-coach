@@ -2,9 +2,6 @@ server:
   bind_address: "0.0.0.0:3000"
   backend_url: "http://localhost:3000"
 
-qdrant:
-  url: "https://ebc1f227-4b58-43ee-8eba-cd8742eba4b6.us-east4-0.gcp.cloud.qdrant.io:6334"
-
 persistence:
   db_path: "data/dialect-coach.db"
 

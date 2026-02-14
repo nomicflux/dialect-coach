@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
     println!("Initializing services...");
     let config = dialect_coach_shared::config::load_config("config.yaml")
         .expect("Failed to load config.yaml");
-    let url = std::env::var("QDRANT_URL").unwrap_or_else(|_| config.qdrant.url.clone());
+    let url = std::env::var("QDRANT_URL")?;
     let api_key = std::env::var("QDRANT_API_KEY")?;
     let qdrant = Arc::new(QdrantService::new(&url, &api_key).await?);
     let embeddings = Arc::new(EmbeddingService::new()?);

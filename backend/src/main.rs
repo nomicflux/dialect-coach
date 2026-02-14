@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
     startup::init_logging();
 
     let qdrant =
-        startup::init_qdrant(&config.qdrant.url, &std::env::var("QDRANT_API_KEY")?).await?;
+        startup::init_qdrant(&std::env::var("QDRANT_URL")?, &std::env::var("QDRANT_API_KEY")?).await?;
     let embeddings = startup::init_embeddings()?;
     let agent = startup::init_agent(&config.llm, qdrant.clone(), embeddings.clone())?;
 
