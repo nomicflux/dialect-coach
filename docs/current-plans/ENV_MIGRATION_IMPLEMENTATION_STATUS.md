@@ -17,7 +17,15 @@
 
 ## Phase 2: Move DB credentials from docker-compose.yml to .env
 
-**Status**: PENDING
+**Status**: COMPLETE
+
+**Changes made:**
+- `docker-compose.yml`: Replaced hardcoded `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` with `${...}` env var references. Updated `DATABASE_URL` to use interpolated values. Changed healthcheck to string form for variable interpolation.
+- `.env`: Added `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` values.
+
+**Verification:**
+- `docker compose config` — all values interpolate correctly
+- `cargo test` — still passes (no Rust changes)
 
 ## Phase 3: Scrub Qdrant URL from git history
 
