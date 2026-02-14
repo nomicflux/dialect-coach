@@ -28,7 +28,7 @@
 
 5.  **Validating Environment**
     - A "Normal" environment is defined by **Strict Verification**.
-    - You must run `cargo test --all` and `cargo clippy --all`. Yes, that means ALL crates. No exceptions. No optimizations.  
+    - You must run `cargo test` and `cargo clippy`. Yes, that means ALL crates. No exceptions. No optimizations.
     - You must STOP on any error.
     - "Unblocking yourself" by suppressing errors is forbidden.
 
@@ -87,7 +87,7 @@
     - **Visual**: Distinguish **Object** (The thing) from **Effect** (The glow/shadow).
     - **Constraint**: You must Build a Mental Model of the System Hierarchy (Parent -> Child -> Attribute) before changing a single line of code.
 24. **The Placebo Code Ban**:
-    - You are FORBIDDEN from writing code to fix a "Likely" cause.Narrow context
+    - You are FORBIDDEN from writing code to fix a "Likely" cause.
     - You must have **Dispositive Evidence** (Law #8) that a specific cause exists before you can write a specific fix.
     - Writing "Defensive Code" for unproven bugs is strictly prohibited.
 25. **The Plan Is Law**:

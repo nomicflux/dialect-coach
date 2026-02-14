@@ -10,7 +10,7 @@
 - `cargo build` (root) compiles the entire workspace; add `--release` before publishing artifacts.
 - `cargo run -p backend` starts the WebSocket API on `http://localhost:3000` (health probe at `/health`).
 - `cd frontend && trunk serve` launches the development UI at `http://localhost:8080` and re-builds on change.
-- `cd corpus-processor && cargo run -- process --input corpus-data/spanish_mexican --output processed/es-mx.jsonl` prepares data before `cargo run -- upload --input processed/es-mx.jsonl` syncs to Qdrant.
+- `cd corpus-processor && cargo run -- process --input corpus-data/spanish_mexican --output processed/es-mx.jsonl` prepares data before `cargo run -- upload --input processed/es-mx.jsonl` syncs to Qdrant. The upload (and other Qdrant commands) require `QDRANT_URL` in `.env` or via the `--url` flag.
 
 ## Coding Style & Naming Conventions
 - Run `cargo fmt` and `cargo clippy --all-targets --all-features` before committing; CI expects Rust 2024 defaults and zero warnings.
@@ -28,7 +28,10 @@
 - Verify `cargo fmt`, `cargo clippy`, relevant `cargo test` targets, and any trunk builds before requesting review.
 
 ## Environment & Security Notes
-- Store provider keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, Azure TTS, Qdrant) in a root `.env` that mirrors `DEVELOPER_GUIDE.md`; never commit secrets or corpus exports.
+- Store all secrets and instance-specific config in a root `.env` (gitignored); never commit secrets or corpus exports.
+- Required env vars: `QDRANT_URL`, `QDRANT_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, plus Azure TTS and ElevenLabs keys. See `DEVELOPER_GUIDE.md` for the full list.
+- `docker-compose.yml` reads `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` from `.env` for the local Postgres instance.
+- `config.yaml` holds only non-sensitive configuration (server bind address, LLM model names, TTS settings, rate limits).
 - Treat resources inside `corpus-data/` and `corpus-downloads/` as licensed assets—share only processed outputs and keep raw sources in approved storage.
 - DO NOT use large blocks or entire files as TargetContent for editing tools. EVen the SLIGHTEST change to newlines and
   formatting makes it impossible for the user to properly review changes.
