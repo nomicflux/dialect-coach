@@ -9,21 +9,21 @@ llm:
   anthropic:
     model: "claude-haiku-4-5"
   openai:
-    model: "gpt-5"
+    model: "gpt-5.4"
     reasoning_budget: 512
   channels:
     response:
       provider: "openai"
-      model: "gpt-5.1"
+      model: "gpt-5.4"
     learning:
       provider: "anthropic"
-      model: "claude-sonnet-4-5"
+      model: "claude-sonnet-4-6"
     analysis:
       provider: "anthropic"
       model: "claude-haiku-4-5"
     pronunciation:
       provider: "openai"
-      model: "gpt-5.1"
+      model: "gpt-5.4"
     planning:
       provider: "anthropic"
 
