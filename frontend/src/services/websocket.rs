@@ -161,8 +161,6 @@ impl WebSocketService {
             }
         };
 
-        let (mut write, mut read) = ws.split();
-
         // Create channel for sending messages
         let (tx, mut rx) = mpsc::unbounded::<String>();
         *self.sender.borrow_mut() = Some(tx);
@@ -177,20 +175,41 @@ impl WebSocketService {
         let on_state_change = self.on_state_change.clone();
         let reconnection_config = self.reconnection_config.clone();
         let reconnection_timeout = self.reconnection_timeout.clone();
+        let sender = self.sender.clone();
 
-        // Spawn send task
+        // Wait for the handshake before splitting the socket.
+        //
+        // Splitting a still-CONNECTING socket and moving the halves into two
+        // independent tasks let the send half drop while the browser still held
+        // the socket's event listeners: gloo closes the socket and frees its
+        // closures on drop, so the next event called a vacated function-table
+        // slot and the wasm trapped with "table index is out of bounds", which
+        // killed the Yew render and left index.html's loading placeholder on
+        // screen. The other two services (user_websocket.rs,
+        // user_state_websocket.rs) already awaited wait_for_connection before
+        // splitting; this one did not.
         spawn_local(async move {
-            while let Some(text) = rx.next().await {
-                if let Err(e) = write.send(WsMessage::Text(text)).await {
-                    error!("Failed to send message: {:?}", e);
-                    break;
-                }
+            if !wait_for_connection(&ws).await {
+                error!("Failed to establish WebSocket connection");
+                *sender.borrow_mut() = None;
+                *state.borrow_mut() = ConnectionState::Failed;
+                on_state_change.emit(ConnectionState::Failed);
+                on_error.emit("Failed to establish WebSocket connection".to_string());
+                return;
             }
-            info!("Send task terminated");
-        });
 
-        // Spawn receive task
-        spawn_local(async move {
+            let (mut write, mut read) = ws.split();
+
+            spawn_local(async move {
+                while let Some(text) = rx.next().await {
+                    if let Err(e) = write.send(WsMessage::Text(text)).await {
+                        error!("Failed to send message: {:?}", e);
+                        break;
+                    }
+                }
+                info!("Send task terminated");
+            });
+
             info!("WebSocket connection established");
 
             // Connection successful
