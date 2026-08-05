@@ -38,7 +38,10 @@ body {
   --aurora-glow: 0 0 30px rgba(78, 205, 196, 0.6), 0 0 60px rgba(167, 139, 250, 0.4);
 }
 
-/* Noise overlay - Texture */
+/* Noise overlay - Texture.
+   Painted on its own compositor layer with no blend mode: mix-blend-mode
+   pulls every element underneath into a single blend group, forcing a
+   full-page re-raster on any repaint. */
 body::before {
   content: "";
   position: fixed;
@@ -47,10 +50,19 @@ body::before {
   width: 100%;
   height: 100%;
   background-image: var(--noise-texture);
-  opacity: 0.05;
+  background-repeat: repeat;
+  background-size: 64px 64px;
+  opacity: 0.035;
   pointer-events: none;
   z-index: 0;
-  mix-blend-mode: overlay;
+  will-change: transform;
+}
+
+/* Grain is decoration; drop it where raster budget is tightest. */
+@media (max-width: 640px) {
+  body::before {
+    display: none;
+  }
 }
 
 /* Global Aurora REMOVED - Moved to components */

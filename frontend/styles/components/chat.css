@@ -11,21 +11,17 @@
 
 
 .chat-scroll {
-  flex: 1;
-  /* CHANGED: This is now the scroll container */
+  grid-area: chat;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: visible;
   /* Allow painting into the parent's padding area to prevent rope clipping */
   overflow-clip-margin: 100px;
-  padding: var(--s-2);
-  /* padding-left handled by chat-canvas - NO, moved here to fix clipping */
-  padding-left: 120px;
-  padding-right: 120px;
-
-  /* Safe zone for Dynamic Island floating at top */
-  padding-top: 80px;
-  padding-bottom: 140px;
-  /* Floating Input buffer */
+  /* Room for the branch ropes, which hang outside the bubbles. */
+  padding: var(--s-4) 90px;
+  /* The Daily Focus panel and the composer are both in flow now, so the
+     blank safe zones that kept text out from under them are no longer
+     needed. */
   scroll-behavior: smooth;
 }
 
@@ -201,11 +197,9 @@
   font-size: var(--text-lg);
   line-height: 1.5;
   word-wrap: break-word;
-  /* HIGH CONTRAST POP + AURORA GLOW */
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(0);
-  /* Solid, no blur needed */
-  -webkit-backdrop-filter: blur(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  /* No backdrop-filter: even blur(0) forces a backdrop root and its own
+     compositing layer on every bubble, for no visual effect. */
   border: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 10;
   /* Above Aurora */
@@ -216,9 +210,9 @@
   /* Solid Surface */
   color: var(--ink);
   border-bottom-left-radius: var(--r-s);
+  /* The coloured edge identifies the speaker; a coloured halo on every bubble
+     makes the transcript vibrate without adding information. */
   border-left: 3px solid var(--coral);
-  box-shadow: 0 0 15px rgba(255, 107, 107, 0.2);
-  /* Coral Glow */
 }
 
 .bubble--user {
@@ -227,8 +221,6 @@
   color: var(--ink);
   border-bottom-right-radius: var(--r-s);
   border-right: 3px solid var(--teal);
-  box-shadow: 0 0 15px rgba(78, 205, 196, 0.2);
-  /* Teal Glow */
 }
 
 /* Message header with author and actions */
@@ -359,6 +351,14 @@
 }
 
 /* Responsive adjustments */
+/* The 90px gutters exist to give the branch ropes room; on a narrow screen
+   they cost more than the ropes are worth. */
+@media (max-width: 900px) {
+  .chat-scroll {
+    padding: var(--s-3) var(--s-2);
+  }
+}
+
 @media (max-width: 480px) {
   .bubble {
     max-width: 85%;
@@ -399,10 +399,18 @@
   font-size: 18px;
   line-height: 1;
   color: var(--ink-soft);
-  opacity: 0.5;
+  /* A delete affordance on every message at rest is visual noise on a screen
+     whose subject is the text. Revealed on hover, and on focus so it stays
+     reachable by keyboard. */
+  opacity: 0;
   cursor: pointer;
   transition: opacity var(--dur-fast) var(--ease-out);
   padding: 0;
+}
+
+.bubble:hover .message-delete-button,
+.message-delete-button:focus-visible {
+  opacity: 0.6;
 }
 
 .message-delete-button:hover {
@@ -499,6 +507,13 @@
 
 .rope-glow {
   transition: all 0.4s ease-in-out;
+}
+
+/* One drop-shadow on the whole assembly replaces the per-rope SVG filter
+   chain (feGaussianBlur -> feColorMatrix -> feMerge) that was rebuilt and
+   re-rasterised for every message on screen. */
+.neon-rope-svg {
+  filter: drop-shadow(0 0 2px rgba(0, 255, 255, 0.35));
 }
 
 .rope-core {

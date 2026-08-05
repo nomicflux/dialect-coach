@@ -17,13 +17,14 @@
 
 /* Header - clean and minimal */
 .app-header {
-  background: rgba(35, 40, 45, 0.9);
-  /* Lighter Neutral Grey for separation */
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* Opaque: at 0.9 alpha the blur underneath is barely visible, but a
+     sticky full-width backdrop-filter re-blurs the region every frame
+     that anything scrolls or animates beneath it. */
+  background: rgb(32, 37, 42);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding: var(--s-4) 0;
-  /* Increased padding */
+  /* The header is persistent chrome above the conversation; it should cost as
+     little vertical space as its controls need. */
+  padding: var(--s-2) 0;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -62,6 +63,7 @@
   text-align: center;
   margin: 0;
   gap: var(--s-1);
+  min-width: 0;
 }
 
 .app-title {
@@ -93,6 +95,12 @@
   align-items: center;
   gap: var(--s-3);
   font-size: var(--text-sm);
+  /* Grid and flex items default to min-width:auto, which refuses to shrink
+     below content width - the sign-in row then pushes the header wider than
+     the viewport and the whole page scrolls sideways. */
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .user-signed-in {
@@ -104,6 +112,12 @@
   display: flex;
   align-items: center;
   gap: var(--s-3);
+}
+
+.user-signed-in .username {
+  color: var(--ink-soft);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .signout-button {
@@ -125,12 +139,16 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  /* Column flex stretches children to the widest one by default, which blows
+     "Create Account" up to the full width of the sign-in row beneath it. */
+  align-items: flex-end;
 }
 
 .user-form {
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  min-width: 0;
 }
 
 .user-form label {
@@ -147,7 +165,11 @@
   background: var(--surface);
   color: var(--ink);
   font-size: var(--text-sm);
-  min-width: 120px;
+  /* Shrinkable: a hard min-width here is what forces the header past the
+     viewport edge on narrow screens. */
+  width: 100%;
+  min-width: 0;
+  max-width: 160px;
   transition: border-color var(--dur-fast) var(--ease-out);
 }
 
@@ -200,6 +222,14 @@
   font-weight: 500;
 }
 
+.connection-status .status-dot {
+  line-height: 1;
+}
+
+.connection-status .status-label {
+  white-space: nowrap;
+}
+
 .status-connected {
   color: var(--status-connected);
 }
@@ -233,29 +263,123 @@
   padding: 0;
 }
 
-/* Chat Canvas - The main immersion area */
+/* Chat Canvas - The main immersion area.
+   Two columns: the Daily Focus panel is docked beside the conversation instead
+   of floating over it, so nothing overlaps the messages. */
 .chat-canvas {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: var(--focus-column-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "focus chat"
+    "focus composer";
   position: relative;
   height: 100%;
   width: 100%;
   max-width: var(--container-max);
   margin: 0 auto;
-  padding: var(--s-4);
-  /* Space for Neon Rope handled by .chat-scroll padding now */
-  /* padding-left: 100px; padding-right: 100px; MOVED TO .chat-scroll */
-  /* Background handled by body aurora */
+  padding: var(--s-3);
   background: transparent;
-  /* CHANGED: Allow rope glow to overflow, scroll handled by .chat-scroll */
+  /* Allow rope glow to overflow; scroll handled by .chat-scroll */
   overflow: visible;
-  /* Ensure it has a height to scroll */
-  height: 100%;
 }
 
 /* Utility Sidebar - TEMPORARILY HIDDEN */
 /* We are moving this to a drawer in Phase 2 */
 .utility-sidebar {
   display: none;
+}
+
+/* ---------------------------------------------------------------
+   Mobile layout
+   The 3-column header grid has no room to resolve below ~900px:
+   the brand collides with the action buttons and the user section
+   overflows the viewport.
+   --------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .app-header {
+    padding: var(--s-2) 0;
+  }
+
+  .app-header .container {
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "left center right";
+    padding: 0 var(--s-3);
+    gap: var(--s-2);
+  }
+
+  /* Subtitle is marketing copy - it costs three lines on a phone. */
+  .app-subtitle {
+    display: none;
+  }
+
+  .app-title {
+    font-size: var(--text-base);
+    white-space: nowrap;
+  }
+
+  .user-signed-in {
+    padding: var(--s-1) var(--s-2);
+    gap: var(--s-2);
+    font-size: var(--text-xs);
+  }
+
+  /* The username is the widest node in the bar and the user already knows who
+     they are; the drawer shows it in full. */
+  .user-signed-in .username {
+    display: none;
+  }
+
+  .user-section {
+    gap: var(--s-2);
+  }
+
+  /* No room for a side column: focus band stacks above the conversation. */
+  .chat-canvas {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "focus"
+      "chat"
+      "composer";
+    padding: var(--s-2);
+  }
+
+  .connection-status .status-label {
+    /* "Ready to chat!" wraps to three lines in a narrow column;
+       the coloured dot already carries the state (label kept as tooltip). */
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header .container {
+    padding: 0 var(--s-2);
+  }
+
+  /* Center column has nothing left to show once the subtitle is gone
+     and the sides need the room. */
+  .header-brand {
+    display: none;
+  }
+
+  .app-main {
+    height: auto;
+    min-height: 0;
+    flex: 1;
+  }
+
+  .chat-canvas {
+    padding: var(--s-2);
+  }
+}
+
+/* Respect the iOS home indicator / notch. */
+@supports (padding: max(0px)) {
+  @media (max-width: 640px) {
+    .app-header {
+      padding-top: max(var(--s-2), env(safe-area-inset-top));
+    }
+  }
 }

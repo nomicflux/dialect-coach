@@ -34,7 +34,6 @@ pub fn neon_rope(props: &NeonRopeProps) -> Html {
 
     // Unique IDs
     let gradient_id = format!("neon-circuit-grad-{}", props.id);
-    let glow_filter_id = format!("neon-circuit-glow-{}", props.id);
 
     // Flip for user messages (User is on right sides)
     let transform = if props.is_user_message {
@@ -69,20 +68,6 @@ pub fn neon_rope(props: &NeonRopeProps) -> Html {
                     <stop offset="100%" style="stop-color:#bf00ff;stop-opacity:1" /> // Fade to Purple
                 </@>
 
-                // Tighter Glow Filter for "Pipe" look
-                <filter id={glow_filter_id.clone()} x="-50%" y="-50%" width="200%" height="200%">
-                        // Less blur for focused "plasma" look
-                        <@{"feGaussianBlur"} in="SourceGraphic" stdDeviation="1.5" result="coloredBlur" />
-                        <@{"feColorMatrix"} in="coloredBlur" type="matrix" values="
-                            1 0 0 0 0
-                            0 1 0 0 0
-                            0 0 1 0 0
-                            0 0 0 2.5 0" result="boostedGlow" />
-                        <@{"feMerge"}>
-                            <@{"feMergeNode"} in="boostedGlow" />
-                            <@{"feMergeNode"} in="SourceGraphic" />
-                        </@>
-                </filter>
             </defs>
 
             <g transform={transform}>
@@ -96,8 +81,7 @@ pub fn neon_rope(props: &NeonRopeProps) -> Html {
                     fill="none"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    filter={format!("url(#{})", glow_filter_id)}
-                    opacity="0.8"
+                    opacity="0.5"
                     class="rope-glow"
                 />
 
@@ -127,7 +111,6 @@ pub fn neon_rope(props: &NeonRopeProps) -> Html {
                     fill="none"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    filter={format!("url(#{})", glow_filter_id)}
                     opacity="0" // Hidden by default
                     class="rope-fork rope-fork-up rope-glow"
                 />
@@ -152,7 +135,6 @@ pub fn neon_rope(props: &NeonRopeProps) -> Html {
                     fill="none"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                     filter={format!("url(#{})", glow_filter_id)}
                     opacity="0"
                     class="rope-fork rope-fork-down rope-glow"
                 />

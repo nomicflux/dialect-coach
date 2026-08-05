@@ -129,8 +129,18 @@
   /* Layout constraints */
   --container-max: 1040px;
   --panel-width: 380px;
+  /* Docked Daily Focus column beside the conversation. */
+  --focus-column-width: 260px;
   --input-min-height: 44px;
   /* touch-friendly */
+
+  /* Theme-aware separator and hover wash. Hardcoded rgba(0,0,0,...) hairlines
+     are invisible against the dark surfaces this UI actually renders on. */
+  --hairline: rgba(0, 0, 0, 0.08);
+  --hover-wash: rgba(0, 0, 0, 0.05);
+
+  /* Minimum comfortable touch target (WCAG 2.5.8 / iOS HIG). */
+  --tap-min: 44px;
 
   /* Glassmorphism 2.0 - Aurora Compatible */
   --glass-opacity: 0.4;
@@ -139,7 +149,9 @@
   --surface-glass: rgba(255, 255, 255, 0.4);
 
   /* Visual Polish Tokens */
-  --noise-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  /* Static grain tile. An SVG feTurbulence filter is re-evaluated by the
+     rasterizer on every repaint and resize; a plain repeating image is not. */
+  --noise-texture: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAQAAAAAYLlVAAAGXklEQVR42m1ZSZLDMAjkzLGPXPhqnj5TtoBu5ErVLIkdIUQvYPvl87L/V/3057f94rzDr/zhvOt0fTz/4/lZ99p5n++N52V0NepivozDeW+Y23gBo4BxLYcTavbVTp9GvV9v+POvPx84fTnf5pKTdw/2/Mzz9/uXy938SQU2YaXR/mYZPEtlJ9t64aQd107f6/BsoHYbJzRe2uUb4lkD+rH3FwctPvuBpH3CevcZdGjZRwjKz1QHzjasIowuqvqiSlRKcXqXXJVh0D0huYqTk8lQhRKzNZMznUWt0xlXcdU56svl6qBSrMwl5bJfnOY8t8QTPeQc7cQPCgd91t4HZ33NhOD9zYUkOrCB2+wkZRd+bokfXxsEsTz48bOYE1ynKnhDhDVOyIAMXd91cRDNZJeRL3QbVYmtIn7RAmIIKxjWDup8/VSvUdFkx+ydp0IM+qTzZCApyfUZ54GwpERkBY7+zbh4aTh6QYbaIAA/5ZboaomTs+TMTdVD0j9YiLNfP4szudoBGqtE0KJfR1Q5fsN33eFUgje7u4SnxacsWYU4KB+MVPZ2MHHh8jqrOERVqS7eAxERujL06FgHIXd10EY3OJGGqlgsnOw07/zgnHgePjQpw/cb4w1bF0tZEIvVWB+dqiUJ4d6KCNqpi0ALaEfJ+YwUcC5q5lKkiny/0J+iDxUCuYoBRYobStqhegRm/qHZILFV4TExOCNbh3FNnE40azudaymjis2ulTxnPigZ8+UUtBPTthqiLRJOPuJChx8LYed8Q5SDEYIPRwUqWdaSsBYQu9gMvTMXRvNWiBRnhNaHgR1D27tkR+bSqDJ9udoKht1fiLj4sTLoo4PkjOk627rGKewnK7YdipBrVbhftqQ0HZQzJ7dntGcV+aHoKFs+O90iCok/mhlGiPMjLBfgWR+Ki1E7n1fh4ZznqOFOJssVxAXGJWWYIuvCAymlDe8M0oOM1Kg/iNms05iXBTGCb1JB+2e7Q0Dc4JhLR8Xt1LcS8hh5iO9x4tNYfnuMXR+hEcVYs9h4OyPaqQrGMrG2nC+kh1RfnWRuVmuWwoQQOfKVcAhv5nUsIYANyvHgxEeOQ6J1KsUx6BBdGzxgtaH7fZcmByJfeDPg0jCxe2dPALEWrAKld8TvBLSgRVlNihFz1eSxDWWg2QWy2fLVkOXqm21VQq4iBvMAToH56l6cZNr7iljgi/bHuPhDsbEb1PPTFm5tGQ2Iwczl93ZQTDVBHYG1DIO887Hl3iaCScVlCKH4D8JJXDqZ4hK2ncPiTBtPD9EAXt6XI3Ji+TznzJ1vLnGzy9KTgxz6HAzEUXvIZADLgoMWy/bAPDPhUZYv1S105FQ4ZPbh7fFYGUNwzM1ptOnIVs49DYizUa4Ia2ci0rktFYh8QIwfMk2bJndLtF/m38eWJ5HwXTYhHm5YHLRz7phHcEJIKZcZ60phlQqZdAXxN9d+ygQAbVLRMh4kwUxhJvn0keOQqt2ejps20NQgxStyhSRNhnLNh/bVcZOn2mijgQvI2XONVBeALkGXfqlQlJuEypL5opwg3Z4m7GZBfFCuTpVdFDC6dHOQZoJSF3GORSlYU7JcPSLb11hZtIuWMFRsa+phYq1jsQEPW7gj8uWgXP7KVtEU+w+jKYhL+wTRMhWsPJhH99U7dFuzBu/R1XJP2w2Mo/EDqSSfnNLrs+MvT4CrswoJYh+h7fFRLrTeNJzCBNxNxodYmYw4uVKSW7N7PsQE49Raz5nHkhvr4UM0uZu4TROCOu3Nhsv3YN1/e5y3LVjKAwosKPPwc03X1GbkUuy45iVObRfkzLEeVPBEgIsauwiD5jZjRk3oias5V4/npyIYtrFGVNECPgZdxMgXvXKcQd19yPByP5BKmh3xIMNkeqTeiNRw817lwz9kapb0NcTQMT2E3Ln1aw+hvetuqBiSkMmgkQHDZcSSjGusIRW36j7dcYgz1GEVrqeKQ7B7PpgE4buRnylaC4DRqCX66YhSsQk24uNQ8sgxxMRgCY+a9iVGe35h4uR0HBlLBcdDxGrCt7/8mMberXmuFiLJWnm7B50iBQl4Xg/wvqfNJ+R7LBUfY1UdwTkZclwDPrueKutTNm3msId0+kglpMW4H3Hv1tWJKUFzEB36JD+fNanqb0vKh5I0N9Bq10cR860MV++uqwQ8/gD+WatOQpuEawAAAABJRU5ErkJggg==");
   --glow-border: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
   --glow-active: 0 0 20px rgba(78, 205, 196, 0.15), inset 0 0 0 1px rgba(78, 205, 196, 0.3);
 
@@ -163,6 +175,8 @@
     /* Dark Mode Glass */
     --surface-glass: rgba(20, 20, 20, 0.4);
     --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+    --hairline: rgba(255, 255, 255, 0.1);
+    --hover-wash: rgba(255, 255, 255, 0.07);
 
     /* Dark Mode Aurora */
     --aurora-1: #2C7A7B;

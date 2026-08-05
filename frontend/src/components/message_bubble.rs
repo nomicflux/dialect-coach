@@ -249,10 +249,17 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                 <div class={avatar_class}>{avatar_text}</div>
                 <div class={bubble_class}>
                     {render_delete_button(&props.on_delete, props.message.id)}
-                    <div class="message-header">
-                        <div class="message-author">{if props.message.is_agent() { "agent" } else { "user" }}</div>
-                        {if !props.is_own_message { render_replay_button(&props.on_replay, &props.message) } else { html! {} }}
-                    </div>
+                    // Avatar and alignment already say who is speaking, so the
+                    // header carries only the replay control.
+                    {if !props.is_own_message {
+                        html! {
+                            <div class="message-header">
+                                {render_replay_button(&props.on_replay, &props.message)}
+                            </div>
+                        }
+                    } else {
+                        html! {}
+                    }}
                     <div class={classes!("message-content", font_class_name)} {lang} onmouseup={on_mouseup}>
                         {render_text_with_ruby(&props.message.get_content())}
                     </div>
@@ -261,7 +268,7 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
                     } else {
                         html! {}
                     }}
-                    <div class="message-time">{props.message.metadata.timestamp.to_rfc3339()}</div>
+                    <div class="message-time">{props.message.metadata.timestamp.format("%H:%M").to_string()}</div>
                 </div>
             </div>
 

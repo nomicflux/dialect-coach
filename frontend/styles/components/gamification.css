@@ -66,6 +66,29 @@
     margin-left: var(--s-1);
 }
 
+/* Mobile: these sit in the header bar, where horizontal room is scarce.
+   Keep the level badge and streak count, drop the parts that only add width. */
+@media (max-width: 900px) {
+    .gamification-fluency-bar {
+        padding: var(--s-1);
+        gap: var(--s-1);
+    }
+
+    /* An 8px-tall progress track competes with the action buttons for
+       width and reads as noise at this size. */
+    .gamification-fluency-bar .progress-track {
+        display: none;
+    }
+
+    .gamification-streak {
+        padding: var(--s-1) var(--s-2);
+    }
+
+    .gamification-streak .streak-label {
+        display: none;
+    }
+}
+
 /* Quest List */
 .gamification-quest-list {
     margin-top: var(--s-4);

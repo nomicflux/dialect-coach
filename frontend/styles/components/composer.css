@@ -1,18 +1,16 @@
 /* Message Composer and Input Controls */
 
 .composer {
+  grid-area: composer;
   display: flex;
   gap: var(--s-3);
-  padding: var(--s-4);
-  /* Floating Positioning */
-  position: absolute;
-  bottom: var(--s-6);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90%;
+  padding: var(--s-3);
+  /* In flow at the foot of the chat column: floating it over the transcript
+     required a matching blank strip in .chat-scroll to keep the last message
+     readable. */
+  width: 100%;
   max-width: 800px;
-  /* Prevent HUD overlap overlap */
-  z-index: 100;
+  margin: var(--s-2) auto 0;
 
   /* Solid Pop + Aurora Border */
   background:
@@ -24,9 +22,15 @@
   border-radius: var(--r-xl);
   border: 2px solid transparent;
   /* Wider border for effect */
+  /* A permanent aurora halo makes the composer shout over the conversation.
+     Lift is enough at rest; the glow becomes the focus affordance below. */
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.35);
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.composer:focus-within {
   box-shadow:
-    0 15px 40px -5px rgba(0, 0, 0, 0.3),
-    0 8px 16px -2px rgba(0, 0, 0, 0.1),
+    0 8px 24px -6px rgba(0, 0, 0, 0.35),
     var(--aurora-glow);
 }
 
@@ -360,7 +364,8 @@
   }
 
   .btn--icon {
-    width: 40px;
+    /* Stay at the 44px touch minimum - this is a primary control. */
+    width: var(--tap-min);
   }
 
   .speech-controls {
@@ -375,14 +380,20 @@
 }
 
 @media (max-width: 480px) {
+  /* Wrap rather than stack: a vertical column of full-width buttons
+     pushes the input itself out of the viewport when the keyboard opens. */
   .composer-actions {
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: var(--s-2);
   }
 
   .btn {
-    width: 100%;
+    flex: 1 1 auto;
     justify-content: center;
+  }
+
+  .btn--icon {
+    flex: 0 0 auto;
   }
 
   .keyboard-hint {

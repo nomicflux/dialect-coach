@@ -49,33 +49,55 @@ pub fn header(props: &HeaderProps) -> Html {
         })
     };
 
+    // Dot and label are separate nodes so narrow viewports can keep the
+    // state indicator and drop the prose.
+    let (status_class, status_dot, status_label) = match app_state.connection_state {
+        ConnectionState::Connected => ("status-connected", "●", "Ready to chat!"),
+        ConnectionState::Connecting => ("status-connecting", "⟳", "Connecting..."),
+        ConnectionState::Reconnecting => ("status-reconnecting", "⟳", "Reconnecting..."),
+        ConnectionState::Disconnected => ("status-disconnected", "○", "Disconnected"),
+        ConnectionState::Failed => ("status-failed", "✖", "Connection Failed"),
+    };
+
     html! {
         <header class="app-header">
             <div class="container">
                 // Dashboard button moved to separate component
                 <div class="header-brand">
                     <h1 class="app-title">{"🎯 Dialect Coach"}</h1>
-                    <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p>
+                    // The pitch is for visitors deciding whether to sign up; once
+                    // signed in it is a permanent band of dead space above the chat.
+                    {if app_state.current_user.is_none() {
+                        html! { <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p> }
+                    } else {
+                        html! {}
+                    }}
                 </div>
 
                 <div class="user-section">
-                    // Connection status
-                    <div class="connection-status">
-                        {match app_state.connection_state {
-                            ConnectionState::Connected => html! { <span class="status-connected">{"● Ready to chat!"}</span> },
-                            ConnectionState::Connecting => html! { <span class="status-connecting">{"⟳ Connecting..."}</span> },
-                            ConnectionState::Reconnecting => html! { <span class="status-reconnecting">{"⟳ Reconnecting..."}</span> },
-                            ConnectionState::Disconnected => html! { <span class="status-disconnected">{"○ Disconnected"}</span> },
-                            ConnectionState::Failed => html! { <span class="status-failed">{"✖ Connection Failed"}</span> },
-                        }}
-                    </div>
+                    // The chat WebSocket is only opened once a user is signed in
+                    // (use_chat_websocket skips connecting otherwise), so before
+                    // sign-in this indicator would report a disconnection that is
+                    // simply the pre-auth state.
+                    {if app_state.current_user.is_some() {
+                        html! {
+                            <div class="connection-status">
+                                <span class={status_class} title={status_label}>
+                                    <span class="status-dot">{status_dot}</span>
+                                    <span class="status-label">{status_label}</span>
+                                </span>
+                            </div>
+                        }
+                    } else {
+                        html! {}
+                    }}
                     {if let Some(user) = app_state.current_user.as_ref() {
                         if let Some(stats) = session.user.as_ref().map(|s| s.gamification_stats()) {
                             html! {
                                 <div class="user-signed-in">
                                     <FluencyBar xp={stats.xp} />
                                     <StreakDisplay current_streak={stats.streak.current_streak} />
-                                    <span>{format!("Signed in as: {}", user.username)}</span>
+                                    <span class="username" title="Signed in">{user.username.clone()}</span>
                                     <button class="signout-button" onclick={on_signout_click(app_state.clone(), session.clone())}>
                                         {"Sign Out"}
                                     </button>
@@ -84,7 +106,7 @@ pub fn header(props: &HeaderProps) -> Html {
                         } else {
                              html! {
                                 <div class="user-signed-in">
-                                    <span>{format!("Signed in as: {}", user.username)}</span>
+                                    <span class="username" title="Signed in">{user.username.clone()}</span>
                                     <button class="signout-button" onclick={on_signout_click(app_state.clone(), session.clone())}>
                                         {"Sign Out"}
                                     </button>

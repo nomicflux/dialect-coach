@@ -1,54 +1,39 @@
 /* Dynamic Island: Study HUD */
 
+/* Docked as a real column beside the conversation. As a fixed overlay it sat
+   on top of the messages and forced .chat-scroll to reserve blank safe-zone
+   padding to keep text out from under it. */
 .dynamic-island-container {
-    position: fixed;
-    bottom: var(--s-6);
-    left: var(--s-4);
-    /* Further left */
-    z-index: 600;
-    /* Above messages */
-    pointer-events: none;
-    /* Container doesn't block, but child does */
+    grid-area: focus;
     display: flex;
-    justify-content: flex-start;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--s-3) 0 var(--s-3) var(--s-3);
 }
 
 .dynamic-island {
-    background:
-        linear-gradient(rgba(20, 20, 20, 0.95), rgba(20, 20, 20, 0.95)) padding-box,
-        var(--aurora-gradient) border-box;
-    border: 1px solid transparent;
-    /* Transparent for gradient border */
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), var(--aurora-glow);
+    /* In-flow panel: it sits beside the conversation rather than hovering over
+       it, so it needs no lift, halo or gradient border to separate it. */
+    background: var(--surface);
+    border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: var(--r-l);
-    padding: var(--s-4);
-    pointer-events: auto;
-    /* Clickable */
+    padding: var(--s-3);
+    cursor: pointer;
     display: flex;
     flex-direction: column;
     gap: var(--s-3);
-    color: white;
-    width: 320px;
-    max-width: 90vw;
-    min-height: 120px;
-    height: auto;
-    /* Allow growth */
-    transition: all var(--dur-fast) var(--ease-emph);
-    /* overflow: hidden; Removed to allow text wrap growth if needed, though usually contained by padding */
-    /* Interaction affordance */
+    color: var(--ink);
+    width: 100%;
+    transition: border-color var(--dur-fast) var(--ease-out);
     user-select: none;
     -webkit-user-select: none;
     /* Prevents double-click text selection interference */
-
 }
 
 /* Hover effect for interactivity */
 .dynamic-island:hover {
-    transform: scale(1.02);
     border-color: var(--teal);
-    /* Highlight color */
-    box-shadow: 0 12px 48px rgba(78, 205, 196, 0.15);
-    /* Glow */
 }
 
 .island-indicator {
@@ -208,8 +193,7 @@
 /* Perfected: Maximum saturation, intense glow, gold star */
 .island-item.state-perfected {
     opacity: 1;
-    filter: saturate(1.6) brightness(1.1) drop-shadow(0 0 6px var(--accent-color)) drop-shadow(0 0 12px var(--accent-color));
-    animation: island-perfected-pulse 2s ease-in-out infinite;
+    filter: saturate(1.6) brightness(1.1) drop-shadow(0 0 6px var(--accent-color));
 }
 
 .island-item.state-perfected .state-indicator {
@@ -221,12 +205,29 @@
     color: rgba(255, 215, 0, 1);
 }
 
+/* Pulse via opacity on a glow pseudo-element rather than animating `filter`:
+   animated drop-shadow re-runs the filter pipeline on every frame. */
+.island-item.state-perfected {
+    position: relative;
+}
+
+.island-item.state-perfected::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    box-shadow: 0 0 8px var(--accent-color), 0 0 16px var(--accent-color);
+    opacity: 0;
+    pointer-events: none;
+    animation: island-perfected-pulse 2s ease-in-out infinite;
+}
+
 @keyframes island-perfected-pulse {
     0%, 100% {
-        filter: saturate(1.6) brightness(1.1) drop-shadow(0 0 6px var(--accent-color)) drop-shadow(0 0 12px var(--accent-color));
+        opacity: 0;
     }
     50% {
-        filter: saturate(1.6) brightness(1.15) drop-shadow(0 0 8px var(--accent-color)) drop-shadow(0 0 16px var(--accent-color));
+        opacity: 1;
     }
 }
 
@@ -269,3 +270,25 @@
 /* Light Theme Overrides */
 /* The island is usually dark, but if we want it light-themed: */
 /* For now, we keep it dark "status bar" style even in light mode for contrast */
+
+/* Hover-only controls never reveal on touch devices. */
+@media (hover: none) {
+    .island-btn-small {
+        opacity: 1;
+    }
+}
+
+/* ---------------------------------------------------------------
+   Below the two-column threshold there is no room for a side column,
+   so the focus panel becomes a short band above the conversation.
+   --------------------------------------------------------------- */
+@media (max-width: 900px) {
+    .dynamic-island-container {
+        padding: var(--s-2) var(--s-2) 0;
+        max-height: 28vh;
+    }
+
+    .dynamic-island {
+        gap: var(--s-2);
+    }
+}

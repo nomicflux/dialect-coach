@@ -1,16 +1,14 @@
 /* Drawer Component Styles */
 .drawer-backdrop {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(4px);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
     z-index: 1000;
     opacity: 0;
     visibility: hidden;
-    transition: all var(--dur-med) var(--ease-out);
+    /* opacity only: `transition: all` animates layout properties too, and a
+       full-viewport backdrop-filter re-blurs the whole page every frame. */
+    transition: opacity var(--dur-med) var(--ease-out), visibility var(--dur-med);
 }
 
 .drawer-backdrop.open {
@@ -33,7 +31,6 @@
     z-index: 1001;
     transform: translateX(100%);
     transition: transform var(--dur-med) var(--ease-emph);
-    will-change: transform;
     display: flex;
     flex-direction: column;
     border-left: 1px solid rgba(255, 255, 255, 0.1);
@@ -41,17 +38,34 @@
     /* Ensure it stays painted */
 }
 
-/* Glass effect for the panel if supported */
-@supports (backdrop-filter: blur(20px)) {
-    .drawer-panel {
-        background: var(--surface-glass);
-        backdrop-filter: blur(12px);
-        border-left: var(--glass-border);
-    }
-}
-
 .drawer-panel.open {
     transform: translateX(0);
+}
+
+/* Only promote to its own layer while sliding; a permanent will-change
+   keeps the layer (and its memory) alive for the life of the page. */
+.drawer-panel.open,
+.drawer-panel.closing {
+    will-change: transform;
+}
+
+/* Full-bleed sheet on phones - a 320px min-width panel over a 390px
+   viewport leaves a dead sliver of unusable page behind it. */
+@media (max-width: 640px) {
+    .drawer-panel {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        border-left: none;
+    }
+
+    .drawer-header {
+        padding-top: max(var(--s-4), env(safe-area-inset-top));
+    }
+
+    .drawer-content {
+        padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+    }
 }
 
 .drawer-header {
@@ -59,7 +73,7 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--s-4);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-bottom: 1px solid var(--hairline);
 }
 
 .drawer-title {
@@ -70,8 +84,8 @@
 }
 
 .drawer-close-button {
-    width: 32px;
-    height: 32px;
+    width: var(--tap-min);
+    height: var(--tap-min);
     border-radius: var(--r-pill);
     display: flex;
     align-items: center;
@@ -83,7 +97,7 @@
 }
 
 .drawer-close-button:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--hover-wash);
     color: var(--coral);
     transform: rotate(90deg);
 }
@@ -104,8 +118,8 @@
 .drawer-tabs {
     display: flex;
     width: 100%;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    background: rgba(0, 0, 0, 0.02);
+    border-bottom: 1px solid var(--hairline);
+    background: var(--hover-wash);
     flex-shrink: 0;
     margin-bottom: var(--s-3);
     border-radius: var(--r-m);
@@ -116,6 +130,7 @@
 .drawer-tab {
     flex: 1;
     padding: var(--s-2);
+    min-height: var(--tap-min);
     background: transparent;
     border: none;
     font-size: var(--text-sm);
@@ -129,7 +144,7 @@
 
 .drawer-tab:hover {
     color: var(--teal);
-    background: rgba(255, 255, 255, 0.5);
+    background: var(--hover-wash);
 }
 
 .drawer-tab.active {
