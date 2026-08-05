@@ -18,7 +18,7 @@
   /* Allow painting into the parent's padding area to prevent rope clipping */
   overflow-clip-margin: 100px;
   /* Room for the branch ropes, which hang outside the bubbles. */
-  padding: var(--s-4) 90px;
+  padding: var(--s-4) var(--chat-gutter);
   /* The Daily Focus panel and the composer are both in flow now, so the
      blank safe zones that kept text out from under them are no longer
      needed. */
@@ -351,11 +351,12 @@
 }
 
 /* Responsive adjustments */
-/* The 90px gutters exist to give the branch ropes room; on a narrow screen
-   they cost more than the ropes are worth. */
+/* The gutters exist to give the branch ropes room; on a narrow screen they cost
+   more than the ropes are worth. Shrinking the token keeps the composer, which
+   uses the same value, aligned with the transcript. */
 @media (max-width: 900px) {
-  .chat-scroll {
-    padding: var(--s-3) var(--s-2);
+  :root {
+    --chat-gutter: var(--s-2);
   }
 }
 

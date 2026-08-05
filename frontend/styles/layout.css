@@ -8,11 +8,17 @@
   width: 100%;
 }
 
-/* App shell - full height layout */
+/* App shell - full height layout.
+   Bounded to the viewport, not just floored at it: with only min-height the
+   shell grew to fit its content and pushed the composer below the fold. The
+   chat scrolls internally, so the shell itself must never exceed the screen.
+   svh tracks mobile browser chrome as it hides and shows. */
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
 }
 
 /* Header - clean and minimal */
@@ -255,9 +261,13 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  /* Stacked layout, no fixed sidebar */
-  height: calc(100vh - 60px);
-  overflow: visible;
+  /* No hardcoded header height: `calc(100vh - 60px)` assumed a 60px header, so
+     any other header height pushed the composer past the bottom of the screen.
+     .app is a column flex, so flex: 1 takes exactly the space the header leaves.
+     min-height: 0 lets this shrink below its content so the chat scrolls
+     internally instead of overflowing the viewport. */
+  min-height: 0;
+  overflow: hidden;
   position: relative;
   width: 100%;
   padding: 0;
@@ -268,6 +278,7 @@
    of floating over it, so nothing overlaps the messages. */
 .chat-canvas {
   flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: var(--focus-column-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
@@ -275,9 +286,12 @@
     "focus chat"
     "focus composer";
   position: relative;
-  height: 100%;
   width: 100%;
-  max-width: var(--container-max);
+  /* --container-max caps the *conversation*. The focus column is new width
+     beside it, so the cap has to grow by that column, otherwise docking the
+     panel simply steals 260px from the chat and leaves a dead gutter at the
+     right edge of the screen. */
+  max-width: calc(var(--container-max) + var(--focus-column-width));
   margin: 0 auto;
   padding: var(--s-3);
   background: transparent;

@@ -131,6 +131,10 @@
   --panel-width: 380px;
   /* Docked Daily Focus column beside the conversation. */
   --focus-column-width: 260px;
+  /* Side gutters inside the chat column. The branch ropes hang outside the
+     message bubbles into this space, and the composer matches it so the input
+     lines up with the transcript above. */
+  --chat-gutter: 90px;
   --input-min-height: 44px;
   /* touch-friendly */
 
@@ -217,5 +221,13 @@
     --text-base: 1.0625rem;
     /* slightly larger text */
     --text-lg: 1.1875rem;
+  }
+}
+
+/* On a wide screen the conversation should use the room rather than sit in a
+   narrow strip with a scrollbar floating 160px inside the right edge. */
+@media (min-width: 1500px) {
+  :root {
+    --container-max: 1280px;
   }
 }

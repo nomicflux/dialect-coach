@@ -8,9 +8,13 @@
   /* In flow at the foot of the chat column: floating it over the transcript
      required a matching blank strip in .chat-scroll to keep the last message
      readable. */
-  width: 100%;
-  max-width: 800px;
-  margin: var(--s-2) auto 0;
+  /* Match the transcript's own gutters so the input lines up with the messages
+     above it instead of sitting in a narrower, visually offset strip.
+     width:auto lets the margins inset the element within its grid cell; with
+     width:100% they would instead push it past the right edge. */
+  width: auto;
+  max-width: none;
+  margin: var(--s-2) var(--chat-gutter) 0;
 
   /* Solid Pop + Aurora Border */
   background:
