@@ -34,6 +34,7 @@ fn create_examples_user_message(examples_text: &str) -> RigMessage {
         return RigMessage::User {
             content: OneOrMany::one(UserContent::Text(Text {
                 text: String::new(),
+                additional_params: None,
             })),
         };
     }
@@ -41,6 +42,7 @@ fn create_examples_user_message(examples_text: &str) -> RigMessage {
     RigMessage::User {
         content: OneOrMany::one(UserContent::Text(Text {
             text: examples_text.to_string(),
+            additional_params: None,
         })),
     }
 }
@@ -141,6 +143,7 @@ mod tests {
         let conversation_history = vec![RigMessage::User {
             content: OneOrMany::one(UserContent::Text(Text {
                 text: "Test".to_string(),
+                additional_params: None,
             })),
         }];
 
@@ -178,6 +181,7 @@ mod tests {
         let conversation_history = vec![RigMessage::User {
             content: OneOrMany::one(UserContent::Text(Text {
                 text: "Test".to_string(),
+                additional_params: None,
             })),
         }];
 

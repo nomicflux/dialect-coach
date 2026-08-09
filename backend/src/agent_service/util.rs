@@ -124,6 +124,7 @@ pub fn get_message_text(message: &RigMessage) -> String {
     match message {
         RigMessage::User { content } => get_user_content(&content.first()),
         RigMessage::Assistant { content, .. } => get_assistant_content(&content.first()),
+        RigMessage::System { content } => content.clone(),
     }
 }
 
@@ -132,6 +133,7 @@ pub fn create_prefilled_assistant_message() -> RigMessage {
         id: None,
         content: OneOrMany::one(AssistantContent::Text(Text {
             text: "{".to_string(),
+            additional_params: None,
         })),
     }
 }

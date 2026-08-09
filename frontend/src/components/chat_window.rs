@@ -82,15 +82,27 @@ fn render_rope(
     if let Some(cb) = on_create_branch.clone() {
         let onclick = Callback::from(move |_: MouseEvent| cb.emit(msg_id));
         let row_class = if is_own {
-            "rope-row--user"
+            "rope-anchor--user"
         } else {
-            "rope-row--agent"
+            "rope-anchor--agent"
+        };
+        // Kept mounted (not gated on has_children) so it stays available as the
+        // branch control; CSS reveals it on hover/focus of the message.
+        let state_class = if has_children {
+            "rope-anchor--branched"
+        } else {
+            "rope-anchor--idle"
         };
         html! {
-            <div class={classes!("rope-row", row_class)}>
-                <div class="neon-rope-container" onclick={onclick}>
+            <div class={classes!("rope-anchor", row_class, state_class)}>
+                <button
+                    type="button"
+                    class="neon-rope-container"
+                    onclick={onclick}
+                    aria-label={if has_children { "View branches from this message" } else { "Branch the conversation from this message" }}
+                >
                     <NeonRope id={msg_id} has_children={has_children} is_user_message={is_own} />
-                </div>
+                </button>
             </div>
         }
     } else {
@@ -109,7 +121,7 @@ fn render_message_with_rope(
     let is_translate_loading = props.translate_loading.contains(&msg.id);
 
     html! {
-        <>
+        <div class={classes!("message-slot", if is_own { "message-slot--user" } else { "message-slot--agent" })}>
             <MessageBubble
                 message={msg.clone()}
                 is_own_message={is_own}
@@ -124,7 +136,7 @@ fn render_message_with_rope(
                 on_selection_translate={props.on_selection_translate.clone()}
             />
             {render_rope(msg.id, is_own, has_children, &props.on_create_branch)}
-        </>
+        </div>
     }
 }
 
@@ -192,8 +204,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     let active_messages = props.user.get_active_branch_messages();
 
     html! {
-        <div class="chat" ref={chat_container_ref} role="log" aria-live="polite" aria-relevant="additions">
-            <div class="chat-scroll">
+        <div class="chat" role="log" aria-live="polite" aria-relevant="additions">
+            <div class="chat-scroll" ref={chat_container_ref}>
                 {if props.user.conversation_history.is_empty() {
                     render_empty_state(&props.on_auto_start, props.is_loading)
                 } else {

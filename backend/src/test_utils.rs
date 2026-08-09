@@ -106,6 +106,7 @@ fn create_user_rig_message(text: &str) -> RigMessage {
     RigMessage::User {
         content: OneOrMany::one(UserContent::Text(Text {
             text: text.to_string(),
+            additional_params: None,
         })),
     }
 }
@@ -115,6 +116,7 @@ fn create_assistant_rig_message(text: &str) -> RigMessage {
         id: None,
         content: OneOrMany::one(AssistantContent::Text(Text {
             text: text.to_string(),
+            additional_params: None,
         })),
     }
 }

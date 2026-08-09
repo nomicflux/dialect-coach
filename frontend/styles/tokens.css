@@ -125,6 +125,19 @@
   --bubble-max-width: 85%;
   --avatar-size: 36px;
   --message-spacing: var(--s-4);
+  /* Horizontal offset that clears the avatar column, so a branch rope anchored
+     at the bubble's outer edge never overlaps the portrait beside it. */
+  --avatar-lane: calc(var(--avatar-size) + var(--s-3));
+  /* Height of the branch rope, and the space each message reserves below itself
+     to hold it. The two must match or the rope detaches from its bubble. */
+  --rope-drop: 44px;
+  /* Width of the rope box. The trunk descends 12px inside its trailing edge, so
+     the box is offset by --rope-descent-inset to put that descent on the
+     bubble's edge and carry the rest of the rope out into the margin. The rope
+     reaches --rope-descent-inset past the bubble, so it must not exceed the
+     gutter --chat-gutter reserves beside the transcript. */
+  --rope-width: 108px;
+  --rope-descent-inset: calc(var(--rope-width) - 12px);
 
   /* Layout constraints */
   --container-max: 1040px;

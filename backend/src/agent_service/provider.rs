@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use rig::client::completion::CompletionClient;
-use rig::completion::message::AssistantContent;
+use rig::completion::message::{AssistantContent, Text, UserContent};
 use rig::completion::{
     CompletionError, CompletionModel, CompletionRequest as RigCompletionRequest,
     Message as RigMessage,
@@ -171,11 +171,10 @@ impl UnifiedCompletionAgent {
     ) -> RigCompletionRequest {
         let mut chat_history = request.history.to_vec();
         chat_history.push(RigMessage::User {
-            content: OneOrMany::one(rig::completion::message::UserContent::Text(
-                rig::completion::message::Text {
-                    text: request.prompt.to_string(),
-                },
-            )),
+            content: OneOrMany::one(UserContent::Text(Text {
+                text: request.prompt.to_string(),
+                additional_params: None,
+            })),
         });
 
         let mut rig_request = RigCompletionRequest {
@@ -187,6 +186,9 @@ impl UnifiedCompletionAgent {
             max_tokens: Some(request.max_tokens),
             tool_choice: None,
             additional_params: None,
+            model: None,
+            output_schema: None,
+            record_telemetry_content: false,
         };
 
         if include_temperature {
@@ -272,7 +274,7 @@ impl CompletionAgentFactory {
     pub fn build(config: ProviderAgentConfig) -> Result<Box<dyn CompletionAgent>> {
         let (completion_model, provider_name) = match config.provider.as_str() {
             ANTHROPIC_PROVIDER => {
-                let client = AnthropicClient::new(&config.api_key);
+                let client = AnthropicClient::new(&config.api_key)?;
                 let model = client.completion_model(&config.model);
                 (
                     ProviderCompletionModel::Anthropic(model),
@@ -280,7 +282,7 @@ impl CompletionAgentFactory {
                 )
             }
             OPENAI_PROVIDER => {
-                let client = OpenAIClient::new(&config.api_key);
+                let client = OpenAIClient::new(&config.api_key)?;
                 let model = client.completion_model(&config.model);
                 (
                     ProviderCompletionModel::OpenAI(model),

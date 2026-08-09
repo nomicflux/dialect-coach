@@ -415,6 +415,7 @@ mod tests {
 
     use super::super::provider::{CompletionOutcome, CompletionRequest};
     use rig::completion::message::{Text, UserContent};
+    use rig::one_or_many::OneOrMany;
 
     struct StubAgent {
         provider: String,
@@ -567,8 +568,9 @@ mod tests {
     fn test_estimate_input_tokens_with_history() {
         let preamble = "System";
         let history = vec![RigMessage::User {
-            content: rig::one_or_many::OneOrMany::one(UserContent::Text(Text {
+            content: OneOrMany::one(UserContent::Text(Text {
                 text: "First message".to_string(),
+                additional_params: None,
             })),
         }];
         let prompt = "Second";

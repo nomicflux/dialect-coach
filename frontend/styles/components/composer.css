@@ -1,20 +1,26 @@
 /* Message Composer and Input Controls */
 
-.composer {
+/* In flow at the foot of the chat column. The wrapper repeats .chat-scroll's
+   own box -- full width of the cell, --chat-gutter side padding, and the same
+   reserved scrollbar track -- so the input inside it centres on exactly the
+   axis .messages-list centres on, at every viewport. */
+.composer-dock {
   grid-area: composer;
+  min-width: 0;
+  padding: 0 var(--chat-gutter);
+  scrollbar-gutter: stable;
+  overflow: hidden;
+}
+
+.composer {
   display: flex;
   gap: var(--s-3);
   padding: var(--s-3);
-  /* In flow at the foot of the chat column: floating it over the transcript
-     required a matching blank strip in .chat-scroll to keep the last message
-     readable. */
-  /* Match the transcript's own gutters so the input lines up with the messages
-     above it instead of sitting in a narrower, visually offset strip.
-     width:auto lets the margins inset the element within its grid cell; with
-     width:100% they would instead push it past the right edge. */
-  width: auto;
-  max-width: none;
-  margin: var(--s-2) var(--chat-gutter) 0;
+  /* .composer is itself a flex container, so width:auto would shrink-wrap it to
+     its content and leave a narrow box adrift in the middle of the dock. */
+  width: 100%;
+  max-width: var(--container-max);
+  margin: var(--s-2) auto 0;
 
   /* Solid Pop + Aurora Border */
   background:

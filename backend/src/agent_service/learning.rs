@@ -432,7 +432,7 @@ No learning items for this mode."#
       "error_form": "<what assistant said wrong>",
       "correct_form": "<correct version>",
       "handling": "<corrected|same_error|different_error>",
-      "error_category": {"type": "<category>", "context": "<brief>"}  
+      "error_category": {"type": "<category>", "context": "<brief>"}
     }
   ]
 }

@@ -14,15 +14,46 @@
   grid-area: chat;
   min-height: 0;
   overflow-y: auto;
-  overflow-x: visible;
-  /* Allow painting into the parent's padding area to prevent rope clipping */
-  overflow-clip-margin: 100px;
+  /* `visible` is not valid beside `auto` and computes back to `auto`, giving a
+     second scrollbar on an axis nothing overflows. `clip` keeps the sideways
+     bleed the branch ropes need without one. */
+  overflow-x: clip;
+  /* Room for the branch ropes, which hang outside the bubbles. */
+  overflow-clip-margin: var(--chat-gutter);
   /* Room for the branch ropes, which hang outside the bubbles. */
   padding: var(--s-4) var(--chat-gutter);
-  /* The Daily Focus panel and the composer are both in flow now, so the
-     blank safe zones that kept text out from under them are no longer
-     needed. */
+  /* Reserve the scrollbar track always, so the transcript's text axis does not
+     shift when a short conversation grows long enough to scroll, and so the
+     composer below lines up with the messages rather than sitting ~15px wider. */
+  scrollbar-gutter: stable;
+  /* Firefox. The default bar is a bright grey slab against these dark
+     surfaces; a thin translucent thumb reads as part of the transcript. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
   scroll-behavior: smooth;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  /* Inset by a transparent border so the thumb reads as a slim pill with air
+     around it rather than a bar wedged against the edge. */
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--r-pill);
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 
 /* Empty state */
@@ -118,6 +149,12 @@
   flex-direction: column;
   gap: var(--s-4);
   padding: var(--s-2) 0;
+  /* Holds the conversation to a readable measure and centres it in the canvas.
+     The cap lives here rather than on .chat-canvas so the scroll container
+     still spans the window and its scrollbar stays at the right edge. */
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
 }
 
 /* Individual message wrapper */
@@ -357,6 +394,12 @@
 @media (max-width: 900px) {
   :root {
     --chat-gutter: var(--s-2);
+    /* The rope reaches --rope-descent-inset outside the bubble, so on a narrow
+       screen it has to shorten or it pushes past the transcript. 52px shrank a
+       108-unit-wide drawing to a stub; 76px is the widest that still lands both
+       anchors fully on a 390px screen (agent edge at 0, user edge at 379) and
+       draws the trunk, hub and endpoint at full strength. */
+    --rope-width: 76px;
   }
 }
 
@@ -450,32 +493,70 @@
 /* Branch point button - displayed under messages */
 
 /* Rope Row: Flow-based container between messages for overflow visibility */
-.rope-row {
+/* A message and its branch control share one stacking context, so the rope is
+   attached to the bubble instead of occupying a spacer row of its own. The old
+   .rope-row was a full-width 60px band between messages holding a -80px-offset
+   SVG, which left the rope hanging in blank space away from any bubble and put
+   a large vertical gap after every message. */
+.message-slot {
   position: relative;
   width: 100%;
-  height: 60px;
+  /* Room for the rope that hangs below the bubble; must equal the rope's own
+     height so the rope starts flush with the bubble's bottom edge. */
+  padding-bottom: var(--rope-drop);
+}
+
+.rope-anchor {
+  position: absolute;
+  /* Starts exactly at the bubble's bottom edge. The slot reserves --rope-drop
+     of bottom padding for the rope, so the message's own bottom is that far
+     above the slot's; offsetting by it keeps the rope attached to the bubble
+     instead of floating below the reserved band. The SVG trunk starts at y=0,
+     so the rope grows directly out of the message. */
+  bottom: 0;
+  width: var(--rope-width);
+  height: var(--rope-drop);
   overflow: visible;
   display: flex;
+  align-items: stretch;
   pointer-events: none;
-  /* Let messages behind get clicks, rope container handles its own */
+  /* Always visible: the rope is the conversation's branch structure, not a
+     hover affordance. Resting state is dimmed so a long transcript stays calm;
+     hover and focus bring it to full strength. */
+  opacity: 0.55;
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 
-.rope-row--agent {
+/* The rope branches outward, into the margin beside the transcript. Its trunk
+   descends near the box's trailing edge, so the box is placed outside the
+   bubble: the descent meets the bubble's edge and the forks open away from the
+   conversation. --rope-descent-inset is where the trunk sits inside the box. */
+.rope-anchor--agent {
+  /* --avatar-lane puts the descent at the bubble's edge (the bubble starts one
+     avatar-lane in from the message row); the negative inset then carries the
+     rest of the rope outward past the avatar into the margin. */
+  left: calc(var(--avatar-lane) - var(--rope-descent-inset));
   justify-content: flex-start;
-  padding-left: 0;
 }
 
-.rope-row--user {
+.rope-anchor--user {
+  left: auto;
+  right: calc(var(--avatar-lane) - var(--rope-descent-inset));
   justify-content: flex-end;
-  padding-right: 0;
 }
 
-/* Neon Rope Container: Positioned within rope-row flow */
+/* A branched message keeps its rope at full strength: it is showing structure
+   that exists, not offering an action. */
+.rope-anchor--branched,
+.message-slot:hover .rope-anchor,
+.message-slot:focus-within .rope-anchor {
+  opacity: 1;
+}
+
 .neon-rope-container {
   position: relative;
-  width: 160px;
-  /* Matched to new ViewBox */
-  height: 100px;
+  width: var(--rope-width);
+  height: var(--rope-drop);
   cursor: pointer;
   pointer-events: auto;
   background: transparent;
@@ -483,14 +564,12 @@
   padding: 0;
   margin: 0;
   overflow: visible;
-  margin-left: -80px;
-  /* Centering adjustment */
 }
 
-/* User message ropes: extend to the right */
-.rope-row--user .neon-rope-container {
-  margin-left: 0;
-  margin-right: -80px;
+.neon-rope-container:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-s);
 }
 
 .neon-rope-svg {
@@ -526,22 +605,25 @@
 }
 
 
-/* Heat up the core on hover */
-.neon-rope-container:hover .rope-core {
-  stroke-width: 4px;
+/* Heat up the core on hover. Widths are viewBox user units (0 0 72 40). */
+.neon-rope-container:hover .rope-core,
+.neon-rope-container:focus-visible .rope-core {
+  stroke-width: 2;
   /* Slight thickening */
   filter: drop-shadow(0 0 2px white);
 }
 
 /* Intensify the glow path */
-.neon-rope-container:hover .rope-glow {
+.neon-rope-container:hover .rope-glow,
+.neon-rope-container:focus-visible .rope-glow {
   opacity: 1;
-  stroke-width: 8px;
+  stroke-width: 4;
 }
 
 /* Nodes pulse slightly on hover */
-.neon-rope-container:hover .rope-node {
-  r: 5px;
+.neon-rope-container:hover .rope-node,
+.neon-rope-container:focus-visible .rope-node {
+  r: 3.5;
   /* Grow slightly */
   fill: white;
   /* "Hot" nodes */
@@ -556,8 +638,8 @@
 .rope-fork {
   opacity: 0;
   transition: opacity 0.4s ease-in-out, transform 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-  /* Origin at the Hub (50, 50) */
-  transform-origin: 50px 50px;
+  /* Origin at the Hub (34, 24) in the 108x44 viewBox */
+  transform-origin: 34px 24px;
   transform: scale(0);
 }
 

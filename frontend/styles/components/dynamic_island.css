@@ -3,12 +3,26 @@
 /* Docked as a real column beside the conversation. As a fixed overlay it sat
    on top of the messages and forced .chat-scroll to reserve blank safe-zone
    padding to keep text out from under it. */
+/* The side column has room for the whole panel, so the disclosure is inert
+   here: the summary is hidden and the content shows regardless of open state.
+   It only becomes a real toggle at the narrow breakpoint. */
+.island-summary {
+    display: none;
+}
+
+.island-disclosure > .dynamic-island {
+    display: flex;
+}
+
 .dynamic-island-container {
     grid-area: focus;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow-y: auto;
+    /* The panel sizes to its content and the page scrolls as a whole. A nested
+       scroll container here produced a second vertical scrollbar beside the
+       chat's own, on a box whose content already fit inside it. */
+    overflow: visible;
     padding: var(--s-3) 0 var(--s-3) var(--s-3);
 }
 
@@ -115,6 +129,12 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--s-1);
+}
+
+/* Counts the rows the narrow-screen cap hides. The side column shows every
+   row, so there is nothing to count until that cap applies. */
+.island-more {
+    display: none;
 }
 
 .island-item {
@@ -285,10 +305,135 @@
 @media (max-width: 900px) {
     .dynamic-island-container {
         padding: var(--s-2) var(--s-2) 0;
-        max-height: 28vh;
+        flex: 0 0 auto;
     }
 
     .dynamic-island {
         gap: var(--s-2);
+        padding: var(--s-2);
+    }
+
+    .island-item {
+        padding: var(--s-1) var(--s-2);
+        font-size: var(--text-xs);
+    }
+
+    .island-list {
+        gap: var(--s-1);
+    }
+
+    .island-text {
+        font-size: var(--text-xs);
+    }
+
+    /* The 🎯 renders 19px tall and holds each quest row open to 26px even
+       though its label is 14px; sizing the emoji down collapses the row to
+       the height of the text beside it. */
+    .quest-icon {
+        font-size: var(--text-xs);
+    }
+
+    .island-quests {
+        gap: var(--s-1);
+    }
+
+    /* The conversation is the app: the band stays a short strip above it. Only
+       the first two review rows and two quests are shown; `.island-more` counts
+       the rest, so nothing vanishes without a trace. Kept as display:none
+       rather than an inner scroller - a second scrollbar beside the chat's own
+       is what this panel had before, and it accomplished nothing. */
+    /* nth-of-type counts every sibling div, and .island-header is one, so the
+       cap is expressed relative to the header rather than by raw position. */
+    .island-item:nth-of-type(n + 4),
+    .island-quest-item:nth-of-type(n + 4) {
+        display: none;
+    }
+
+    /* Collapsed by default: the conversation starts directly under the header
+       instead of below a study panel. The summary is one tappable line; the
+       panel opens in place and pushes the chat down only while it is open. */
+    .island-summary {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--s-2);
+        padding: var(--s-2) var(--s-3);
+        background: var(--surface);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: var(--r-l);
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    /* Safari draws its own disclosure triangle through ::-webkit-details-marker
+       and ignores list-style. */
+    .island-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .island-summary-count {
+        font-size: var(--text-xs);
+        font-weight: 600;
+        color: var(--teal);
+    }
+
+    /* The marker rotates to point down when the panel is open. */
+    .island-summary::after {
+        content: "›";
+        margin-left: auto;
+        color: var(--ink-soft);
+        transform: rotate(90deg);
+        transition: transform var(--dur-fast) var(--ease-out);
+    }
+
+    .island-disclosure[open] .island-summary::after {
+        transform: rotate(-90deg);
+    }
+
+    .island-disclosure[open] .island-summary {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        margin-bottom: 0;
+    }
+
+    .island-disclosure[open] > .dynamic-island {
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+        border-top: none;
+    }
+
+    /* Quests run one per full-width row, so two of them plus a label cost more
+       height than the whole review list. They flow inline instead: the 🎯 and
+       its text sit on a shared line and wrap only when they must. */
+    .island-quests {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: var(--s-1) var(--s-2);
+    }
+
+    .island-quests .island-header {
+        margin-bottom: 0;
+    }
+
+    .island-quest-item {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 2px;
+    }
+
+    /* The 🎯 repeats on every row and the label above already frames them. */
+    .island-quest-item .quest-icon {
+        display: none;
+    }
+
+    .island-more {
+        display: inline;
+        font-size: var(--text-xs);
+        font-weight: 600;
+        color: var(--teal);
+        letter-spacing: 0.02em;
     }
 }

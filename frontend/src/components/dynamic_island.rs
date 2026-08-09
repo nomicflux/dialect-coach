@@ -110,16 +110,32 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
     // Render quests above the main content if any undone quests exist
     let quests_section = render_quests(&props.quests);
 
+    // The summary is the whole panel on a narrow screen: the study band sits
+    // between the header and the conversation, so at full height it pushes the
+    // messages off the first screen. Collapsed it costs one line, and the
+    // <details> toggle opens it in place without taking the space until asked.
+    let review_count = available_items.len();
+
     html! {
         <div class="dynamic-island-container">
-            <div
-                class="dynamic-island"
-                onclick={on_click_container}
-                title="Click to toggle view"
-            >
-                {quests_section}
-                {content}
-            </div>
+            <details class="island-disclosure">
+                <summary class="island-summary">
+                    <span class="island-label">{"Today's focus"}</span>
+                    if review_count > 0 {
+                        <span class="island-summary-count">
+                            {format!("{review_count} to review")}
+                        </span>
+                    }
+                </summary>
+                <div
+                    class="dynamic-island"
+                    onclick={on_click_container}
+                    title="Click to toggle view"
+                >
+                    {quests_section}
+                    {content}
+                </div>
+            </details>
         </div>
     }
 }
@@ -138,20 +154,36 @@ fn render_plan(step_title: &str) -> Html {
     }
 }
 
+/// Review rows kept visible at <=900px. Matches the `.island-item` cutoff in
+/// dynamic_island.css; the rest are hidden and counted by `.island-more`.
+const MOBILE_REVIEW_LIMIT: usize = 2;
+
 fn render_items(
     all_items: &[LearningItem],
     uuids: &[Uuid],
     state: UseStateHandle<ViewState>,
 ) -> Html {
+    let shown: Vec<Html> = uuids
+        .iter()
+        .filter_map(|uuid| {
+            find_item_by_uuid(all_items, *uuid)
+                .map(|item| render_single_item(item, state.clone(), all_items))
+        })
+        .collect();
+
+    // Rows past the second are hidden on a narrow screen so the band stays a
+    // strip above the conversation; the count keeps the hidden ones visible.
+    let hidden = shown.len().saturating_sub(MOBILE_REVIEW_LIMIT);
+
     html! {
         <div class="island-list">
             <div class="island-header">
                 <span class="island-label">{"Review"}</span>
+                if hidden > 0 {
+                    <span class="island-more">{format!("+{hidden} more")}</span>
+                }
             </div>
-            {for uuids.iter().filter_map(|uuid| {
-                find_item_by_uuid(all_items, *uuid)
-                    .map(|item| render_single_item(item, state.clone(), all_items))
-            })}
+            {shown}
         </div>
     }
 }
@@ -196,9 +228,16 @@ fn render_quests(quests: &[Quest]) -> Html {
         return html! {};
     }
 
+    let hidden = undone.len().saturating_sub(MOBILE_REVIEW_LIMIT);
+
     html! {
         <div class="island-quests">
-            <span class="island-label">{"Daily Focus"}</span>
+            <div class="island-header">
+                <span class="island-label">{"Daily Focus"}</span>
+                if hidden > 0 {
+                    <span class="island-more">{format!("+{hidden} more")}</span>
+                }
+            </div>
             {for undone.iter().map(|quest| {
                 html! {
                     <div class="island-quest-item">

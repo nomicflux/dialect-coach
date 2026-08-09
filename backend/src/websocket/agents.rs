@@ -22,12 +22,14 @@ pub fn convert_to_rig_message(message: &Message) -> RigMessage {
         MessageContent::UserMessage { content } => RigMessage::User {
             content: OneOrMany::one(UserContent::Text(Text {
                 text: content.clone(),
+                additional_params: None,
             })),
         },
         MessageContent::AgentMessage { content } => RigMessage::Assistant {
             id: None,
             content: OneOrMany::one(AssistantContent::Text(Text {
                 text: content.response.clone(),
+                additional_params: None,
             })),
         },
     }

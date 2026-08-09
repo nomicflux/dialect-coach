@@ -73,6 +73,7 @@ pub fn input_box(props: &InputBoxProps) -> Html {
     let font_class_name = font_class(&props.language_option);
 
     html! {
+        <div class="composer-dock">
         <form class="composer" onsubmit={on_submit}>
             <textarea
                 ref={textarea_node_ref}
@@ -89,5 +90,6 @@ pub fn input_box(props: &InputBoxProps) -> Html {
                 <button type="submit" class="btn btn--primary" disabled={props.disabled}>{"Send"}</button>
             </div>
         </form>
+        </div>
     }
 }

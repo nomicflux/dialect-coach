@@ -29,7 +29,7 @@ async fn get_collection_info(service: &QdrantService) -> Result<(u64, u64, u32)>
 
     Ok((
         result.points_count.unwrap_or(0),
-        result.vectors_count.unwrap_or(0),
+        result.indexed_vectors_count.unwrap_or(0),
         result.segments_count as u32,
     ))
 }

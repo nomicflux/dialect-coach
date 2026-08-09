@@ -19,7 +19,7 @@ pub struct KeywordExtractor {
 
 impl KeywordExtractor {
     pub fn new() -> Result<Self> {
-        let client = openai::Client::from_env();
+        let client = openai::Client::from_env()?;
         Ok(Self { client })
     }
 

@@ -287,12 +287,13 @@
     "focus composer";
   position: relative;
   width: 100%;
-  /* --container-max caps the *conversation*. The focus column is new width
-     beside it, so the cap has to grow by that column, otherwise docking the
-     panel simply steals 260px from the chat and leaves a dead gutter at the
-     right edge of the screen. */
-  max-width: calc(var(--container-max) + var(--focus-column-width));
-  margin: 0 auto;
+  /* The canvas spans the window. Capping it here left symmetric dead bands at
+     both edges on wide screens and put the transcript's scrollbar ~70px inside
+     the right edge with black gutter beyond it. The conversation is kept
+     readable by capping .messages-list, which centres the text column while
+     the scrollbar stays at the window edge. */
+  max-width: none;
+  margin: 0;
   padding: var(--s-3);
   background: transparent;
   /* Allow rope glow to overflow; scroll handled by .chat-scroll */
@@ -378,8 +379,10 @@
     display: none;
   }
 
+  /* `height: auto` here released the viewport bound that .app-main relies on:
+     the transcript then grew past the bottom of the screen and the last
+     messages sat underneath the composer instead of scrolling inside it. */
   .app-main {
-    height: auto;
     min-height: 0;
     flex: 1;
   }

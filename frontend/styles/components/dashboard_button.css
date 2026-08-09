@@ -100,3 +100,22 @@
 .btn-new-conversation {
     /* Uses same base styles via btn-dashboard-float class */
 }
+
+/* Below 900px the fixed pills overlap the header's own controls: they sit in
+   the same 16-58px band as Sign Out and win on z-index, hiding it. The header
+   owns that row, so the pills rejoin the flow underneath it and split the
+   width evenly rather than being pinned left. */
+@media (max-width: 900px) {
+    .dashboard-buttons-container {
+        position: static;
+        padding: var(--s-2) var(--s-3) 0;
+        gap: var(--s-2);
+    }
+
+    .btn-dashboard-float {
+        flex: 1;
+        justify-content: center;
+        padding: var(--s-2) var(--s-3);
+        white-space: nowrap;
+    }
+}

@@ -31,6 +31,15 @@
 - Type changes require updating test constructors
 - 100% test pass rate required
 
+**Checking a UI feature requires visual confirmation. No exceptions.**
+Look at the rendered result in a browser as part of every UI check. The only
+excuse is having literally no access to any view. Measurements, computed
+styles, bounding boxes, `scrollWidth`, passing tests, and a successful deploy
+are annotations on a screenshot - none of them is the check, and none may
+stand in for it. A number that reads clean while the pixels are wrong is the
+normal case, not the rare one: a rope whose bounding box reported
+`clippedLeft: false` was rendering cut flat at the viewport edge.
+
 ## Build Commands
 
 ```bash
