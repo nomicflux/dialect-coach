@@ -192,7 +192,8 @@ pub async fn check_rate_limits(
         .user_persistence
         .load_usage_stats(user_id)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("Usage stats not found"))?;
+        // No usage row yet means the account has used nothing.
+        .unwrap_or_default();
 
     if !state.rate_limiter.anthropic_has_quota().await {
         return Err(anyhow::anyhow!("Anthropic quota exceeded"));
