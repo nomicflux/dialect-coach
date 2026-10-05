@@ -1,43 +1,38 @@
-use anyhow::{Context, Result};
+use crate::services::connection::Connection;
+use anyhow::Result;
 use dialect_coach_shared::models::{EnrichRequest, EnrichResponse};
-use gloo_net::http::Request;
+use dialect_coach_shared::{ClientMessage, EnrichFailure, Reply, StudyRequest};
 
 #[derive(PartialEq)]
 pub struct EnrichmentService {
-    base_url: String,
+    connection: Connection,
 }
 
 impl EnrichmentService {
-    pub fn new(base_url: &str) -> Self {
-        Self {
-            base_url: base_url.to_string(),
-        }
+    pub fn new(connection: Connection) -> Self {
+        Self { connection }
     }
 
     pub async fn enrich_learning_item(&self, request: EnrichRequest) -> Result<EnrichResponse> {
-        let url = format!("{}/api/learning/enrich", self.base_url);
+        let study = StudyRequest::Enrich(request);
+        let reply = self.connection.request(ClientMessage::Study(study)).await?;
+        enriched(reply)
+    }
+}
 
-        let response = Request::post(&url)
-            .json(&request)?
-            .send()
-            .await
-            .context("Failed to connect to server")?;
-
-        if !response.ok() {
-            let error_msg = match response.status() {
-                400 => "Invalid learning item data".to_string(),
-                500 => "Server error while enriching item".to_string(),
-                _ => format!("Server error ({})", response.status_text()),
-            };
-            return Err(anyhow::anyhow!(error_msg));
+fn enriched(reply: Reply) -> Result<EnrichResponse> {
+    match reply {
+        Reply::Enriched(Ok(response)) => Ok(response),
+        Reply::Enriched(Err(EnrichFailure::InvalidInput)) => {
+            Err(anyhow::anyhow!("Invalid learning item data"))
         }
-
-        let enrich_response: EnrichResponse = response
-            .json()
-            .await
-            .context("Invalid response from server")?;
-
-        Ok(enrich_response)
+        Reply::Enriched(Err(EnrichFailure::Server)) => {
+            Err(anyhow::anyhow!("Server error while enriching item"))
+        }
+        other => unreachable!(
+            "an enrich request is answered with Enriched, got {:?}",
+            other
+        ),
     }
 }
 
@@ -47,9 +42,22 @@ mod tests {
     use dialect_coach_shared::models::{Dialect, PartialLearningItem, PartialMistake};
 
     #[test]
-    fn test_service_creation() {
-        let service = EnrichmentService::new("http://localhost:3000");
-        assert_eq!(service.base_url, "http://localhost:3000");
+    fn test_enriched_names_each_failure() {
+        let item = serde_json::json!({"correction": "vos sos"});
+        let ok = enriched(Reply::Enriched(Ok(EnrichResponse {
+            enriched_item: item.clone(),
+        })));
+        assert_eq!(ok.unwrap().enriched_item, item);
+        let invalid = enriched(Reply::Enriched(Err(EnrichFailure::InvalidInput)));
+        assert_eq!(
+            invalid.unwrap_err().to_string(),
+            "Invalid learning item data"
+        );
+        let server = enriched(Reply::Enriched(Err(EnrichFailure::Server)));
+        assert_eq!(
+            server.unwrap_err().to_string(),
+            "Server error while enriching item"
+        );
     }
 
     #[test]

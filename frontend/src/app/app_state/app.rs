@@ -85,8 +85,7 @@ impl PartialEq for AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        let base_url = get_base_url();
-        let ws_url = get_ws_url("/ws");
+        let connection = Connection::new(&get_ws_url("/ws"));
 
         Self {
             session_id: None,
@@ -95,12 +94,12 @@ impl Default for AppState {
             error_message: None,
             current_user: None,
             session_token: None,
-            connection: Connection::new(&ws_url),
-            tts_service: Some(Rc::new(CloudTtsService::new(&base_url))),
-            translation_service: Rc::new(TranslationService::new(&base_url)),
-            grammar_service: Rc::new(GrammarService::new(&base_url)),
-            enrichment_service: Rc::new(EnrichmentService::new(&base_url)),
-            plan_service: Rc::new(PlanService::new(&base_url)),
+            tts_service: Some(Rc::new(CloudTtsService::new(connection.clone()))),
+            translation_service: Rc::new(TranslationService::new(connection.clone())),
+            grammar_service: Rc::new(GrammarService::new(connection.clone())),
+            enrichment_service: Rc::new(EnrichmentService::new(connection.clone())),
+            plan_service: Rc::new(PlanService::new(connection.clone())),
+            connection,
             autoplay_enabled: false,
             rate_limit_state: RateLimitState::default(),
             pending_initial_settings: None,

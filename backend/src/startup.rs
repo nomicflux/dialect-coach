@@ -1,7 +1,6 @@
 use crate::{
-    admin, admin_invites, agent_service, auth_service, embedding_service, enrichment_handler,
-    grammar_handler, persistence, planning_handler, qdrant_service, rate_limiter, state::AppState,
-    translation_handler, tts_handler, tts_service, websocket,
+    admin, admin_invites, agent_service, auth_service, embedding_service, persistence,
+    qdrant_service, rate_limiter, state::AppState, tts_handler, tts_service, websocket,
 };
 use anyhow::{Context, Result};
 use axum::{
@@ -118,20 +117,6 @@ pub fn build_router(state: AppState, tts_state: Option<tts_handler::TtsState>) -
     let mut app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(websocket::websocket_handler))
-        .route(
-            "/api/translate",
-            post(translation_handler::translate_handler),
-        )
-        .route("/api/grammar", post(grammar_handler::grammar_handler))
-        .route(
-            "/api/learning/enrich",
-            post(enrichment_handler::enrich_handler),
-        )
-        .route(
-            "/api/plans/generate",
-            post(planning_handler::generate_plan_handler)
-                .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024)),
-        )
         .route("/admin", get(serve_admin_html))
         .route("/admin/api/status", get(admin::status::get_admin_status))
         .route("/admin/api/invites", post(admin_invites::create_invite))
@@ -144,7 +129,6 @@ pub fn build_router(state: AppState, tts_state: Option<tts_handler::TtsState>) -
     // Add TTS routes only if TTS service is available
     if let Some(tts_state) = tts_state {
         let tts_router = Router::new()
-            .route("/synthesize", post(tts_handler::synthesize_handler))
             .route("/status", get(tts_handler::status_handler))
             .route("/cache", delete(tts_handler::clear_cache_handler))
             .with_state(tts_state);
@@ -152,7 +136,6 @@ pub fn build_router(state: AppState, tts_state: Option<tts_handler::TtsState>) -
     } else {
         // Add fallback TTS endpoints that return service unavailable
         let fallback_router = Router::new()
-            .route("/synthesize", post(tts_handler::tts_unavailable_handler))
             .route("/status", get(tts_handler::tts_unavailable_handler))
             .route("/cache", delete(tts_handler::tts_unavailable_handler));
         app = app.nest("/api/tts", fallback_router);

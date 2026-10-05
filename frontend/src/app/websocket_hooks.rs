@@ -116,13 +116,19 @@ pub fn lost_notice(bodies: &[ClientMessage]) -> Option<&'static str> {
     if creating_account {
         return Some(CREATE_USER_LOST);
     }
-    bodies.iter().any(is_user_request).then_some(REQUEST_LOST)
+    bodies
+        .iter()
+        .any(|body| !is_background(body))
+        .then_some(REQUEST_LOST)
 }
 
-fn is_user_request(body: &ClientMessage) -> bool {
+fn is_background(body: &ClientMessage) -> bool {
     matches!(
         body,
-        ClientMessage::Chat(_) | ClientMessage::Account(AccountRequest::SignIn { .. })
+        ClientMessage::SaveUserState(_)
+            | ClientMessage::Account(
+                AccountRequest::ValidateSession { .. } | AccountRequest::Reattach { .. }
+            )
     )
 }
 
@@ -345,6 +351,20 @@ mod tests {
         let bodies = [ClientMessage::Chat(
             dialect_coach_shared::ChatRequest::Message(Box::new(chat)),
         )];
+        assert_eq!(lost_notice(&bodies), Some(REQUEST_LOST));
+    }
+
+    #[test]
+    fn test_lost_notice_for_study_request() {
+        let translate =
+            dialect_coach_shared::StudyRequest::Translate(dialect_coach_shared::TranslateRequest {
+                phrase: "che".to_string(),
+                context: "¿Qué hacés, che?".to_string(),
+                dialect: "spanish_argentinian".to_string(),
+                formality: None,
+            });
+        let mut bodies = background();
+        bodies.push(ClientMessage::Study(translate));
         assert_eq!(lost_notice(&bodies), Some(REQUEST_LOST));
     }
 

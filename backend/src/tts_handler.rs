@@ -1,10 +1,6 @@
-use axum::{
-    Json,
-    extract::State,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use dialect_coach_shared::{UsageStats, tts::TtsRequest};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use dialect_coach_shared::tts::{TtsError, TtsRequest, TtsResponse};
+use dialect_coach_shared::{SpeechAudio, UsageStats};
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -63,93 +59,50 @@ async fn track_tts_usage(
     }
 }
 
-async fn handle_tts_success(
-    state: &TtsState,
-    user_id: uuid::Uuid,
-    usage_stats: UsageStats,
-    response: dialect_coach_shared::tts::TtsResponse,
-    characters: u64,
-) -> Json<TtsSynthesizeApiResponse> {
-    track_tts_usage(state, user_id, usage_stats, characters).await;
+fn speech_audio(response: TtsResponse) -> SpeechAudio {
     let audio_base64 = base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
         &response.audio_data,
     );
-    Json(TtsSynthesizeApiResponse {
+    SpeechAudio {
         audio_base64,
         duration_ms: response.duration_ms,
-    })
-}
-
-/// Response format for TTS API (frontend expects base64)
-#[derive(Debug, Serialize)]
-pub struct TtsSynthesizeApiResponse {
-    pub audio_base64: String,
-    pub duration_ms: u32,
+    }
 }
 
 async fn check_tts_rate_limits(
     state: &TtsState,
     user_id: uuid::Uuid,
-) -> Result<dialect_coach_shared::UsageStats, TtsErrorResponse> {
+) -> Result<UsageStats, String> {
     let usage_stats = state
         .user_persistence
         .load_usage_stats(user_id)
         .await
-        .map_err(|_| TtsErrorResponse {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to load usage stats".to_string(),
-        })?
+        .map_err(|_| "Failed to load usage stats".to_string())?
         .unwrap_or_default();
-
     if !state.rate_limiter.elevenlabs_has_quota().await {
-        return Err(TtsErrorResponse {
-            status: StatusCode::TOO_MANY_REQUESTS,
-            message: "ElevenLabs quota exceeded".to_string(),
-        });
+        return Err("ElevenLabs quota exceeded".to_string());
     }
-
-    if !state
-        .rate_limiter
-        .can_make_tts_call(&usage_stats, &state.rate_limit_config)
-    {
-        return Err(TtsErrorResponse {
-            status: StatusCode::TOO_MANY_REQUESTS,
-            message: "TTS rate limit exceeded".to_string(),
-        });
+    let limits = &state.rate_limit_config;
+    if !state.rate_limiter.can_make_tts_call(&usage_stats, limits) {
+        return Err("TTS rate limit exceeded".to_string());
     }
-
     Ok(usage_stats)
 }
 
-/// POST /api/tts/synthesize
-/// Synthesize speech from text
-pub async fn synthesize_handler(
-    State(state): State<TtsState>,
-    Json(request): Json<TtsRequest>,
-) -> Result<Json<TtsSynthesizeApiResponse>, TtsErrorResponse> {
+/// Synthesize speech for a user; every attempt that passes the rate limits counts toward usage.
+pub async fn synthesize(state: &TtsState, request: TtsRequest) -> Result<SpeechAudio, String> {
     info!(
         "TTS synthesize request: {} chars for dialect {}",
         request.text.len(),
         request.dialect.name()
     );
-
     let characters = request.text.len() as u64;
     let user_id = request.user_id;
-    let usage_stats = check_tts_rate_limits(&state, user_id).await?;
-
-    match state.service.synthesize(request).await {
-        Ok(response) => {
-            Ok(
-                handle_tts_success(&state, user_id, usage_stats.clone(), response, characters)
-                    .await,
-            )
-        }
-        Err(e) => {
-            track_tts_usage(&state, user_id, usage_stats, characters).await;
-            Err(TtsErrorResponse::from_tts_error(e))
-        }
-    }
+    let usage_stats = check_tts_rate_limits(state, user_id).await?;
+    let result = state.service.synthesize(request).await;
+    track_tts_usage(state, user_id, usage_stats, characters).await;
+    result.map(speech_audio).map_err(tts_error_message)
 }
 
 /// GET /api/tts/status
@@ -193,76 +146,18 @@ pub struct ClearCacheResponse {
 
 // Error handling
 
-#[derive(Debug)]
-pub struct TtsErrorResponse {
-    status: StatusCode,
-    message: String,
-}
-
-impl TtsErrorResponse {
-    fn from_tts_error(error: dialect_coach_shared::tts::TtsError) -> Self {
-        use dialect_coach_shared::tts::TtsError;
-
-        let (status, message) = match error {
-            TtsError::NetworkError(msg) => {
-                error!("TTS network error: {}", msg);
-                (StatusCode::BAD_GATEWAY, format!("Network error: {}", msg))
-            }
-            TtsError::InvalidRequest(msg) => {
-                error!("TTS invalid request: {}", msg);
-                (StatusCode::BAD_REQUEST, format!("Invalid request: {}", msg))
-            }
-            TtsError::UnsupportedFormat(msg) => {
-                error!("TTS unsupported format: {}", msg);
-                (
-                    StatusCode::BAD_REQUEST,
-                    format!("Unsupported format: {}", msg),
-                )
-            }
-            TtsError::VoiceNotFound(msg) => {
-                error!("TTS voice not found: {}", msg);
-                (StatusCode::NOT_FOUND, format!("Voice not found: {}", msg))
-            }
-            TtsError::QuotaExceeded => {
-                error!("TTS quota exceeded");
-                (
-                    StatusCode::TOO_MANY_REQUESTS,
-                    "API quota exceeded".to_string(),
-                )
-            }
-            TtsError::AuthenticationFailed => {
-                error!("TTS authentication failed");
-                (
-                    StatusCode::UNAUTHORIZED,
-                    "Authentication failed".to_string(),
-                )
-            }
-            TtsError::Unknown(msg) => {
-                error!("TTS unknown error: {}", msg);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Unknown error: {}", msg),
-                )
-            }
-        };
-
-        Self { status, message }
-    }
-}
-
-impl IntoResponse for TtsErrorResponse {
-    fn into_response(self) -> Response {
-        #[derive(Serialize)]
-        struct ErrorBody {
-            error: String,
-        }
-
-        let body = Json(ErrorBody {
-            error: self.message,
-        });
-
-        (self.status, body).into_response()
-    }
+fn tts_error_message(error: TtsError) -> String {
+    let message = match error {
+        TtsError::NetworkError(msg) => format!("Network error: {}", msg),
+        TtsError::InvalidRequest(msg) => format!("Invalid request: {}", msg),
+        TtsError::UnsupportedFormat(msg) => format!("Unsupported format: {}", msg),
+        TtsError::VoiceNotFound(msg) => format!("Voice not found: {}", msg),
+        TtsError::QuotaExceeded => "API quota exceeded".to_string(),
+        TtsError::AuthenticationFailed => "Authentication failed".to_string(),
+        TtsError::Unknown(msg) => format!("Unknown error: {}", msg),
+    };
+    error!("TTS synthesis failed: {}", message);
+    message
 }
 
 /// Fallback handler for when TTS service is not available
@@ -289,8 +184,8 @@ mod tests {
     use anyhow::Result;
     use dialect_coach_shared::ServerMessage;
     use dialect_coach_shared::models::TTSProviderType;
-    use dialect_coach_shared::tts::{TextToSpeechProvider, TtsError, TtsRequest, TtsResponse};
-    use dialect_coach_shared::{InviteCode, User, UserState};
+    use dialect_coach_shared::tts::TextToSpeechProvider;
+    use dialect_coach_shared::{Dialect, InviteCode, User, UserState};
     use std::collections::HashMap;
     use tokio::sync::{Mutex, mpsc};
     use uuid::Uuid;
@@ -385,14 +280,61 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_track_tts_usage_sends_usage_stats_update() {
+    fn tts_state(persistence: Arc<TestPersistence>, connections: Connections) -> TtsState {
         let app_config = dialect_coach_shared::config::load_config(&format!(
             "{}/../config.yaml",
             env!("CARGO_MANIFEST_DIR")
         ))
         .unwrap();
+        TtsState {
+            service: Arc::new(TtsService::new(Arc::new(NoopProvider))),
+            user_persistence: persistence,
+            rate_limiter: Arc::new(RateLimiter::new(Arc::new(OrgQuotaChecker::new()))),
+            rate_limit_config: Arc::new(RateLimitConfig::from_yaml_config(&app_config.rate_limits)),
+            connections,
+        }
+    }
 
+    #[tokio::test]
+    async fn test_synthesize_reports_provider_error_and_counts_usage() {
+        let persistence = Arc::new(TestPersistence::default());
+        let state = tts_state(persistence.clone(), Arc::new(Mutex::new(HashMap::new())));
+        let user_id = Uuid::new_v4();
+        let request = TtsRequest::new(user_id, "Hola".to_string(), Dialect::SpanishArgentinian);
+
+        let result = synthesize(&state, request).await;
+
+        assert_eq!(result.unwrap_err(), "Unknown error: noop");
+        let persisted = persistence.usage_for(user_id).await.expect("usage saved");
+        assert_eq!(persisted.tts_characters(), 4);
+    }
+
+    #[test]
+    fn test_speech_audio_encodes_audio_as_base64() {
+        let audio = speech_audio(TtsResponse {
+            audio_data: b"ID3".to_vec(),
+            audio_format: dialect_coach_shared::tts::AudioFormat::Mp3,
+            duration_ms: 1200,
+            cache_key: "k".to_string(),
+        });
+        assert_eq!(audio.audio_base64, "SUQz");
+        assert_eq!(audio.duration_ms, 1200);
+    }
+
+    #[test]
+    fn test_tts_error_message_names_the_failure() {
+        assert_eq!(
+            tts_error_message(TtsError::QuotaExceeded),
+            "API quota exceeded"
+        );
+        assert_eq!(
+            tts_error_message(TtsError::VoiceNotFound("v1".to_string())),
+            "Voice not found: v1"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_track_tts_usage_sends_usage_stats_update() {
         let user_id = Uuid::new_v4();
         let (tx, mut rx) = mpsc::unbounded_channel();
 
@@ -400,13 +342,7 @@ mod tests {
         connections.lock().await.insert(user_id, vec![tx]);
 
         let persistence = Arc::new(TestPersistence::default());
-        let tts_state = TtsState {
-            service: Arc::new(TtsService::new(Arc::new(NoopProvider))),
-            user_persistence: persistence.clone(),
-            rate_limiter: Arc::new(RateLimiter::new(Arc::new(OrgQuotaChecker::new()))),
-            rate_limit_config: Arc::new(RateLimitConfig::from_yaml_config(&app_config.rate_limits)),
-            connections: connections.clone(),
-        };
+        let tts_state = tts_state(persistence.clone(), connections.clone());
 
         track_tts_usage(&tts_state, user_id, UsageStats::default(), 120).await;
 

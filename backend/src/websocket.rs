@@ -14,14 +14,19 @@ use axum::{
     },
     response::Response,
 };
+use dialect_coach_shared::tts::TtsRequest;
 use dialect_coach_shared::{
-    AccountRequest, ClientEnvelope, ClientMessage, Reply, ServerMessage, SignInResult, UsageStats,
+    AccountRequest, ClientEnvelope, ClientMessage, Reply, ServerMessage, SignInResult, SpeechAudio,
+    StudyRequest, UsageStats,
 };
 use futures_util::{Sink, SinkExt, StreamExt, stream::SplitStream};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use uuid::Uuid;
 
-use crate::AppState;
+use crate::{
+    AppState, enrichment_handler, grammar_handler, planning_handler, translation_handler,
+    tts_handler,
+};
 
 type Tx = UnboundedSender<String>;
 
@@ -73,7 +78,8 @@ async fn receive(
 }
 
 /// Coach requests go to the sequential chat worker, which keeps their replies in order.
-/// Everything else is answered here, one at a time, so saves apply in the order sent.
+/// Study aids each run in their own task. Everything else is answered here, one at a
+/// time, so saves apply in the order sent.
 async fn dispatch(
     envelope: ClientEnvelope,
     state: &AppState,
@@ -84,6 +90,9 @@ async fn dispatch(
         ClientMessage::Chat(_) => chat
             .send(envelope)
             .expect("chat worker runs while its connection is open"),
+        ClientMessage::Study(_) => {
+            tokio::spawn(respond(envelope, state.clone(), tx.clone()));
+        }
         _ => respond(envelope, state.clone(), tx.clone()).await,
     }
 }
@@ -120,6 +129,28 @@ async fn answer(body: ClientMessage, state: AppState, tx: Tx) -> Reply {
         ClientMessage::Chat(request) => {
             Reply::Chat(Box::new(agents::answer(&state, request).await))
         }
+        ClientMessage::Study(request) => study(request, &state).await,
+    }
+}
+
+async fn study(request: StudyRequest, state: &AppState) -> Reply {
+    match request {
+        StudyRequest::Translate(r) => {
+            Reply::Translated(translation_handler::translate(state, r).await)
+        }
+        StudyRequest::Grammar(r) => Reply::Grammar(grammar_handler::explain(state, r).await),
+        StudyRequest::Enrich(r) => Reply::Enriched(enrichment_handler::enrich(state, r).await),
+        StudyRequest::GeneratePlan(r) => {
+            Reply::Plan(planning_handler::generate_plan(&state.planning_generator, r).await)
+        }
+        StudyRequest::Synthesize(r) => Reply::Speech(synthesize(state, r).await),
+    }
+}
+
+async fn synthesize(state: &AppState, request: TtsRequest) -> Result<SpeechAudio, String> {
+    match &state.tts {
+        Some(tts) => tts_handler::synthesize(tts, request).await,
+        None => Err("TTS service unavailable".to_string()),
     }
 }
 

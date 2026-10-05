@@ -1,7 +1,9 @@
 use super::{
-    AIActionRequest, AuthCredentials, InitialUserSettings, Message, UsageStats, User,
-    UserMessageWithContext, UserState,
+    AIActionRequest, AuthCredentials, Dialect, EnrichRequest, EnrichResponse, GrammarRequest,
+    GrammarResponse, InitialUserSettings, Message, TranslateRequest, TranslateResponse, UsageStats,
+    User, UserMessageWithContext, UserState, plan::import::SimpleImportLanguagePlan,
 };
+use crate::tts::TtsRequest;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -24,6 +26,8 @@ pub enum ClientMessage {
     SaveUserState(Box<UserState>),
     /// Answered in the order sent, one at a time.
     Chat(ChatRequest),
+    /// Each answered in its own task, so a slow one holds up nothing.
+    Study(StudyRequest),
 }
 
 /// Requests that sign a connection in.
@@ -64,6 +68,46 @@ pub enum ChatRequest {
     },
 }
 
+/// Study aids: selection lookups, item enrichment, plan generation and voice.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StudyRequest {
+    Translate(TranslateRequest),
+    Grammar(GrammarRequest),
+    Enrich(EnrichRequest),
+    GeneratePlan(PlanRequest),
+    Synthesize(TtsRequest),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanRequest {
+    pub dialect: Dialect,
+    pub source: PlanSource,
+}
+
+/// The material a plan is generated from.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PlanSource {
+    Text(String),
+    File {
+        content_type: String,
+        base64: String,
+    },
+}
+
+/// Synthesized speech, base64-encoded.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpeechAudio {
+    pub audio_base64: String,
+    pub duration_ms: u32,
+}
+
+/// Why a learning item could not be enriched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EnrichFailure {
+    InvalidInput,
+    Server,
+}
+
 /// Everything the server sends on the connection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ServerMessage {
@@ -84,6 +128,11 @@ pub enum Reply {
     UserStateSaved(Result<(), String>),
     /// Answers every ChatRequest (success or error message).
     Chat(Box<Message>),
+    Translated(TranslateResponse),
+    Grammar(GrammarResponse),
+    Enriched(Result<EnrichResponse, EnrichFailure>),
+    Plan(Result<SimpleImportLanguagePlan, String>),
+    Speech(Result<SpeechAudio, String>),
     /// The request's task panicked.
     Failed(String),
 }
@@ -92,7 +141,8 @@ pub enum Reply {
 mod tests {
     use super::*;
     use crate::models::{
-        AgentResponse, Dialect, Formality, Language, MessageMetadata, TeachingMode,
+        AgentResponse, Formality, Language, MessageMetadata, PartialLearningItem, PartialMistake,
+        PhraseTranslation, TeachingMode,
     };
     use serde::de::DeserializeOwned;
 
@@ -195,5 +245,95 @@ mod tests {
         assert_round_trip(&reply(Reply::Chat(Box::new(msg))));
         assert_round_trip(&reply(Reply::Failed("internal error".into())));
         assert_round_trip(&ServerMessage::UsageStats(UsageStats::default()));
+    }
+
+    fn study(request: StudyRequest) -> ClientEnvelope {
+        envelope(ClientMessage::Study(request))
+    }
+
+    #[test]
+    fn test_study_requests_round_trip() {
+        assert_round_trip(&study(StudyRequest::Translate(TranslateRequest {
+            phrase: "che".into(),
+            context: "¿Qué hacés, che?".into(),
+            dialect: "spanish_argentinian".into(),
+            formality: Some("informal".into()),
+        })));
+        assert_round_trip(&study(StudyRequest::Grammar(GrammarRequest {
+            phrase: "hacés".into(),
+            context: "¿Qué hacés?".into(),
+            dialect: "spanish_argentinian".into(),
+        })));
+        assert_round_trip(&study(StudyRequest::Enrich(EnrichRequest {
+            dialect: Dialect::SpanishArgentinian,
+            partial_data: PartialLearningItem::Mistake(PartialMistake {
+                specific_mistake: Some("vos sos".into()),
+                correction: None,
+                mistake_category: None,
+            }),
+        })));
+        assert_round_trip(&study(StudyRequest::Synthesize(TtsRequest::new(
+            Uuid::new_v4(),
+            "Hola".into(),
+            Dialect::SpanishArgentinian,
+        ))));
+    }
+
+    #[test]
+    fn test_plan_requests_round_trip() {
+        for source in [
+            PlanSource::Text("Unit 1: greetings".into()),
+            PlanSource::File {
+                content_type: "application/pdf".into(),
+                base64: "JVBERi0xLjQ=".into(),
+            },
+        ] {
+            assert_round_trip(&study(StudyRequest::GeneratePlan(PlanRequest {
+                dialect: Dialect::SpanishArgentinian,
+                source,
+            })));
+        }
+    }
+
+    #[test]
+    fn test_study_replies_round_trip() {
+        assert_round_trip(&reply(Reply::Translated(TranslateResponse {
+            original_sentence: "che".into(),
+            segmented_phrases: vec![PhraseTranslation {
+                target_text: "che".into(),
+                english: "hey".into(),
+            }],
+            success: true,
+            error: None,
+        })));
+        assert_round_trip(&reply(Reply::Grammar(GrammarResponse {
+            original_phrase: "hacés".into(),
+            explanations: vec![],
+            success: false,
+            error: Some("Invalid dialect: x".into()),
+        })));
+        let enriched = EnrichResponse {
+            enriched_item: serde_json::json!({"correction": "vos sos"}),
+        };
+        assert_round_trip(&reply(Reply::Enriched(Ok(enriched))));
+        assert_round_trip(&reply(Reply::Enriched(Err(EnrichFailure::InvalidInput))));
+    }
+
+    #[test]
+    fn test_plan_and_speech_replies_round_trip() {
+        let plan = SimpleImportLanguagePlan {
+            title: "Greetings".into(),
+            dialect: Dialect::SpanishArgentinian,
+            description: None,
+            steps: vec![],
+        };
+        assert_round_trip(&reply(Reply::Plan(Ok(plan))));
+        assert_round_trip(&reply(Reply::Plan(Err("Empty text content".into()))));
+        let audio = SpeechAudio {
+            audio_base64: "SUQz".into(),
+            duration_ms: 1200,
+        };
+        assert_round_trip(&reply(Reply::Speech(Ok(audio))));
+        assert_round_trip(&reply(Reply::Speech(Err("TTS rate limit exceeded".into()))));
     }
 }

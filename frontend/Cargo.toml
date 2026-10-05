@@ -82,3 +82,4 @@ wasm-logger = "0.2"
 log = "0.4"
 gloo-timers = "0.3.0"
 anyhow.workspace = true
+base64 = "0.22"

@@ -76,6 +76,7 @@ async fn main() -> Result<()> {
         planning_generator,
         translation_cache,
         admin_token,
+        tts: tts_state.clone(),
     };
 
     let app = startup::build_router(state, tts_state);

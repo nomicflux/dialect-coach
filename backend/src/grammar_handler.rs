@@ -1,75 +1,56 @@
 use anyhow::{Context, Result};
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use dialect_coach_shared::models::{Dialect, GrammarExplanation, GrammarRequest, GrammarResponse};
 
 use crate::AppState;
 use crate::selection_cache::SelectionCache;
+use crate::translation_handler::parse_dialect;
 
-pub async fn grammar_handler(
-    State(state): State<AppState>,
-    Json(request): Json<GrammarRequest>,
-) -> impl IntoResponse {
+/// Explain the grammar of a selected phrase, using the cache when it was explained before.
+pub async fn explain(state: &AppState, request: GrammarRequest) -> GrammarResponse {
     tracing::info!("Grammar request: {} -> {}", request.phrase, request.dialect);
+    let outcome = async {
+        let dialect = parse_dialect(&request.dialect)?;
+        cached_explanations(state, &request.phrase, &request.context, dialect).await
+    }
+    .await;
+    grammar_response(&request.phrase, outcome)
+}
 
-    let dialect = match request.dialect.parse::<Dialect>() {
-        Ok(d) => d,
-        Err(e) => {
-            tracing::error!("Invalid dialect '{}': {}", request.dialect, e);
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(GrammarResponse {
-                    original_phrase: request.phrase.clone(),
-                    explanations: vec![],
-                    success: false,
-                    error: Some(format!("Invalid dialect: {}", request.dialect)),
-                }),
-            );
+async fn cached_explanations(
+    state: &AppState,
+    phrase: &str,
+    context: &str,
+    dialect: Dialect,
+) -> Result<Vec<GrammarExplanation>, String> {
+    let cache = &state.translation_cache;
+    let key = SelectionCache::generate_key("grammar", dialect.id(), phrase);
+    if let Some(cached) = cache.get_grammar(&key).await {
+        tracing::info!("Cache hit for grammar: {}", key);
+        return Ok(cached);
+    }
+    tracing::info!("Cache miss for grammar: {}", key);
+    let explained = explain_grammar(state, phrase, context, dialect).await;
+    let explanations = explained.map_err(|e| format!("Grammar explanation failed: {}", e))?;
+    cache.set_grammar(&key, explanations.clone()).await;
+    Ok(explanations)
+}
+
+fn grammar_response(
+    phrase: &str,
+    outcome: Result<Vec<GrammarExplanation>, String>,
+) -> GrammarResponse {
+    let (explanations, error) = match outcome {
+        Ok(explanations) => (explanations, None),
+        Err(error) => {
+            tracing::error!("{}", error);
+            (vec![], Some(error))
         }
     };
-
-    let cache_key = SelectionCache::generate_key("grammar", dialect.id(), &request.phrase);
-    if let Some(cached) = state.translation_cache.get_grammar(&cache_key).await {
-        tracing::info!("Cache hit for grammar: {}", cache_key);
-        return (
-            StatusCode::OK,
-            Json(GrammarResponse {
-                original_phrase: request.phrase.clone(),
-                explanations: cached,
-                success: true,
-                error: None,
-            }),
-        );
-    }
-
-    match explain_grammar(&state, &request.phrase, &request.context, dialect).await {
-        Ok(explanations) => {
-            tracing::info!("Cache miss for grammar: {}", cache_key);
-            state
-                .translation_cache
-                .set_grammar(&cache_key, explanations.clone())
-                .await;
-            (
-                StatusCode::OK,
-                Json(GrammarResponse {
-                    original_phrase: request.phrase.clone(),
-                    explanations,
-                    success: true,
-                    error: None,
-                }),
-            )
-        }
-        Err(e) => {
-            tracing::error!("Grammar explanation failed: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(GrammarResponse {
-                    original_phrase: request.phrase.clone(),
-                    explanations: vec![],
-                    success: false,
-                    error: Some(format!("Grammar explanation failed: {}", e)),
-                }),
-            )
-        }
+    GrammarResponse {
+        original_phrase: phrase.to_string(),
+        explanations,
+        success: error.is_none(),
+        error,
     }
 }
 
@@ -120,6 +101,21 @@ fn parse_grammar_explanations(json_str: &str) -> Result<Vec<GrammarExplanation>>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_grammar_response_reports_success_or_error() {
+        let explanations = vec![GrammarExplanation {
+            element: "voseo".to_string(),
+            explanation: "vos takes hacés".to_string(),
+        }];
+        let ok = grammar_response("hacés", Ok(explanations.clone()));
+        assert!(ok.success && ok.error.is_none());
+        assert_eq!(ok.explanations, explanations);
+        let failed = grammar_response("hacés", Err("Invalid dialect: x".to_string()));
+        assert!(!failed.success && failed.explanations.is_empty());
+        assert_eq!(failed.error.as_deref(), Some("Invalid dialect: x"));
+        assert_eq!(failed.original_phrase, "hacés");
+    }
 
     #[test]
     fn test_parse_grammar_explanations_valid() {

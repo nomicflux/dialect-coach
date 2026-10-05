@@ -1,17 +1,16 @@
-use anyhow::{Context, Result};
+use crate::services::connection::Connection;
+use anyhow::Result;
 use dialect_coach_shared::models::{Dialect, Formality, TranslateRequest, TranslateResponse};
-use gloo_net::http::Request;
+use dialect_coach_shared::{ClientMessage, Reply, StudyRequest};
 
 /// Translation service for AI-powered phrase translation
 pub struct TranslationService {
-    base_url: String,
+    connection: Connection,
 }
 
 impl TranslationService {
-    pub fn new(base_url: &str) -> Self {
-        Self {
-            base_url: base_url.to_string(),
-        }
+    pub fn new(connection: Connection) -> Self {
+        Self { connection }
     }
 
     /// Translate an English phrase to dialect-specific phrase
@@ -23,43 +22,31 @@ impl TranslationService {
         formality: Option<Formality>,
     ) -> Result<TranslateResponse> {
         // Use ONLY canonical serde ID formats
-        let request_body = TranslateRequest {
+        let request = TranslateRequest {
             phrase: phrase.to_string(),
             context,
-            dialect: dialect.id().to_string(), // Canonical serde ID format
-            formality: formality.map(|f| f.id().to_string()), // Canonical serde ID format
+            dialect: dialect.id().to_string(),
+            formality: formality.map(|f| f.id().to_string()),
         };
+        let study = StudyRequest::Translate(request);
+        let reply = self.connection.request(ClientMessage::Study(study)).await?;
+        translated(reply)
+    }
+}
 
-        let url = format!("{}/api/translate", self.base_url);
-
-        let response = Request::post(&url)
-            .json(&request_body)?
-            .send()
-            .await
-            .context("Failed to send translation request")?;
-
-        if !response.ok() {
-            return Err(anyhow::anyhow!(
-                "Translation request failed with status: {}",
-                response.status()
-            ));
-        }
-
-        let translate_response: TranslateResponse = response
-            .json()
-            .await
-            .context("Failed to parse translation response")?;
-
-        if !translate_response.success {
-            return Err(anyhow::anyhow!(
-                "Translation failed: {}",
-                translate_response
-                    .error
-                    .unwrap_or_else(|| "Unknown error".to_string())
-            ));
-        }
-
-        Ok(translate_response)
+fn translated(reply: Reply) -> Result<TranslateResponse> {
+    match reply {
+        Reply::Translated(response) if response.success => Ok(response),
+        Reply::Translated(response) => Err(anyhow::anyhow!(
+            "Translation failed: {}",
+            response
+                .error
+                .unwrap_or_else(|| "Unknown error".to_string())
+        )),
+        other => unreachable!(
+            "a translate request is answered with Translated, got {:?}",
+            other
+        ),
     }
 }
 
@@ -154,11 +141,27 @@ mod tests {
     }
 
     #[test]
-    fn test_canonical_format_usage() {
-        // Verify that we always use canonical serde ID formats
-        let service = TranslationService::new("http://localhost:3000");
-        assert_eq!(service.base_url, "http://localhost:3000");
+    fn test_translated_returns_success_and_names_failure() {
+        let response = |success: bool, error: Option<&str>| TranslateResponse {
+            original_sentence: "che".to_string(),
+            segmented_phrases: vec![],
+            success,
+            error: error.map(str::to_string),
+        };
+        let ok = translated(Reply::Translated(response(true, None))).unwrap();
+        assert_eq!(ok.original_sentence, "che");
+        let refused = translated(Reply::Translated(response(
+            false,
+            Some("Invalid dialect: x"),
+        )));
+        assert_eq!(
+            refused.unwrap_err().to_string(),
+            "Translation failed: Invalid dialect: x"
+        );
+    }
 
+    #[test]
+    fn test_canonical_format_usage() {
         // Test that dialect.id() returns canonical format
         assert_eq!(Dialect::SpanishMexican.id(), "spanish_mexican");
         assert_eq!(Dialect::ArabicEgyptian.id(), "arabic_egyptian");

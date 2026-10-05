@@ -1,17 +1,16 @@
-use anyhow::{Context, Result};
-use dialect_coach_shared::models::{Dialect, GrammarExplanation, GrammarRequest, GrammarResponse};
-use gloo_net::http::Request;
+use crate::services::connection::Connection;
+use anyhow::Result;
+use dialect_coach_shared::models::{Dialect, GrammarExplanation, GrammarRequest};
+use dialect_coach_shared::{ClientMessage, Reply, StudyRequest};
 
 #[derive(Clone)]
 pub struct GrammarService {
-    base_url: String,
+    connection: Connection,
 }
 
 impl GrammarService {
-    pub fn new(base_url: &str) -> Self {
-        Self {
-            base_url: base_url.to_string(),
-        }
+    pub fn new(connection: Connection) -> Self {
+        Self { connection }
     }
 
     pub async fn explain_grammar(
@@ -20,41 +19,61 @@ impl GrammarService {
         context: String,
         dialect: Dialect,
     ) -> Result<Vec<GrammarExplanation>> {
-        let request_body = GrammarRequest {
+        let request = GrammarRequest {
             phrase: phrase.to_string(),
             context,
             dialect: dialect.id().to_string(),
         };
+        let study = StudyRequest::Grammar(request);
+        let reply = self.connection.request(ClientMessage::Study(study)).await?;
+        explained(reply)
+    }
+}
 
-        let url = format!("{}/api/grammar", self.base_url);
+fn explained(reply: Reply) -> Result<Vec<GrammarExplanation>> {
+    match reply {
+        Reply::Grammar(response) if response.success => Ok(response.explanations),
+        Reply::Grammar(response) => Err(anyhow::anyhow!(
+            "Grammar explanation failed: {}",
+            response
+                .error
+                .unwrap_or_else(|| "Unknown error".to_string())
+        )),
+        other => unreachable!(
+            "a grammar request is answered with Grammar, got {:?}",
+            other
+        ),
+    }
+}
 
-        let response = Request::post(&url)
-            .json(&request_body)?
-            .send()
-            .await
-            .context("Failed to send grammar request")?;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dialect_coach_shared::models::GrammarResponse;
 
-        if !response.ok() {
-            return Err(anyhow::anyhow!(
-                "Grammar request failed with status: {}",
-                response.status()
-            ));
-        }
+    fn response(explanations: Vec<GrammarExplanation>, error: Option<&str>) -> Reply {
+        Reply::Grammar(GrammarResponse {
+            original_phrase: "hacés".to_string(),
+            success: error.is_none(),
+            explanations,
+            error: error.map(str::to_string),
+        })
+    }
 
-        let grammar_response: GrammarResponse = response
-            .json()
-            .await
-            .context("Failed to parse grammar response")?;
-
-        if !grammar_response.success {
-            return Err(anyhow::anyhow!(
-                "Grammar explanation failed: {}",
-                grammar_response
-                    .error
-                    .unwrap_or_else(|| "Unknown error".to_string())
-            ));
-        }
-
-        Ok(grammar_response.explanations)
+    #[test]
+    fn test_explained_returns_explanations_and_names_failure() {
+        let explanations = vec![GrammarExplanation {
+            element: "voseo".to_string(),
+            explanation: "vos takes hacés".to_string(),
+        }];
+        assert_eq!(
+            explained(response(explanations.clone(), None)).unwrap(),
+            explanations
+        );
+        let refused = explained(response(vec![], Some("Invalid dialect: x")));
+        assert_eq!(
+            refused.unwrap_err().to_string(),
+            "Grammar explanation failed: Invalid dialect: x"
+        );
     }
 }

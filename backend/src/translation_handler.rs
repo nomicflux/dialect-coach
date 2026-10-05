@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use dialect_coach_shared::models::{
     Dialect, Formality, PhraseTranslation, TranslateRequest, TranslateResponse,
 };
@@ -7,109 +6,75 @@ use dialect_coach_shared::models::{
 use crate::AppState;
 use crate::selection_cache::SelectionCache;
 
-/// Translation endpoint - translate English phrases to dialect-specific phrases
-pub async fn translate_handler(
-    State(state): State<AppState>,
-    Json(request): Json<TranslateRequest>,
-) -> impl IntoResponse {
+/// Translate a selected phrase, using the cache when the same phrase was translated before.
+pub async fn translate(state: &AppState, request: TranslateRequest) -> TranslateResponse {
     tracing::info!(
         "Translation request: {} -> {}",
         request.phrase,
         request.dialect
     );
-
-    // Parse dialect using canonical method
-    let dialect = match request.dialect.parse::<Dialect>() {
-        Ok(d) => d,
-        Err(e) => {
-            tracing::error!("Invalid dialect '{}': {}", request.dialect, e);
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(TranslateResponse {
-                    original_sentence: request.phrase.clone(),
-                    segmented_phrases: vec![],
-                    success: false,
-                    error: Some(format!("Invalid dialect: {}", request.dialect)),
-                }),
-            );
-        }
-    };
-
-    // Parse formality using canonical method (default to Casual)
-    let formality = if let Some(formality_str) = request.formality {
-        match formality_str.parse::<Formality>() {
-            Ok(f) => f,
-            Err(e) => {
-                tracing::error!("Invalid formality '{}': {}", formality_str, e);
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(TranslateResponse {
-                        original_sentence: request.phrase.clone(),
-                        segmented_phrases: vec![],
-                        success: false,
-                        error: Some(format!("Invalid formality: {}", formality_str)),
-                    }),
-                );
-            }
-        }
-    } else {
-        Formality::Informal
-    };
-
-    // Check cache before translating
-    let cache_key = SelectionCache::generate_key("translate", dialect.id(), &request.phrase);
-    if let Some(cached) = state.translation_cache.get_translation(&cache_key).await {
-        tracing::info!("Cache hit for translation: {}", cache_key);
-        return (
-            StatusCode::OK,
-            Json(TranslateResponse {
-                original_sentence: request.phrase.clone(),
-                segmented_phrases: cached,
-                success: true,
-                error: None,
-            }),
-        );
+    let outcome = async {
+        let (dialect, formality) = parse_settings(&request)?;
+        cached_translation(state, &request.phrase, &request.context, dialect, formality).await
     }
+    .await;
+    translate_response(&request.phrase, outcome)
+}
 
-    // Cache miss - translate the phrase
-    match translate_phrase(
-        &state,
-        &request.phrase,
-        &request.context,
-        dialect,
-        formality,
-    )
-    .await
-    {
-        Ok(segmented_phrases) => {
-            tracing::info!("Cache miss for translation: {}", cache_key);
-            state
-                .translation_cache
-                .set_translation(&cache_key, segmented_phrases.clone())
-                .await;
+pub(crate) fn parse_dialect(dialect: &str) -> Result<Dialect, String> {
+    dialect
+        .parse::<Dialect>()
+        .map_err(|_| format!("Invalid dialect: {}", dialect))
+}
 
-            (
-                StatusCode::OK,
-                Json(TranslateResponse {
-                    original_sentence: request.phrase.clone(),
-                    segmented_phrases,
-                    success: true,
-                    error: None,
-                }),
-            )
+/// The request's dialect and formality (casual when none is given).
+fn parse_settings(request: &TranslateRequest) -> Result<(Dialect, Formality), String> {
+    let dialect = parse_dialect(&request.dialect)?;
+    let formality = match &request.formality {
+        Some(formality) => formality
+            .parse::<Formality>()
+            .map_err(|_| format!("Invalid formality: {}", formality))?,
+        None => Formality::Informal,
+    };
+    Ok((dialect, formality))
+}
+
+async fn cached_translation(
+    state: &AppState,
+    phrase: &str,
+    context: &str,
+    dialect: Dialect,
+    formality: Formality,
+) -> Result<Vec<PhraseTranslation>, String> {
+    let cache = &state.translation_cache;
+    let key = SelectionCache::generate_key("translate", dialect.id(), phrase);
+    if let Some(cached) = cache.get_translation(&key).await {
+        tracing::info!("Cache hit for translation: {}", key);
+        return Ok(cached);
+    }
+    tracing::info!("Cache miss for translation: {}", key);
+    let translated = translate_phrase(state, phrase, context, dialect, formality).await;
+    let phrases = translated.map_err(|e| format!("Translation failed: {}", e))?;
+    cache.set_translation(&key, phrases.clone()).await;
+    Ok(phrases)
+}
+
+fn translate_response(
+    phrase: &str,
+    outcome: Result<Vec<PhraseTranslation>, String>,
+) -> TranslateResponse {
+    let (segmented_phrases, error) = match outcome {
+        Ok(phrases) => (phrases, None),
+        Err(error) => {
+            tracing::error!("{}", error);
+            (vec![], Some(error))
         }
-        Err(e) => {
-            tracing::error!("Translation failed: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(TranslateResponse {
-                    original_sentence: request.phrase.clone(),
-                    segmented_phrases: vec![],
-                    success: false,
-                    error: Some(format!("Translation failed: {}", e)),
-                }),
-            )
-        }
+    };
+    TranslateResponse {
+        original_sentence: phrase.to_string(),
+        segmented_phrases,
+        success: error.is_none(),
+        error,
     }
 }
 
@@ -281,6 +246,60 @@ mod tests {
         let invalid_json = "not valid json";
         let result = parse_phrase_translations(invalid_json);
         assert!(result.is_err());
+    }
+
+    fn request(dialect: &str, formality: Option<&str>) -> TranslateRequest {
+        TranslateRequest {
+            phrase: "che".to_string(),
+            context: "¿Qué hacés, che?".to_string(),
+            dialect: dialect.to_string(),
+            formality: formality.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn test_parse_dialect_names_an_unknown_dialect() {
+        assert_eq!(
+            parse_dialect("spanish_argentinian"),
+            Ok(Dialect::SpanishArgentinian)
+        );
+        assert_eq!(
+            parse_dialect("klingon"),
+            Err("Invalid dialect: klingon".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_settings_defaults_to_informal() {
+        assert_eq!(
+            parse_settings(&request("spanish_argentinian", None)),
+            Ok((Dialect::SpanishArgentinian, Formality::Informal))
+        );
+        assert_eq!(
+            parse_settings(&request("spanish_argentinian", Some("formal"))),
+            Ok((Dialect::SpanishArgentinian, Formality::Formal))
+        );
+        assert_eq!(
+            parse_settings(&request("spanish_argentinian", Some("stiff"))),
+            Err("Invalid formality: stiff".to_string())
+        );
+    }
+
+    #[test]
+    fn test_translate_response_reports_success_or_error() {
+        let phrases = vec![PhraseTranslation {
+            target_text: "che".to_string(),
+            english: "hey".to_string(),
+        }];
+        let ok = translate_response("che", Ok(phrases.clone()));
+        assert_eq!(
+            (ok.success, ok.segmented_phrases, ok.error),
+            (true, phrases, None)
+        );
+        let failed = translate_response("che", Err("Invalid dialect: x".to_string()));
+        assert!(!failed.success && failed.segmented_phrases.is_empty());
+        assert_eq!(failed.error.as_deref(), Some("Invalid dialect: x"));
+        assert_eq!(failed.original_sentence, "che");
     }
 
     #[test]

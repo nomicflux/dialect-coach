@@ -1,19 +1,21 @@
-use anyhow::{Context, Result};
+use crate::services::connection::Connection;
+use anyhow::Result;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use dialect_coach_shared::models::Dialect;
 use dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan;
-use gloo_net::http::Request;
-use web_sys::{File, FormData};
+use dialect_coach_shared::{ClientMessage, PlanRequest, PlanSource, Reply, StudyRequest};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::File;
 
 #[derive(PartialEq, Clone)]
 pub struct PlanService {
-    base_url: String,
+    connection: Connection,
 }
 
 impl PlanService {
-    pub fn new(base_url: &str) -> Self {
-        Self {
-            base_url: base_url.to_string(),
-        }
+    pub fn new(connection: Connection) -> Self {
+        Self { connection }
     }
 
     pub async fn generate_plan(
@@ -22,59 +24,53 @@ impl PlanService {
         file: Option<File>,
         dialect: Dialect,
     ) -> Result<SimpleImportLanguagePlan> {
-        let url = format!("{}/api/plans/generate", self.base_url);
-        let form_data =
-            FormData::new().map_err(|e| anyhow::anyhow!("Failed to create FormData: {:?}", e))?;
+        let source = match (text, file) {
+            (Some(text), _) => PlanSource::Text(text),
+            (None, Some(file)) => file_source(&file).await?,
+            (None, None) => return Err(anyhow::anyhow!("Must provide either text or file")),
+        };
+        let study = StudyRequest::GeneratePlan(PlanRequest { dialect, source });
+        let reply = self.connection.request(ClientMessage::Study(study)).await?;
+        planned(reply)
+    }
+}
 
-        // 1. Add Dialect
-        // We send the raw string value (e.g., "spanish_mexican") because the backend
-        // manually wraps it in quotes before deserializing as a JSON string.
-        let dialect_str = serde_json::to_string(&dialect)?
-            .trim_matches('"')
-            .to_string();
-        form_data
-            .append_with_str("dialect", &dialect_str)
-            .map_err(|e| anyhow::anyhow!("Failed to append dialect: {:?}", e))?;
+/// The file's type and its bytes, base64-encoded for the connection.
+async fn file_source(file: &File) -> Result<PlanSource> {
+    let buffer = JsFuture::from(file.array_buffer())
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to read file: {:?}", e))?;
+    let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
+    Ok(PlanSource::File {
+        content_type: file.type_(),
+        base64: STANDARD.encode(bytes),
+    })
+}
 
-        // 2. Add Content (Text or File)
-        if let Some(t) = text {
-            form_data
-                .append_with_str("text", &t)
-                .map_err(|e| anyhow::anyhow!("Failed to append text: {:?}", e))?;
-        } else if let Some(f) = file {
-            // "file" or "text" logic in backend handles either under those names
-            form_data
-                .append_with_blob("file", &f)
-                .map_err(|e| anyhow::anyhow!("Failed to append file: {:?}", e))?;
-        } else {
-            return Err(anyhow::anyhow!("Must provide either text or file"));
-        }
+fn planned(reply: Reply) -> Result<SimpleImportLanguagePlan> {
+    match reply {
+        Reply::Plan(result) => result.map_err(|e| anyhow::anyhow!("Server error: {}", e)),
+        other => unreachable!("a plan request is answered with Plan, got {:?}", other),
+    }
+}
 
-        // 3. Send Request
-        // gloo_net automatically sets Content-Type to multipart/form-data when body is FormData
-        let response = Request::post(&url)
-            .body(form_data)?
-            .send()
-            .await
-            .context("Failed to connect to server")?;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        if !response.ok() {
-            let error_msg = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(anyhow::anyhow!(
-                "Server error {}: {}",
-                response.status(),
-                error_msg
-            ));
-        }
-
-        let plan: SimpleImportLanguagePlan = response
-            .json()
-            .await
-            .context("Invalid response from server")?;
-
-        Ok(plan)
+    #[test]
+    fn test_planned_returns_plan_and_names_failure() {
+        let plan = SimpleImportLanguagePlan {
+            title: "Greetings".to_string(),
+            dialect: Dialect::SpanishArgentinian,
+            description: None,
+            steps: vec![],
+        };
+        assert_eq!(planned(Reply::Plan(Ok(plan))).unwrap().title, "Greetings");
+        let refused = planned(Reply::Plan(Err("Empty text content".to_string())));
+        assert_eq!(
+            refused.unwrap_err().to_string(),
+            "Server error: Empty text content"
+        );
     }
 }

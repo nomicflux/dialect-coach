@@ -38,6 +38,17 @@ pub enum RequestError {
     Failed(String),
 }
 
+impl std::fmt::Display for RequestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RequestError::Lost => write!(f, "Connection dropped before a reply arrived"),
+            RequestError::Failed(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl std::error::Error for RequestError {}
+
 /// Which requests are queued, awaiting replies, or lost. Pure bookkeeping.
 #[derive(Default)]
 pub struct LinkState {
@@ -321,6 +332,18 @@ fn handle_close(shell: &Rc<RefCell<Shell>>) {
 mod tests {
     use super::*;
     use dialect_coach_shared::AccountRequest;
+
+    #[test]
+    fn test_request_error_message() {
+        assert_eq!(
+            RequestError::Lost.to_string(),
+            "Connection dropped before a reply arrived"
+        );
+        assert_eq!(
+            RequestError::Failed("internal error".to_string()).to_string(),
+            "internal error"
+        );
+    }
 
     fn envelope(token: &str) -> ClientEnvelope {
         ClientEnvelope {

@@ -5,6 +5,7 @@ use crate::persistence::UserPersistence;
 use crate::qdrant_service;
 use crate::rate_limiter;
 use crate::selection_cache::SelectionCache;
+use crate::tts_handler::TtsState;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -28,10 +29,6 @@ pub struct AppState {
     pub planning_generator: Arc<agent_service::planning::PlanGenerator>,
     pub translation_cache: Arc<SelectionCache>,
     pub admin_token: Option<String>,
-}
-
-impl axum::extract::FromRef<AppState> for Arc<agent_service::planning::PlanGenerator> {
-    fn from_ref(state: &AppState) -> Self {
-        state.planning_generator.clone()
-    }
+    /// None when the TTS provider failed to initialize.
+    pub tts: Option<TtsState>,
 }

@@ -1,8 +1,8 @@
+use crate::services::connection::Connection;
 use dialect_coach_shared::models::Dialect;
 use dialect_coach_shared::tts::TtsRequest;
-use gloo_net::http::Request;
+use dialect_coach_shared::{ClientMessage, Reply, SpeechAudio, StudyRequest};
 use log::{error, info, warn};
-use serde::Deserialize;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
@@ -189,27 +189,20 @@ impl SpeechRecognitionService {
     }
 }
 
-/// Response from cloud TTS synthesis
-#[derive(Deserialize)]
-struct TtsSynthesizeResponse {
-    audio_base64: String,
-    duration_ms: u32,
-}
-
-/// Cloud TTS Service - calls backend /api/tts/synthesize endpoint
+/// Cloud TTS Service - synthesizes speech on the backend over the connection
 pub struct CloudTtsService {
-    backend_url: String,
+    connection: Connection,
     audio_element: Option<HtmlAudioElement>,
 }
 
 impl CloudTtsService {
     /// Create a new cloud TTS service
-    pub fn new(backend_url: &str) -> Self {
+    pub fn new(connection: Connection) -> Self {
         // Create an audio element for playback
         let audio_element = HtmlAudioElement::new().ok();
 
         Self {
-            backend_url: backend_url.to_string(),
+            connection,
             audio_element,
         }
     }
@@ -224,48 +217,16 @@ impl CloudTtsService {
         if text.is_empty() {
             return Err("Cannot speak empty text".to_string());
         }
-
-        info!("Synthesizing speech with backend TTS: {}", text,);
-
-        // Build request
-        let request = TtsRequest {
-            user_id,
-            text: text.to_string(),
-            dialect,
-            rate: Some(1.0),
-        };
-
-        // Call backend API
-        let url = format!("{}/api/tts/synthesize", self.backend_url);
-        let response = Request::post(&url)
-            .json(&request)
-            .map_err(|e| format!("Failed to build request: {}", e))?
-            .send()
-            .await
-            .map_err(|e| format!("Failed to call TTS API: {}", e))?;
-
-        if !response.ok() {
-            let status = response.status();
-            if status == 429 {
-                return Err("TTS_RATE_LIMIT_EXCEEDED".to_string());
-            }
-            return Err(format!("TTS API error: {}", status));
-        }
-
-        let tts_response: TtsSynthesizeResponse = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse TTS response: {}", e))?;
-
+        info!("Synthesizing speech with backend TTS: {}", text);
+        let request = TtsRequest::new(user_id, text.to_string(), dialect).with_rate(1.0);
+        let study = ClientMessage::Study(StudyRequest::Synthesize(request));
+        let reply = self.connection.request(study).await;
+        let audio = spoken(reply.map_err(|e| e.to_string())?)?;
         info!(
             "Received {} ms of audio from backend TTS",
-            tts_response.duration_ms
+            audio.duration_ms
         );
-
-        // Play the audio
-        self.play_audio_base64(&tts_response.audio_base64).await?;
-
-        Ok(())
+        self.play_audio_base64(&audio.audio_base64).await
     }
 
     /// Play base64-encoded MP3 audio
@@ -308,5 +269,34 @@ impl CloudTtsService {
         } else {
             false
         }
+    }
+}
+
+fn spoken(reply: Reply) -> Result<SpeechAudio, String> {
+    match reply {
+        Reply::Speech(result) => result,
+        other => unreachable!(
+            "a synthesize request is answered with Speech, got {:?}",
+            other
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_spoken_returns_audio_or_the_backend_error() {
+        let audio = SpeechAudio {
+            audio_base64: "SUQz".to_string(),
+            duration_ms: 1200,
+        };
+        assert_eq!(
+            spoken(Reply::Speech(Ok(audio))).unwrap().audio_base64,
+            "SUQz"
+        );
+        let refused = spoken(Reply::Speech(Err("TTS rate limit exceeded".to_string())));
+        assert_eq!(refused.unwrap_err(), "TTS rate limit exceeded");
     }
 }

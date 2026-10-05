@@ -146,8 +146,8 @@ async fn main() -> Result<()> {
     // 4. Build Axum router
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/ws", get(websocket::websocket_handler))    // Main chat endpoint
-        .nest("/api/tts", tts_router);                     // Speech synthesis
+        .route("/ws", get(websocket::websocket_handler))    // The app's single connection
+        .nest("/api/tts", tts_router);                     // TTS status and cache
         
     // 5. Start server
     axum::serve(listener, app).await?;
