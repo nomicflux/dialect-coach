@@ -2,18 +2,17 @@ use rig::completion::{
     Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
 };
 use rig::one_or_many::OneOrMany;
-use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::{
-    AIActionRequest, AgentResponse, AgentUsageStats, Dialect, Gender, Message, MessageContent,
-    MessageMetadata, UserGender, UserMessageWithContext,
+    AIActionRequest, AgentResponse, AgentUsageStats, ChatRequest, Dialect, Gender, Message,
+    MessageContent, MessageMetadata, UserGender, UserMessageWithContext,
 };
 
 use crate::rag_config::RAGConfig;
 
-use super::{errors, send, user, user_state};
+use super::{errors, user, user_state};
 use crate::AppState;
 use crate::agent_service::response::GenerateResponseParams;
 
@@ -47,31 +46,15 @@ pub fn create_agent_response_message(
     Message::agent_message(agent_response, metadata, Some(parent_id))
 }
 
-pub async fn handle_agent_success(
-    _state: &AppState,
-    parsed_msg: &Message,
-    agent_response: AgentResponse,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), String> {
-    let response_msg =
-        create_agent_response_message(agent_response, parsed_msg.metadata.clone(), parsed_msg.id);
-
-    send::serialize_and_send(&response_msg, tx)?;
-    Ok(())
+pub fn handle_agent_success(parsed_msg: &Message, agent_response: AgentResponse) -> Message {
+    create_agent_response_message(agent_response, parsed_msg.metadata.clone(), parsed_msg.id)
 }
 
-pub async fn handle_agent_error(
-    parsed_msg: &Message,
-    error: anyhow::Error,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), String> {
-    let error_msg = errors::create_error_message(
+pub fn handle_agent_error(parsed_msg: &Message, error: anyhow::Error) -> Message {
+    errors::create_error_message(
         format!("Error generating response: {}", error),
         parsed_msg.metadata.clone(),
-    );
-
-    send::serialize_and_send(&error_msg, tx)?;
-    Ok(())
+    )
 }
 
 async fn handle_parallel_agents_success(
@@ -247,69 +230,46 @@ async fn run_agents_parallel(
     }
 }
 
-async fn simple_call_and_respond(
-    state: &AppState,
-    prompt: &Message,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
-    let response = state
-        .agent
-        .generate_simple_response("", prompt.as_str())
-        .await;
-
-    match response {
-        Ok(agent_response) => {
-            tracing::info!("Agent generated simple response",);
-            handle_agent_success(state, prompt, agent_response, tx)
-                .await
-                .map_err(|e| {
-                    tracing::error!("{}", e);
-                })
-        }
-        Err(e) => {
-            tracing::error!("Agent error: {}", e);
-            let _ = handle_agent_error(prompt, e, tx).await;
-            Ok(())
-        }
-    }
-}
-
-pub async fn call_agent_and_respond(
-    state: &AppState,
-    msg_with_context: &UserMessageWithContext,
-    dialect: Dialect,
-    history_vec: &[RigMessage],
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
-    let formality = msg_with_context.message.metadata.formality;
-    let teaching_mode = msg_with_context.message.metadata.teaching_mode;
-
-    tracing::info!(
-        "Calling agent for dialect {} ({:?}, {:?}) with {} history messages",
-        dialect.name(),
-        formality,
-        teaching_mode,
-        history_vec.len()
-    );
-
-    match run_agents_parallel(state, msg_with_context, dialect, history_vec).await {
+/// The reply to `prompt`: the agent's response, or an error message in its place.
+fn respond(prompt: &Message, result: Result<AgentResponse, anyhow::Error>) -> Message {
+    match result {
         Ok(agent_response) => {
             tracing::info!(
                 "Agent generated response ({} chars)",
                 agent_response.response.len()
             );
-            handle_agent_success(state, &msg_with_context.message, agent_response, tx)
-                .await
-                .map_err(|e| {
-                    tracing::error!("{}", e);
-                })
+            handle_agent_success(prompt, agent_response)
         }
         Err(e) => {
             tracing::error!("Agent error: {}", e);
-            let _ = handle_agent_error(&msg_with_context.message, e, tx).await;
-            Ok(())
+            handle_agent_error(prompt, e)
         }
     }
+}
+
+async fn simple_call_and_respond(state: &AppState, prompt: &Message) -> Message {
+    let result = state
+        .agent
+        .generate_simple_response("", prompt.as_str())
+        .await;
+    respond(prompt, result)
+}
+
+async fn call_agent_and_respond(
+    state: &AppState,
+    msg_with_context: &UserMessageWithContext,
+    dialect: Dialect,
+    history_vec: &[RigMessage],
+) -> Message {
+    tracing::info!(
+        "Calling agent for dialect {} ({:?}, {:?}) with {} history messages",
+        dialect.name(),
+        msg_with_context.message.metadata.formality,
+        msg_with_context.message.metadata.teaching_mode,
+        history_vec.len()
+    );
+    let result = run_agents_parallel(state, msg_with_context, dialect, history_vec).await;
+    respond(&msg_with_context.message, result)
 }
 
 fn extract_agent_gender(dialect: Dialect) -> Gender {
@@ -386,37 +346,62 @@ Focus on ease of understanding for a beginning learner; do not change words if t
     )
 }
 
-pub async fn process_ai_action_request(
+fn explain_prompt(
+    message_content: &str,
+    dialect: Dialect,
+    formality: dialect_coach_shared::Formality,
+    session_id: Uuid,
+) -> Message {
+    let instruction = build_explain_instruction(message_content, dialect);
+    let metadata = MessageMetadata::at_now(
+        formality,
+        dialect_coach_shared::TeachingMode::Immersive,
+        dialect.language(),
+        dialect,
+        session_id,
+    );
+    Message::user_message(instruction, metadata, None)
+}
+
+async fn process_ai_action_request(
     state: &AppState,
     user_id: Uuid,
     session_id: Uuid,
     action: AIActionRequest,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
+) -> Message {
     tracing::info!(user_id = %user_id, "Processing AI action request: {:?}", action);
-
     match &action {
         AIActionRequest::StartConversation { context }
         | AIActionRequest::ContinueBranch { context, .. } => {
-            process_conversation_action(state, &action, context, user_id, session_id, tx).await
+            process_conversation_action(state, &action, context, user_id, session_id).await
         }
         AIActionRequest::ExplainMessage {
             message_content,
             dialect,
             formality,
         } => {
-            let instruction = build_explain_instruction(message_content, *dialect);
-            let metadata = MessageMetadata::at_now(
-                *formality,
-                dialect_coach_shared::TeachingMode::Immersive,
-                dialect.language(),
-                *dialect,
-                session_id,
-            );
-            let prompt_message = Message::user_message(instruction, metadata, None);
-            simple_call_and_respond(state, &prompt_message, tx).await
+            let prompt = explain_prompt(message_content, *dialect, *formality, session_id);
+            simple_call_and_respond(state, &prompt).await
         }
     }
+}
+
+fn conversation_prompt(
+    action: &AIActionRequest,
+    context: &dialect_coach_shared::ConversationContext,
+    session_id: Uuid,
+) -> Message {
+    let dialect = context.dialect;
+    let instruction =
+        build_conversation_instruction(action, dialect, context.formality, context.user_gender);
+    let metadata = MessageMetadata::at_now(
+        context.formality,
+        context.teaching_mode,
+        dialect.language(),
+        dialect,
+        session_id,
+    );
+    Message::user_message(instruction, metadata, None)
 }
 
 async fn process_conversation_action(
@@ -425,36 +410,10 @@ async fn process_conversation_action(
     context: &dialect_coach_shared::ConversationContext,
     user_id: Uuid,
     session_id: Uuid,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
-    let dialect = context.dialect;
-    let formality = context.formality;
-    let user_gender = context.user_gender;
-    let instruction = build_conversation_instruction(action, dialect, formality, user_gender);
-    let metadata = MessageMetadata::at_now(
-        formality,
-        context.teaching_mode,
-        dialect.language(),
-        dialect,
-        session_id,
-    );
-    let prompt_message = Message::user_message(instruction, metadata, None);
-
-    match call_agent_for_conversation_action(state, action, user_id).await {
-        Ok(agent_response) => {
-            tracing::info!("Agent generated conversation action response");
-            handle_agent_success(state, &prompt_message, agent_response, tx)
-                .await
-                .map_err(|e| {
-                    tracing::error!("{}", e);
-                })
-        }
-        Err(e) => {
-            tracing::error!("Agent error: {}", e);
-            let _ = handle_agent_error(&prompt_message, e, tx).await;
-            Ok(())
-        }
-    }
+) -> Message {
+    let prompt_message = conversation_prompt(action, context, session_id);
+    let result = call_agent_for_conversation_action(state, action, user_id).await;
+    respond(&prompt_message, result)
 }
 
 async fn run_response_only(
@@ -527,17 +486,28 @@ async fn call_agent_for_conversation_action(
     result
 }
 
-pub async fn process_user_message(
+/// The coach's reply to a chat request.
+pub async fn answer(state: &AppState, request: ChatRequest) -> Message {
+    match request {
+        ChatRequest::Message(message) => process_user_message(state, *message).await,
+        ChatRequest::Action {
+            session_id,
+            user_id,
+            action,
+        } => process_ai_action_request(state, user_id, session_id, *action).await,
+    }
+}
+
+async fn process_user_message(
     state: &AppState,
     msg_with_context: UserMessageWithContext,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
+) -> Message {
     let dialect = msg_with_context.message.metadata.dialect;
     tracing::info!("Processing message for dialect: {}", dialect.name());
 
     let context_vec = build_context_from_messages(&msg_with_context.context_messages);
 
-    call_agent_and_respond(state, &msg_with_context, dialect, &context_vec, tx).await
+    call_agent_and_respond(state, &msg_with_context, dialect, &context_vec).await
 }
 
 #[cfg(test)]
@@ -617,5 +587,68 @@ mod tests {
 
         let dialect = msg.metadata.dialect;
         assert_eq!(dialect, Dialect::SpanishArgentinian);
+    }
+
+    #[test]
+    fn test_respond_wraps_success_as_reply_to_prompt() {
+        let prompt = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
+        let reply = respond(&prompt, Ok(AgentResponse::from("¡Buenas!")));
+        assert_eq!(reply.get_content(), "¡Buenas!");
+        assert_eq!(reply.parent_id, Some(prompt.id));
+    }
+
+    #[test]
+    fn test_respond_turns_error_into_agent_message() {
+        let prompt = Message::user_message("Hola".to_string(), test_metadata(Uuid::new_v4()), None);
+        let reply = respond(&prompt, Err(anyhow::anyhow!("rate limit exceeded")));
+        assert!(reply.is_agent());
+        assert_eq!(
+            reply.get_content(),
+            "Error generating response: rate limit exceeded"
+        );
+    }
+
+    #[test]
+    fn test_explain_prompt_is_immersive_instruction_for_message() {
+        let session_id = Uuid::new_v4();
+        let prompt = explain_prompt(
+            "Che, ¿qué onda?",
+            Dialect::SpanishArgentinian,
+            Formality::Informal,
+            session_id,
+        );
+        assert!(prompt.get_content().ends_with("Che, ¿qué onda?"));
+        assert_eq!(prompt.metadata.teaching_mode, TeachingMode::Immersive);
+        assert_eq!(prompt.metadata.session_id, session_id);
+    }
+
+    #[test]
+    fn test_conversation_prompt_uses_context_settings() {
+        let context = dialect_coach_shared::ConversationContext {
+            active_plan: None,
+            learning_goals: vec![],
+            past_mistakes: vec![],
+            past_explained: vec![],
+            past_translated: vec![],
+            past_exploratory: vec![],
+            user_gender: UserGender::NonBinary,
+            language_option: None,
+            dialect: Dialect::SpanishArgentinian,
+            formality: Formality::Formal,
+            teaching_mode: TeachingMode::Immersive,
+            language_level: dialect_coach_shared::LanguageLevel::default(),
+            context_messages: vec![],
+        };
+        let action = AIActionRequest::StartConversation {
+            context: Box::new(context.clone()),
+        };
+        let prompt = conversation_prompt(&action, &context, Uuid::new_v4());
+        assert!(
+            prompt
+                .get_content()
+                .starts_with("[System: Please greet the user")
+        );
+        assert_eq!(prompt.metadata.formality, Formality::Formal);
+        assert_eq!(prompt.metadata.dialect, Dialect::SpanishArgentinian);
     }
 }

@@ -248,14 +248,6 @@
   color: var(--status-connecting);
 }
 
-.status-disconnected {
-  color: var(--status-disconnected);
-}
-
-.status-failed {
-  color: var(--status-error);
-}
-
 /* Main content area */
 .app-main {
   flex: 1;

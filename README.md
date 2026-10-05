@@ -20,7 +20,7 @@
 ## Testing Guidelines
 - `cargo test` covers every crate; scope to `cargo test -p backend` or `cargo test -p shared` for targeted runs.
 - Integration specs live under `backend/tests/` and workspace-level checks such as `test_unicode_safety.rs`; mirror the `{module}_tests` naming style.
-- Exercise the WebSocket manually with `websocat ws://localhost:3000/ws` plus the sample JSON payload from `DEVELOPER_GUIDE.md` before PR submission.
+- Exercise the WebSocket manually with `websocat ws://localhost:3000/ws` and the sample `ClientEnvelope` request from `DEVELOPER_GUIDE.md` before PR submission. Every request, reply and usage push travels over this one connection; a reply carries its request's `id`.
 
 ## Commit & Pull Request Guidelines
 - Follow the concise, imperative commit summaries visible in `git log` (e.g., `"Document provider support"`); wrap detailed explanations in the body when behavior changes.

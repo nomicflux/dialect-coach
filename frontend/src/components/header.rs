@@ -3,7 +3,7 @@ use crate::app::app_state::{
     AppState, AppStateAction, SessionState, UIState, UIStateAction, UserStateGamificationExt,
 };
 use crate::components::gamification::{FluencyBar, StreakDisplay};
-use crate::services::websocket::ConnectionState;
+use crate::services::connection::ConnectionStatus;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -27,6 +27,15 @@ fn render_create_button(ui_state: &UseReducerHandle<UIState>) -> Html {
     }
 }
 
+/// Class, dot and label for the connection indicator.
+fn status_display(status: ConnectionStatus) -> (&'static str, &'static str, &'static str) {
+    match status {
+        ConnectionStatus::Connected => ("status-connected", "●", "Ready to chat!"),
+        ConnectionStatus::Connecting => ("status-connecting", "⟳", "Connecting..."),
+        ConnectionStatus::Reconnecting => ("status-reconnecting", "⟳", "Reconnecting..."),
+    }
+}
+
 #[function_component(Header)]
 pub fn header(props: &HeaderProps) -> Html {
     let HeaderProps {
@@ -41,23 +50,18 @@ pub fn header(props: &HeaderProps) -> Html {
     let on_signin = {
         let app_state = app_state.clone();
         let ui_state = ui_state.clone();
+        let session = session.clone();
         let username = signin_username.clone();
         let password = signin_password.clone();
         Callback::from(move |_: MouseEvent| {
-            on_signin_click(app_state.clone(), ui_state.clone())
+            on_signin_click(app_state.clone(), ui_state.clone(), session.clone())
                 .emit(((*username).clone(), (*password).clone()));
         })
     };
 
     // Dot and label are separate nodes so narrow viewports can keep the
     // state indicator and drop the prose.
-    let (status_class, status_dot, status_label) = match app_state.connection_state {
-        ConnectionState::Connected => ("status-connected", "●", "Ready to chat!"),
-        ConnectionState::Connecting => ("status-connecting", "⟳", "Connecting..."),
-        ConnectionState::Reconnecting => ("status-reconnecting", "⟳", "Reconnecting..."),
-        ConnectionState::Disconnected => ("status-disconnected", "○", "Disconnected"),
-        ConnectionState::Failed => ("status-failed", "✖", "Connection Failed"),
-    };
+    let (status_class, status_dot, status_label) = status_display(app_state.connection_state);
 
     html! {
         <header class="app-header">
@@ -75,11 +79,9 @@ pub fn header(props: &HeaderProps) -> Html {
                 </div>
 
                 <div class="user-section">
-                    // The chat WebSocket is only opened once a user is signed in
-                    // (use_chat_websocket skips connecting otherwise), so before
-                    // sign-in this indicator would report a disconnection that is
-                    // simply the pre-auth state.
-                    {if app_state.current_user.is_some() {
+                    // Shown while signed in, and while a stored session waits for the
+                    // connection to check it, so the loading screen says why it waits.
+                    {if app_state.current_user.is_some() || ui_state.is_signing_in {
                         html! {
                             <div class="connection-status">
                                 <span class={status_class} title={status_label}>
@@ -176,5 +178,26 @@ pub fn header(props: &HeaderProps) -> Html {
                 }}
             </div>
         </header>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_status_display_labels() {
+        assert_eq!(
+            status_display(ConnectionStatus::Connected).2,
+            "Ready to chat!"
+        );
+        assert_eq!(
+            status_display(ConnectionStatus::Connecting).2,
+            "Connecting..."
+        );
+        assert_eq!(
+            status_display(ConnectionStatus::Reconnecting).2,
+            "Reconnecting..."
+        );
     }
 }

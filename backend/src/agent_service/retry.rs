@@ -231,7 +231,7 @@ pub fn build_retry_failure_error(
         model,
         max_retries,
         last_error,
-        &last_failed_response.chars().take(200).collect::<String>()
+        last_failed_response.chars().take(200).collect::<String>()
     )
 }
 

@@ -16,7 +16,8 @@ pub mod user_state_callbacks;
 pub use app_state::callbacks;
 pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 
-use log::{error, info};
+use log::info;
+use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 use crate::components::{
@@ -25,7 +26,9 @@ use crate::components::{
 };
 use crate::hooks::use_debounced_save;
 
-use app_websocket_hooks::{use_chat_websocket, use_user_state_websocket, use_user_websocket};
+use app_state::callbacks::{on_user_state_save_response, save_result};
+use app_websocket_hooks::use_connection;
+use dialect_coach_shared::ClientMessage;
 
 #[function_component(App)]
 pub fn app() -> Html {
@@ -41,27 +44,19 @@ pub fn app() -> Html {
         }
     });
 
-    // Set up debounced auto-save via WebSocket with retry queue
-    let app_state_for_save = app_state.clone();
+    // Debounced auto-save. The state counts as saved once submitted; a save lost
+    // to a dropped connection is redone when the connection reopens.
+    let connection = app_state.connection.clone();
     let session_dispatch = session.clone();
     let _force_save = use_debounced_save(&session, move |state| {
-        let ws_service = app_state_for_save.user_state_ws_service.borrow();
-        match ws_service.save_user_state(state) {
-            // This expects UserState
-            Ok(()) => {
-                info!("UserState save request sent via WebSocket");
-                session_dispatch.dispatch(SessionAction::Saved);
-            }
-            Err(e) => {
-                error!("Failed to send UserState save: {}", e);
-            }
-        }
+        let saved = connection.request(ClientMessage::SaveUserState(Box::new(state.clone())));
+        info!("UserState save request submitted");
+        session_dispatch.dispatch(SessionAction::Saved);
+        let on_saved = on_user_state_save_response();
+        spawn_local(async move { on_saved.emit(save_result(saved.await)) });
     });
 
-    // WebSocket hooks
-    use_chat_websocket(app_state.clone(), session.clone(), ui_state.clone());
-    use_user_state_websocket(app_state.clone(), session.clone());
-    use_user_websocket(app_state.clone(), ui_state.clone(), session.clone());
+    use_connection(app_state.clone(), session.clone(), ui_state.clone());
 
     // Auto-dismiss error messages after 5 seconds
     {

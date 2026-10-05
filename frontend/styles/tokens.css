@@ -40,8 +40,6 @@
   --status-connected: #48BB78;
   /* green */
   --status-connecting: var(--yellow);
-  --status-disconnected: #A0AEC0;
-  /* gray */
   --status-error: #F56565;
   /* red */
 

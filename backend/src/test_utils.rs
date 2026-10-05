@@ -173,7 +173,7 @@ pub fn build_user_message_retry_preamble(original_preamble: &str, failed_respons
             You MUST respond with non-empty plain text only. You MUST NOT end the conversation.\n",
         original_preamble,
         error_detail,
-        &failed_response.chars().take(200).collect::<String>()
+        failed_response.chars().take(200).collect::<String>()
     )
 }
 

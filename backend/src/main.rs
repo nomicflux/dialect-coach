@@ -2,13 +2,13 @@ use dialect_coach_backend::AppState;
 use dialect_coach_backend::agent_service;
 use dialect_coach_backend::selection_cache::SelectionCache;
 use dialect_coach_backend::startup;
+use dialect_coach_backend::state::Connections;
 
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,8 +18,11 @@ async fn main() -> Result<()> {
 
     startup::init_logging();
 
-    let qdrant =
-        startup::init_qdrant(&std::env::var("QDRANT_URL")?, &std::env::var("QDRANT_API_KEY")?).await?;
+    let qdrant = startup::init_qdrant(
+        &std::env::var("QDRANT_URL")?,
+        &std::env::var("QDRANT_API_KEY")?,
+    )
+    .await?;
     let embeddings = startup::init_embeddings()?;
     let agent = startup::init_agent(&config.llm, qdrant.clone(), embeddings.clone())?;
 
@@ -35,16 +38,14 @@ async fn main() -> Result<()> {
     let (rate_limit_config, org_quota_checker, rate_limiter) =
         startup::init_rate_limiter(&config.rate_limits);
 
-    let user_state_connections: Arc<
-        Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>,
-    > = Arc::new(Mutex::new(HashMap::new()));
+    let connections: Connections = Arc::new(Mutex::new(HashMap::new()));
 
     let tts_state = startup::init_tts(
         &config.tts,
         user_persistence.clone(),
         rate_limiter.clone(),
         rate_limit_config.clone(),
-        user_state_connections.clone(),
+        connections.clone(),
     );
 
     let anthropic_admin_key = std::env::var("ANTHROPIC_ADMIN_API_KEY").ok();
@@ -71,7 +72,7 @@ async fn main() -> Result<()> {
         rate_limiter,
         rate_limit_config,
         org_quota_checker,
-        user_state_connections,
+        connections,
         planning_generator,
         translation_cache,
         admin_token,

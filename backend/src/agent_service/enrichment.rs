@@ -116,8 +116,8 @@ fn parse_mistake_response(text: &str, partial: &PartialMistake) -> Result<Mistak
 
     let category = if let Some(cat_str) = extract_field(text, "CATEGORY") {
         parse_category(&cat_str, &context)?
-    } else if partial.mistake_category.is_some() {
-        parse_category(partial.mistake_category.as_ref().unwrap(), &context)?
+    } else if let Some(cat_str) = &partial.mistake_category {
+        parse_category(cat_str, &context)?
     } else {
         MistakeCategory::Other {
             context: context.clone(),

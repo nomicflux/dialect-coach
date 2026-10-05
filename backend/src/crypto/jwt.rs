@@ -35,12 +35,25 @@ pub fn generate_token(user_id: Uuid) -> Result<String, jsonwebtoken::errors::Err
     )
 }
 
-pub fn validate_token(token: &str) -> Result<Uuid, jsonwebtoken::errors::Error> {
+/// Whether `validate_token` rejects an expired token.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Expiry {
+    Enforce,
+    Ignore,
+}
+
+fn validation(expiry: Expiry) -> Validation {
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = expiry == Expiry::Enforce;
+    validation
+}
+
+pub fn validate_token(token: &str, expiry: Expiry) -> Result<Uuid, jsonwebtoken::errors::Error> {
     let secret = get_secret()?;
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::new(Algorithm::HS256),
+        &validation(expiry),
     )?;
     Uuid::parse_str(&token_data.claims.sub)
         .map_err(|_| jsonwebtoken::errors::ErrorKind::InvalidSubject.into())

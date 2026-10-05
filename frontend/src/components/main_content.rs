@@ -17,7 +17,6 @@ use crate::components::{
     SelectionResult, StudyDrawerContent, translate_selection_button::SelectionAction,
 };
 use crate::keyboard_shortcuts::{ShortcutAction, default_shortcuts, matches_binding};
-use crate::services::websocket::ConnectionState;
 use crate::utils::perf::PerfGuard;
 use dialect_coach_shared::models::{Explained, Translated};
 
@@ -405,8 +404,8 @@ pub fn main_content(props: &MainContentProps) -> Html {
                         on_replay_message={Some(on_replay_message(app_state.clone()))}
                         on_delete_message={Some(on_delete_message_callback(ui_state.clone(), us.clone(), dispatch_domain.clone()))}
                         on_create_branch={Some(on_create_branch(dispatch_domain.clone()))}
-                        on_auto_start={Some(on_auto_start(app_state.clone(), session.clone()))}
-                        on_continue_branch={Some(on_continue_branch(app_state.clone(), session.clone()))}
+                        on_auto_start={Some(on_auto_start(app_state.clone(), session.clone(), ui_state.clone()))}
+                        on_continue_branch={Some(on_continue_branch(app_state.clone(), session.clone(), ui_state.clone()))}
                         on_explain={Some(on_explain_message(app_state.clone(), session.clone(), ui_state.clone()))}
                         explain_loading={ui_state.explain_loading.clone()}
                         translate_loading={ui_state.translate_loading.clone()}
@@ -428,12 +427,11 @@ pub fn main_content(props: &MainContentProps) -> Html {
                     />
                     <InputBox
                         on_send={{
-                            let send_message = on_send_message(app_state.clone(), session.clone());
+                            let send_message = on_send_message(app_state.clone(), session.clone(), ui_state.clone());
                             Callback::from(move |content: String| {
                                 send_message.emit(content);
                             })
                         }}
-                        disabled={!matches!(app_state.connection_state, ConnectionState::Connected)}
                         textarea_ref={Some(chat_input_ref.clone())}
                         language_option={us.current_language_option()}
                     />

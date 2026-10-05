@@ -42,7 +42,7 @@ dialect-coach/
 │   │   ├── message.rs       # Chat message structure
 │   │   ├── session.rs       # ChatSession with context window
 │   │   ├── participant.rs   # Human/Agent participant types
-│   │   ├── events.rs        # WebSocket event protocol
+│   │   ├── protocol.rs      # WebSocket request/reply protocol
 │   │   └── corpus.rs        # DialectDocument for RAG
 │   └── logic/
 │       ├── chat.rs          # Agent response logic
@@ -63,7 +63,7 @@ dialect-coach/
 │   │   ├── input_box.rs     # Text input with submit
 │   │   └── speech_controls.rs # Mic button (placeholder)
 │   └── services/
-│       ├── websocket.rs     # WebSocket service (PLACEHOLDER - 9 lines)
+│       ├── connection.rs    # The single reconnecting WebSocket connection
 │       ├── speech.rs        # Web Speech API (PLACEHOLDER - 9 lines)
 │       └── persistence.rs   # IndexedDB (PLACEHOLDER - 9 lines)
 │
@@ -255,7 +255,7 @@ QDRANT_API_KEY=xxx
 
 ```
 [User Browser]
-    ↓ WebSocket (ws://localhost:3000/ws)
+    ↓ One WebSocket (ws://localhost:3000/ws): every request, reply and usage push
 [Backend Server - Axum]
     ↓ HTTPS/gRPC
 [Qdrant Cloud] (Vector DB)

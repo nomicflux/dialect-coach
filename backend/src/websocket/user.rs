@@ -1,11 +1,11 @@
-use dialect_coach_shared::{User, UserMessage, UserState};
-use tokio::sync::mpsc;
+use dialect_coach_shared::{NewUser, SignInResult, UsageStats, User, UserState};
 use uuid::Uuid;
 
 use super::errors;
 use crate::AppState;
 use crate::agent_service::AgentService;
 use crate::crypto;
+use crate::crypto::jwt::Expiry;
 
 async fn sign_in_user(
     state: &AppState,
@@ -94,34 +94,23 @@ async fn create_and_save_user(
     Ok((user, user_state))
 }
 
-pub async fn handle_create_user(
-    state: &AppState,
-    username: String,
-    email: String,
-    credentials: dialect_coach_shared::AuthCredentials,
-    password: String,
-    initial_settings: Option<dialect_coach_shared::InitialUserSettings>,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
-    tracing::info!("Creating user: {} with email {}", username, email);
-    let auth_creds = convert_auth_credentials(credentials);
-    let response = match create_and_save_user(
+pub async fn create_user(state: &AppState, new_user: NewUser) -> SignInResult {
+    tracing::info!(
+        "Creating user: {} with email {}",
+        new_user.username,
+        new_user.email
+    );
+    let auth_creds = convert_auth_credentials(new_user.credentials);
+    let (user, _) = create_and_save_user(
         state,
         auth_creds,
-        username,
-        email,
-        password,
-        initial_settings,
+        new_user.username,
+        new_user.email,
+        new_user.password,
+        new_user.initial_settings,
     )
-    .await
-    {
-        Ok((user, _)) => {
-            let result = sign_in_user(state, user.id).await;
-            UserMessage::SignInResponse(Box::new(result))
-        }
-        Err(e) => UserMessage::SignInResponse(Box::new(Err(e))),
-    };
-    send_user_message(&response, tx)
+    .await?;
+    sign_in_user(state, user.id).await
 }
 
 fn format_auth_error(e: anyhow::Error) -> String {
@@ -132,62 +121,53 @@ fn format_auth_error(e: anyhow::Error) -> String {
     }
 }
 
-async fn build_sign_in_response(state: &AppState, username: &str, password: &str) -> UserMessage {
-    match state.auth_service.authenticate(username, password).await {
-        Ok(user) => {
-            let result = sign_in_user(state, user.id).await;
-            UserMessage::SignInResponse(Box::new(result))
-        }
+pub async fn sign_in(state: &AppState, username: String, password: String) -> SignInResult {
+    tracing::info!("Sign in request for user: {}", username);
+    match state.auth_service.authenticate(&username, &password).await {
+        Ok(user) => sign_in_user(state, user.id).await,
         Err(e) => {
             let error_msg = format_auth_error(e);
             tracing::warn!("{}", error_msg);
-            UserMessage::SignInResponse(Box::new(Err(error_msg)))
+            Err(error_msg)
         }
     }
 }
 
-pub async fn handle_sign_in(
-    state: &AppState,
-    username: String,
-    password: String,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
-    tracing::info!("Sign in request for user: {}", username);
-    let response = build_sign_in_response(state, &username, &password).await;
-    send_user_message(&response, tx)
+fn invalid_token(e: jsonwebtoken::errors::Error) -> String {
+    let error_msg = format!("Invalid session token: {}", e);
+    tracing::warn!("{}", error_msg);
+    error_msg
 }
 
-pub async fn handle_validate_session(
-    state: &AppState,
-    token: String,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
-    let response = match crypto::jwt::validate_token(&token) {
-        Ok(user_id) => {
-            tracing::info!("Session token valid for user_id: {}", user_id);
-            let result = sign_in_user(state, user_id).await;
-            if result.is_err() {
-                tracing::error!("sign_in_user failed: {:?}", result);
-            }
-            UserMessage::SignInResponse(Box::new(result))
-        }
-        Err(e) => {
-            let error_msg = format!("Invalid session token: {}", e);
-            tracing::warn!("{}", error_msg);
-            UserMessage::SignInResponse(Box::new(Err(error_msg)))
-        }
-    };
-    send_user_message(&response, tx)
+/// Sign in from a fresh page's stored token; an expired token is rejected.
+pub async fn validate_session(state: &AppState, token: &str) -> SignInResult {
+    let user_id = crypto::jwt::validate_token(token, Expiry::Enforce).map_err(invalid_token)?;
+    tracing::info!("Session token valid for user_id: {}", user_id);
+    let result = sign_in_user(state, user_id).await;
+    if result.is_err() {
+        tracing::error!("sign_in_user failed: {:?}", result);
+    }
+    result
 }
 
-pub fn send_user_message(msg: &UserMessage, tx: &mpsc::UnboundedSender<String>) -> Result<(), ()> {
-    let json = serde_json::to_string(msg)
-        .map_err(|e| tracing::error!("Failed to serialize UserMessage: {}", e))?;
+/// A new 24-hour token for any token with a valid signature, expired or not.
+pub fn renew(token: &str) -> Result<(Uuid, String), String> {
+    let user_id = crypto::jwt::validate_token(token, Expiry::Ignore).map_err(invalid_token)?;
+    let renewed = crypto::jwt::generate_token(user_id)
+        .map_err(|e| format!("Failed to generate token: {}", e))?;
+    Ok((user_id, renewed))
+}
 
-    tx.send(json)
-        .map_err(|e| tracing::error!("Failed to send UserMessage: {}", e))?;
-
-    Ok(())
+/// Renew a signed-in tab's token for a user who still exists, with their current usage.
+pub async fn reattach(state: &AppState, token: &str) -> Result<(Uuid, String, UsageStats), String> {
+    let (user_id, renewed) = renew(token)?;
+    load_user(state, user_id).await?;
+    let usage_stats = state
+        .user_persistence
+        .load_usage_stats(user_id)
+        .await
+        .map_err(|e| format!("Failed to load usage stats: {}", e))?;
+    Ok((user_id, renewed, usage_stats.unwrap_or_default()))
 }
 
 pub fn validate_user_message(user_text: &str) -> Result<(), anyhow::Error> {
@@ -201,96 +181,36 @@ pub fn validate_user_message(user_text: &str) -> Result<(), anyhow::Error> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use dialect_coach_shared::User;
-    use uuid::Uuid;
 
     #[test]
-    fn test_send_user_message_sign_in_response_err() {
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let response = UserMessage::SignInResponse(Box::new(Err("User not found".to_string())));
-
-        let result = send_user_message(&response, &tx);
-        assert!(result.is_ok());
-
-        let json = rx.try_recv().unwrap();
-        let parsed: UserMessage = serde_json::from_str(&json).unwrap();
-        if let UserMessage::SignInResponse(result) = parsed {
-            assert!(result.is_err());
-        } else {
-            panic!("Expected SignInResponse");
+    fn test_renew_accepts_expired_token_and_issues_valid_one() {
+        let secret = "test_secret_for_renew";
+        unsafe {
+            std::env::set_var("JWT_SECRET", secret);
         }
+        let user_id = Uuid::new_v4();
+        let claims = crypto::jwt::Claims {
+            sub: user_id.to_string(),
+            exp: 0,
+        };
+        let expired = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &claims,
+            &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
+        )
+        .unwrap();
+
+        let (renewed_for, renewed) = renew(&expired).unwrap();
+
+        assert_eq!(renewed_for, user_id);
+        assert_eq!(
+            crypto::jwt::validate_token(&renewed, Expiry::Enforce).unwrap(),
+            user_id
+        );
     }
 
     #[test]
-    fn test_send_user_message_serialization() {
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let user = User::new(
-            Uuid::new_v4(),
-            "bob".to_string(),
-            "bob@example.com".to_string(),
-        );
-        let user_state = UserState::new(user.id);
-        let token = "test_jwt_token".to_string();
-        let response = UserMessage::SignInResponse(Box::new(Ok((
-            user.clone(),
-            user_state.clone(),
-            token.clone(),
-        ))));
-
-        let result = send_user_message(&response, &tx);
-        assert!(result.is_ok());
-
-        let json = rx.try_recv().unwrap();
-        let parsed: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed, response);
-    }
-
-    #[test]
-    fn test_send_user_message_sign_in_response_ok() {
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let user = User::new(
-            Uuid::new_v4(),
-            "testuser".to_string(),
-            "test@example.com".to_string(),
-        );
-        let user_state = UserState::new(user.id);
-        let token = "test_jwt_token".to_string();
-        let response = UserMessage::SignInResponse(Box::new(Ok((
-            user.clone(),
-            user_state.clone(),
-            token.clone(),
-        ))));
-
-        let result = send_user_message(&response, &tx);
-        assert!(result.is_ok());
-
-        let json = rx.try_recv().unwrap();
-        let parsed: UserMessage = serde_json::from_str(&json).unwrap();
-        if let UserMessage::SignInResponse(result) = parsed {
-            let (parsed_user, _parsed_state, parsed_token) = result.unwrap();
-            assert_eq!(parsed_user.username, "testuser");
-            assert_eq!(parsed_token, "test_jwt_token");
-        } else {
-            panic!("Expected SignInResponse(Ok)");
-        }
-    }
-
-    #[test]
-    fn test_send_user_message_validate_session() {
-        let user = User::new(
-            Uuid::new_v4(),
-            "validator".to_string(),
-            "validator@example.com".to_string(),
-        );
-        let state = UserState::new(user.id);
-        let token = "test_token".to_string();
-        let response = UserMessage::SignInResponse(Box::new(Ok((user, state, token))));
-
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let result = send_user_message(&response, &tx);
-
-        assert!(result.is_ok());
-        let msg = rx.try_recv().ok();
-        assert!(msg.is_some());
+    fn test_renew_rejects_unsigned_token() {
+        assert!(renew("invalid.token.here").is_err());
     }
 }

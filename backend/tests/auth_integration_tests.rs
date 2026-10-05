@@ -21,8 +21,8 @@ async fn test_jwt_generation_and_validation() {
     assert!(!token.is_empty());
 
     // Validate token and extract user_id
-    let extracted_user_id =
-        crypto::jwt::validate_token(&token).expect("Token validation should succeed");
+    let extracted_user_id = crypto::jwt::validate_token(&token, crypto::jwt::Expiry::Enforce)
+        .expect("Token validation should succeed");
 
     assert_eq!(extracted_user_id, user_id);
 }
@@ -39,7 +39,7 @@ async fn test_jwt_validation_with_invalid_token() {
 
     let invalid_token = "invalid.jwt.token";
 
-    let result = crypto::jwt::validate_token(invalid_token);
+    let result = crypto::jwt::validate_token(invalid_token, crypto::jwt::Expiry::Enforce);
 
     assert!(result.is_err());
 }

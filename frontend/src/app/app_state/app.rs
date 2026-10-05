@@ -1,30 +1,27 @@
 use dialect_coach_shared::models::dialect::dialect_features;
 use dialect_coach_shared::models::{Message, User};
 use log::error;
-use std::cell::RefCell;
 use std::rc::Rc;
 use uuid::Uuid;
 use yew::prelude::*;
 
+use crate::services::connection::{Connection, ConnectionStatus};
 use crate::services::enrichment_service::EnrichmentService;
 use crate::services::grammar::GrammarService;
 use crate::services::plan_service::PlanService;
 use crate::services::speech::CloudTtsService;
 use crate::services::translation::TranslationService;
-use crate::services::user_state_websocket::UserStateWebSocketService;
-use crate::services::user_websocket::UserWebSocketService;
-use crate::services::websocket::{ConnectionState, WebSocketService};
 
 pub enum AppStateAction {
     SetLoading,
     LoadingComplete,
     SetError(String),
     ClearError,
-    SetConnectionState(ConnectionState),
+    SetConnectionState(ConnectionStatus),
     Speak(Message),
-    SetUser(User),
+    /// The signed-in user and their session token.
+    SetUser(User, String),
     ClearUser,
-    LoadUserState(Uuid),
     CreateSession(Uuid),
     DestroySession,
     NotifyTTSEnabled(bool),
@@ -45,13 +42,13 @@ pub struct RateLimitState {
 #[derive(Clone)]
 pub struct AppState {
     pub session_id: Option<Uuid>,
-    pub connection_state: ConnectionState,
+    pub connection_state: ConnectionStatus,
     pub is_loading: bool,
     pub error_message: Option<String>,
     pub current_user: Option<User>,
-    pub ws_service: Rc<RefCell<WebSocketService>>,
-    pub user_state_ws_service: Rc<RefCell<UserStateWebSocketService>>,
-    pub user_ws_service: Rc<RefCell<UserWebSocketService>>,
+    /// Kept in memory so a tab can renew its sign-in after the cookie expires.
+    pub session_token: Option<String>,
+    pub connection: Connection,
     pub tts_service: Option<Rc<CloudTtsService>>,
     pub translation_service: Rc<TranslationService>,
     pub grammar_service: Rc<GrammarService>,
@@ -69,9 +66,8 @@ impl PartialEq for AppState {
             && self.is_loading == other.is_loading
             && self.error_message == other.error_message
             && self.current_user == other.current_user
-            && Rc::ptr_eq(&self.ws_service, &other.ws_service)
-            && Rc::ptr_eq(&self.user_state_ws_service, &other.user_state_ws_service)
-            && Rc::ptr_eq(&self.user_ws_service, &other.user_ws_service)
+            && self.session_token == other.session_token
+            && self.connection == other.connection
             && match (&self.tts_service, &other.tts_service) {
                 (Some(a), Some(b)) => Rc::ptr_eq(a, b),
                 (None, None) => true,
@@ -91,20 +87,15 @@ impl Default for AppState {
     fn default() -> Self {
         let base_url = get_base_url();
         let ws_url = get_ws_url("/ws");
-        let user_state_ws_url = get_ws_url("/ws/user_state");
-        let user_ws_url = get_ws_url("/ws/user");
 
         Self {
             session_id: None,
-            connection_state: ConnectionState::Disconnected,
+            connection_state: ConnectionStatus::Connecting,
             is_loading: false,
             error_message: None,
             current_user: None,
-            ws_service: Rc::new(RefCell::new(WebSocketService::new(&ws_url))),
-            user_state_ws_service: Rc::new(RefCell::new(UserStateWebSocketService::new(
-                &user_state_ws_url,
-            ))),
-            user_ws_service: Rc::new(RefCell::new(UserWebSocketService::new(&user_ws_url))),
+            session_token: None,
+            connection: Connection::new(&ws_url),
             tts_service: Some(Rc::new(CloudTtsService::new(&base_url))),
             translation_service: Rc::new(TranslationService::new(&base_url)),
             grammar_service: Rc::new(GrammarService::new(&base_url)),
@@ -114,13 +105,6 @@ impl Default for AppState {
             rate_limit_state: RateLimitState::default(),
             pending_initial_settings: None,
         }
-    }
-}
-
-fn load_user_state(ws_service: &Rc<RefCell<UserStateWebSocketService>>, user_id: Uuid) {
-    let ws = ws_service.borrow();
-    if let Err(e) = ws.load_user_state(user_id) {
-        error!("Failed to load user state: {}", e);
     }
 }
 
@@ -154,15 +138,13 @@ impl AppState {
                     }
                 });
             }
-            AppStateAction::SetUser(user) => {
-                load_user_state(&next.user_state_ws_service, user.id);
+            AppStateAction::SetUser(user, token) => {
                 next.current_user = Some(user);
+                next.session_token = Some(token);
             }
             AppStateAction::ClearUser => {
                 next.current_user = None;
-            }
-            AppStateAction::LoadUserState(user_id) => {
-                load_user_state(&next.user_state_ws_service, user_id);
+                next.session_token = None;
             }
             AppStateAction::CreateSession(uuid) => {
                 next.session_id = Some(uuid);

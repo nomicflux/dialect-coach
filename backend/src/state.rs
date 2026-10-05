@@ -10,6 +10,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+/// Every open WebSocket connection of each signed-in user, one sender per tab.
+pub type Connections = Arc<Mutex<HashMap<Uuid, Vec<tokio::sync::mpsc::UnboundedSender<String>>>>>;
+
 /// Application state shared across handlers
 #[derive(Clone)]
 pub struct AppState {
@@ -21,8 +24,7 @@ pub struct AppState {
     pub rate_limiter: Arc<rate_limiter::service::RateLimiter>,
     pub rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
     pub org_quota_checker: Arc<rate_limiter::org_quota::OrgQuotaChecker>,
-    pub user_state_connections:
-        Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
+    pub connections: Connections,
     pub planning_generator: Arc<agent_service::planning::PlanGenerator>,
     pub translation_cache: Arc<SelectionCache>,
     pub admin_token: Option<String>,

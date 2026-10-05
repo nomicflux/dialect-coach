@@ -1,49 +1,46 @@
 use tokio::sync::mpsc;
 
-use dialect_coach_shared::Message;
+use dialect_coach_shared::ServerMessage;
 
-pub fn serialize_and_send(msg: &Message, tx: &mpsc::UnboundedSender<String>) -> Result<(), String> {
-    let json =
-        serde_json::to_string(msg).map_err(|e| format!("Failed to serialize message: {}", e))?;
-
-    tx.send(json)
-        .map_err(|e| format!("Failed to send message: {}", e))?;
-
-    Ok(())
+/// Serialize a server message onto a connection's outgoing channel.
+/// A closed channel means the connection is gone; the client reports the request as lost.
+pub fn send(tx: &mpsc::UnboundedSender<String>, msg: &ServerMessage) {
+    match serde_json::to_string(msg) {
+        Ok(json) => {
+            if tx.send(json).is_err() {
+                tracing::info!("Connection closed before a server message could be sent");
+            }
+        }
+        Err(e) => tracing::error!("Failed to serialize server message: {}", e),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dialect_coach_shared::MessageMetadata;
-    use dialect_coach_shared::models::{AgentResponse, Dialect, Formality, Language, TeachingMode};
+    use dialect_coach_shared::Reply;
     use uuid::Uuid;
 
-    fn test_metadata(session_id: Uuid) -> MessageMetadata {
-        MessageMetadata::at_now(
-            Formality::Informal,
-            TeachingMode::Immersive,
-            Language::Spanish,
-            Dialect::SpanishMexican,
-            session_id,
-        )
-    }
-
     #[test]
-    fn test_serialize_and_send() {
+    fn test_send_serializes_server_message() {
         let (tx, mut rx) = mpsc::unbounded_channel();
+        let id = Uuid::new_v4();
 
-        let msg = Message::agent_message(
-            AgentResponse::from("Hello"),
-            test_metadata(Uuid::new_v4()),
-            None,
+        send(
+            &tx,
+            &ServerMessage::Reply {
+                id,
+                body: Reply::Failed("internal error".to_string()),
+            },
         );
 
-        let result = serialize_and_send(&msg, &tx);
-        assert!(result.is_ok());
-
-        let received = rx.try_recv().unwrap();
-        let parsed: Message = serde_json::from_str(&received).unwrap();
-        assert_eq!(parsed.get_content(), "Hello");
+        let parsed: ServerMessage = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        match parsed {
+            ServerMessage::Reply {
+                id: got,
+                body: Reply::Failed(e),
+            } => assert_eq!((got, e.as_str()), (id, "internal error")),
+            other => panic!("unexpected message: {:?}", other),
+        }
     }
 }

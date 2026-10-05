@@ -1,7 +1,6 @@
 use super::{
-    AgentResponse, AuthCredentials, CefrLevel, Dialect, Explained, Formality, Language,
-    LanguageLevel, LanguageOption, LearningGoal, Mistake, TeachingMode, UsageStats, User,
-    UserGender, UserState,
+    AgentResponse, CefrLevel, Dialect, Explained, Formality, Language, LanguageLevel,
+    LanguageOption, LearningGoal, Mistake, TeachingMode, UserGender,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -357,34 +356,6 @@ impl UserMessageWithContext {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum UserStateMessage {
-    Save(UserState),
-    Load(Uuid),
-    SaveResponse(Result<(), String>),
-    LoadResponse(Option<UserState>),
-    UsageStatsUpdate(UsageStats),
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum UserMessage {
-    /// Request to create a new user (Client → Server)
-    CreateUser {
-        username: String,
-        email: String,
-        credentials: AuthCredentials,
-        password: String,
-        initial_settings: Option<InitialUserSettings>,
-    },
-    /// Request to sign in with username and password (Client → Server)
-    SignIn { username: String, password: String },
-    /// Request to validate an existing session with JWT token (Client → Server)
-    ValidateSession { token: String },
-    /// Response to sign in request (Server → Client)
-    /// Returns (User, UserState, JWT token) on success
-    SignInResponse(Box<Result<(User, UserState, String), String>>),
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -633,181 +604,6 @@ mod tests {
     }
 
     #[test]
-    fn test_user_state_message_save_serialization() {
-        use crate::models::UserState;
-
-        let user_id = Uuid::new_v4();
-        let state = UserState::new(user_id);
-        let msg = UserStateMessage::Save(state.clone());
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"Save\""));
-        assert!(json.contains(&user_id.to_string()));
-
-        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_state_message_load_serialization() {
-        let user_id = Uuid::new_v4();
-        let msg = UserStateMessage::Load(user_id);
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"Load\""));
-        assert!(json.contains(&user_id.to_string()));
-
-        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_state_message_save_response_ok() {
-        let msg = UserStateMessage::SaveResponse(Ok(()));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"SaveResponse\""));
-        assert!(json.contains("\"Ok\""));
-
-        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_state_message_save_response_err() {
-        let error_msg = "Database connection failed".to_string();
-        let msg = UserStateMessage::SaveResponse(Err(error_msg.clone()));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"SaveResponse\""));
-        assert!(json.contains("\"Err\""));
-        assert!(json.contains(&error_msg));
-
-        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_state_message_load_response_some() {
-        use crate::models::UserState;
-
-        let user_id = Uuid::new_v4();
-        let state = UserState::new(user_id);
-        let msg = UserStateMessage::LoadResponse(Some(state.clone()));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"LoadResponse\""));
-        assert!(json.contains(&user_id.to_string()));
-
-        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_state_message_load_response_none() {
-        let msg = UserStateMessage::LoadResponse(None);
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"LoadResponse\""));
-        assert!(json.contains("null"));
-
-        let deserialized: UserStateMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_message_create_user_serialization() {
-        let username = "testuser".to_string();
-        let email = "test@example.com".to_string();
-        let credentials = AuthCredentials::InviteCode("CODE123".to_string());
-        let password = "secure_password".to_string();
-        let msg = UserMessage::CreateUser {
-            username: username.clone(),
-            email: email.clone(),
-            credentials: credentials.clone(),
-            password: password.clone(),
-            initial_settings: None,
-        };
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"CreateUser\""));
-        assert!(json.contains("testuser"));
-        assert!(json.contains("test@example.com"));
-        assert!(json.contains("secure_password"));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_message_sign_in_serialization() {
-        let username = "bob".to_string();
-        let password = "secret123".to_string();
-        let msg = UserMessage::SignIn {
-            username: username.clone(),
-            password: password.clone(),
-        };
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"SignIn\""));
-        assert!(json.contains("bob"));
-        assert!(json.contains("secret123"));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_validate_session_serialization() {
-        let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test".to_string();
-        let msg = UserMessage::ValidateSession {
-            token: token.clone(),
-        };
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("ValidateSession"));
-        assert!(json.contains(&token));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_message_sign_in_response_ok() {
-        let user = User::new(
-            Uuid::new_v4(),
-            "charlie".to_string(),
-            "charlie@example.com".to_string(),
-        );
-        let state = UserState::new(user.id);
-        let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.signin".to_string();
-        let msg = UserMessage::SignInResponse(Box::new(Ok((user.clone(), state, token.clone()))));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"SignInResponse\""));
-        assert!(json.contains("\"Ok\""));
-        assert!(json.contains("charlie"));
-        assert!(json.contains("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
-    fn test_user_message_sign_in_response_err() {
-        let error_msg = "User not found".to_string();
-        let msg = UserMessage::SignInResponse(Box::new(Err(error_msg.clone())));
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"SignInResponse\""));
-        assert!(json.contains("\"Err\""));
-        assert!(json.contains(&error_msg));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
-    }
-
-    #[test]
     fn test_ai_action_request_serialization() {
         let context = ConversationContext {
             active_plan: None,
@@ -837,30 +633,5 @@ mod tests {
         };
         let json = serde_json::to_string(&action).unwrap();
         assert!(json.contains("ExplainMessage"));
-    }
-
-    #[test]
-    fn test_auth_credentials_password_in_create_user() {
-        let username = "newuser".to_string();
-        let email = "new@example.com".to_string();
-        let credentials = AuthCredentials::InviteCode("INVITE123".to_string());
-        let password = "newpassword".to_string();
-        let msg = UserMessage::CreateUser {
-            username: username.clone(),
-            email: email.clone(),
-            credentials: credentials.clone(),
-            password: password.clone(),
-            initial_settings: None,
-        };
-
-        let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"CreateUser\""));
-        assert!(json.contains("newuser"));
-        assert!(json.contains("new@example.com"));
-        assert!(json.contains("InviteCode"));
-        assert!(json.contains("newpassword"));
-
-        let deserialized: UserMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, msg);
     }
 }

@@ -17,8 +17,6 @@ fn font_class(lang_option: &Option<LanguageOption>) -> &'static str {
 #[derive(Properties, PartialEq)]
 pub struct InputBoxProps {
     pub on_send: Callback<String>,
-    #[prop_or(false)]
-    pub disabled: bool,
     // external_value removed
     #[prop_or_default]
     pub textarea_ref: Option<NodeRef>,
@@ -78,16 +76,15 @@ pub fn input_box(props: &InputBoxProps) -> Html {
             <textarea
                 ref={textarea_node_ref}
                 class={classes!("composer-input", font_class_name)}
-                placeholder={if props.disabled { "Connecting..." } else { "Type message… (Shift+Enter to send)" }}
+                placeholder="Type message… (Shift+Enter to send)"
                 value={(*input_value).clone()}
                 oninput={on_input}
                 onkeydown={on_keydown}
-                disabled={props.disabled}
                 rows="3"
                 aria-label="Type your message here. Press Shift+Enter to send."
             />
             <div class="composer-actions">
-                <button type="submit" class="btn btn--primary" disabled={props.disabled}>{"Send"}</button>
+                <button type="submit" class="btn btn--primary">{"Send"}</button>
             </div>
         </form>
         </div>

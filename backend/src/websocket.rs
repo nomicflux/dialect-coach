@@ -1,8 +1,11 @@
 mod agents;
 mod errors;
+pub(crate) mod registry;
 mod send;
 mod user;
-pub mod user_state;
+mod user_state;
+
+use std::future::Future;
 
 use axum::{
     extract::{
@@ -11,192 +14,185 @@ use axum::{
     },
     response::Response,
 };
-use dialect_coach_shared::{UserMessage, WsEvent};
-use futures_util::{SinkExt, StreamExt};
-use tokio::sync::mpsc;
+use dialect_coach_shared::{
+    AccountRequest, ClientEnvelope, ClientMessage, Reply, ServerMessage, SignInResult, UsageStats,
+};
+use futures_util::{Sink, SinkExt, StreamExt, stream::SplitStream};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use uuid::Uuid;
 
 use crate::AppState;
 
-fn create_send_task(
-    mut sender: futures_util::stream::SplitSink<WebSocket, WsMessage>,
-    mut rx: mpsc::UnboundedReceiver<String>,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if let Err(e) = sender.send(WsMessage::Text(msg.into())).await {
-                tracing::error!("Failed to send message to client: {}", e);
-                break;
-            }
-        }
-    })
-}
-
-fn create_recv_task(
-    mut receiver: futures_util::stream::SplitStream<WebSocket>,
-    state: AppState,
-    tx: mpsc::UnboundedSender<String>,
-    conn_id: Uuid,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
-        while let Some(Ok(msg)) = receiver.next().await {
-            if let WsMessage::Text(text) = msg {
-                tracing::debug!("Received message: {}", text);
-
-                // TODO: send last conversation message if not present.
-                if try_parse_ws_event(&text, &state, &tx).await.is_err() {
-                    tracing::error!("Error parsing WsEvent");
-                }
-            } else if let WsMessage::Close(_) = msg {
-                tracing::info!("Client closed connection: {}", conn_id);
-                break;
-            }
-        }
-    })
-}
-
-async fn try_parse_ws_event(
-    text: &str,
-    state: &AppState,
-    tx: &mpsc::UnboundedSender<String>,
-) -> Result<(), ()> {
-    match serde_json::from_str::<WsEvent>(text) {
-        Ok(WsEvent::RequestAIAction {
-            user_id,
-            action,
-            session_id,
-        }) => {
-            tracing::info!(user_id = %user_id, "Received AI action request: {:?}", action);
-            agents::process_ai_action_request(state, user_id, session_id, *action, tx).await
-        }
-        Ok(WsEvent::UserMessage { user_message }) => {
-            if agents::process_user_message(state, *user_message, tx)
-                .await
-                .is_err()
-            {
-                tracing::error!("Error processing user message");
-                Err(())
-            } else {
-                Ok(())
-            }
-        }
-        Err(_) => Err(()),
-    }
-}
+type Tx = UnboundedSender<String>;
 
 pub async fn websocket_handler(State(state): State<AppState>, ws: WebSocketUpgrade) -> Response {
-    tracing::info!("WebSocket upgrade request received");
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
 async fn handle_socket(socket: WebSocket, state: AppState) {
     let connection_id = Uuid::new_v4();
     tracing::info!("WebSocket connection established: {}", connection_id);
-
-    let (sender, receiver) = socket.split();
-    let (tx, rx) = mpsc::unbounded_channel::<String>();
-
-    let mut send_task = create_send_task(sender, rx);
-    let mut recv_task = create_recv_task(receiver, state, tx.clone(), connection_id);
-
+    let (sink, stream) = socket.split();
+    let (tx, rx) = mpsc::unbounded_channel();
+    let chat = spawn_chat_worker(state.clone(), tx.clone());
     tokio::select! {
-        _ = (&mut send_task) => {
-            recv_task.abort();
-        }
-        _ = (&mut recv_task) => {
-            drop(tx);
-            let _ = send_task.await;
-        }
+        _ = forward(sink, rx) => {}
+        _ = receive(stream, &state, &tx, &chat) => {}
     }
-
+    registry::release(&mut *state.connections.lock().await, &tx);
     tracing::info!("WebSocket connection closed: {}", connection_id);
 }
 
-async fn process_user_message_ws(state: &AppState, text: &str, tx: &mpsc::UnboundedSender<String>) {
-    match serde_json::from_str::<UserMessage>(text) {
-        Ok(UserMessage::CreateUser {
-            username,
-            email,
-            credentials,
-            password,
-            initial_settings,
-        }) => {
-            let _ = user::handle_create_user(
-                state,
-                username,
-                email,
-                credentials,
-                password,
-                initial_settings,
-                tx,
-            )
-            .await;
-        }
-        Ok(UserMessage::SignIn { username, password }) => {
-            let _ = user::handle_sign_in(state, username, password, tx).await;
-        }
-        Ok(UserMessage::ValidateSession { token }) => {
-            tracing::info!(
-                "Received ValidateSession request, token length: {}",
-                token.len()
-            );
-            let _ = user::handle_validate_session(state, token, tx).await;
-        }
-        Ok(_) => {
-            tracing::warn!("Received unexpected UserMessage variant from client");
-        }
-        Err(e) => {
-            tracing::error!("Failed to parse UserMessage: {}", e);
+/// Write every outgoing message to the socket until a write fails.
+async fn forward<S>(mut sink: S, mut rx: UnboundedReceiver<String>)
+where
+    S: Sink<WsMessage> + Unpin,
+{
+    while let Some(text) = rx.recv().await {
+        if sink.send(WsMessage::Text(text.into())).await.is_err() {
+            tracing::info!("WebSocket write failed; closing connection");
+            break;
         }
     }
 }
 
-/// Create send task for user WebSocket
-fn create_user_send_task(
-    mut sender: futures_util::stream::SplitSink<WebSocket, WsMessage>,
-    mut rx: mpsc::UnboundedReceiver<String>,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if sender.send(WsMessage::Text(msg.into())).await.is_err() {
-                break;
+async fn receive(
+    mut stream: SplitStream<WebSocket>,
+    state: &AppState,
+    tx: &Tx,
+    chat: &UnboundedSender<ClientEnvelope>,
+) {
+    while let Some(Ok(message)) = stream.next().await {
+        if let WsMessage::Text(text) = message {
+            match serde_json::from_str::<ClientEnvelope>(&text) {
+                Ok(envelope) => dispatch(envelope, state, tx, chat).await,
+                Err(e) => tracing::error!("Unparseable client message: {}", e),
             }
         }
+    }
+}
+
+/// Coach requests go to the sequential chat worker, which keeps their replies in order.
+/// Everything else is answered here, one at a time, so saves apply in the order sent.
+async fn dispatch(
+    envelope: ClientEnvelope,
+    state: &AppState,
+    tx: &Tx,
+    chat: &UnboundedSender<ClientEnvelope>,
+) {
+    match envelope.body {
+        ClientMessage::Chat(_) => chat
+            .send(envelope)
+            .expect("chat worker runs while its connection is open"),
+        _ => respond(envelope, state.clone(), tx.clone()).await,
+    }
+}
+
+fn spawn_chat_worker(state: AppState, tx: Tx) -> UnboundedSender<ClientEnvelope> {
+    let (chat, mut queue) = mpsc::unbounded_channel::<ClientEnvelope>();
+    tokio::spawn(async move {
+        while let Some(envelope) = queue.recv().await {
+            respond(envelope, state.clone(), tx.clone()).await;
+        }
+    });
+    chat
+}
+
+async fn respond(ClientEnvelope { id, body }: ClientEnvelope, state: AppState, tx: Tx) {
+    let reply = run_supervised(answer(body, state, tx.clone())).await;
+    send::send(&tx, &ServerMessage::Reply { id, body: reply });
+}
+
+/// Run a request in its own task so a panic becomes a `Failed` reply instead of no reply.
+async fn run_supervised(request: impl Future<Output = Reply> + Send + 'static) -> Reply {
+    tokio::spawn(request).await.unwrap_or_else(|e| {
+        tracing::error!("Request task failed: {}", e);
+        Reply::Failed("internal error".to_string())
     })
 }
 
-/// Run receive task for user WebSocket
-async fn run_user_receive_task(
-    mut receiver: futures_util::stream::SplitStream<WebSocket>,
-    state: AppState,
-    tx: mpsc::UnboundedSender<String>,
-) {
-    while let Some(msg) = receiver.next().await {
-        if let Ok(WsMessage::Text(text)) = msg {
-            process_user_message_ws(&state, &text, &tx).await;
+async fn answer(body: ClientMessage, state: AppState, tx: Tx) -> Reply {
+    match body {
+        ClientMessage::Account(request) => account(request, &state, &tx).await,
+        ClientMessage::SaveUserState(user_state) => {
+            Reply::UserStateSaved(user_state::save(&state, *user_state).await)
+        }
+        ClientMessage::Chat(request) => {
+            Reply::Chat(Box::new(agents::answer(&state, request).await))
         }
     }
 }
 
-/// Handle user WebSocket connection
-async fn handle_user_socket(socket: WebSocket, state: AppState) {
-    let connection_id = Uuid::new_v4();
-    tracing::info!("User WebSocket connection established: {}", connection_id);
-
-    let (sender, receiver) = socket.split();
-    let (tx, rx) = mpsc::unbounded_channel::<String>();
-
-    let send_task = create_user_send_task(sender, rx);
-    run_user_receive_task(receiver, state, tx).await;
-
-    let _ = send_task.await;
-    tracing::info!("User WebSocket connection closed: {}", connection_id);
+async fn account(request: AccountRequest, state: &AppState, tx: &Tx) -> Reply {
+    match request {
+        AccountRequest::SignIn { username, password } => {
+            signed_in(state, tx, user::sign_in(state, username, password).await).await
+        }
+        AccountRequest::CreateUser(new_user) => {
+            signed_in(state, tx, user::create_user(state, *new_user).await).await
+        }
+        AccountRequest::ValidateSession { token } => {
+            signed_in(state, tx, user::validate_session(state, &token).await).await
+        }
+        AccountRequest::Reattach { token } => {
+            reattached(state, tx, user::reattach(state, &token).await).await
+        }
+    }
 }
 
-pub async fn user_websocket_handler(
-    State(state): State<AppState>,
-    ws: WebSocketUpgrade,
-) -> Response {
-    tracing::info!("User WebSocket upgrade request received");
-    ws.on_upgrade(move |socket| handle_user_socket(socket, state))
+/// A successful sign-in registers this connection for the user's usage pushes.
+async fn signed_in(state: &AppState, tx: &Tx, result: SignInResult) -> Reply {
+    if let Ok((user, _, _)) = &result {
+        registry::bind(&mut *state.connections.lock().await, tx, user.id);
+    }
+    Reply::SignedIn(Box::new(result))
+}
+
+async fn reattached(
+    state: &AppState,
+    tx: &Tx,
+    result: Result<(Uuid, String, UsageStats), String>,
+) -> Reply {
+    let renewed = match result {
+        Ok((user_id, token, usage_stats)) => {
+            registry::bind(&mut *state.connections.lock().await, tx, user_id);
+            Ok((token, usage_stats))
+        }
+        Err(e) => Err(e),
+    };
+    Reply::Reattached(renewed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_forward_writes_messages_in_order_until_channel_closes() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send("first".to_string()).unwrap();
+        tx.send("second".to_string()).unwrap();
+        drop(tx);
+        let mut written: Vec<WsMessage> = Vec::new();
+
+        forward(&mut written, rx).await;
+
+        let expected = [
+            WsMessage::Text("first".into()),
+            WsMessage::Text("second".into()),
+        ];
+        assert_eq!(written, expected);
+    }
+
+    #[tokio::test]
+    async fn test_run_supervised_returns_the_reply() {
+        let reply = run_supervised(async { Reply::UserStateSaved(Ok(())) }).await;
+        assert!(matches!(reply, Reply::UserStateSaved(Ok(()))));
+    }
+
+    #[tokio::test]
+    async fn test_run_supervised_turns_panic_into_failed_reply() {
+        let reply = run_supervised(async { panic!("request blew up") }).await;
+        assert!(matches!(reply, Reply::Failed(e) if e == "internal error"));
+    }
 }

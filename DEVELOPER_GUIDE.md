@@ -305,34 +305,28 @@ fn main() {
     yew::Renderer::<App>::new().render();  // Mount root component
 }
 
-// app.rs - Root component  
+// app.rs - Root component
 #[function_component(App)]
 pub fn app() -> Html {
-    // State management
-    let messages = use_state(|| Vec::<Message>::new());
-    let websocket_service = use_state(|| None::<WebSocketService>);
-    let tts_service = use_state(|| TtsService::new());
-    
-    // WebSocket connection management
-    let connect_websocket = {
-        let websocket_service = websocket_service.clone();
-        use_callback(move |_, _| {
-            let service = WebSocketService::new("ws://localhost:3000/ws");
-            websocket_service.set(Some(service));
-        }, ())
-    };
-    
+    // AppState holds the app's single Connection (services/connection.rs)
+    let app_state = use_reducer(AppState::default);
+    let ui_state = use_reducer(UIState::default);
+    let session = use_reducer(SessionState::default);
+
+    // Debounced save: each save is a SaveUserState request on the connection
+    let connection = app_state.connection.clone();
+    let _force_save = use_debounced_save(&session, move |state| {
+        let saved = connection.request(ClientMessage::SaveUserState(Box::new(state.clone())));
+        // ... log the outcome
+    });
+
+    // Wire the connection's events (status, reopen, lost requests, usage pushes) and start it
+    use_connection(app_state.clone(), session.clone(), ui_state.clone());
+
     html! {
         <div class="app">
-            <ChatWindow messages={(*messages).clone()} />
-            <InputBox 
-                on_send={on_message_send}
-                on_speech_toggle={toggle_speech}
-            />
-            <SpeechControls 
-                is_listening={is_listening}
-                on_toggle={toggle_speech}
-            />
+            <Header app_state={app_state.clone()} ui_state={ui_state.clone()} session={session.clone()} />
+            <MainContent app_state={app_state.clone()} ui_state={ui_state.clone()} session={session.clone()} />
         </div>
     }
 }
@@ -340,32 +334,22 @@ pub fn app() -> Html {
 
 #### Key Frontend Services
 ```rust
-// services/websocket.rs - WebSocket management
-pub struct WebSocketService {
-    ws: WebSocket,
-    connection_state: ConnectionState,
-}
+// services/connection.rs - the app's single WebSocket connection (/ws)
+// Every request is a ClientEnvelope { id, body } and gets exactly one outcome:
+// its Reply, RequestError::Failed (the backend failed handling it), or
+// RequestError::Lost (the socket dropped before the reply; reported once the
+// socket reopens). The socket reopens one second after every close, forever.
+// Requests made while it is down are queued and sent when it opens.
+let connection = Connection::new("ws://localhost:3000/ws");
+connection.set_events(ConnectionEvents { on_status, on_open, on_lost, on_push });
+connection.start();
 
-impl WebSocketService {
-    pub fn new(url: &str) -> Self {
-        let ws = WebSocket::new(url).expect("Failed to create WebSocket");
-        
-        // Setup message handler
-        let onmessage = Closure::wrap(Box::new(move |e: MessageEvent| {
-            let data = e.data().as_string().unwrap();
-            let message: Message = serde_json::from_str(&data).unwrap();
-            // Handle incoming message...
-        }) as Box<dyn FnMut(_)>);
-        
-        ws.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
-        
-        Self { ws, connection_state: ConnectionState::Connected }
-    }
-    
-    pub fn send_message(&self, message: &Message) {
-        let json = serde_json::to_string(message).unwrap();
-        self.ws.send_with_str(&json).unwrap();
-    }
+let request = ClientMessage::Chat(ChatRequest::Message(Box::new(msg_with_context)));
+match connection.request(request).await {
+    Ok(Reply::Chat(reply)) => { /* apply the coach's reply */ }
+    Err(RequestError::Lost) => { /* end the waiting state; the lost notice follows */ }
+    Err(RequestError::Failed(e)) => { /* show the error */ }
+    Ok(other) => unreachable!("chat requests are answered with Reply::Chat: {:?}", other),
 }
 
 // services/speech.rs - Web Speech API integration
@@ -591,11 +575,12 @@ cargo test -p dialect-coach-backend  # Backend only
 
 **Integration Testing:**
 ```bash  
-# Test WebSocket flow with websocat
+# Test the WebSocket protocol with websocat
 websocat ws://localhost:3000/ws
 
-# Send test message (paste this JSON):
-{"session_id":"550e8400-e29b-41d4-a716-446655440000","participant_id":"user1","content":"¡Hola! ¿Cómo estás?","language":"es-MX","timestamp":"2025-10-16T18:51:24Z","metadata":{"formality":"Casual","teaching_mode":"Immersive"}}
+# Send a request (paste this JSON); its reply carries the same id:
+{"id":"550e8400-e29b-41d4-a716-446655440000","body":{"Account":{"ValidateSession":{"token":"not-a-token"}}}}
+# -> {"Reply":{"id":"550e8400-e29b-41d4-a716-446655440000","body":{"SignedIn":{"Err":"Invalid session token: InvalidToken"}}}}
 ```
 
 ---
@@ -616,7 +601,7 @@ websocat ws://localhost:3000/ws
 
 ### For WASM Frontend
 1. **Yew Components**: `frontend/src/app.rs` - functional components with hooks
-2. **WebSocket Client**: `frontend/src/services/websocket.rs` - browser WebSocket API
+2. **WebSocket Client**: `frontend/src/services/connection.rs` - the single reconnecting connection every request travels over
 3. **Web Speech API**: `frontend/src/services/speech.rs` - speech recognition/synthesis
 4. **WASM-JS Interop**: Various `web_sys` and `js_sys` usage patterns
 

@@ -16,7 +16,6 @@ pub struct ServerConfig {
     pub backend_url: String,
 }
 
-
 #[derive(Deserialize, Clone, Debug)]
 pub struct PersistenceConfig {
     pub db_path: String,

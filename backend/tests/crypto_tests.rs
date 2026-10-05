@@ -63,7 +63,8 @@ fn test_jwt_validation_returns_correct_user_id() {
     let user_id = Uuid::new_v4();
 
     let token = jwt::generate_token(user_id).expect("Failed to generate token");
-    let validated_id = jwt::validate_token(&token).expect("Failed to validate token");
+    let validated_id =
+        jwt::validate_token(&token, jwt::Expiry::Enforce).expect("Failed to validate token");
 
     assert_eq!(
         user_id, validated_id,
@@ -77,7 +78,7 @@ fn test_jwt_validation_expired_token() {
 
     let expired_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI1NTU1NTU1NS01NTU1LTU1NTUtNTU1NS01NTU1NTU1NTU1NTUiLCJleHAiOjB9.TH7FzEghUqU-FYBPYPl8wLX8n6j2Y8fBCXOyH98VN3A";
 
-    let result = jwt::validate_token(expired_token);
+    let result = jwt::validate_token(expired_token, jwt::Expiry::Enforce);
     assert!(result.is_err(), "Expired token should return error");
 }
 
@@ -87,6 +88,28 @@ fn test_jwt_validation_invalid_token() {
 
     let invalid_token = "invalid.token.here";
 
-    let result = jwt::validate_token(invalid_token);
+    let result = jwt::validate_token(invalid_token, jwt::Expiry::Enforce);
     assert!(result.is_err(), "Invalid token should return error");
+}
+
+#[test]
+fn test_jwt_expired_signed_token_passes_only_when_expiry_ignored() {
+    setup_test_env();
+    let user_id = Uuid::new_v4();
+    let claims = jwt::Claims {
+        sub: user_id.to_string(),
+        exp: 0,
+    };
+    let token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+        &claims,
+        &jsonwebtoken::EncodingKey::from_secret(TEST_SECRET.as_bytes()),
+    )
+    .expect("Failed to encode token");
+
+    assert!(jwt::validate_token(&token, jwt::Expiry::Enforce).is_err());
+    assert_eq!(
+        jwt::validate_token(&token, jwt::Expiry::Ignore).expect("signature is valid"),
+        user_id
+    );
 }

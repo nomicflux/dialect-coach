@@ -7,9 +7,9 @@ pub fn loading_screen() -> Html {
             display: flex; 
             justify_content: center; 
             align_items: center; 
-            height: 100vh; 
-            width: 100vw; 
-            position: fixed; 
+            height: 100%; 
+            width: 100%; 
+            position: absolute; 
             top: 0; 
             left: 0; 
             background: rgba(0,0,0,0.5); 

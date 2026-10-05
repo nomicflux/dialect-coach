@@ -4,15 +4,14 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use dialect_coach_shared::{UsageStats, UserStateMessage, tts::TtsRequest};
+use dialect_coach_shared::{UsageStats, tts::TtsRequest};
 use serde::Serialize;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, mpsc};
 use tracing::{error, info};
 
 use crate::persistence::UserPersistence;
 use crate::rate_limiter::service::RateLimiterService;
+use crate::state::Connections;
 use crate::tts_service::TtsService;
 
 /// Axum state for TTS handlers
@@ -22,7 +21,7 @@ pub struct TtsState {
     pub user_persistence: Arc<dyn UserPersistence>,
     pub rate_limiter: Arc<crate::rate_limiter::service::RateLimiter>,
     pub rate_limit_config: Arc<crate::rate_limiter::config::RateLimitConfig>,
-    pub user_state_connections: Arc<Mutex<HashMap<uuid::Uuid, mpsc::UnboundedSender<String>>>>,
+    pub connections: Connections,
 }
 
 async fn track_tts_usage(
@@ -53,7 +52,8 @@ async fn track_tts_usage(
                 user_id = %user_id,
                 "Successfully saved TTS usage stats"
             );
-            notify_usage_stats_update(state, user_id, updated_usage).await;
+            crate::websocket::registry::push_usage(&state.connections, user_id, updated_usage)
+                .await;
         }
         Err(e) => tracing::error!(
             user_id = %user_id,
@@ -149,36 +149,6 @@ pub async fn synthesize_handler(
             track_tts_usage(&state, user_id, usage_stats, characters).await;
             Err(TtsErrorResponse::from_tts_error(e))
         }
-    }
-}
-
-async fn notify_usage_stats_update(state: &TtsState, user_id: uuid::Uuid, usage_stats: UsageStats) {
-    let tx = {
-        let connections = state.user_state_connections.lock().await;
-        connections.get(&user_id).cloned()
-    };
-
-    if let Some(tx) = tx {
-        let message = UserStateMessage::UsageStatsUpdate(usage_stats);
-        match serde_json::to_string(&message) {
-            Ok(json) => {
-                if let Err(e) = tx.send(json) {
-                    tracing::warn!(user_id = %user_id, "Failed to send TTS usage stats update: {:?}", e);
-                } else {
-                    tracing::info!(user_id = %user_id, "Sent TTS usage stats update to frontend");
-                }
-            }
-            Err(e) => tracing::error!(
-                user_id = %user_id,
-                "Failed to serialize TTS usage stats update: {}",
-                e
-            ),
-        }
-    } else {
-        tracing::debug!(
-            user_id = %user_id,
-            "No connected user state WebSocket to receive TTS usage stats update"
-        );
     }
 }
 
@@ -317,11 +287,12 @@ mod tests {
         rate_limiter::{config::RateLimitConfig, org_quota::OrgQuotaChecker, service::RateLimiter},
     };
     use anyhow::Result;
+    use dialect_coach_shared::ServerMessage;
     use dialect_coach_shared::models::TTSProviderType;
     use dialect_coach_shared::tts::{TextToSpeechProvider, TtsError, TtsRequest, TtsResponse};
     use dialect_coach_shared::{InviteCode, User, UserState};
     use std::collections::HashMap;
-    use tokio::sync::mpsc;
+    use tokio::sync::{Mutex, mpsc};
     use uuid::Uuid;
 
     #[derive(Default)]
@@ -425,8 +396,8 @@ mod tests {
         let user_id = Uuid::new_v4();
         let (tx, mut rx) = mpsc::unbounded_channel();
 
-        let connections = Arc::new(Mutex::new(HashMap::new()));
-        connections.lock().await.insert(user_id, tx);
+        let connections: Connections = Arc::new(Mutex::new(HashMap::new()));
+        connections.lock().await.insert(user_id, vec![tx]);
 
         let persistence = Arc::new(TestPersistence::default());
         let tts_state = TtsState {
@@ -434,16 +405,16 @@ mod tests {
             user_persistence: persistence.clone(),
             rate_limiter: Arc::new(RateLimiter::new(Arc::new(OrgQuotaChecker::new()))),
             rate_limit_config: Arc::new(RateLimitConfig::from_yaml_config(&app_config.rate_limits)),
-            user_state_connections: connections.clone(),
+            connections: connections.clone(),
         };
 
         track_tts_usage(&tts_state, user_id, UsageStats::default(), 120).await;
 
         let message = rx.recv().await.expect("expected usage stats update");
-        let parsed: UserStateMessage = serde_json::from_str(&message).expect("valid JSON");
+        let parsed: ServerMessage = serde_json::from_str(&message).expect("valid JSON");
 
         match parsed {
-            UserStateMessage::UsageStatsUpdate(stats) => {
+            ServerMessage::UsageStats(stats) => {
                 assert_eq!(stats.tts_count(), 1);
                 assert_eq!(stats.tts_characters(), 120);
             }

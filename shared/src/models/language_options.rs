@@ -76,7 +76,10 @@ impl LanguageOptions {
 }
 
 /// Determines if separate pronunciation text is needed for TTS.
-pub fn needs_pronunciation_text(dialect: Dialect, language_option: &Option<LanguageOption>) -> bool {
+pub fn needs_pronunciation_text(
+    dialect: Dialect,
+    language_option: &Option<LanguageOption>,
+) -> bool {
     match language_option {
         Some(LanguageOption::Arabic(script)) => {
             !matches!(script, ArabicScript::Latin | ArabicScript::FullyVoweled)
@@ -238,7 +241,10 @@ mod tests {
 
     #[test]
     fn test_needs_pronunciation_none() {
-        assert!(!needs_pronunciation_text(Dialect::EnglishGeneralAmerican, &None));
+        assert!(!needs_pronunciation_text(
+            Dialect::EnglishGeneralAmerican,
+            &None
+        ));
     }
 
     #[test]

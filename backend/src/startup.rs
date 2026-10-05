@@ -11,14 +11,11 @@ use axum::{
     routing::{delete, get, post},
 };
 use persistence::UserPersistence;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tts_service::eleven_labs_tts_provider::ElevenLabsTtsProvider;
-use uuid::Uuid;
 
 pub fn init_logging() {
     tracing_subscriber::registry()
@@ -93,7 +90,7 @@ pub fn init_tts(
     user_persistence: Arc<dyn UserPersistence>,
     rate_limiter: Arc<rate_limiter::service::RateLimiter>,
     rate_limit_config: Arc<rate_limiter::config::RateLimitConfig>,
-    user_state_connections: Arc<Mutex<HashMap<Uuid, tokio::sync::mpsc::UnboundedSender<String>>>>,
+    connections: crate::state::Connections,
 ) -> Option<tts_handler::TtsState> {
     match ElevenLabsTtsProvider::from_config(&tts_config.eleven_labs) {
         Ok(tts_provider) => {
@@ -104,7 +101,7 @@ pub fn init_tts(
                 user_persistence,
                 rate_limiter,
                 rate_limit_config,
-                user_state_connections,
+                connections,
             })
         }
         Err(e) => {
@@ -121,11 +118,6 @@ pub fn build_router(state: AppState, tts_state: Option<tts_handler::TtsState>) -
     let mut app = Router::new()
         .route("/health", get(health_check))
         .route("/ws", get(websocket::websocket_handler))
-        .route(
-            "/ws/user_state",
-            get(websocket::user_state::user_state_websocket_handler),
-        )
-        .route("/ws/user", get(websocket::user_websocket_handler))
         .route(
             "/api/translate",
             post(translation_handler::translate_handler),

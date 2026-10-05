@@ -8,7 +8,6 @@ use yew::prelude::*;
 pub enum SessionAction {
     Login(UserState),
     Logout,
-    UpdateUser(UserState),
     Domain(UserDomainAction),
     Saved,
     MarkDirty,
@@ -33,11 +32,6 @@ impl Reducible for SessionState {
             .into(),
             SessionAction::Logout => SessionState {
                 user: None,
-                needs_save: false,
-            }
-            .into(),
-            SessionAction::UpdateUser(user) => SessionState {
-                user: Some(user),
                 needs_save: false,
             }
             .into(),
