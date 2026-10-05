@@ -1,0 +1,20 @@
+/* Usage tab of the Study Tools drawer */
+.usage-panel {
+    padding: var(--s-5);
+}
+
+.usage-panel__stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--text-sm);
+    margin-bottom: var(--s-1);
+}
+
+.usage-panel__label {
+    color: var(--ink-soft);
+}
+
+.usage-panel__value {
+    color: var(--ink);
+    font-weight: 500;
+}

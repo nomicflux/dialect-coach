@@ -19,6 +19,7 @@ pub mod speech_controls;
 pub mod study_drawer_content;
 pub mod translate_selection_button;
 pub mod translation_modal;
+pub mod usage_panel;
 pub mod user_creation;
 pub mod utility_sidebar;
 pub mod welcome_screen;

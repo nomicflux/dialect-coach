@@ -312,6 +312,7 @@ pub fn main_content(props: &MainContentProps) -> Html {
         let app_state = app_state.clone();
         let session = session.clone();
         let chat_input_ref = chat_input_ref.clone();
+        let drawer_active_tab = drawer_active_tab.clone();
         // let goal_input_ref = goal_input_ref.clone();
         use_effect_with((), move |_| {
             let shortcuts = default_shortcuts();
@@ -383,6 +384,10 @@ pub fn main_content(props: &MainContentProps) -> Html {
                                 {
                                     let _ = textarea.focus();
                                 }
+                            }
+                            ShortcutAction::OpenUsage => {
+                                drawer_active_tab.set(DrawerTab::Usage);
+                                ui_state.dispatch(UIStateAction::SetDrawerOpen(true));
                             }
                         }
                         break;

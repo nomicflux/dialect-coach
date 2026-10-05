@@ -1,4 +1,5 @@
 use crate::app::app_state::user::UserDomainAction;
+use crate::components::usage_panel::UsagePanel;
 use crate::components::utility_sidebar::branches::Branches;
 use crate::components::utility_sidebar::learning::Learning;
 use crate::components::utility_sidebar::plan::PlanTab;
@@ -20,6 +21,7 @@ pub enum DrawerTab {
     Learning,
     Plan,
     Settings,
+    Usage,
 }
 
 #[derive(Properties, PartialEq)]
@@ -118,6 +120,9 @@ pub fn study_drawer_content(props: &StudyDrawerContentProps) -> Html {
                 dispatch={props.dispatch.clone()}
             />
         },
+        DrawerTab::Usage => html! {
+            <UsagePanel usage_stats={props.user.usage_stats.clone()} />
+        },
     };
 
     html! {
@@ -127,6 +132,7 @@ pub fn study_drawer_content(props: &StudyDrawerContentProps) -> Html {
                 {render_tab_button("Learning", DrawerTab::Learning, props.active_tab, props.on_tab_change.clone())}
                 {render_tab_button("Plan", DrawerTab::Plan, props.active_tab, props.on_tab_change.clone())}
                 {render_tab_button("Settings", DrawerTab::Settings, props.active_tab, props.on_tab_change.clone())}
+                {render_tab_button("Usage", DrawerTab::Usage, props.active_tab, props.on_tab_change.clone())}
             </div>
             <div class="study-tab-content">
                 {content}

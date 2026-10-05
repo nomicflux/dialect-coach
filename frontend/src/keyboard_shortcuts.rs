@@ -13,6 +13,7 @@ pub enum ShortcutAction {
     CycleFormality,
     FocusGoalInput,
     FocusChatInput,
+    OpenUsage,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +75,10 @@ pub fn default_shortcuts() -> HashMap<ShortcutAction, KeyBinding> {
         ShortcutAction::FocusChatInput,
         KeyBinding::with_ctrl_shift("KeyC"),
     );
+    map.insert(
+        ShortcutAction::OpenUsage,
+        KeyBinding::with_ctrl_shift("KeyU"),
+    );
     map
 }
 
@@ -103,6 +108,7 @@ pub fn accesskey_documentation() -> Vec<(&'static str, &'static str, &'static st
         ("CycleFormality", "Ctrl+Shift+F", "Cycle formality"),
         ("FocusGoalInput", "Ctrl+Shift+G", "Focus goal input"),
         ("FocusChatInput", "Ctrl+Shift+C", "Focus chat input"),
+        ("OpenUsage", "Ctrl+Shift+U", "Open usage statistics"),
     ]
 }
 
@@ -130,7 +136,7 @@ mod tests {
     #[test]
     fn test_default_shortcuts_contains_all_actions() {
         let shortcuts = default_shortcuts();
-        assert_eq!(shortcuts.len(), 10);
+        assert_eq!(shortcuts.len(), 11);
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleDrawer));
         assert!(shortcuts.contains_key(&ShortcutAction::ToggleLearningPanel));
         assert!(shortcuts.contains_key(&ShortcutAction::TogglePracticeSettings));
@@ -141,6 +147,16 @@ mod tests {
         assert!(shortcuts.contains_key(&ShortcutAction::CycleFormality));
         assert!(shortcuts.contains_key(&ShortcutAction::FocusGoalInput));
         assert!(shortcuts.contains_key(&ShortcutAction::FocusChatInput));
+        assert!(shortcuts.contains_key(&ShortcutAction::OpenUsage));
+    }
+
+    #[test]
+    fn test_open_usage_is_ctrl_shift_u() {
+        let shortcuts = default_shortcuts();
+        assert_eq!(
+            shortcuts.get(&ShortcutAction::OpenUsage),
+            Some(&KeyBinding::with_ctrl_shift("KeyU"))
+        );
     }
 
     #[test]
@@ -176,7 +192,7 @@ mod tests {
     #[test]
     fn test_accesskey_documentation_contains_all_implemented() {
         let docs = accesskey_documentation();
-        assert_eq!(docs.len(), 10);
+        assert_eq!(docs.len(), 11);
 
         let keys: Vec<&str> = docs.iter().map(|(_, key, _)| *key).collect();
         assert!(keys.contains(&"Ctrl+Shift+["));
@@ -189,6 +205,7 @@ mod tests {
         assert!(keys.contains(&"Ctrl+Shift+F"));
         assert!(keys.contains(&"Ctrl+Shift+G"));
         assert!(keys.contains(&"Ctrl+Shift+C"));
+        assert!(keys.contains(&"Ctrl+Shift+U"));
     }
 
     #[test]
