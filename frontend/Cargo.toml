@@ -21,7 +21,6 @@ chrono.workspace = true
 yew = { version = "0.21", features = ["csr"] }
 yew-router = "0.18"
 gloo = "0.11"
-gloo-net = "0.5"
 futures-channel = "0.3"
 futures-util = "0.3"
 
