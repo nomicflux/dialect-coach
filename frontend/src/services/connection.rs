@@ -115,6 +115,8 @@ pub struct ConnectionEvents {
     /// The requests lost while the connection was down, reported once it is back.
     pub on_lost: Callback<Vec<ClientMessage>>,
     pub on_push: Callback<UsageStats>,
+    /// A request was written to the socket.
+    pub on_sent: Callback<RequestId>,
 }
 
 type Waiter = oneshot::Sender<Result<Reply, RequestError>>;
@@ -186,22 +188,23 @@ impl Connection {
         open_socket(&self.0);
     }
 
-    /// Submit now (sent at once while connected, otherwise when the socket opens)
-    /// and resolve with the request's single outcome.
+    /// Submit `body` under a new id; see `submit`.
     pub fn request(
         &self,
         body: ClientMessage,
     ) -> impl Future<Output = Result<Reply, RequestError>> + use<> {
-        let id = Uuid::new_v4();
-        let outcome = self.submit(ClientEnvelope { id, body });
-        async move {
-            outcome
-                .await
-                .expect("every request is resolved exactly once")
-        }
+        self.submit(ClientEnvelope {
+            id: Uuid::new_v4(),
+            body,
+        })
     }
 
-    fn submit(&self, envelope: ClientEnvelope) -> oneshot::Receiver<Result<Reply, RequestError>> {
+    /// Submit now (sent at once while connected, otherwise when the socket opens)
+    /// and resolve with the request's single outcome.
+    pub fn submit(
+        &self,
+        envelope: ClientEnvelope,
+    ) -> impl Future<Output = Result<Reply, RequestError>> + use<> {
         let (waiter, outcome) = oneshot::channel();
         let transmit_now = {
             let mut shell = self.0.borrow_mut();
@@ -211,7 +214,11 @@ impl Connection {
         if let Some(envelope) = transmit_now {
             transmit(&self.0, &envelope);
         }
-        outcome
+        async move {
+            outcome
+                .await
+                .expect("every request is resolved exactly once")
+        }
     }
 }
 
@@ -257,15 +264,19 @@ fn attach(ws: WebSocket, shell: Weak<RefCell<Shell>>) -> Socket {
 
 fn transmit(shell: &Rc<RefCell<Shell>>, envelope: &ClientEnvelope) {
     let json = serde_json::to_string(envelope).expect("protocol messages serialize");
-    let shell = shell.borrow();
-    let socket = shell
-        .socket
-        .as_ref()
-        .expect("connected means a socket exists");
-    socket
-        .ws
-        .send_with_str(&json)
-        .expect("send on an opened socket cannot throw");
+    let on_sent = {
+        let shell = shell.borrow();
+        let socket = shell
+            .socket
+            .as_ref()
+            .expect("connected means a socket exists");
+        socket
+            .ws
+            .send_with_str(&json)
+            .expect("send on an opened socket cannot throw");
+        shell.events.on_sent.clone()
+    };
+    on_sent.emit(envelope.id);
 }
 
 fn handle_open(shell: &Rc<RefCell<Shell>>) {

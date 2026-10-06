@@ -1,15 +1,20 @@
-use crate::app::app_callbacks::{add_message, on_signin_response, sign_out, signed_in};
-use crate::app::app_state::callbacks::{on_user_state_usage_stats_update, on_user_state_ws_open};
+use crate::app::app_callbacks::{
+    add_message, on_signin_response, restore_outbox, sign_out, signed_in,
+};
+use crate::app::app_state::callbacks::{
+    on_user_state_usage_stats_update, on_user_state_ws_open, report_unkept,
+};
 use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{
     AppState, AppStateAction, LearningAction, SessionAction, SessionState, UIState, UIStateAction,
 };
 use crate::services::connection::{ConnectionEvents, RequestError};
+use crate::services::persistence;
 use crate::utils::cookies;
 use dialect_coach_shared::models::{Message, MessageContent};
 use dialect_coach_shared::{
     AccountRequest, AgentResponse, ClientMessage, Dialect, LearningItem, LearningItemType, Reply,
-    UsageStats,
+    RequestId, UsageStats,
 };
 use gloo::timers::callback::Interval;
 use log::{error, info};
@@ -235,6 +240,18 @@ fn on_lost(app_state: &UseReducerHandle<AppState>) -> Callback<Vec<ClientMessage
     })
 }
 
+/// A kept coach request that reached the socket can no longer be resent after a refresh.
+fn on_sent(app_state: &UseReducerHandle<AppState>) -> Callback<RequestId> {
+    let app_state = app_state.clone();
+    Callback::from(move |id| {
+        if let Some(user) = &app_state.current_user {
+            let kept =
+                persistence::update_outbox(user.id, |outbox| persistence::mark_sent(outbox, id));
+            report_unkept(&app_state, kept);
+        }
+    })
+}
+
 fn connection_events(
     app_state: &UseReducerHandle<AppState>,
     session: &UseReducerHandle<SessionState>,
@@ -248,6 +265,7 @@ fn connection_events(
         on_open: on_open(app_state, session, ui_state),
         on_lost: on_lost(app_state),
         on_push: on_user_state_usage_stats_update(session.clone()),
+        on_sent: on_sent(app_state),
     }
 }
 
@@ -270,15 +288,19 @@ pub fn use_connection(
 }
 
 /// The connection's events read who is signed in, so they are rebuilt when that changes.
+/// A newly signed-in user's kept coach requests are restored once the events are theirs.
 #[hook]
 fn use_connection_events(
     app_state: UseReducerHandle<AppState>,
     session: UseReducerHandle<SessionState>,
     ui_state: UseReducerHandle<UIState>,
 ) {
-    use_effect_with(app_state.current_user.clone(), move |_| {
+    use_effect_with(app_state.current_user.clone(), move |user| {
         let events = connection_events(&app_state, &session, &ui_state);
         app_state.connection.set_events(events);
+        if let Some(user) = user {
+            restore_outbox(user.id, &app_state, &session, &ui_state);
+        }
     });
 }
 

@@ -1,10 +1,12 @@
+use crate::app::app_state::callbacks::report_unkept;
 use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{
     AppState, AppStateAction, MessageAction, SessionAction, SessionState, SettingsAction, UIState,
     UIStateAction,
 };
-use crate::app::app_websocket_hooks::apply_chat_reply;
+use crate::app::app_websocket_hooks::{apply_chat_reply, lost_notice};
 use crate::services::connection::RequestError;
+use crate::services::persistence::{self, StoredRequest};
 use dialect_coach_shared::{
     AIActionRequest, AccountRequest, AuthCredentials, ChatRequest, ClientMessage,
     InitialUserSettings, Message, NewUser, Reply, SignInResult, User, UserMessageWithContext,
@@ -25,16 +27,82 @@ fn send_chat(
     app_state: &UseReducerHandle<AppState>,
     session: &UseReducerHandle<SessionState>,
     ui_state: &UseReducerHandle<UIState>,
-    request: ChatRequest,
-    failure: &'static str,
+    stored: StoredRequest,
 ) -> impl Future<Output = ()> + use<> {
     app_state.dispatch(AppStateAction::SetLoading);
-    let outcome = app_state.connection.request(ClientMessage::Chat(request));
+    let failure = chat_failure(&stored.request);
+    let outcome = submit_kept(app_state, stored);
     let (app_state, session, ui_state) = (app_state.clone(), session.clone(), ui_state.clone());
     async move {
         let outcome = outcome.await;
         app_state.dispatch(AppStateAction::LoadingComplete);
         apply_chat_outcome(outcome, failure, &app_state, &session, &ui_state);
+    }
+}
+
+/// Submit a coach request, kept in this browser until it resolves so a refresh can resend it.
+fn submit_kept(
+    app_state: &UseReducerHandle<AppState>,
+    stored: StoredRequest,
+) -> impl Future<Output = Result<Reply, RequestError>> + use<> {
+    let (id, user_id, envelope) = (stored.id, chat_user(&stored.request), stored.envelope());
+    let kept = persistence::update_outbox(user_id, |outbox| persistence::add(outbox, stored));
+    report_unkept(app_state, kept);
+    let outcome = app_state.connection.submit(envelope);
+    let app_state = app_state.clone();
+    async move {
+        let outcome = outcome.await;
+        let kept = persistence::update_outbox(user_id, |outbox| persistence::remove(outbox, id));
+        report_unkept(&app_state, kept);
+        outcome
+    }
+}
+
+fn chat_user(request: &ChatRequest) -> Uuid {
+    match request {
+        ChatRequest::Message(with_context) => with_context.user_id,
+        ChatRequest::Action { user_id, .. } => *user_id,
+    }
+}
+
+/// The error shown when the coach fails to answer `request`.
+fn chat_failure(request: &ChatRequest) -> &'static str {
+    match request {
+        ChatRequest::Message(_) => "Failed to send",
+        ChatRequest::Action { action, .. } => match **action {
+            AIActionRequest::StartConversation { .. } => "Failed to start conversation",
+            AIActionRequest::ContinueBranch { .. } => "Failed to continue conversation",
+            AIActionRequest::ExplainMessage { .. } => "Failed to explain message",
+        },
+    }
+}
+
+/// The kept coach requests, removed from storage; each resent one is kept again when submitted.
+fn take_outbox(app_state: &UseReducerHandle<AppState>, user_id: Uuid) -> Vec<StoredRequest> {
+    let stored = persistence::load_outbox(user_id).unwrap_or_else(|e| {
+        error!("Failed to read kept coach requests: {}", e);
+        vec![]
+    });
+    report_unkept(app_state, persistence::store_outbox(user_id, &[]));
+    stored
+}
+
+/// After sign-in, resend the coach requests a refresh interrupted before they were
+/// sent. Those already sent can no longer be answered, so they are reported lost.
+pub fn restore_outbox(
+    user_id: Uuid,
+    app_state: &UseReducerHandle<AppState>,
+    session: &UseReducerHandle<SessionState>,
+    ui_state: &UseReducerHandle<UIState>,
+) {
+    let stored = take_outbox(app_state, user_id);
+    let (sent, unsent): (Vec<_>, Vec<_>) = stored.into_iter().partition(|s| s.sent);
+    let lost: Vec<ClientMessage> = sent.into_iter().map(|s| s.envelope().body).collect();
+    if let Some(notice) = lost_notice(&lost) {
+        app_state.dispatch(AppStateAction::SetError(notice.to_string()));
+    }
+    for stored in unsent {
+        spawn_local(send_chat(app_state, session, ui_state, stored));
     }
 }
 
@@ -116,13 +184,8 @@ pub fn on_send_message(
         session.dispatch(add_message(msg.clone()));
         let request = ChatRequest::Message(Box::new(message_with_context(state, msg)));
         app_state.dispatch(AppStateAction::ClearError);
-        spawn_local(send_chat(
-            &app_state,
-            &session,
-            &ui_state,
-            request,
-            "Failed to send",
-        ));
+        let stored = StoredRequest::new(request);
+        spawn_local(send_chat(&app_state, &session, &ui_state, stored));
     })
 }
 
@@ -212,7 +275,7 @@ pub fn on_signin_click(
 }
 
 fn apply_sign_in(
-    (user, user_state, token): (User, UserState, String),
+    (user, server_state, token): (User, UserState, String),
     app_state: &UseReducerHandle<AppState>,
     ui_state: &UseReducerHandle<UIState>,
     session: &UseReducerHandle<SessionState>,
@@ -220,10 +283,25 @@ fn apply_sign_in(
     info!("Sign in successful: {}", user.username);
     crate::utils::cookies::set_session_token(&token);
     ui_state.dispatch(UIStateAction::HideUserCreationPage);
+    let (user_state, restored) = sign_in_state(user.id, server_state);
     app_state.dispatch(AppStateAction::NotifyTTSEnabled(user_state.tts_enabled));
     app_state.dispatch(AppStateAction::SetUser(user, token));
     session.dispatch(SessionAction::Login(user_state));
+    if restored {
+        session.dispatch(SessionAction::MarkDirty);
+    }
     app_state.dispatch(AppStateAction::CreateSession(Uuid::new_v4()));
+}
+
+/// The state to sign in with, and whether it holds changes this browser kept
+/// that the server never confirmed (they are then saved).
+fn sign_in_state(user_id: Uuid, server_state: UserState) -> (UserState, bool) {
+    let unsaved = persistence::load_user_state(user_id).unwrap_or_else(|e| {
+        error!("Failed to read the kept state: {}", e);
+        None
+    });
+    let restored = unsaved.is_some();
+    (persistence::prefer_unsaved(server_state, unsaved), restored)
 }
 
 pub fn on_signin_response(
@@ -271,8 +349,8 @@ pub fn on_auto_start(
         let context = Box::new(state.build_action_context(vec![]));
         let action = AIActionRequest::StartConversation { context };
         let request = chat_action(app_state.session_id(), state.user_id, action);
-        let failure = "Failed to start conversation";
-        spawn_local(send_chat(&app_state, &session, &ui_state, request, failure));
+        let stored = StoredRequest::new(request);
+        spawn_local(send_chat(&app_state, &session, &ui_state, stored));
     })
 }
 
@@ -302,8 +380,8 @@ pub fn on_continue_branch(
         info!("Sending continue branch request");
         let action = continue_action(state, parent_message_id);
         let request = chat_action(app_state.session_id(), state.user_id, action);
-        let failure = "Failed to continue conversation";
-        spawn_local(send_chat(&app_state, &session, &ui_state, request, failure));
+        let stored = StoredRequest::new(request);
+        spawn_local(send_chat(&app_state, &session, &ui_state, stored));
     })
 }
 
@@ -326,13 +404,7 @@ fn explain(
     message_id: Uuid,
 ) -> impl Future<Output = ()> + use<> {
     ui_state.dispatch(UIStateAction::SetExplainLoading { message_id });
-    let sent = send_chat(
-        app_state,
-        session,
-        ui_state,
-        request,
-        "Failed to explain message",
-    );
+    let sent = send_chat(app_state, session, ui_state, StoredRequest::new(request));
     let ui_state = ui_state.clone();
     async move {
         sent.await;
@@ -398,6 +470,29 @@ mod tests {
             }
             other => panic!("unexpected request: {:?}", other),
         }
+    }
+
+    fn action(action: AIActionRequest) -> ChatRequest {
+        chat_action(None, Uuid::new_v4(), action)
+    }
+
+    #[test]
+    fn test_chat_user_and_failure_follow_the_request() {
+        let (state, ids) = state_with_messages(&["Hola"]);
+        let msg = state.create_user_msg(Uuid::new_v4(), "¿Qué tal?");
+        let message = ChatRequest::Message(Box::new(message_with_context(&state, msg)));
+        assert_eq!(chat_user(&message), state.user_id);
+        assert_eq!(chat_failure(&message), "Failed to send");
+        let context = Box::new(state.build_action_context(vec![]));
+        let start = action(AIActionRequest::StartConversation { context });
+        assert_eq!(chat_failure(&start), "Failed to start conversation");
+        let resume = action(continue_action(&state, ids[0]));
+        assert_eq!(chat_failure(&resume), "Failed to continue conversation");
+        let explain = action(explain_action(&state, ids[0]).unwrap());
+        assert_eq!(chat_failure(&explain), "Failed to explain message");
+        let user_id = Uuid::new_v4();
+        let explain_for = chat_action(None, user_id, explain_action(&state, ids[0]).unwrap());
+        assert_eq!(chat_user(&explain_for), user_id);
     }
 
     #[test]

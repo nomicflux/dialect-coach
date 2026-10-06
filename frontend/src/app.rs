@@ -1,5 +1,5 @@
 pub mod app_state;
-use app_state::{AppState, AppStateAction, SessionAction, SessionState, UIState};
+use app_state::{AppState, AppStateAction, SessionState, UIState};
 
 #[path = "app/helpers.rs"]
 pub mod app_helpers;
@@ -17,7 +17,6 @@ pub use app_state::callbacks;
 pub use dialect_coach_shared::{LearningItem, LearningItemType, UserState};
 
 use log::info;
-use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 use crate::components::{
@@ -26,9 +25,8 @@ use crate::components::{
 };
 use crate::hooks::use_debounced_save;
 
-use app_state::callbacks::{on_user_state_save_response, save_result};
+use app_state::callbacks::{keep_user_state, save_user_state};
 use app_websocket_hooks::use_connection;
-use dialect_coach_shared::ClientMessage;
 
 #[function_component(App)]
 pub fn app() -> Html {
@@ -44,17 +42,11 @@ pub fn app() -> Html {
         }
     });
 
-    // Debounced auto-save. The state counts as saved once submitted; a save lost
-    // to a dropped connection is redone when the connection reopens.
-    let connection = app_state.connection.clone();
-    let session_dispatch = session.clone();
-    let _force_save = use_debounced_save(&session, move |state| {
-        let saved = connection.request(ClientMessage::SaveUserState(Box::new(state.clone())));
-        info!("UserState save request submitted");
-        session_dispatch.dispatch(SessionAction::Saved);
-        let on_saved = on_user_state_save_response();
-        spawn_local(async move { on_saved.emit(save_result(saved.await)) });
-    });
+    let _force_save = use_debounced_save(
+        &session,
+        keep_user_state(&app_state),
+        save_user_state(&app_state, &session),
+    );
 
     use_connection(app_state.clone(), session.clone(), ui_state.clone());
 
