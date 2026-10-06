@@ -54,6 +54,41 @@
   gap: var(--s-4);
 }
 
+/* Error banner - a full-width row of its own; auto-placed, it would take the
+   empty left cell under the fixed dashboard buttons */
+.error-banner {
+  grid-column: 1 / -1;
+  background: rgba(245, 101, 101, 0.1);
+  border: 1px solid rgba(245, 101, 101, 0.2);
+  color: var(--status-error);
+  padding: var(--s-4);
+  border-radius: var(--r-m);
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.error-close {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--status-error);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-lg);
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.error-close:hover {
+  background: rgba(245, 101, 101, 0.2);
+}
+
 .header-brand {
   grid-area: center;
   position: relative;

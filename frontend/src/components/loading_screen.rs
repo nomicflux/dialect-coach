@@ -5,8 +5,8 @@ pub fn loading_screen() -> Html {
     html! {
         <div class="loading-screen" style="
             display: flex; 
-            justify_content: center; 
-            align_items: center; 
+            justify-content: center; 
+            align-items: center; 
             height: 100%; 
             width: 100%; 
             position: absolute; 
