@@ -20,7 +20,9 @@ use dialect_coach_shared::{
     StudyRequest, UsageStats,
 };
 use futures_util::{Sink, SinkExt, StreamExt, stream::SplitStream};
+use std::time::Duration;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::time::{self, Instant};
 use uuid::Uuid;
 
 use crate::{
@@ -29,6 +31,9 @@ use crate::{
 };
 
 type Tx = UnboundedSender<String>;
+
+/// How often the server proves the connection is alive; the client gives up after 15 s.
+const HEARTBEAT_PERIOD: Duration = Duration::from_secs(5);
 
 pub async fn websocket_handler(State(state): State<AppState>, ws: WebSocketUpgrade) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
@@ -48,17 +53,30 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     tracing::info!("WebSocket connection closed: {}", connection_id);
 }
 
-/// Write every outgoing message to the socket until a write fails.
+/// Write every outgoing message to the socket, and a heartbeat each period, until a
+/// write fails.
 async fn forward<S>(mut sink: S, mut rx: UnboundedReceiver<String>)
 where
     S: Sink<WsMessage> + Unpin,
 {
-    while let Some(text) = rx.recv().await {
+    let mut heartbeat = time::interval_at(Instant::now() + HEARTBEAT_PERIOD, HEARTBEAT_PERIOD);
+    loop {
+        let text = tokio::select! {
+            outgoing = rx.recv() => match outgoing {
+                Some(text) => text,
+                None => break,
+            },
+            _ = heartbeat.tick() => heartbeat_text(),
+        };
         if sink.send(WsMessage::Text(text.into())).await.is_err() {
             tracing::info!("WebSocket write failed; closing connection");
             break;
         }
     }
+}
+
+fn heartbeat_text() -> String {
+    serde_json::to_string(&ServerMessage::Heartbeat).expect("protocol messages serialize")
 }
 
 async fn receive(
@@ -213,6 +231,25 @@ mod tests {
             WsMessage::Text("second".into()),
         ];
         assert_eq!(written, expected);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_forward_sends_a_heartbeat_each_period_while_idle() {
+        let (_tx, rx) = mpsc::unbounded_channel::<String>();
+        let mut written: Vec<WsMessage> = Vec::new();
+        let idle = HEARTBEAT_PERIOD * 2 + HEARTBEAT_PERIOD / 2;
+
+        let open = time::timeout(idle, forward(&mut written, rx)).await;
+
+        open.expect_err("forward runs while the channel is open");
+        assert_eq!(written.len(), 2);
+        for message in written {
+            let WsMessage::Text(text) = message else {
+                panic!("heartbeats are text frames, got {:?}", message);
+            };
+            let parsed: ServerMessage = serde_json::from_str(text.as_str()).unwrap();
+            assert!(matches!(parsed, ServerMessage::Heartbeat));
+        }
     }
 
     #[tokio::test]

@@ -117,6 +117,8 @@ pub enum ServerMessage {
     },
     /// Pushed to every connection of the user after usage is saved.
     UsageStats(UsageStats),
+    /// Sent every few seconds so the client can tell a live connection from a dead one.
+    Heartbeat,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -245,6 +247,7 @@ mod tests {
         assert_round_trip(&reply(Reply::Chat(Box::new(msg))));
         assert_round_trip(&reply(Reply::Failed("internal error".into())));
         assert_round_trip(&ServerMessage::UsageStats(UsageStats::default()));
+        assert_round_trip(&ServerMessage::Heartbeat);
     }
 
     fn study(request: StudyRequest) -> ClientEnvelope {

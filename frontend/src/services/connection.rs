@@ -1,12 +1,14 @@
 //! The app's single WebSocket connection. Every request travels over it and
 //! gets exactly one outcome: its reply, `Failed`, or `Lost` when the socket
-//! dropped before the reply arrived. The socket reopens forever, one second
-//! after each close.
+//! dropped before the reply arrived. The socket reopens forever: one second
+//! after each close, at once when no message (not even the server's heartbeat)
+//! has arrived for 15 seconds, and at once when the browser comes back online.
 
 use dialect_coach_shared::{
     ClientEnvelope, ClientMessage, Reply, RequestId, ServerMessage, UsageStats,
 };
 use futures_channel::oneshot;
+use gloo::events::EventListener;
 use gloo_timers::callback::Timeout;
 use log::{error, info};
 use std::cell::RefCell;
@@ -21,6 +23,8 @@ use web_sys::{MessageEvent, WebSocket};
 use yew::Callback;
 
 const RETRY_DELAY_MS: u32 = 1000;
+/// Three missed heartbeats: long enough for the largest reply to arrive on a slow link.
+const WATCHDOG_MS: u32 = 15_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ConnectionStatus {
@@ -122,6 +126,9 @@ struct Shell {
     waiters: HashMap<RequestId, Waiter>,
     socket: Option<Socket>,
     retry: Option<Timeout>,
+    /// Fires when the current socket has been silent for `WATCHDOG_MS`.
+    watchdog: Option<Timeout>,
+    online: Option<EventListener>,
 }
 
 /// An open or opening browser socket and the handlers attached to it.
@@ -161,6 +168,8 @@ impl Connection {
             waiters: HashMap::new(),
             socket: None,
             retry: None,
+            watchdog: None,
+            online: None,
         })))
     }
 
@@ -169,6 +178,11 @@ impl Connection {
     }
 
     pub fn start(&self) {
+        let window = web_sys::window().expect("the app runs in a browser window");
+        let weak = Rc::downgrade(&self.0);
+        let online =
+            EventListener::new(&window, "online", move |_| handle_online(&shell_of(&weak)));
+        self.0.borrow_mut().online = Some(online);
         open_socket(&self.0);
     }
 
@@ -212,6 +226,15 @@ fn open_socket(shell: &Rc<RefCell<Shell>>) {
     let ws = WebSocket::new(&url).expect("the WebSocket URL is valid");
     let socket = attach(ws, Rc::downgrade(shell));
     shell.borrow_mut().socket = Some(socket);
+    arm_watchdog(shell);
+}
+
+/// Replace the watchdog, so the socket is dropped `WATCHDOG_MS` from now unless a
+/// message arrives first.
+fn arm_watchdog(shell: &Rc<RefCell<Shell>>) {
+    let weak = Rc::downgrade(shell);
+    let watchdog = Timeout::new(WATCHDOG_MS, move || handle_silence(&shell_of(&weak)));
+    shell.borrow_mut().watchdog = Some(watchdog);
 }
 
 fn attach(ws: WebSocket, shell: Weak<RefCell<Shell>>) -> Socket {
@@ -283,6 +306,7 @@ fn resolve(waiter: Waiter, outcome: Result<Reply, RequestError>) {
 }
 
 fn handle_message(shell: &Rc<RefCell<Shell>>, event: MessageEvent) {
+    arm_watchdog(shell);
     let text = event
         .data()
         .as_string()
@@ -293,6 +317,7 @@ fn handle_message(shell: &Rc<RefCell<Shell>>, event: MessageEvent) {
             let on_push = shell.borrow().events.on_push.clone();
             on_push.emit(stats);
         }
+        Ok(ServerMessage::Heartbeat) => {}
         Err(e) => error!("Unparseable server message: {}", e),
     }
 }
@@ -315,17 +340,42 @@ fn handle_reply(shell: &Rc<RefCell<Shell>>, id: RequestId, body: Reply) {
 
 fn handle_close(shell: &Rc<RefCell<Shell>>) {
     info!("WebSocket closed; reopening in {}ms", RETRY_DELAY_MS);
-    let (socket, on_status) = {
-        let mut shell = shell.borrow_mut();
-        shell.link.dropped();
-        (shell.socket.take(), shell.events.on_status.clone())
-    };
-    // This handler belongs to the socket; free it after the handler returns.
-    spawn_local(async move { drop(socket) });
-    on_status.emit(ConnectionStatus::Reconnecting);
+    drop_socket(shell);
     let weak = Rc::downgrade(shell);
     let retry = Timeout::new(RETRY_DELAY_MS, move || open_socket(&shell_of(&weak)));
     shell.borrow_mut().retry = Some(retry);
+}
+
+/// No message within `WATCHDOG_MS`: the socket is dead even if the browser never
+/// noticed (a changed network), so drop it and open another now.
+fn handle_silence(shell: &Rc<RefCell<Shell>>) {
+    info!("WebSocket silent for {}ms; reopening now", WATCHDOG_MS);
+    drop_socket(shell);
+    open_socket(shell);
+}
+
+/// The socket is gone: what awaited a reply is lost, and the connection is reconnecting.
+fn drop_socket(shell: &Rc<RefCell<Shell>>) {
+    let (socket, watchdog, on_status) = {
+        let mut shell = shell.borrow_mut();
+        shell.link.dropped();
+        let on_status = shell.events.on_status.clone();
+        (shell.socket.take(), shell.watchdog.take(), on_status)
+    };
+    // The running handler may belong to the socket or the watchdog; free them after it returns.
+    spawn_local(async move { drop((socket, watchdog)) });
+    on_status.emit(ConnectionStatus::Reconnecting);
+}
+
+/// The browser regained a network. Not proof the server is reachable, so only an
+/// unconnected socket is retried, at once instead of after its current attempt.
+fn handle_online(shell: &Rc<RefCell<Shell>>) {
+    if shell.borrow().link.status() == ConnectionStatus::Connected {
+        return;
+    }
+    info!("Browser back online; reopening now");
+    shell.borrow_mut().retry = None;
+    open_socket(shell);
 }
 
 #[cfg(test)]
