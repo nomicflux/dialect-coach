@@ -31,6 +31,8 @@ COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/backend /usr/lo
 COPY --from=builder /app/target/x86_64-unknown-linux-gnu/release/admin /usr/local/bin/admin
 COPY --from=builder /usr/local/lib/libpdfium.so /usr/local/lib/
 COPY --from=builder /app/backend/vendor /app/backend/vendor
+# serve_admin_html reads static/admin.html relative to WORKDIR
+COPY --from=builder /app/backend/static /app/static
 ENV LD_LIBRARY_PATH=/usr/local/lib
 WORKDIR /app
 CMD ["dialect-coach-backend"]
