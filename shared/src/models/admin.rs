@@ -4,8 +4,10 @@ use serde::{Deserialize, Serialize};
 pub struct AdminStatusResponse {
     pub timestamp: String,
     pub anthropic: AnthropicStats,
-    pub elevenlabs: Option<ElevenLabsStats>,
-    pub qdrant: Option<QdrantStats>,
+    /// The stats, or why they could not be read.
+    pub elevenlabs: Result<ElevenLabsStats, String>,
+    /// The stats, or why they could not be read.
+    pub qdrant: Result<QdrantStats, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -10,6 +10,7 @@ pub async fn get_elevenlabs_usage(api_key: &str) -> Result<ElevenLabsStats> {
         .header("xi-api-key", api_key)
         .send()
         .await?
+        .error_for_status()?
         .json::<Value>()
         .await?;
 

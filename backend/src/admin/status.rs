@@ -10,16 +10,8 @@ pub async fn get_admin_status(
     let timestamp = Utc::now().to_rfc3339();
     let anthropic = fetch_anthropic_stats().await;
 
-    let elevenlabs = match std::env::var("ELEVEN_LABS_API_KEY") {
-        Ok(api_key) => admin::elevenlabs_monitor::get_elevenlabs_usage(&api_key)
-            .await
-            .ok(),
-        Err(_) => None,
-    };
-
-    let qdrant = admin::qdrant_monitor::get_qdrant_stats(&state.qdrant)
-        .await
-        .ok();
+    let elevenlabs = fetch_elevenlabs_stats().await;
+    let qdrant = error_text(admin::qdrant_monitor::get_qdrant_stats(&state.qdrant).await);
 
     Json(admin::types::AdminStatusResponse {
         timestamp,
@@ -27,6 +19,18 @@ pub async fn get_admin_status(
         elevenlabs,
         qdrant,
     })
+}
+
+/// The stats, or the full error chain for the dashboard to show.
+fn error_text<T>(stats: anyhow::Result<T>) -> Result<T, String> {
+    stats.map_err(|e| format!("{:#}", e))
+}
+
+async fn fetch_elevenlabs_stats() -> Result<admin::types::ElevenLabsStats, String> {
+    match std::env::var("ELEVEN_LABS_API_KEY") {
+        Ok(api_key) => error_text(admin::elevenlabs_monitor::get_elevenlabs_usage(&api_key).await),
+        Err(_) => Err("ELEVEN_LABS_API_KEY not set".to_string()),
+    }
 }
 
 async fn fetch_anthropic_stats() -> admin::types::AnthropicStats {
@@ -51,5 +55,20 @@ fn anthropic_stats_error(error: &str) -> admin::types::AnthropicStats {
         output_tokens: None,
         total_cost_usd: None,
         error: Some(error.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_text_keeps_the_whole_error() {
+        let failed = anyhow::anyhow!("Collection `x` doesn't exist").context("count failed");
+        assert_eq!(
+            error_text::<()>(Err(failed)).unwrap_err(),
+            "count failed: Collection `x` doesn't exist"
+        );
+        assert_eq!(error_text(Ok(7)), Ok(7));
     }
 }

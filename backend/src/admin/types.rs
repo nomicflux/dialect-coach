@@ -80,19 +80,26 @@ mod tests {
                 total_cost_usd: Some("5.25".to_string()),
                 error: None,
             },
-            elevenlabs: Some(ElevenLabsStats {
+            elevenlabs: Ok(ElevenLabsStats {
                 tier: "pro".to_string(),
                 characters_used: 1000,
                 characters_limit: 500000,
                 characters_remaining: 499000,
                 reset_date: "2025-11-01T00:00:00Z".to_string(),
             }),
-            qdrant: None,
+            qdrant: Err("Collection `x` doesn't exist".to_string()),
         };
         let json = serde_json::to_string(&response).unwrap();
         let deserialized: AdminStatusResponse = serde_json::from_str(&json).unwrap();
         assert_eq!(response.timestamp, deserialized.timestamp);
-        assert!(deserialized.elevenlabs.is_some());
-        assert!(deserialized.qdrant.is_none());
+        assert_eq!(deserialized.elevenlabs.unwrap().tier, "pro");
+        assert_eq!(
+            deserialized.qdrant.unwrap_err(),
+            "Collection `x` doesn't exist"
+        );
+        // The admin page reads the stats from `Ok` and the error from `Err`.
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(value["qdrant"]["Err"], "Collection `x` doesn't exist");
+        assert_eq!(value["elevenlabs"]["Ok"]["tier"], "pro");
     }
 }

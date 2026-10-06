@@ -1,10 +1,8 @@
 use crate::admin::types::{DialectCount, QdrantStats};
-use crate::qdrant_service::QdrantService;
+use crate::qdrant_service::{COLLECTION_NAME, QdrantService};
 use anyhow::Result;
 use dialect_coach_shared::Dialect;
 use qdrant_client::qdrant::{Condition, CountPointsBuilder, Filter};
-
-const COLLECTION_NAME: &str = "dialect_documents";
 
 pub async fn get_qdrant_stats(service: &QdrantService) -> Result<QdrantStats> {
     let collection_info = get_collection_info(service).await?;

@@ -90,8 +90,8 @@
 
             // ElevenLabs
             html += '<div class="card"><h2>ElevenLabs TTS</h2>';
-            if (data.elevenlabs) {
-                const el = data.elevenlabs;
+            if (data.elevenlabs.Ok) {
+                const el = data.elevenlabs.Ok;
                 html += `<div class="stats-grid">
                     <div class="stat"><span class="stat-label">Tier</span><span class="stat-value">${el.tier}</span></div>
                     <div class="stat"><span class="stat-label">Characters Used</span><span class="stat-value">${formatNumber(el.characters_used)}</span></div>
@@ -100,14 +100,14 @@
                     <div class="stat"><span class="stat-label">Quota Resets</span><span class="stat-value">${el.reset_date}</span></div>
                 </div>`;
             } else {
-                html += '<p class="error">Service unavailable</p>';
+                html += `<p class="error">${data.elevenlabs.Err}</p>`;
             }
             html += '</div>';
 
             // QDrant
             html += '<div class="card"><h2>QDrant Vector Database</h2>';
-            if (data.qdrant) {
-                const q = data.qdrant;
+            if (data.qdrant.Ok) {
+                const q = data.qdrant.Ok;
                 html += `<div class="stats-grid">
                     <div class="stat"><span class="stat-label">Total Points</span><span class="stat-value">${formatNumber(q.points_count)}</span></div>
                     <div class="stat"><span class="stat-label">Vectors</span><span class="stat-value">${formatNumber(q.vectors_count)}</span></div>
@@ -125,7 +125,7 @@
                     html += '</tbody></table>';
                 }
             } else {
-                html += '<p class="error">Service unavailable</p>';
+                html += `<p class="error">${data.qdrant.Err}</p>`;
             }
             html += '</div>';
 

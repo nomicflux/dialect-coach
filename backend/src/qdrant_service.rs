@@ -7,7 +7,7 @@ use qdrant_client::qdrant::{
     Condition, CreateFieldIndexCollectionBuilder, FieldType, Filter, QueryPointsBuilder,
 };
 
-const COLLECTION_NAME: &str = "dialect_documents_v2";
+pub(crate) const COLLECTION_NAME: &str = "dialect_documents_v2";
 
 /// Qdrant service for RAG retrieval
 pub struct QdrantService {
