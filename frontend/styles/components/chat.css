@@ -11,6 +11,7 @@
 
 
 .chat-scroll {
+  flex: 1 1 auto;
   grid-area: chat;
   min-height: 0;
   overflow-y: auto;
@@ -763,6 +764,14 @@ rt {
   background-color: var(--coral-tint);
   border-color: var(--coral);
   color: var(--coral);
+}
+
+.selection-action-bar {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--chat-gutter) 0;
+  flex: 0 0 auto;
 }
 
 /* Translate selection button */

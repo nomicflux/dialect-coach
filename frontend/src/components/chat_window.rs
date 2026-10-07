@@ -6,7 +6,6 @@ use uuid::Uuid;
 use web_sys::{HtmlElement, MouseEvent};
 use yew::prelude::*;
 
-use crate::components::translate_selection_button::SelectionAction;
 use crate::utils::perf::PerfGuard;
 
 use super::MessageBubble;
@@ -31,9 +30,7 @@ pub struct ChatWindowProps {
     #[prop_or_default]
     pub explain_loading: HashSet<Uuid>,
     #[prop_or_default]
-    pub translate_loading: HashSet<Uuid>,
-    #[prop_or_default]
-    pub on_selection_translate: Option<Callback<(Uuid, SelectionAction, String, String)>>,
+    pub children: Html,
 }
 
 fn has_child_branches(message_id: Uuid, branches: &[ConversationBranch]) -> bool {
@@ -117,26 +114,31 @@ fn render_message_with_rope(
     has_children: bool,
     language_option: Option<LanguageOption>,
 ) -> Html {
-    let is_explain_loading = props.explain_loading.contains(&msg.id);
-    let is_translate_loading = props.translate_loading.contains(&msg.id);
-
     html! {
         <div class={classes!("message-slot", if is_own { "message-slot--user" } else { "message-slot--agent" })}>
-            <MessageBubble
-                message={msg.clone()}
-                is_own_message={is_own}
-                on_replay={props.on_replay_message.clone()}
-                on_delete={props.on_delete_message.clone()}
-                on_create_branch={props.on_create_branch.clone()}
-                has_child_branches={has_children}
-                on_explain={props.on_explain.clone()}
-                {language_option}
-                {is_explain_loading}
-                {is_translate_loading}
-                on_selection_translate={props.on_selection_translate.clone()}
-            />
+            {render_bubble(props, msg, is_own, has_children, language_option)}
             {render_rope(msg.id, is_own, has_children, &props.on_create_branch)}
         </div>
+    }
+}
+
+fn render_bubble(
+    props: &ChatWindowProps,
+    msg: &Message,
+    is_own: bool,
+    has_children: bool,
+    language_option: Option<LanguageOption>,
+) -> Html {
+    html! {
+        <MessageBubble
+            message={msg.clone()}
+            is_own_message={is_own}
+            on_replay={props.on_replay_message.clone()} on_delete={props.on_delete_message.clone()}
+            on_create_branch={props.on_create_branch.clone()} has_child_branches={has_children}
+            on_explain={props.on_explain.clone()}
+            {language_option}
+            is_explain_loading={props.explain_loading.contains(&msg.id)}
+        />
     }
 }
 
@@ -188,46 +190,49 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     let _render_guard = PerfGuard::new("ChatWindow::render");
     let chat_container_ref = use_node_ref();
 
-    // Auto-scroll to bottom when new messages arrive
-    {
-        let chat_container_ref = chat_container_ref.clone();
-        let message_count = props.user.conversation_history.len();
-
-        use_effect_with(message_count, move |_| {
-            if let Some(container) = chat_container_ref.cast::<HtmlElement>() {
-                container.set_scroll_top(container.scroll_height());
-            }
-            || ()
-        });
-    }
-
+    use_auto_scroll(
+        chat_container_ref.clone(),
+        props.user.conversation_history.len(),
+    );
     let active_messages = props.user.get_active_branch_messages();
 
     html! {
         <div class="chat" role="log" aria-live="polite" aria-relevant="additions">
             <div class="chat-scroll" ref={chat_container_ref}>
-                {if props.user.conversation_history.is_empty() {
-                    render_empty_state(&props.on_auto_start, props.is_loading)
-                } else {
-                    render_messages_list(props, &active_messages)
-                }}
-
-                {if props.is_loading {
-                    render_loading_indicator()
-                } else {
-                    html! {}
-                }}
-
-                {if !props.is_loading && needs_continue_button(&active_messages) {
-                    if let Some(last_msg) = active_messages.last() {
-                        render_continue_button(&props.on_continue_branch, last_msg.id)
-                    } else {
-                        html! {}
-                    }
-                } else {
-                    html! {}
-                }}
+                {render_chat_body(props, &active_messages)}
             </div>
+            {props.children.clone()}
         </div>
+    }
+}
+
+#[hook]
+fn use_auto_scroll(container_ref: NodeRef, count: usize) {
+    use_effect_with(count, move |_| {
+        if let Some(container) = container_ref.cast::<HtmlElement>() {
+            container.set_scroll_top(container.scroll_height());
+        }
+        || ()
+    });
+}
+
+fn render_chat_body(props: &ChatWindowProps, active: &[&Message]) -> Html {
+    html! {
+        <>
+            {if props.user.conversation_history.is_empty() { render_empty_state(&props.on_auto_start, props.is_loading) } else { render_messages_list(props, active) }}
+            {if props.is_loading { render_loading_indicator() } else { html! {} }}
+            {render_continue_if_needed(props, active)}
+        </>
+    }
+}
+
+fn render_continue_if_needed(props: &ChatWindowProps, active: &[&Message]) -> Html {
+    if !props.is_loading
+        && needs_continue_button(active)
+        && let Some(last) = active.last()
+    {
+        render_continue_button(&props.on_continue_branch, last.id)
+    } else {
+        html! {}
     }
 }
