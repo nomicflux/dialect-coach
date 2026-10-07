@@ -1,4 +1,5 @@
-use dialect_coach_shared::{LearningItem, Message};
+use super::user::DeletedMessage;
+use dialect_coach_shared::LearningItem;
 use std::collections::{HashSet, VecDeque};
 use std::rc::Rc;
 use uuid::Uuid;
@@ -16,7 +17,7 @@ pub enum UIStateAction {
     ToggleLearningPanel,
     PushDeletedLearningItem(LearningItem),
     PopDeletedLearningItem,
-    PushDeletedMessage(Message),
+    PushDeletedMessage(DeletedMessage),
     PopDeletedMessage,
     ShowUserCreationPage,
     HideUserCreationPage,
@@ -37,7 +38,7 @@ pub struct UIState {
     pub drawer_open: bool,
     pub learning_panel_collapsed: bool,
     pub deleted_learning_items: VecDeque<LearningItem>,
-    pub deleted_messages: VecDeque<Message>,
+    pub deleted_messages: VecDeque<DeletedMessage>,
     pub show_user_creation_page: bool,
     pub explain_loading: HashSet<Uuid>,
     pub translate_loading: HashSet<Uuid>,

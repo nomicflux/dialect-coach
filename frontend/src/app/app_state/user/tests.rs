@@ -38,6 +38,90 @@ fn create_test_message(session_id: Uuid, parent_id: Option<Uuid>) -> Message {
     )
 }
 
+fn undo_fixture() -> (UserState, Vec<Uuid>) {
+    use super::reducer::{reduce_branch, reduce_message};
+    let mut state = UserState::new(Uuid::new_v4());
+    let mut ids = vec![];
+    for text in ["A", "B", "C"] {
+        let message = crate::test_fixtures::agent_message(text);
+        ids.push(message.id);
+        reduce_message(&mut state, MessageAction::Add(message));
+    }
+    reduce_branch(&mut state, BranchAction::Create(ids[1]));
+    reduce_branch(&mut state, BranchAction::Create(ids[0]));
+    state.active_branch_id = state.branches[1].id;
+    (state, ids)
+}
+
+fn delete_for_undo(state: &mut UserState, id: Uuid) -> DeletedMessage {
+    let deleted = capture_deleted_message(state, id).unwrap();
+    super::reducer::reduce_message(state, MessageAction::Delete(id));
+    deleted
+}
+
+#[test]
+fn test_undo_restores_recorded_fork_memberships_after_switch() {
+    let (mut state, ids) = undo_fixture();
+    let before = state.clone();
+    let deleted = delete_for_undo(&mut state, ids[1]);
+    assert_eq!(deleted.branches.len(), 2);
+    state.active_branch_id = state.branches[2].id;
+    super::reducer::reduce_message(&mut state, MessageAction::UndoDelete(deleted));
+    assert_eq!(state.branches, before.branches);
+    assert_eq!(state.conversation_history, before.conversation_history);
+    assert_eq!(state.active_branch_id, state.branches[2].id);
+    state.active_branch_id = before.active_branch_id;
+    assert_eq!(
+        state.get_active_branch_messages(),
+        before.get_active_branch_messages()
+    );
+}
+
+#[test]
+fn test_undo_root_does_not_add_it_to_an_unrelated_root_branch() {
+    let (mut state, ids) = undo_fixture();
+    super::reducer::reduce_branch(&mut state, BranchAction::CreateNew);
+    let before = state.clone();
+    let deleted = delete_for_undo(&mut state, ids[0]);
+    super::reducer::reduce_message(&mut state, MessageAction::UndoDelete(deleted));
+    assert_eq!(state, before);
+}
+
+#[test]
+fn test_undo_preserves_later_messages_and_new_branch_membership() {
+    let (mut state, ids) = undo_fixture();
+    let deleted = delete_for_undo(&mut state, ids[1]);
+    let later = crate::test_fixtures::agent_message("Later");
+    super::reducer::reduce_message(&mut state, MessageAction::Add(later.clone()));
+    super::reducer::reduce_branch(&mut state, BranchAction::Create(later.id));
+    let new_branch = state.branches.last().unwrap().clone();
+    super::reducer::reduce_message(&mut state, MessageAction::UndoDelete(deleted));
+    let expected_ids = vec![ids[0], ids[1], later.id];
+    assert_eq!(state.branches[1].message_ids, expected_ids);
+    assert_eq!(state.branches[1].leaf_message_id, Some(later.id));
+    assert_eq!(state.branches.last().unwrap(), &new_branch);
+    assert_eq!(state.conversation_history.last().unwrap().id, later.id);
+}
+
+#[test]
+fn test_successive_undo_restores_exact_history_and_branches() {
+    let (mut state, ids) = undo_fixture();
+    let before = state.clone();
+    let first = delete_for_undo(&mut state, ids[1]);
+    let second = delete_for_undo(&mut state, ids[0]);
+    let third = delete_for_undo(&mut state, ids[2]);
+    for deleted in [third, second, first] {
+        super::reducer::reduce_message(&mut state, MessageAction::UndoDelete(deleted));
+    }
+    assert_eq!(state, before);
+}
+
+#[test]
+fn test_capture_deleted_message_requires_an_existing_message() {
+    let (state, _) = undo_fixture();
+    assert!(capture_deleted_message(&state, Uuid::new_v4()).is_none());
+}
+
 #[test]
 fn test_create_branch_reducer() {
     let mut state = UserState::new(Uuid::new_v4());

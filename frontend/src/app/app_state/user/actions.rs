@@ -8,10 +8,24 @@ use dialect_coach_shared::{
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Debug)]
+pub struct DeletedMessage {
+    pub message: Message,
+    pub history_index: usize,
+    pub branches: Vec<DeletedMessageLocation>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct DeletedMessageLocation {
+    pub branch_id: Uuid,
+    pub message_index: usize,
+    pub leaf_message_id: Option<Uuid>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub enum MessageAction {
     Add(Message),
     Delete(Uuid),
-    UndoDelete(Message),
+    UndoDelete(DeletedMessage),
 }
 
 #[derive(Clone, PartialEq, Debug)]

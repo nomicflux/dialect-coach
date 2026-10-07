@@ -10,38 +10,37 @@ pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
     use MessageAction::*;
     use std::sync::Arc;
     match action {
-        Add(mut msg) => {
-            let current_leaf = next
-                .branches
-                .iter()
-                .find(|b| b.id == next.active_branch_id)
-                .and_then(|b| b.leaf_message_id);
-
-            msg.parent_id = current_leaf;
-            let new_msg_id = msg.id;
-            Arc::make_mut(&mut next.conversation_history).push(msg);
-
-            if let Some(branch) = Arc::make_mut(&mut next.branches)
-                .iter_mut()
-                .find(|b| b.id == next.active_branch_id)
-            {
-                branch.message_ids.push(new_msg_id);
-                branch.leaf_message_id = Some(new_msg_id);
-            }
-        }
+        Add(msg) => add_message(next, msg),
         Delete(id) => {
             next.conversation_history =
                 Arc::new(delete_message((*next.conversation_history).clone(), id));
             next.branches = Arc::new(remove_message_from_branches((*next.branches).clone(), id));
         }
-        UndoDelete(msg) => {
-            next.conversation_history = Arc::new(undo_delete_message(
-                (*next.conversation_history).clone(),
-                msg.clone(),
-            ));
-            next.branches = Arc::new(restore_message_to_branch((*next.branches).clone(), &msg));
-        }
+        UndoDelete(deleted) => restore_deleted_message(next, &deleted),
     }
+}
+
+fn add_message(next: &mut UserState, mut msg: dialect_coach_shared::Message) {
+    use std::sync::Arc;
+    let branch = Arc::make_mut(&mut next.branches)
+        .iter_mut()
+        .find(|b| b.id == next.active_branch_id);
+    msg.parent_id = branch.as_ref().and_then(|b| b.leaf_message_id);
+    let new_msg_id = msg.id;
+    Arc::make_mut(&mut next.conversation_history).push(msg);
+    if let Some(branch) = branch {
+        branch.message_ids.push(new_msg_id);
+        branch.leaf_message_id = Some(new_msg_id);
+    }
+}
+
+fn restore_deleted_message(next: &mut UserState, deleted: &super::actions::DeletedMessage) {
+    use std::sync::Arc;
+    next.conversation_history = Arc::new(undo_delete_message(
+        (*next.conversation_history).clone(),
+        deleted,
+    ));
+    next.branches = Arc::new(restore_message_to_branch((*next.branches).clone(), deleted));
 }
 
 pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {

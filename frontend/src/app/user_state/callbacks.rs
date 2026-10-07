@@ -1,4 +1,4 @@
-use crate::app::app_state::user::UserDomainAction;
+use crate::app::app_state::user::{UserDomainAction, capture_deleted_message};
 use crate::app::app_state::{
     BranchAction, LearningAction, MessageAction, SettingsAction, UIState, UIStateAction,
 };
@@ -242,13 +242,8 @@ pub fn on_delete_message_callback(
     dispatch: Callback<UserDomainAction>,
 ) -> Callback<Uuid> {
     Callback::from(move |msg_id: Uuid| {
-        if let Some(msg) = user
-            .conversation_history
-            .iter()
-            .find(|m| m.id == msg_id)
-            .cloned()
-        {
-            ui_state.dispatch(UIStateAction::PushDeletedMessage(msg));
+        if let Some(deleted) = capture_deleted_message(&user, msg_id) {
+            ui_state.dispatch(UIStateAction::PushDeletedMessage(deleted));
         }
         dispatch.emit(UserDomainAction::Message(MessageAction::Delete(msg_id)));
     })

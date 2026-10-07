@@ -1,3 +1,4 @@
+use super::actions::{DeletedMessage, DeletedMessageLocation};
 use dialect_coach_shared::models::gamification::{GamificationStats, derive_gamification_stats};
 use dialect_coach_shared::models::{ConversationBranch, Dialect, Formality, Message, TeachingMode};
 use dialect_coach_shared::{
@@ -184,42 +185,64 @@ pub fn remove_message_from_branches(
     branches
 }
 
-pub fn undo_delete_message(mut history: Vec<Message>, msg: Message) -> Vec<Message> {
-    history.push(msg);
+pub fn capture_deleted_message(state: &UserState, id: Uuid) -> Option<DeletedMessage> {
+    let history_index = state
+        .conversation_history
+        .iter()
+        .position(|msg| msg.id == id)?;
+    let branches = state
+        .branches
+        .iter()
+        .filter_map(|branch| deleted_message_location(branch, id))
+        .collect();
+    Some(DeletedMessage {
+        message: state.conversation_history[history_index].clone(),
+        history_index,
+        branches,
+    })
+}
+
+fn deleted_message_location(
+    branch: &ConversationBranch,
+    id: Uuid,
+) -> Option<DeletedMessageLocation> {
+    let message_index = branch.message_ids.iter().position(|&msg_id| msg_id == id)?;
+    Some(DeletedMessageLocation {
+        branch_id: branch.id,
+        message_index,
+        leaf_message_id: branch.leaf_message_id,
+    })
+}
+
+pub fn undo_delete_message(mut history: Vec<Message>, deleted: &DeletedMessage) -> Vec<Message> {
+    history.insert(deleted.history_index, deleted.message.clone());
     history
 }
 
 pub fn restore_message_to_branch(
     mut branches: Vec<ConversationBranch>,
-    msg: &Message,
+    deleted: &DeletedMessage,
 ) -> Vec<ConversationBranch> {
-    // Find the branch that should contain this message based on parent chain
-    for branch in &mut branches {
-        // Check if this message belongs in this branch by verifying parent chain
-        if let Some(parent_id) = msg.parent_id {
-            if branch.message_ids.contains(&parent_id) {
-                // Insert after parent, maintaining order
-                if let Some(pos) = branch.message_ids.iter().position(|&id| id == parent_id) {
-                    branch.message_ids.insert(pos + 1, msg.id);
-                    // Update leaf if this was the last message
-                    if pos + 1 == branch.message_ids.len() - 1 {
-                        branch.leaf_message_id = Some(msg.id);
-                    }
-                }
-                break;
-            }
-        } else {
-            // Root message - add to branch with no parent
-            if branch.parent_message_id.is_none() && !branch.message_ids.contains(&msg.id) {
-                branch.message_ids.insert(0, msg.id);
-                if branch.message_ids.len() == 1 {
-                    branch.leaf_message_id = Some(msg.id);
-                }
-                break;
-            }
+    for location in &deleted.branches {
+        if let Some(branch) = branches
+            .iter_mut()
+            .find(|branch| branch.id == location.branch_id)
+        {
+            restore_message_location(branch, location, deleted.message.id);
         }
     }
     branches
+}
+
+fn restore_message_location(
+    branch: &mut ConversationBranch,
+    location: &DeletedMessageLocation,
+    id: Uuid,
+) {
+    branch.message_ids.insert(location.message_index, id);
+    if location.message_index == branch.message_ids.len() - 1 {
+        branch.leaf_message_id = location.leaf_message_id;
+    }
 }
 
 pub fn add_learning_goal(mut goals: Vec<LearningGoal>, goal: LearningGoal) -> Vec<LearningGoal> {
