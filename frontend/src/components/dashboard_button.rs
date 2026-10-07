@@ -7,27 +7,21 @@ pub struct DashboardButtonProps {
     pub ui_state: UseReducerHandle<UIState>,
 }
 
+fn dashboard_click(ui_state: UseReducerHandle<UIState>) -> Callback<MouseEvent> {
+    Callback::from(move |_| ui_state.dispatch(UIStateAction::ToggleDrawer))
+}
+
 #[function_component(DashboardButton)]
 pub fn dashboard_button(props: &DashboardButtonProps) -> Html {
-    let DashboardButtonProps {
-        app_state,
-        ui_state,
-    } = props;
-
-    if app_state.current_user.is_none() {
+    if props.app_state.current_user.is_none() {
         return html! {};
     }
-
-    let onclick = {
-        let ui_state = ui_state.clone();
-        Callback::from(move |_| ui_state.dispatch(UIStateAction::ToggleDrawer))
-    };
-
+    let onclick = dashboard_click(props.ui_state.clone());
     html! {
         <div class="dashboard-float-container">
-            <button class="btn-dashboard-float" {onclick}>
+            <button class="btn-dashboard-float" aria-label="Dashboard" {onclick}>
                 <span class="dashboard-icon">{"☰"}</span>
-                <span>{"Dashboard"}</span>
+                <span class="dashboard-label">{"Dashboard"}</span>
             </button>
         </div>
     }

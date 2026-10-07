@@ -7,27 +7,24 @@ pub struct NewConversationButtonProps {
     pub session: UseReducerHandle<SessionState>,
 }
 
+fn new_conversation_click(session: UseReducerHandle<SessionState>) -> Callback<MouseEvent> {
+    Callback::from(move |_| {
+        session.dispatch(SessionAction::Domain(UserDomainAction::Branch(
+            BranchAction::CreateNew,
+        )));
+    })
+}
+
 #[function_component(NewConversationButton)]
 pub fn new_conversation_button(props: &NewConversationButtonProps) -> Html {
-    let NewConversationButtonProps { session } = props;
-
-    if session.user.is_none() {
+    if props.session.user.is_none() {
         return html! {};
     }
-
-    let onclick = {
-        let session = session.clone();
-        Callback::from(move |_| {
-            session.dispatch(SessionAction::Domain(UserDomainAction::Branch(
-                BranchAction::CreateNew,
-            )));
-        })
-    };
-
+    let onclick = new_conversation_click(props.session.clone());
     html! {
-        <button class="btn-dashboard-float btn-new-conversation" {onclick}>
+        <button class="btn-dashboard-float btn-new-conversation" aria-label="New Conversation" {onclick}>
             <span class="dashboard-icon">{"\u{2795}"}</span>
-            <span>{"New Conversation"}</span>
+            <span class="dashboard-label">{"New Conversation"}</span>
         </button>
     }
 }

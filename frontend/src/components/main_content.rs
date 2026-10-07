@@ -1,5 +1,5 @@
 use crate::app::app_callbacks::{
-    on_auto_start, on_continue_branch, on_explain_message, on_send_message,
+    on_auto_start, on_continue_branch, on_explain_message, on_send_message, on_signout_click,
 };
 use crate::app::app_helpers::render_message_undo_notification;
 use crate::app::app_state::callbacks::on_replay_message;
@@ -582,6 +582,7 @@ fn render_drawer(ctx: &MainContext, callbacks: &MainCallbacks) -> Html {
                 goal_input_ref={Some(ctx.goal_input_ref.clone())} learning_items={ctx.data.items.clone()} active_branch_dialect={Some(ctx.user.active_branch_dialect())}
                 enrichment_service={app_state.enrichment_service.clone()} plan_service={app_state.plan_service.clone()}
                 on_delete_learning_item={callbacks.learning.delete.clone()} on_undo_delete_learning_item={callbacks.learning.undo.clone()}
+                on_log_out={on_signout_click(app_state.clone(), ctx.props.session.clone(), ui_state.clone())}
                 deleted_learning_items_count={ui_state.deleted_learning_items.len()} />
         </Drawer>
     }

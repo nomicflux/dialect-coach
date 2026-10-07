@@ -332,8 +332,12 @@ pub fn sign_out(app_state: &UseReducerHandle<AppState>, session: &UseReducerHand
 pub fn on_signout_click(
     app_state: UseReducerHandle<AppState>,
     session: UseReducerHandle<SessionState>,
+    ui_state: UseReducerHandle<UIState>,
 ) -> Callback<MouseEvent> {
-    Callback::from(move |_: MouseEvent| sign_out(&app_state, &session))
+    Callback::from(move |_: MouseEvent| {
+        ui_state.dispatch(UIStateAction::SetDrawerOpen(false));
+        sign_out(&app_state, &session);
+    })
 }
 
 pub fn on_auto_start(

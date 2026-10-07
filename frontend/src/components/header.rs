@@ -1,9 +1,11 @@
-use crate::app::app_callbacks::{on_signin_click, on_signout_click};
+use crate::app::app_callbacks::on_signin_click;
 use crate::app::app_state::{
     AppState, AppStateAction, SessionState, UIState, UIStateAction, UserStateGamificationExt,
 };
 use crate::components::gamification::{FluencyBar, StreakDisplay};
+use crate::components::{DashboardButton, NewConversationButton};
 use crate::services::connection::ConnectionStatus;
+use dialect_coach_shared::models::gamification::GamificationStats;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -36,148 +38,149 @@ fn status_display(status: ConnectionStatus) -> (&'static str, &'static str, &'st
     }
 }
 
+#[hook]
+fn use_signin_callback(
+    props: &HeaderProps,
+    username: UseStateHandle<String>,
+    password: UseStateHandle<String>,
+) -> Callback<MouseEvent> {
+    let app_state = props.app_state.clone();
+    let ui_state = props.ui_state.clone();
+    let session = props.session.clone();
+    Callback::from(move |_| {
+        on_signin_click(app_state.clone(), ui_state.clone(), session.clone())
+            .emit(((*username).clone(), (*password).clone()));
+    })
+}
+
+fn render_header_actions(props: &HeaderProps) -> Html {
+    html! {
+        <div class="header-actions">
+            <DashboardButton app_state={props.app_state.clone()} ui_state={props.ui_state.clone()} />
+            <NewConversationButton session={props.session.clone()} />
+        </div>
+    }
+}
+
+fn render_brand(is_visitor: bool) -> Html {
+    html! {
+        <div class="header-brand">
+            <h1 class="app-title">{"🎯 Dialect Coach"}</h1>
+            {if is_visitor {
+                html! { <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p> }
+            } else { html! {} }}
+        </div>
+    }
+}
+
+fn render_status(props: &HeaderProps) -> Html {
+    if props.app_state.current_user.is_none() && !props.ui_state.is_signing_in {
+        return html! {};
+    }
+    let (class, dot, label) = status_display(props.app_state.connection_state);
+    html! {
+        <div class="connection-status">
+            <span class={class} title={label}>
+                <span class="status-dot">{dot}</span>
+                <span class="status-label">{label}</span>
+            </span>
+        </div>
+    }
+}
+
+fn render_signed_in(username: &str, stats: Option<GamificationStats>) -> Html {
+    let badges = stats
+        .map(|stats| {
+            html! {
+                <>
+                    <FluencyBar xp={stats.xp} />
+                    <StreakDisplay current_streak={stats.streak.current_streak} />
+                </>
+            }
+        })
+        .unwrap_or_default();
+    html! {
+        <div class="user-signed-in">
+            {badges}
+            <span class="username" title="Signed in">{username.to_owned()}</span>
+        </div>
+    }
+}
+
+fn input_setter(state: UseStateHandle<String>) -> Callback<InputEvent> {
+    Callback::from(move |e: InputEvent| {
+        if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+            state.set(input.value());
+        }
+    })
+}
+
+fn render_sign_in_form(
+    ui_state: &UseReducerHandle<UIState>,
+    username: &UseStateHandle<String>,
+    password: &UseStateHandle<String>,
+    on_signin: Callback<MouseEvent>,
+) -> Html {
+    html! {
+        <div class="user-forms">
+            {render_create_button(ui_state)}
+            <div class="user-form">
+                <label>{"Sign In"}</label>
+                <input type="text" placeholder="Username" value={(**username).clone()} oninput={input_setter(username.clone())} />
+                <input type="password" placeholder="Password" value={(**password).clone()} oninput={input_setter(password.clone())} />
+                <button onclick={on_signin}>{"Sign In"}</button>
+            </div>
+        </div>
+    }
+}
+
+fn render_error_banner(app_state: &UseReducerHandle<AppState>) -> Html {
+    let Some(err) = app_state.error_message.as_ref() else {
+        return html! {};
+    };
+    let state = app_state.clone();
+    let onclick = Callback::from(move |_: MouseEvent| state.dispatch(AppStateAction::ClearError));
+    html! {
+        <div class="error-banner">
+            <span>{format!("⚠️ {}", err)}</span>
+            <button class="error-close" {onclick}>{"×"}</button>
+        </div>
+    }
+}
+
 #[function_component(Header)]
 pub fn header(props: &HeaderProps) -> Html {
-    let HeaderProps {
-        app_state,
-        ui_state,
-        session,
-    } = props;
-
-    let signin_username = use_state(String::new);
-    let signin_password = use_state(String::new);
-
-    let on_signin = {
-        let app_state = app_state.clone();
-        let ui_state = ui_state.clone();
-        let session = session.clone();
-        let username = signin_username.clone();
-        let password = signin_password.clone();
-        Callback::from(move |_: MouseEvent| {
-            on_signin_click(app_state.clone(), ui_state.clone(), session.clone())
-                .emit(((*username).clone(), (*password).clone()));
-        })
-    };
-
-    // Dot and label are separate nodes so narrow viewports can keep the
-    // state indicator and drop the prose.
-    let (status_class, status_dot, status_label) = status_display(app_state.connection_state);
-
+    let username = use_state(String::new);
+    let password = use_state(String::new);
+    let on_signin = use_signin_callback(props, username.clone(), password.clone());
     html! {
         <header class="app-header">
             <div class="container">
-                // Dashboard button moved to separate component
-                <div class="header-brand">
-                    <h1 class="app-title">{"🎯 Dialect Coach"}</h1>
-                    // The pitch is for visitors deciding whether to sign up; once
-                    // signed in it is a permanent band of dead space above the chat.
-                    {if app_state.current_user.is_none() {
-                        html! { <p class="app-subtitle">{"Practice Spanish, Arabic, and French dialects with AI agents"}</p> }
-                    } else {
-                        html! {}
-                    }}
-                </div>
-
+                {render_header_actions(props)}
+                {render_brand(props.app_state.current_user.is_none())}
                 <div class="user-section">
-                    // Shown while signed in, and while a stored session waits for the
-                    // connection to check it, so the loading screen says why it waits.
-                    {if app_state.current_user.is_some() || ui_state.is_signing_in {
-                        html! {
-                            <div class="connection-status">
-                                <span class={status_class} title={status_label}>
-                                    <span class="status-dot">{status_dot}</span>
-                                    <span class="status-label">{status_label}</span>
-                                </span>
-                            </div>
-                        }
-                    } else {
-                        html! {}
-                    }}
-                    {if let Some(user) = app_state.current_user.as_ref() {
-                        if let Some(stats) = session.user.as_ref().map(|s| s.gamification_stats()) {
-                            html! {
-                                <div class="user-signed-in">
-                                    <FluencyBar xp={stats.xp} />
-                                    <StreakDisplay current_streak={stats.streak.current_streak} />
-                                    <span class="username" title="Signed in">{user.username.clone()}</span>
-                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), session.clone())}>
-                                        {"Sign Out"}
-                                    </button>
-                                </div>
-                            }
-                        } else {
-                             html! {
-                                <div class="user-signed-in">
-                                    <span class="username" title="Signed in">{user.username.clone()}</span>
-                                    <button class="signout-button" onclick={on_signout_click(app_state.clone(), session.clone())}>
-                                        {"Sign Out"}
-                                    </button>
-                                </div>
-                            }
-                        }
-                    } else {
-                        html! {
-                            <div class="user-forms">
-                                {render_create_button(ui_state)}
-                                <div class="user-form">
-                                    <label>{"Sign In"}</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Username"
-                                        value={(*signin_username).clone()}
-                                        oninput={
-                                            let signin_username = signin_username.clone();
-                                            Callback::from(move |e: InputEvent| {
-                                                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                    signin_username.set(input.value());
-                                                }
-                                            })
-                                        }
-                                    />
-                                    <input
-                                        type="password"
-                                        placeholder="Password"
-                                        value={(*signin_password).clone()}
-                                        oninput={
-                                            let signin_password = signin_password.clone();
-                                            Callback::from(move |e: InputEvent| {
-                                                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                    signin_password.set(input.value());
-                                                }
-                                            })
-                                        }
-                                    />
-                                    <button onclick={on_signin}>
-                                        {"Sign In"}
-                                    </button>
-                                </div>
-                            </div>
-                        }
-                    }}
+                    {render_status(props)}
+                    {render_user_account(props, &username, &password, on_signin)}
                 </div>
-
-
-
-                // Error display - shown for both authenticated and unauthenticated states
-                {if let Some(err) = (app_state.error_message).as_ref() {
-                    html! {
-                        <div class="error-banner">
-                            <span>{format!("⚠️ {}", err)}</span>
-                            <button class="error-close" onclick={{
-                                let app_state = app_state.clone();
-                                Callback::from(move |_: MouseEvent| {
-                                    app_state.dispatch(AppStateAction::ClearError);
-                                })
-                            }}>
-                                {"×"}
-                            </button>
-                        </div>
-                    }
-                } else {
-                    html! {}
-                }}
+                {render_error_banner(&props.app_state)}
             </div>
         </header>
+    }
+}
+
+fn render_user_account(
+    props: &HeaderProps,
+    username: &UseStateHandle<String>,
+    password: &UseStateHandle<String>,
+    on_signin: Callback<MouseEvent>,
+) -> Html {
+    if let Some(user) = props.app_state.current_user.as_ref() {
+        render_signed_in(
+            &user.username,
+            props.session.user.as_ref().map(|s| s.gamification_stats()),
+        )
+    } else {
+        render_sign_in_form(&props.ui_state, username, password, on_signin)
     }
 }
 

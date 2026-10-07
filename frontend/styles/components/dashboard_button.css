@@ -1,11 +1,9 @@
-/* Floating Dashboard Button - Glassmorphic Pill */
-.dashboard-float-container {
-    position: fixed;
-    top: var(--s-4);
-    /* Physically below the header bar (approx 64px + gap) */
-    left: var(--s-4);
-    z-index: 1000;
-    /* High z-index to stay above everything */
+/* Header navigation actions */
+.header-actions {
+    grid-area: left;
+    justify-self: start;
+    display: flex;
+    gap: var(--s-2);
 }
 
 .btn-dashboard-float {
@@ -80,40 +78,42 @@
     line-height: 1;
 }
 
-/* Container for both buttons */
-.dashboard-buttons-container {
-    position: fixed;
-    top: var(--s-4);
-    left: var(--s-4);
-    z-index: 1000;
-    display: flex;
-    gap: var(--s-2);
-}
-
-/* Remove position from individual button since container handles it */
-.dashboard-float-container {
-    position: static;
-    z-index: auto;
-}
-
 /* New Conversation button - inherits from btn-dashboard-float */
 .btn-new-conversation {
     /* Uses same base styles via btn-dashboard-float class */
 }
 
-/* Below 900px the fixed pills overlap the header's own controls: they sit in
-   the same 16-58px band as Sign Out and win on z-index, hiding it. The header
-   owns that row, so the pills rejoin the flow underneath it and split the
-   width evenly rather than being pinned left. */
-@media (max-width: 900px) {
-    .dashboard-buttons-container {
-        position: static;
-        padding: var(--s-2) var(--s-3) 0;
+/* Keep the labeled actions and status on one row above the icon breakpoint. */
+@media (min-width: 901px) and (max-width: 1200px) {
+    .app-header .container {
+        grid-template-columns: max-content minmax(0, 1fr) max-content;
+        padding: 0 var(--s-2);
         gap: var(--s-2);
     }
 
+    .app-header .btn-dashboard-float {
+        padding: var(--s-2);
+        white-space: nowrap;
+    }
+
+    .app-header .user-section {
+        gap: var(--s-1);
+        flex-wrap: nowrap;
+    }
+
+    .app-header .user-signed-in {
+        padding: var(--s-1);
+        gap: var(--s-1);
+    }
+}
+
+/* Icons keep the phone header on one row; accessible names stay on the buttons. */
+@media (max-width: 900px) {
+    .dashboard-label {
+        display: none;
+    }
+
     .btn-dashboard-float {
-        flex: 1;
         justify-content: center;
         padding: var(--s-2) var(--s-3);
         white-space: nowrap;

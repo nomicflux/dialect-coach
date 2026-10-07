@@ -6,7 +6,7 @@ Plan: [MOBILE_LAYOUT_PLAN.md](MOBILE_LAYOUT_PLAN.md)
 |---|---|---|---|---|
 | 0 | Plan into the repo; user runs plan validation | Plan saved; user authorized Phase 1 on 2026-10-06 | Plan-validation result not reported | Desktop daily-target visibility clarified in the plan |
 | 1 | Selection action bar | Complete, including subsequently authorized Undo repair | Initial checks: `cargo check`; `cargo test --workspace`: 646 passed, 0 failed, 4 ignored; both clippy gates clean; `bin/startup` rebuilt and served the app. Undo repair checks below. | Fork-specific Undo repaired after user authorization. Android long-press remains pending user confirmation. |
-| 2 | One-row header + Log out in Settings | Not started | — | — |
+| 2 | One-row header + Log out in Settings | Complete; next sign-in check pending user | `cargo check`; `cargo test --workspace`: 652 passed, 0 failed, 4 existing ignored; both clippy gates clean; `bin/startup`; browser checks below | Phone navigation row removed; Account → Log out verified. Phase 3 not started. |
 | 3 | Today's focus always visible, count opens full list, new items pinned | Not started | — | — |
 
 Baseline (2026-10-06): `cargo test --workspace` exit 0, 638 passed, 0 failed, 4 ignored. `cargo clippy -p dialect-coach-frontend --all-targets`: 0 warnings.
@@ -31,3 +31,16 @@ Capture the full message, history position, and each branch membership/position 
 Complete. `cargo check` passed. `cargo test --workspace`: 651 passed, 0 failed, 4 existing ignored tests. `cargo clippy --all` and `cargo clippy -p dialect-coach-frontend --all-targets`: no warnings. Logs: `/private/tmp/dialect-coach-undo-{check,tests-final,clippy,clippy-frontend}.log`.
 
 `bin/startup` rebuilt and served the repair. In a fresh two-message fork, deleted the shared agent message, switched to the original conversation, and clicked Undo. The original six-message conversation and the two-message fork both matched their recorded pre-delete IDs, text, and order exactly. The restored fork also matched after page reload. Phone layout checked at 412×860; screenshots: `/private/tmp/dialect-coach-undo-restored-fork-phone.png` and `/private/tmp/dialect-coach-undo-restored-fork.png`. The temporary viewport override was reset, and the original conversation is active with the drawer closed. Verification created one additional fork; all deleted messages were restored.
+
+## Phase 2
+
+User clarification (conversation context): "Also, to be clear, correcting things out of scope requires discussion; validating that the work you've done landed is just part of the job."
+
+Implement and validate the approved Phase 2 changes through logout. The next sign-in check remains with the user as specified in the plan. Phase 3 requires separate authorization.
+
+- Native gates passed: `cargo check`, `cargo test --workspace`, `cargo clippy --all`, and `cargo clippy -p dialect-coach-frontend --all-targets`. The logout callback comparison regression passed. All new and modified functions are under 20 lines. Logs: `/private/tmp/dialect-coach-phase2-{check,tests,clippy,clippy-frontend}.log`.
+- The required rebuild served the final changes (`/private/tmp/dialect-coach-phase2-startup-verified.log`). At 412×860, the 61.8px header contains the two accessible icon buttons and status/Lvl/streak on one row; the former 50.4px navigation row is gone. Desktop labels remain visible. A check at 901px found wrapping; compact header spacing from 901–1200px fixes it. Final screenshots at 412, 900, 901, 1200, 1201, and 1280px show no overlapping header controls. No Phase 3 focus or flash changes were made.
+- Dashboard and all five drawer tabs work. Settings options, selected values, and checkbox state match their before-change records; Account is the last section. New Conversation creates an empty branch; verification left that branch and returned to the original conversation, whose six message IDs/texts/order match the before-change record. Ctrl+Shift+[ opens and closes the drawer.
+- Dashboard → Settings → Account → Log out returned to the sign-in/Welcome screen with no drawer or chat. No password was entered. The viewport override was reset; the browser remains signed out. The user must confirm that the next sign-in opens the chat with the drawer closed.
+- Screenshots: `/private/tmp/dialect-coach-phase2-phone-header.png`, `desktop-header.png`, `header-{900,901,1200,1201}.png`, `settings-account.png`, `logged-out.png`, and drawer/New Conversation checks, all with the same `dialect-coach-phase2-` prefix.
+- Existing startup warnings remain: deprecated Trunk address configuration, backend image platform mismatch, Redis orphan, Qdrant client/server version warning, and transient WebSocket 502s while the embedding model loads. The existing passive-keyboard-listener warning also appeared; the shortcut still works. No Rust compiler or clippy warnings.
