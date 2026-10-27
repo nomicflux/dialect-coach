@@ -1,3 +1,4 @@
+mod activity;
 mod agents;
 mod errors;
 pub(crate) mod registry;
@@ -144,15 +145,22 @@ async fn answer(body: ClientMessage, state: AppState, tx: Tx) -> Reply {
         ClientMessage::SaveUserState(user_state) => {
             Reply::UserStateSaved(user_state::save(&state, *user_state).await)
         }
-        ClientMessage::Chat(request) => {
-            Reply::Chat(Box::new(agents::answer(&state, request).await))
-        }
+        ClientMessage::Chat(request) => match agents::answer(&state, request).await {
+            Ok(message) => Reply::Chat(Box::new(message)),
+            Err(error) => Reply::Failed(error),
+        },
         ClientMessage::Study(request) => study(request, &state).await,
     }
 }
 
 async fn study(request: StudyRequest, state: &AppState) -> Reply {
     match request {
+        StudyRequest::GenerateActivity(r) => {
+            Reply::ActivityGenerated(activity::generate(state, *r).await)
+        }
+        StudyRequest::EvaluateActivity(r) => {
+            Reply::ActivityEvaluated(activity::evaluate(state, *r).await)
+        }
         StudyRequest::Translate(r) => {
             Reply::Translated(translation_handler::translate(state, r).await)
         }

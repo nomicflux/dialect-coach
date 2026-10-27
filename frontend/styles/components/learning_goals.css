@@ -45,6 +45,11 @@
   color: var(--ink-soft);
 }
 
+textarea.goal-input {
+  min-width: 0;
+  resize: vertical;
+}
+
 .add-button {
   width: 32px;
   height: 32px;

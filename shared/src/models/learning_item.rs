@@ -50,6 +50,8 @@ pub enum LearningItemType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LearningGoal {
+    #[serde(default)]
+    pub completed: Option<bool>,
     pub goal: String,
     pub dialect: Dialect,
 }

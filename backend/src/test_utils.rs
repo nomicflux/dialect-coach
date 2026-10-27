@@ -49,6 +49,7 @@ pub async fn run_self_chat_test(
         conversation_history.push(create_user_rig_message(&current_message));
 
         let params = GenerateResponseParams {
+            activity: None,
             user_message: &current_message,
             dialect: dialect_features(dialect),
             formality,

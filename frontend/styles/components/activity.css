@@ -1,0 +1,12 @@
+.activity-launch { width: 100%; max-width: var(--container-max); margin: 0 auto; padding: var(--s-2) 0; display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.activity-control { width: 100%; max-width: var(--container-max); margin: 0 auto; min-width: 0; border-top: 1px solid var(--border-color, #5555); }
+.activity-row { display: flex; align-items: center; min-height: 44px; gap: .25rem; }
+.activity-row button { min-height: 44px; min-width: 44px; color: inherit; background: transparent; border: 0; cursor: pointer; padding: .5rem; }
+.activity-row button:disabled, .activity-row button[aria-disabled="true"] { opacity: .5; cursor: default; }
+.activity-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
+.activity-title.expanded { white-space: normal; overflow-wrap: anywhere; }
+.activity-count { flex: none; font-size: .875rem; }
+.activity-body { max-height: min(16rem, 30dvh); overflow-y: auto; overflow-wrap: anywhere; padding: 0 .5rem .5rem; }
+.activity-body p { margin: .5rem 0; }
+.activity-stale { opacity: .75; }
+@media (max-width: 640px) { .activity-count-word { display: none; } }

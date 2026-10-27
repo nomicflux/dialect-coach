@@ -1017,3 +1017,222 @@ fn test_update_language_level_action() {
         LanguageLevel::Cefr(CefrLevel::C1)
     );
 }
+
+fn activity_definition() -> dialect_coach_shared::ActivityDefinition {
+    dialect_coach_shared::ActivityDefinition {
+        activity_id: Uuid::new_v4(),
+        title: "Arrange a visit".into(),
+        shared_context: "You are arranging a visit".into(),
+        learner_brief: "Agree on a time".into(),
+        partner_brief: "Only after five".into(),
+        goals: vec![dialect_coach_shared::LearningGoal {
+            goal: "Agree on a time".into(),
+            dialect: Dialect::SpanishArgentinian,
+            completed: None,
+        }],
+    }
+}
+
+#[test]
+fn activity_fork_inherits_message_snapshot_not_later_edits_or_completion() {
+    use super::reducer::{reduce_branch, reduce_learning, reduce_message};
+    let mut state = UserState::new(Uuid::new_v4());
+    let source = state.active_branch_id;
+    let before = state.create_user_msg(Uuid::new_v4(), "Hola");
+    reduce_message(&mut state, MessageAction::Add(before.clone()));
+    let definition = activity_definition();
+    let activity_id = definition.activity_id;
+    reduce_branch(
+        &mut state,
+        BranchAction::ActivityGenerated {
+            branch_id: source,
+            expected_head: Some(before.id),
+            definition,
+        },
+    );
+    let input = state.create_user_msg(Uuid::new_v4(), "A las seis");
+    reduce_message(&mut state, MessageAction::Add(input.clone()));
+    let initial = state.current_activity(source).unwrap().clone();
+    let origin = ReplyOrigin {
+        branch_id: source,
+        dialect: state.current_dialect(),
+        plan_id: None,
+        activity: Some(Box::new(dialect_coach_shared::ActivityContext {
+            branch_id: source,
+            snapshot: initial.clone(),
+            activity_message_ids: vec![input.id],
+        })),
+        checked_head: Some(input.id),
+    };
+    let mut response = dialect_coach_shared::AgentResponse::from("De acuerdo");
+    let mut analysis = dialect_coach_shared::AgentAnalysis::new();
+    analysis.goal_completion = Some(vec![true]);
+    response.analysis = Some(analysis);
+    let reply = Message::agent_message(response, input.metadata.clone(), Some(input.id));
+    reduce_message(
+        &mut state,
+        MessageAction::Reply {
+            message: reply.clone(),
+            origin,
+        },
+    );
+    let achieved = state.current_activity(source).unwrap().clone();
+    reduce_learning(
+        &mut state,
+        LearningAction::UpdateGoal(
+            GoalTarget::Activity {
+                branch_id: source,
+                activity_id,
+            },
+            0,
+            "  Bring a friend\n too  ".into(),
+        ),
+    );
+    assert_eq!(
+        state.current_activity(source).unwrap().definition.goals[0].completed,
+        None
+    );
+    reduce_branch(
+        &mut state,
+        BranchAction::EndActivity {
+            branch_id: source,
+            activity_id,
+        },
+    );
+    let after = state.create_user_msg(Uuid::new_v4(), "Gracias");
+    reduce_message(&mut state, MessageAction::Add(after.clone()));
+    reduce_branch(&mut state, BranchAction::Create(input.id));
+    assert_eq!(
+        state.current_activity(state.active_branch_id),
+        Some(&initial)
+    );
+    assert!(
+        !state
+            .get_active_branch_messages()
+            .iter()
+            .any(|m| m.id == reply.id)
+    );
+    reduce_branch(&mut state, BranchAction::Switch(source));
+    reduce_branch(&mut state, BranchAction::Create(reply.id));
+    assert_eq!(
+        state.current_activity(state.active_branch_id),
+        Some(&achieved)
+    );
+    reduce_branch(&mut state, BranchAction::Switch(source));
+    reduce_branch(&mut state, BranchAction::Create(before.id));
+    assert!(state.current_activity(state.active_branch_id).is_none());
+    reduce_branch(&mut state, BranchAction::Switch(source));
+    reduce_branch(&mut state, BranchAction::Create(after.id));
+    assert!(
+        !state
+            .current_activity(state.active_branch_id)
+            .unwrap()
+            .is_active()
+    );
+    let reloaded: UserState =
+        serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
+    assert_eq!(reloaded.branches, state.branches);
+}
+
+#[test]
+fn activity_edits_and_end_discard_late_completion_but_keep_origin_reply() {
+    use super::reducer::{reduce_branch, reduce_learning, reduce_message};
+    let mut state = UserState::new(Uuid::new_v4());
+    let source = state.active_branch_id;
+    let definition = activity_definition();
+    let activity_id = definition.activity_id;
+    reduce_branch(
+        &mut state,
+        BranchAction::ActivityGenerated {
+            branch_id: source,
+            expected_head: None,
+            definition,
+        },
+    );
+    let input = state.create_user_msg(Uuid::new_v4(), "A las seis");
+    reduce_message(&mut state, MessageAction::Add(input.clone()));
+    let origin = ReplyOrigin {
+        branch_id: source,
+        dialect: Dialect::SpanishMexican,
+        plan_id: None,
+        activity: Some(Box::new(dialect_coach_shared::ActivityContext {
+            branch_id: source,
+            snapshot: state.current_activity(source).unwrap().clone(),
+            activity_message_ids: vec![input.id],
+        })),
+        checked_head: Some(input.id),
+    };
+    reduce_learning(
+        &mut state,
+        LearningAction::UpdateGoal(
+            GoalTarget::Activity {
+                branch_id: source,
+                activity_id,
+            },
+            0,
+            "New exact goal".into(),
+        ),
+    );
+    let edited = state.current_activity(source).unwrap().snapshot_id;
+    let mut analysis = dialect_coach_shared::AgentAnalysis::new();
+    analysis.goal_completion = Some(vec![true]);
+    reduce_branch(
+        &mut state,
+        BranchAction::ActivityChecked {
+            origin: origin.clone(),
+            analysis: analysis.clone(),
+        },
+    );
+    assert_eq!(state.current_activity(source).unwrap().snapshot_id, edited);
+    reduce_branch(
+        &mut state,
+        BranchAction::EndActivity {
+            branch_id: source,
+            activity_id,
+        },
+    );
+    let closed = state.current_activity(source).unwrap().clone();
+    reduce_branch(&mut state, BranchAction::CreateNew);
+    let other = state.active_branch_id;
+    let mut response = dialect_coach_shared::AgentResponse::from("Sí");
+    response.analysis = Some(analysis);
+    response.explained = Some(vec![(
+        dialect_coach_shared::Explained::new("seis".into(), "six".into()),
+        3,
+    )]);
+    let reply = Message::agent_message(response, input.metadata, Some(input.id));
+    reduce_message(
+        &mut state,
+        MessageAction::Reply {
+            message: reply.clone(),
+            origin: origin.clone(),
+        },
+    );
+    assert_eq!(state.active_branch_id, other);
+    assert_eq!(state.current_activity(source), Some(&closed));
+    assert!(state.get_active_branch_messages().is_empty());
+    assert!(
+        state
+            .branches
+            .iter()
+            .find(|b| b.id == source)
+            .unwrap()
+            .message_ids
+            .contains(&reply.id)
+    );
+    assert_eq!(
+        state.learning_items.last().unwrap().dialect,
+        Dialect::SpanishMexican
+    );
+    assert!(state.learning_goals.is_empty());
+    reduce_branch(&mut state, BranchAction::Delete(source));
+    let count = state.conversation_history.len();
+    reduce_message(
+        &mut state,
+        MessageAction::Reply {
+            message: reply,
+            origin,
+        },
+    );
+    assert_eq!(state.conversation_history.len(), count);
+}

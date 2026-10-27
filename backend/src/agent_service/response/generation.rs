@@ -523,6 +523,7 @@ async fn prepare_generation_context(
         params.language_option,
         &params.active_plan,
         params.language_level,
+        params.activity,
     );
     tracing::debug!("System content sent to Claude:\n{}", system_content);
     let history_with_prefill = build_conversation_history_with_examples(

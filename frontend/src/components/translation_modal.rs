@@ -1,4 +1,5 @@
 use dialect_coach_shared::models::{GrammarExplanation, PhraseTranslation};
+use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
 #[derive(Clone, PartialEq)]
@@ -17,6 +18,26 @@ pub struct SelectionModalProps {
 
 #[function_component(SelectionModal)]
 pub fn selection_modal(props: &SelectionModalProps) -> Html {
+    let panel = use_node_ref();
+    let close_button = use_node_ref();
+    {
+        let close_button = close_button.clone();
+        use_effect_with((), move |_| {
+            let previous = gloo::utils::document().active_element();
+            if let Some(button) = close_button.cast::<web_sys::HtmlElement>() {
+                let _ = button.focus();
+            }
+            move || {
+                if let Some(previous) = previous
+                    .filter(|e| e.is_connected())
+                    .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+                {
+                    let _ = previous.focus();
+                }
+            }
+        });
+    }
+    let onkeydown = super::drawer::dialog_keydown(panel.clone(), props.on_close.clone(), true);
     let on_backdrop_click = {
         let on_close = props.on_close.clone();
         Callback::from(move |_| on_close.emit(()))
@@ -28,10 +49,10 @@ pub fn selection_modal(props: &SelectionModalProps) -> Html {
 
     html! {
         <div class="modal-overlay" onclick={on_backdrop_click}>
-            <div class="modal-container" onclick={on_modal_click}>
+            <div ref={panel} class="modal-container" role="dialog" aria-modal="true" aria-label={get_modal_title(&props.result)} {onkeydown} onclick={on_modal_click}>
                 <div class="modal-header">
                     <h3>{get_modal_title(&props.result)}</h3>
-                    <button class="modal-close" onclick={props.on_close.reform(|_| ())}>
+                    <button ref={close_button} type="button" aria-label="Close lookup" class="modal-close" onclick={props.on_close.reform(|_| ())}>
                         {"×"}
                     </button>
                 </div>

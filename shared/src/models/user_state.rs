@@ -383,6 +383,8 @@ impl UserState {
         let settings = self.active_branch_settings();
         let past_items = self.get_past_learning_items(&dialect);
         ConversationContext {
+            branch_id: Some(self.active_branch_id),
+            activity: self.activity_context(self.active_branch_id, &context_messages),
             active_plan: self.active_plan(),
             learning_goals: self
                 .get_learning_goals_for_dialect(&dialect)

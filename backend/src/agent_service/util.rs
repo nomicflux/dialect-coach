@@ -10,6 +10,13 @@ pub const JSON_OUTPUT_INSTRUCTION: &str =
 pub const YAML_OUTPUT_INSTRUCTION: &str = "Return raw YAML only. No markdown code blocks.";
 
 pub fn learning_goals_section(goals: &[dialect_coach_shared::LearningGoal]) -> String {
+    learning_goals_section_for_activity(goals, false)
+}
+
+pub fn learning_goals_section_for_activity(
+    goals: &[dialect_coach_shared::LearningGoal],
+    activity: bool,
+) -> String {
     if goals.is_empty() {
         return String::new();
     }
@@ -20,7 +27,12 @@ pub fn learning_goals_section(goals: &[dialect_coach_shared::LearningGoal]) -> S
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        "\n\n# LEARNING GOALS\n## Your responses MUST embody these goals in how you speak. Have a genuine, natural conversation as a friend would - do NOT engineer situations, ask artificial questions, or try to elicit specific language from the user. Simply speak naturally in a way that aligns with these goals.\n{}\n",
+        "\n\n# LEARNING GOALS\n## Your responses MUST embody these goals in how you speak. {} Simply speak naturally in a way that aligns with these goals.\n{}\n",
+        if activity {
+            "Speak naturally within the active activity situation."
+        } else {
+            "Have a genuine, natural conversation as a friend would - do NOT engineer situations, ask artificial questions, or try to elicit specific language from the user."
+        },
         goals_list
     )
 }

@@ -1,3 +1,4 @@
+pub mod activity_control;
 pub mod branch_switcher_pill;
 pub mod chat_window;
 pub mod dashboard_button;

@@ -17,8 +17,9 @@ pub enum UserStateVersion {
     V2ScoredItems,
     V3LanguageLevels,
     V4BranchSettings,
-    #[default]
     V5PronunciationText,
+    #[default]
+    V6BranchActivities,
 }
 
 pub type UserStateV1 = UserState;
@@ -31,7 +32,7 @@ pub struct UserV1Data {
 }
 
 pub const CURRENT_USER_VERSION: UserVersion = UserVersion::V2Admin;
-pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V5PronunciationText;
+pub const CURRENT_USER_STATE_VERSION: UserStateVersion = UserStateVersion::V6BranchActivities;
 
 /// Generic wrapper for versioned data stored in sled
 /// Stores the version enum and raw JSON data separately.
@@ -93,6 +94,12 @@ pub const USER_STATE_MIGRATIONS: &[UserStateMigrationStep] = &[
         to: UserStateVersion::V5PronunciationText,
         forward: v4_to_v5_forward,
         backward: v4_to_v5_backward,
+    },
+    UserStateMigrationStep {
+        from: UserStateVersion::V5PronunciationText,
+        to: UserStateVersion::V6BranchActivities,
+        forward: v5_to_v6_forward,
+        backward: v5_to_v6_backward,
     },
 ];
 
@@ -520,6 +527,47 @@ pub fn migrate_user_to_current(from_version: UserVersion, data: serde_json::Valu
     }
 }
 
+fn v5_to_v6_forward(data: serde_json::Value) -> serde_json::Value {
+    data
+}
+
+fn v5_to_v6_backward(mut data: serde_json::Value) -> serde_json::Value {
+    if let Some(branches) = data.get_mut("branches").and_then(|v| v.as_array_mut()) {
+        for branch in branches {
+            if let Some(object) = branch.as_object_mut() {
+                object.remove("activity_snapshots");
+            }
+        }
+    }
+    if let Some(goals) = data
+        .get_mut("learning_goals")
+        .and_then(|v| v.as_array_mut())
+    {
+        for goal in goals {
+            if let Some(object) = goal.as_object_mut() {
+                object.remove("completed");
+            }
+        }
+    }
+    if let Some(messages) = data
+        .get_mut("conversation_history")
+        .and_then(|v| v.as_array_mut())
+    {
+        for message in messages {
+            if let Some(object) = message.as_object_mut() {
+                object.remove("activity_snapshot_id");
+            }
+            if let Some(analysis) = message
+                .pointer_mut("/content/AgentMessage/content/analysis")
+                .and_then(|v| v.as_object_mut())
+            {
+                analysis.remove("goal_completion");
+            }
+        }
+    }
+    data
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -533,7 +581,7 @@ mod tests {
     fn test_user_state_version_default() {
         assert_eq!(
             UserStateVersion::default(),
-            UserStateVersion::V5PronunciationText
+            UserStateVersion::V6BranchActivities
         );
     }
 
@@ -567,7 +615,7 @@ mod tests {
         let data = serde_json::json!({"user_id": "test-id", "learning_items": []});
         let versioned = VersionedData::<UserStateVersion>::new(data.clone());
 
-        assert_eq!(versioned.version, UserStateVersion::V5PronunciationText);
+        assert_eq!(versioned.version, UserStateVersion::V6BranchActivities);
         assert_eq!(versioned.data, data);
     }
 
@@ -1470,5 +1518,40 @@ mod tests {
             ["content"];
         assert!(agent_content.get("pronunciation_text").is_none());
         assert_eq!(agent_content["response"], "Hello");
+    }
+}
+
+#[cfg(test)]
+mod activity_migration_tests {
+    use super::*;
+    #[test]
+    fn backward_migration_removes_activity_from_every_stored_owner() {
+        let data = serde_json::json!({
+            "branches": [{"activity_snapshots": [{"definition": {"partner_brief": "private"}}]}],
+            "learning_goals": [{"goal": "Talk", "completed": true}],
+            "conversation_history": [{"activity_snapshot_id": "id", "content": {"AgentMessage": {"content": {"analysis": {"goal_completion": [true], "mistake_scores": {}}}}}}]
+        });
+        let stripped = v5_to_v6_backward(data);
+        assert!(stripped["branches"][0].get("activity_snapshots").is_none());
+        assert!(stripped["learning_goals"][0].get("completed").is_none());
+        assert!(
+            stripped["conversation_history"][0]
+                .get("activity_snapshot_id")
+                .is_none()
+        );
+        assert!(
+            stripped
+                .pointer(
+                    "/conversation_history/0/content/AgentMessage/content/analysis/goal_completion"
+                )
+                .is_none()
+        );
+        assert!(
+            stripped
+                .pointer(
+                    "/conversation_history/0/content/AgentMessage/content/analysis/mistake_scores"
+                )
+                .is_some()
+        );
     }
 }

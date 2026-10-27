@@ -43,6 +43,10 @@ impl MessageContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConversationContext {
+    #[serde(default)]
+    pub branch_id: Option<Uuid>,
+    #[serde(default)]
+    pub activity: Option<super::ActivityContext>,
     pub active_plan: Option<super::LanguagePlan>,
     pub learning_goals: Vec<super::LearningGoal>,
     pub past_mistakes: Vec<super::Mistake>,
@@ -60,6 +64,9 @@ pub struct ConversationContext {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AIActionRequest {
+    StartActivity {
+        context: Box<ConversationContext>,
+    },
     StartConversation {
         context: Box<ConversationContext>,
     },
@@ -125,6 +132,8 @@ pub struct GrammarExplanation {
 /// A message in a chat session
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Message {
+    #[serde(default)]
+    pub activity_snapshot_id: Option<Uuid>,
     pub id: Uuid,
     pub parent_id: Option<Uuid>,
     pub metadata: MessageMetadata,
@@ -192,6 +201,7 @@ impl Message {
         parent_id: Option<Uuid>,
     ) -> Self {
         Self {
+            activity_snapshot_id: None,
             id: Uuid::new_v4(),
             content: MessageContent::UserMessage { content },
             metadata,
@@ -205,6 +215,7 @@ impl Message {
         parent_id: Option<Uuid>,
     ) -> Self {
         Self {
+            activity_snapshot_id: None,
             id: Uuid::new_v4(),
             content: MessageContent::AgentMessage {
                 content: Box::new(content),
@@ -247,6 +258,8 @@ use super::LanguagePlan;
 /// User message with past learning items for context
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserMessageWithContext {
+    #[serde(default)]
+    pub activity: Option<super::ActivityContext>,
     pub user_id: Uuid,
     pub message: Message,
     pub past_mistakes: Vec<Mistake>,
@@ -263,6 +276,7 @@ pub struct UserMessageWithContext {
 }
 
 pub struct UserMessageWithContextBuilder {
+    activity: Option<super::ActivityContext>,
     user_id: Uuid,
     message: Message,
     past_learning_items: PastLearningItems,
@@ -280,6 +294,7 @@ impl UserMessageWithContextBuilder {
         Self {
             user_id,
             message,
+            activity: None,
             past_learning_items: PastLearningItems::default(),
             active_branch_id: Uuid::nil(),
             active_plan: None,
@@ -289,6 +304,11 @@ impl UserMessageWithContextBuilder {
             language_option: None,
             language_level: super::LanguageLevel::default(),
         }
+    }
+
+    pub fn activity(mut self, activity: Option<super::ActivityContext>) -> Self {
+        self.activity = activity;
+        self
     }
 
     pub fn past_learning_items(mut self, items: PastLearningItems) -> Self {
@@ -333,6 +353,7 @@ impl UserMessageWithContextBuilder {
 
     pub fn build(self) -> UserMessageWithContext {
         UserMessageWithContext {
+            activity: self.activity,
             user_id: self.user_id,
             message: self.message,
             past_mistakes: self.past_learning_items.mistakes,
@@ -606,6 +627,8 @@ mod tests {
     #[test]
     fn test_ai_action_request_serialization() {
         let context = ConversationContext {
+            branch_id: None,
+            activity: None,
             active_plan: None,
             learning_goals: vec![],
             past_mistakes: vec![],

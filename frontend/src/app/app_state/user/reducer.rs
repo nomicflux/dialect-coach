@@ -11,20 +11,40 @@ pub(crate) fn reduce_message(next: &mut UserState, action: MessageAction) {
     use std::sync::Arc;
     match action {
         Add(msg) => add_message(next, msg),
+        Reply { message, origin } => apply_reply(next, message, origin),
         Delete(id) => {
             next.conversation_history =
                 Arc::new(delete_message((*next.conversation_history).clone(), id));
+            invalidate_message_activities(next, id);
             next.branches = Arc::new(remove_message_from_branches((*next.branches).clone(), id));
         }
-        UndoDelete(deleted) => restore_deleted_message(next, &deleted),
+        UndoDelete(deleted) => {
+            restore_deleted_message(next, &deleted);
+            invalidate_message_activities(next, deleted.message.id);
+        }
     }
 }
 
-fn add_message(next: &mut UserState, mut msg: dialect_coach_shared::Message) {
+fn add_message(next: &mut UserState, msg: dialect_coach_shared::Message) {
+    add_message_to_branch(next, msg, next.active_branch_id);
+}
+
+fn add_message_to_branch(
+    next: &mut UserState,
+    mut msg: dialect_coach_shared::Message,
+    branch_id: uuid::Uuid,
+) {
     use std::sync::Arc;
     let branch = Arc::make_mut(&mut next.branches)
         .iter_mut()
-        .find(|b| b.id == next.active_branch_id);
+        .find(|b| b.id == branch_id);
+    if branch.is_none() {
+        return;
+    }
+    msg.activity_snapshot_id = branch
+        .as_ref()
+        .and_then(|b| b.activity_snapshots.last())
+        .map(|s| s.snapshot_id);
     msg.parent_id = branch.as_ref().and_then(|b| b.leaf_message_id);
     let new_msg_id = msg.id;
     Arc::make_mut(&mut next.conversation_history).push(msg);
@@ -44,11 +64,24 @@ fn restore_deleted_message(next: &mut UserState, deleted: &super::actions::Delet
 }
 
 pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
+    reduce_learning_at(
+        next,
+        action,
+        next.active_branch_dialect(),
+        next.active_branch_plan_id(),
+    );
+}
+
+fn reduce_learning_at(
+    next: &mut UserState,
+    action: LearningAction,
+    dialect: dialect_coach_shared::Dialect,
+    plan_id: Option<uuid::Uuid>,
+) {
     use LearningAction::*;
     use std::sync::Arc;
     match action {
         AddItems(mistakes, explained, translated, exploratory) => {
-            let dialect = next.active_branch_dialect();
             next.learning_items = Arc::new(add_learning_items_to_vec(
                 (*next.learning_items).clone(),
                 mistakes,
@@ -63,8 +96,8 @@ pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
                 (*next.learning_items).clone(),
                 &analysis,
             ));
-            promote_plan_items(next, &analysis);
-            check_step_completion(next);
+            promote_plan_items(next, &analysis, plan_id);
+            check_step_completion(next, plan_id);
         }
         DeleteItem(id) => {
             next.learning_items =
@@ -76,18 +109,26 @@ pub(crate) fn reduce_learning(next: &mut UserState, action: LearningAction) {
                 item,
             ));
         }
-        AddGoal(goal_text) => {
-            let dialect = next.active_branch_dialect();
-            let goal = LearningGoal {
-                goal: goal_text,
-                dialect,
-            };
-            next.learning_goals = Arc::new(add_learning_goal((*next.learning_goals).clone(), goal));
-        }
-        DeleteGoal(index) => {
-            next.learning_goals =
-                Arc::new(delete_learning_goal((*next.learning_goals).clone(), index));
-        }
+        AddGoal(target, text) => edit_goals(next, target, |goals, dialect| {
+            *goals = add_learning_goal(
+                std::mem::take(goals),
+                LearningGoal {
+                    goal: text,
+                    dialect,
+                    completed: None,
+                },
+            );
+        }),
+        DeleteGoal(target, index) => edit_goals(next, target, |goals, _| {
+            if index < goals.len() {
+                *goals = delete_learning_goal(std::mem::take(goals), index);
+            }
+        }),
+        UpdateGoal(target, index, text) => edit_goals(next, target, |goals, _| {
+            if let Some(goal) = goals.get_mut(index) {
+                goal.goal = text;
+            }
+        }),
     }
 }
 
@@ -95,6 +136,47 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
     use BranchAction::*;
     use std::sync::Arc;
     match action {
+        ActivityGenerated {
+            branch_id,
+            expected_head,
+            definition,
+        } => {
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == branch_id)
+                && branch.leaf_message_id == expected_head
+                && !branch
+                    .activity_snapshots
+                    .last()
+                    .is_some_and(|s| s.is_active())
+            {
+                branch
+                    .activity_snapshots
+                    .push(dialect_coach_shared::ActivitySnapshot::new(definition));
+            }
+        }
+        ActivityChecked { origin, analysis } => {
+            apply_activity_check(next, &origin, analysis.goal_completion.as_deref());
+        }
+        EndActivity {
+            branch_id,
+            activity_id,
+        } => {
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == branch_id)
+                && let Some(current) = branch.activity_snapshots.last()
+                && current.is_active()
+                && current.definition.activity_id == activity_id
+            {
+                let mut closed = current.clone();
+                closed.snapshot_id = uuid::Uuid::new_v4();
+                closed.lifecycle = dialect_coach_shared::ActivityLifecycle::Closed {
+                    closed_at: chrono::Utc::now(),
+                };
+                branch.activity_snapshots.push(closed);
+            }
+        }
         Create(message_id) => {
             // Get parent branch settings before mutable borrow
             let parent_settings = next
@@ -128,7 +210,7 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 .collect();
             let plan_id = next.active_branch_plan_id();
             // Inherit settings from parent branch
-            let new_branch = ConversationBranch::new(
+            let mut new_branch = ConversationBranch::new(
                 Some(message_id),
                 None,
                 Some(message_id),
@@ -137,6 +219,19 @@ pub(crate) fn reduce_branch(next: &mut UserState, action: BranchAction) {
                 plan_id,
                 parent_settings,
             );
+            if let Some(message) = next
+                .conversation_history
+                .iter()
+                .find(|m| m.id == message_id)
+                && let Some(snapshot_id) = message.activity_snapshot_id
+                && let Some(parent) = next.branches.iter().find(|b| b.id == next.active_branch_id)
+                && let Some(index) = parent
+                    .activity_snapshots
+                    .iter()
+                    .position(|s| s.snapshot_id == snapshot_id)
+            {
+                new_branch.activity_snapshots = parent.activity_snapshots[..=index].to_vec();
+            }
             let new_branch_id = new_branch.id;
             Arc::make_mut(&mut next.branches).push(new_branch);
             next.active_branch_id = new_branch_id;
@@ -390,9 +485,12 @@ pub(crate) fn apply_user_state_action(state: &UserState, action: UserStateAction
     next
 }
 
-fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
+fn promote_plan_items(
+    state: &mut UserState,
+    analysis: &AgentAnalysis,
+    plan_id: Option<uuid::Uuid>,
+) {
     use std::sync::Arc;
-    let plan_id = state.active_branch_plan_id();
     if let Some(plan) = state.language_plans.iter().find(|p| Some(p.id) == plan_id)
         && let Some(step) = plan.steps.get(plan.current_step_index)
         && let dialect_coach_shared::StepType::Learning { content } = &step.step_type
@@ -411,9 +509,8 @@ fn promote_plan_items(state: &mut UserState, analysis: &AgentAnalysis) {
     }
 }
 
-fn check_step_completion(state: &mut UserState) {
+fn check_step_completion(state: &mut UserState, plan_id: Option<uuid::Uuid>) {
     use std::sync::Arc;
-    let plan_id = state.active_branch_plan_id();
     if let Some(plan) = Arc::make_mut(&mut state.language_plans)
         .iter_mut()
         .find(|p| Some(p.id) == plan_id)
@@ -458,6 +555,123 @@ fn activate_step_items(state: &mut UserState, plan_id: uuid::Uuid) {
         // Update plan status
         if plan.status == dialect_coach_shared::models::PlanStatus::NotStarted {
             plan.start();
+        }
+    }
+}
+
+fn edit_goals(
+    next: &mut UserState,
+    target: super::actions::GoalTarget,
+    edit: impl FnOnce(&mut Vec<LearningGoal>, dialect_coach_shared::Dialect),
+) {
+    use super::actions::GoalTarget;
+    use std::sync::Arc;
+    match target {
+        GoalTarget::Dialect => {
+            let dialect = next.active_branch_dialect();
+            edit(Arc::make_mut(&mut next.learning_goals), dialect);
+        }
+        GoalTarget::Activity {
+            branch_id,
+            activity_id,
+        } => {
+            if let Some(branch) = Arc::make_mut(&mut next.branches)
+                .iter_mut()
+                .find(|b| b.id == branch_id)
+                && let Some(current) = branch.activity_snapshots.last()
+                && current.is_active()
+                && current.definition.activity_id == activity_id
+            {
+                let mut snapshot = current.unchecked();
+                edit(&mut snapshot.definition.goals, branch.dialect);
+                branch.activity_snapshots.push(snapshot);
+            }
+        }
+    }
+}
+
+fn apply_activity_check(
+    next: &mut UserState,
+    origin: &super::actions::ReplyOrigin,
+    completion: Option<&[bool]>,
+) {
+    use std::sync::Arc;
+    let (Some(expected), Some(completion)) = (&origin.activity, completion) else {
+        return;
+    };
+    let Some(branch) = Arc::make_mut(&mut next.branches)
+        .iter_mut()
+        .find(|b| b.id == origin.branch_id)
+    else {
+        return;
+    };
+    let Some(current) = branch.activity_snapshots.last() else {
+        return;
+    };
+    if !current.is_active()
+        || current.snapshot_id != expected.snapshot.snapshot_id
+        || current.definition.goals.len() != completion.len()
+        || origin
+            .checked_head
+            .is_some_and(|id| !branch.message_ids.contains(&id))
+    {
+        return;
+    }
+    let mut snapshot = current.clone();
+    snapshot.snapshot_id = uuid::Uuid::new_v4();
+    snapshot.last_checked_message_id = origin.checked_head;
+    for (goal, done) in snapshot.definition.goals.iter_mut().zip(completion) {
+        goal.completed = Some(*done && !goal.goal.trim().is_empty());
+    }
+    branch.activity_snapshots.push(snapshot);
+}
+
+fn apply_reply(
+    next: &mut UserState,
+    message: dialect_coach_shared::Message,
+    origin: super::actions::ReplyOrigin,
+) {
+    if !next.branches.iter().any(|b| b.id == origin.branch_id) {
+        return;
+    }
+    if let dialect_coach_shared::MessageContent::AgentMessage { content } = &message.content {
+        reduce_learning_at(
+            next,
+            LearningAction::AddItems(
+                content.mistakes.clone().unwrap_or_default(),
+                content.explained.clone().unwrap_or_default(),
+                content.translated.clone().unwrap_or_default(),
+                content.exploratory.clone().unwrap_or_default(),
+            ),
+            origin.dialect,
+            origin.plan_id,
+        );
+        if let Some(analysis) = &content.analysis {
+            if !analysis.mistake_scores.is_empty()
+                || !analysis.explained_scores.is_empty()
+                || !analysis.translated_scores.is_empty()
+                || !analysis.exploratory_scores.is_empty()
+            {
+                reduce_learning_at(
+                    next,
+                    LearningAction::UpdateScores(analysis.clone()),
+                    origin.dialect,
+                    origin.plan_id,
+                );
+            }
+            apply_activity_check(next, &origin, analysis.goal_completion.as_deref());
+        }
+    }
+    add_message_to_branch(next, message, origin.branch_id);
+}
+
+fn invalidate_message_activities(next: &mut UserState, id: uuid::Uuid) {
+    for branch in std::sync::Arc::make_mut(&mut next.branches)
+        .iter_mut()
+        .filter(|b| b.message_ids.contains(&id))
+    {
+        if let Some(current) = branch.activity_snapshots.last().filter(|s| s.is_active()) {
+            branch.activity_snapshots.push(current.unchecked());
         }
     }
 }

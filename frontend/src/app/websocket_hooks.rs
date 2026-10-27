@@ -1,12 +1,10 @@
-use crate::app::app_callbacks::{
-    add_message, on_signin_response, restore_outbox, sign_out, signed_in,
-};
+use crate::app::app_callbacks::{on_signin_response, restore_outbox, sign_out, signed_in};
 use crate::app::app_state::callbacks::{
     on_user_state_usage_stats_update, on_user_state_ws_open, report_unkept,
 };
 use crate::app::app_state::user::UserDomainAction;
 use crate::app::app_state::{
-    AppState, AppStateAction, LearningAction, SessionAction, SessionState, UIState, UIStateAction,
+    AppState, AppStateAction, SessionAction, SessionState, UIState, UIStateAction,
 };
 use crate::services::connection::{ConnectionEvents, RequestError};
 use crate::services::persistence;
@@ -57,59 +55,26 @@ fn check_rate_limit_error(error_text: &str, app_state: &UseReducerHandle<AppStat
 /// Apply the coach's reply: rate limits, autoplay, learning items, analysis, and the message itself.
 pub fn apply_chat_reply(
     msg: Message,
+    origin: crate::app::app_state::user::ReplyOrigin,
     app_state: &UseReducerHandle<AppState>,
     session: &UseReducerHandle<SessionState>,
     ui_state: &UseReducerHandle<UIState>,
 ) {
     if let MessageContent::AgentMessage { content } = &msg.content {
         check_rate_limit_error(&content.response, app_state);
-        // Dispatch to AppState for autoplay check (reads from AppState's own state)
-        app_state.dispatch(AppStateAction::ProcessAgentMessage(msg.clone()));
-        apply_learning_items(content, session, ui_state);
-        apply_analysis(content, session);
+        let items = build_flash_items(content, origin.dialect);
+        ui_state.dispatch(UIStateAction::ReplyEffects(
+            origin.branch_id,
+            msg.clone(),
+            items,
+        ));
     }
-    session.dispatch(add_message(msg));
-}
-
-fn apply_learning_items(
-    content: &AgentResponse,
-    session: &UseReducerHandle<SessionState>,
-    ui_state: &UseReducerHandle<UIState>,
-) {
-    // Learning items belong to a signed-in user's state.
-    let Some(user) = session.user.as_ref() else {
-        return;
-    };
-    let flash_items = build_flash_items(content, user.active_branch_dialect());
-    if flash_items.is_empty() {
-        return;
-    }
-    ui_state.dispatch(UIStateAction::QueueFlashItems(flash_items));
-    session.dispatch(add_learning_items(content));
-}
-
-fn add_learning_items(content: &AgentResponse) -> SessionAction {
-    SessionAction::Domain(UserDomainAction::Learning(LearningAction::AddItems(
-        content.mistakes.clone().unwrap_or_default(),
-        content.explained.clone().unwrap_or_default(),
-        content.translated.clone().unwrap_or_default(),
-        content.exploratory.clone().unwrap_or_default(),
-    )))
-}
-
-fn apply_analysis(content: &AgentResponse, session: &UseReducerHandle<SessionState>) {
-    if let Some(analysis) = content.analysis.clone() {
-        info!(
-            "Received analysis with {} mistake scores, {} explained scores, {} translated scores, {} exploratory scores",
-            analysis.mistake_scores.len(),
-            analysis.explained_scores.len(),
-            analysis.translated_scores.len(),
-            analysis.exploratory_scores.len()
-        );
-        session.dispatch(SessionAction::Domain(UserDomainAction::Learning(
-            LearningAction::UpdateScores(analysis),
-        )));
-    }
+    session.dispatch(SessionAction::Domain(UserDomainAction::Message(
+        crate::app::app_state::MessageAction::Reply {
+            message: msg,
+            origin,
+        },
+    )));
 }
 
 /// The notice for requests lost while the connection was down.

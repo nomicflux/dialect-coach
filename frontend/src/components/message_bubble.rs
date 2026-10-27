@@ -53,21 +53,11 @@ fn render_replay_button(on_replay: &Option<Callback<Message>>, msg: &Message) ->
     }
 }
 
-fn get_css_classes(is_own: bool) -> (&'static str, &'static str, &'static str, &'static str) {
+fn get_css_classes(is_own: bool) -> (&'static str, &'static str) {
     if is_own {
-        (
-            "message message--user",
-            "avatar avatar--user",
-            "bubble bubble--user",
-            "U",
-        )
+        ("message message--user", "bubble bubble--user")
     } else {
-        (
-            "message message--bot",
-            "avatar avatar--bot",
-            "bubble bubble--bot",
-            "🤖",
-        )
+        ("message message--bot", "bubble bubble--bot")
     }
 }
 
@@ -157,8 +147,7 @@ fn render_bubble(props: &MessageBubbleProps, bubble_class: &str) -> Html {
 
 #[function_component(MessageBubble)]
 pub fn message_bubble(props: &MessageBubbleProps) -> Html {
-    let (msg_class, avatar_class, bubble_class, avatar_text) =
-        get_css_classes(props.is_own_message);
+    let (msg_class, bubble_class) = get_css_classes(props.is_own_message);
     let wrapper_class = if props.is_own_message {
         "message-wrapper message-wrapper--user"
     } else {
@@ -167,7 +156,6 @@ pub fn message_bubble(props: &MessageBubbleProps) -> Html {
     html! {
         <div class={wrapper_class} style="position: relative; width: 100%;">
             <div class={msg_class}>
-                <div class={avatar_class}>{avatar_text}</div>
                 {render_bubble(props, bubble_class)}
             </div>
         </div>

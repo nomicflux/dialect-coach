@@ -75,6 +75,8 @@ pub enum StudyRequest {
     Grammar(GrammarRequest),
     Enrich(EnrichRequest),
     GeneratePlan(PlanRequest),
+    GenerateActivity(Box<super::GenerateActivityRequest>),
+    EvaluateActivity(Box<super::EvaluateActivityRequest>),
     Synthesize(TtsRequest),
 }
 
@@ -123,6 +125,8 @@ pub enum ServerMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Reply {
+    ActivityGenerated(Result<super::ActivityDefinition, String>),
+    ActivityEvaluated(Result<super::AgentAnalysis, String>),
     /// Answers SignIn, CreateUser and ValidateSession.
     SignedIn(Box<SignInResult>),
     /// Renewed token and current usage.

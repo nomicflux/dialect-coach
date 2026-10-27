@@ -34,18 +34,27 @@ Do NOT acknowledge or point out your errors. Speak as if they are natural (the u
 If the user corrects your error, respond positively and encouragingly.
 Never reveal you are making intentional errors. Keep responses brief."#;
 
-const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Beginner): CRITICAL: You are strictly limited to A1 (Beginner) grammar. Do NOT use idiomatic expressions. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, short, predictable sentence structures only.";
-const LEVEL_A2: &str = "LANGUAGE LEVEL A2 (Elementary): CRITICAL: Strictly limited to A2 (Elementary). Do NOT use rare vocabulary. Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct.";
-const LEVEL_B1: &str = "LANGUAGE LEVEL B1 (Intermediate): CRITICAL: Limited to B1 (Intermediate). Do NOT use complex literary structures. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech.";
-const LEVEL_B2: &str = "LANGUAGE LEVEL B2 (Upper Intermediate): CRITICAL: Limited to B2 (Upper Intermediate). Speak as if you are talking to a high school exchange student. Natural speed is okay, but avoid obscure cultural references.";
-const LEVEL_C1: &str = "LANGUAGE LEVEL C1 (Advanced): CRITICAL: C1 (Advanced). Speak as if to a university colleague. Full complexity is expected.";
-const LEVEL_C2: &str = "LANGUAGE LEVEL C2 (Proficient): CRITICAL: C2 (Proficient). No grammatical restrictions. Speak as if to a native peer with a high level of education.";
+// Adapted from the Council of Europe's CEFR global scale and Companion Volume (2020),
+// especially overall oral interaction and goal-oriented co-operation (pp. 72, 77):
+// https://www.coe.int/en/web/common-european-framework-reference-languages/table-1-cefr-3.3-common-reference-levels-global-scale
+// https://rm.coe.int/cefr-companion-volume-with-new-descriptors-2020/16809ea0d4
+const LEVEL_A1: &str = "LANGUAGE LEVEL A1 (Basic user): Use familiar phrases for concrete needs and personal details. Keep questions and statements simple; repeat or rephrase when needed. Support the exchange without assuming the learner can sustain it independently.";
+const LEVEL_A2: &str = "LANGUAGE LEVEL A2 (Basic user): Use common expressions for familiar routines, needs and short social exchanges. Support straightforward information exchange, simple descriptions and practical suggestions. Keep the situation clear and help sustain the conversation.";
+const LEVEL_B1: &str = "LANGUAGE LEVEL B1 (Independent user): Use clear, connected language about familiar interests, experiences and plans. Allow opinions with brief reasons, comparisons and explanations of practical problems. Rephrase unfamiliar expressions when needed.";
+const LEVEL_B2: &str = "LANGUAGE LEVEL B2 (Independent user): Support spontaneous discussion of concrete and abstract topics, detailed explanations and reasoned viewpoints with trade-offs. Use varied language while keeping the argument clear; adapt specialist vocabulary to the topic and learner.";
+const LEVEL_C1: &str = "LANGUAGE LEVEL C1 (Proficient user): Allow complex topics, implicit meaning and flexible social or professional expression. Use precise vocabulary and well-connected arguments. Match complexity to the conversation rather than making every reply elaborate.";
+const LEVEL_C2: &str = "LANGUAGE LEVEL C2 (Proficient user): Allow fine distinctions of meaning, idiomatic expression and precise reformulation of complex ideas. Match register and nuance to the situation; clarity and relevance still matter.";
 
-const JLPT_N5: &str = "LANGUAGE LEVEL N5 (Beginner): CRITICAL: Strictly limited to N5. Speak as if you are talking to a 6-year-old child who is just learning to speak. Use standard, short, predictable sentence structures only.";
-const JLPT_N4: &str = "LANGUAGE LEVEL N4 (Elementary): CRITICAL: Strictly limited to N4. Speak as if you are talking to a primary/elementary school student. Keep sentences short and direct.";
-const JLPT_N3: &str = "LANGUAGE LEVEL N3 (Intermediate): CRITICAL: Limited to N3. Speak as if you are talking to a tourist who knows the basics but struggles with fast or complex speech. Articulate clearly with direct sentences.";
-const JLPT_N2: &str = "LANGUAGE LEVEL N2 (Upper Intermediate): CRITICAL: Limited to N2. Speak as if you are talking to a high school exchange student. Natural speed is okay, but avoid obscure cultural references.";
-const JLPT_N1: &str = "LANGUAGE LEVEL N1 (Advanced): CRITICAL: N1 (Advanced). No grammatical restrictions. Speak as if to a university colleague.";
+// JLPT levels describe comprehension, not certified speaking/writing proficiency.
+// These are input-difficulty guides; no official exhaustive item lists are published:
+// https://www.jlpt.jp/e/about/levelsummary.html
+// https://www.jlpt.jp/e/about/cefr_reference.html
+// https://www.jlpt.jp/e/faq/index.html
+const JLPT_N5: &str = "LANGUAGE LEVEL N5: Target comprehension of some basic Japanese. Use familiar everyday expressions and short, explicit exchanges. Keep vocabulary and constructions basic; use common kana and basic kanji subject to the selected script setting.";
+const JLPT_N4: &str = "LANGUAGE LEVEL N4: Target comprehension of basic Japanese on familiar daily topics. Use accessible vocabulary and connected everyday exchanges with clear context. Keep unfamiliar language easy to clarify.";
+const JLPT_N3: &str = "LANGUAGE LEVEL N3: Target partial comprehension of everyday Japanese: coherent conversations, concrete content and main points. Use rephrasing to make harder passages accessible; keep relationships and references clear.";
+const JLPT_N2: &str = "LANGUAGE LEVEL N2: Target comprehension across everyday and some broader settings. Allow coherent discussions, general commentary and viewpoints; make the main ideas and relationships followable. Do not assume specialist knowledge.";
+const JLPT_N1: &str = "LANGUAGE LEVEL N1: Target comprehension of complex or abstract Japanese across varied settings, including logical structure and speaker intent. Use natural detail and nuance where relevant; do not force rare language into ordinary chat.";
 
 fn mode_description(mode: &TeachingMode) -> &'static str {
     match mode {
@@ -141,54 +150,54 @@ pub(crate) fn mode_checklist(mode: &TeachingMode) -> &'static [&'static str] {
     }
 }
 
+// Sentence-length limits are app-specific prompting controls, not proficiency definitions.
 const LEVEL_A1_CHECKLIST: &[&str] = &[
-    "All vocabulary is in top 500 most common words",
-    "No relative clauses, past tense, or conditionals",
+    "The immediate meaning and next conversational move are clear",
+    "Repetition or rephrasing supports understanding where needed",
     "Sentences are 4-5 words each",
 ];
 
 const LEVEL_A2_CHECKLIST: &[&str] = &[
-    "No complex subordination or abstract nouns",
-    "No passive voice",
+    "The exchange is concrete and manageable with support",
     "Sentences are 5-8 words each",
 ];
 
 const LEVEL_B1_CHECKLIST: &[&str] = &[
-    "No highly nuanced academic vocabulary",
-    "No obscure idioms without immediate explanation",
+    "Ideas are connected and reasons are easy to follow",
+    "Unfamiliar language can be clarified without derailing the selected mode",
 ];
 
 const LEVEL_B2_CHECKLIST: &[&str] = &[
-    "No overly archaic or purely academic vocabulary",
-    "Clarity prioritized over stylistic flourish",
+    "Detail and argument serve the user's topic",
+    "Difficulty reflects language proficiency, not presumed subject expertise",
 ];
 
 const LEVEL_C1_CHECKLIST: &[&str] =
-    &["No purely obscure or archaic terms outside general educated use"];
+    &["Complexity and implicit meaning are appropriate to the exchange"];
 
-const LEVEL_C2_CHECKLIST: &[&str] = &["Nuance and precision maintained"];
+const LEVEL_C2_CHECKLIST: &[&str] = &["Nuance is precise without unnecessary complexity"];
 
 const JLPT_N5_CHECKLIST: &[&str] = &[
-    "ONLY Desu/Masu forms used (no casual/dictionary forms)",
-    "Kanji limited to N5 set (~100)",
-    "No complex conjunctions",
+    "Basic language respects the selected dialect, formality and script",
     "Sentences are 4-5 words each",
 ];
 
 const JLPT_N4_CHECKLIST: &[&str] = &[
-    "No N3+ grammar points",
-    "Kanji limited to N4 set (~300)",
+    "Everyday meaning remains accessible in the selected dialect and script",
+    "The learner's replies guide support; JLPT does not certify interaction skills",
     "Sentences are 5-8 words each",
 ];
 
 const JLPT_N3_CHECKLIST: &[&str] = &[
-    "No overly formal business Japanese unless role demands",
-    "No rare literary grammar",
+    "The main point stays accessible even when individual expressions are unfamiliar",
+    "Support follows the learner's replies rather than presumed speaking fluency",
 ];
 
-const JLPT_N2_CHECKLIST: &[&str] = &["No highly specialized or archaic N1 vocabulary"];
+const JLPT_N2_CHECKLIST: &[&str] =
+    &["Broader comprehension is not treated as mastery of every topic"];
 
-const JLPT_N1_CHECKLIST: &[&str] = &["Full complexity expected"];
+const JLPT_N1_CHECKLIST: &[&str] =
+    &["Advanced comprehension does not imply native or uniformly advanced productive ability"];
 
 pub(crate) fn level_checklist(level: LanguageLevel) -> &'static [&'static str] {
     match level {

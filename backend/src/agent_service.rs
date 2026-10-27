@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::embedding_service::EmbeddingService;
 use crate::qdrant_service::QdrantService;
 
+pub mod activity;
 pub mod analysis;
 pub mod dialect_pronunciation_guides;
 pub mod enrichment;
@@ -179,6 +180,8 @@ impl AgentService {
         crate::agent_service::analysis::generate_analysis(
             crate::agent_service::analysis::AnalysisParams {
                 retry_ctx: &retry_ctx,
+                activity: params.activity,
+                allowed: params.allowed,
                 dialect: params.dialect,
                 msg: params.msg,
                 mistakes: params.mistakes,

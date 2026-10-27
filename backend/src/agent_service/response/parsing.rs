@@ -19,7 +19,7 @@ pub fn apply_learning_output(
 
 pub fn try_parse_response(response: &str, _dialect: Dialect) -> Result<AgentResponse> {
     let normalized = normalize_json_response(response);
-    let parsed: AgentResponse = serde_json::from_str(&normalized).map_err(|e| {
+    let mut parsed: AgentResponse = serde_json::from_str(&normalized).map_err(|e| {
         tracing::warn!(
             "JSON parse error: {}. First 200 chars: {}",
             e,
@@ -27,6 +27,10 @@ pub fn try_parse_response(response: &str, _dialect: Dialect) -> Result<AgentResp
         );
         anyhow::anyhow!("JSON parse failed: {}", e)
     })?;
+
+    if let Some(analysis) = &mut parsed.analysis {
+        analysis.goal_completion = None;
+    }
 
     if parsed.response.is_empty() {
         tracing::warn!("Response field is empty");
@@ -91,5 +95,17 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
         assert_eq!(value["response"], "hola");
         assert!(!sanitized.contains("```"));
+    }
+}
+
+#[cfg(test)]
+mod activity_analysis_tests {
+    #[test]
+    fn conversational_model_cannot_set_goal_completion() {
+        let response = r#"{"response":"Done","analysis":{"goal_completion":[true],"mistake_scores":{},"explained_scores":{},"translated_scores":{},"exploratory_scores":{}}}"#;
+        let parsed =
+            super::try_parse_response(response, dialect_coach_shared::Dialect::SpanishMexican)
+                .unwrap();
+        assert!(parsed.analysis.unwrap().goal_completion.is_none());
     }
 }

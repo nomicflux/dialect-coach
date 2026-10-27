@@ -21,8 +21,39 @@ mod speaker;
 mod system_content;
 mod teaching;
 
+pub(crate) use teaching::language_level_instruction as activity_level_instruction;
+
+#[derive(Clone, Copy)]
+pub enum PartnerActivity<'a> {
+    Active {
+        shared_context: &'a str,
+        partner_brief: &'a str,
+    },
+    Closed,
+}
+
+impl<'a> PartnerActivity<'a> {
+    pub fn is_active(self) -> bool {
+        matches!(self, Self::Active { .. })
+    }
+    pub fn from_context(
+        context: Option<&'a dialect_coach_shared::ActivityContext>,
+    ) -> Option<Self> {
+        let activity = context?;
+        Some(if activity.snapshot.is_active() {
+            Self::Active {
+                shared_context: &activity.snapshot.definition.shared_context,
+                partner_brief: &activity.snapshot.definition.partner_brief,
+            }
+        } else {
+            Self::Closed
+        })
+    }
+}
+
 /// Parameters for generating a response
 pub struct GenerateResponseParams<'a> {
+    pub activity: Option<PartnerActivity<'a>>,
     pub user_message: &'a str,
     pub dialect: DialectWithFeatures,
     pub formality: Formality,

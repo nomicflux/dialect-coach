@@ -1,3 +1,5 @@
+#[path = "app/activity.rs"]
+pub mod activity;
 pub mod app_state;
 use app_state::{AppState, AppStateAction, SessionState, UIState};
 

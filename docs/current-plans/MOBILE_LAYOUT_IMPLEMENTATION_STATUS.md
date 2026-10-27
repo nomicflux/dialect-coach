@@ -7,7 +7,7 @@ Plan: [MOBILE_LAYOUT_PLAN.md](MOBILE_LAYOUT_PLAN.md)
 | 0 | Plan into the repo; user runs plan validation | Plan saved; user authorized Phase 1 on 2026-10-06 | Plan-validation result not reported | Desktop daily-target visibility clarified in the plan |
 | 1 | Selection action bar | Complete, including subsequently authorized Undo repair | Initial checks: `cargo check`; `cargo test --workspace`: 646 passed, 0 failed, 4 ignored; both clippy gates clean; `bin/startup` rebuilt and served the app. Undo repair checks below. | Fork-specific Undo repaired after user authorization. Android long-press remains pending user confirmation. |
 | 2 | One-row header + Log out in Settings | Complete; next sign-in check pending user | `cargo check`; `cargo test --workspace`: 652 passed, 0 failed, 4 existing ignored; both clippy gates clean; `bin/startup`; browser checks below | Phone navigation row removed; Account → Log out verified. Phase 3 not started. |
-| 3 | Today's focus always visible, count opens full list, new items pinned | Not started | — | — |
+| 3 | Today's focus always visible, count opens full list, new items pinned | Implemented; browser verification pending sign-in | `cargo check`; `cargo test --workspace`: 658 passed, 0 failed, 4 existing ignored; both clippy gates clean; `bin/startup` rebuilt and serves the changes | Chrome remains on sign-in. No completion commit yet. |
 
 Baseline (2026-10-06): `cargo test --workspace` exit 0, 638 passed, 0 failed, 4 ignored. `cargo clippy -p dialect-coach-frontend --all-targets`: 0 warnings.
 
@@ -44,3 +44,13 @@ Implement and validate the approved Phase 2 changes through logout. The next sig
 - Dashboard → Settings → Account → Log out returned to the sign-in/Welcome screen with no drawer or chat. No password was entered. The viewport override was reset; the browser remains signed out. The user must confirm that the next sign-in opens the chat with the drawer closed.
 - Screenshots: `/private/tmp/dialect-coach-phase2-phone-header.png`, `desktop-header.png`, `header-{900,901,1200,1201}.png`, `settings-account.png`, `logged-out.png`, and drawer/New Conversation checks, all with the same `dialect-coach-phase2-` prefix.
 - Existing startup warnings remain: deprecated Trunk address configuration, backend image platform mismatch, Redis orphan, Qdrant client/server version warning, and transient WebSocket 502s while the embedding model loads. The existing passive-keyboard-listener warning also appeared; the shortcut still works. No Rust compiler or clippy warnings.
+
+## Phase 3
+
+The disclosure has been replaced by always-rendered focus content and a phone review-count button. The count callback selects Learning and opens the drawer. Phone review rows are capped at one, quests at two; the CSS caps apply only inside `.dynamic-island`. `LearningItemsFlash` renders inside `.chat`, pinned to its top-right. The existing plan/goal/items order, filtering, item swapping, rich learning data, and dismissal callbacks are preserved.
+
+Native gates passed on the final code: 658 tests, 0 failures, 4 existing ignored tests; both clippy gates report no warnings. An initial test-only clone warning was corrected and the full gates rerun. Logs: `/private/tmp/dialect-coach-phase3-{check,tests-final,clippy-final,clippy-frontend-final}.log`. The required `bin/startup` completed its builds and the server is listening; log: `/private/tmp/dialect-coach-phase3-startup.log`.
+
+Browser checks are pending. The existing Chrome tab remains on the sign-in/Welcome screen with populated fields redacted by the browser tool. Sign-in was requested from the user; the existing page and entered values were preserved. The plan leaves signing back in to the user. The phase is not marked complete or committed until phone focus/cycling/count navigation, direct desktop target visibility, and four-row flash positioning have been visually verified.
+
+User instruction (conversation context): "Start phase 4 once phase 3 is complete and clean". The saved mobile layout plan defines phases 0–3 only. Phase 4's scope was requested from the user; it will start after Phase 3's remaining verification and completion gate pass.

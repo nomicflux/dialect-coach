@@ -1,5 +1,8 @@
-use dialect_coach_shared::models::Message;
-use gloo::{events::EventListener, timers::callback::Timeout};
+use dialect_coach_shared::models::{ActivityDefinition, Message};
+use gloo::{
+    events::{EventListener, EventListenerOptions},
+    timers::callback::Timeout,
+};
 use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
@@ -12,31 +15,47 @@ pub enum SelectionAction {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct BarSelection {
-    message_id: Uuid,
+struct TextSelection {
+    source_id: Uuid,
     text: String,
+    position: (f64, f64),
 }
 
-type SelectionState = UseStateHandle<Option<BarSelection>>;
+type SelectionState = UseStateHandle<Option<TextSelection>>;
 type SelectionRequest = (Uuid, SelectionAction, String, String);
 
 #[derive(Properties, PartialEq)]
 pub struct Props {
     pub messages: Arc<Vec<Message>>,
+    #[prop_or_default]
+    pub activity: Option<ActivityDefinition>,
     pub translate_loading: HashSet<Uuid>,
     pub on_action: Callback<SelectionRequest>,
 }
 
 #[hook]
-fn use_bar_selection() -> SelectionState {
+fn use_text_selection(buttons: NodeRef) -> SelectionState {
     let selection = use_state(|| None);
     let pending = use_mut_ref(|| None::<Timeout>);
     use_effect_with((), {
         let selection = selection.clone();
         move |_| {
+            let document = gloo::utils::document();
             let listener = selection_listener(selection, pending.clone());
+            let scroll = {
+                let buttons = buttons.clone();
+                EventListener::new_with_options(
+                    &document,
+                    "scroll",
+                    EventListenerOptions::run_in_capture_phase(),
+                    move |_| position_buttons(&buttons),
+                )
+            };
+            let resize = EventListener::new(&gloo::utils::window(), "resize", move |_| {
+                position_buttons(&buttons);
+            });
             move || {
-                drop(listener);
+                drop((listener, scroll, resize));
                 pending.borrow_mut().take();
             }
         }
@@ -48,43 +67,95 @@ fn selection_listener(
     selection: SelectionState,
     pending: Rc<RefCell<Option<Timeout>>>,
 ) -> EventListener {
-    let document = gloo::utils::document();
-    EventListener::new(&document, "selectionchange", move |_| {
+    EventListener::new(&gloo::utils::document(), "selectionchange", move |_| {
         let selection = selection.clone();
-        *pending.borrow_mut() = Some(Timeout::new(300, move || selection.set(read_selection())));
+        *pending.borrow_mut() = Some(Timeout::new(50, move || {
+            selection.set(read_selection());
+        }));
     })
 }
 
-fn read_selection() -> Option<BarSelection> {
+fn read_selection() -> Option<TextSelection> {
     let selection = gloo::utils::document().get_selection().ok()??;
     if selection.is_collapsed() {
         return None;
     }
-    let text = selection.to_string().as_string()?;
-    let anchor = message_id_at(&selection.anchor_node()?)?;
-    let focus = message_id_at(&selection.focus_node()?)?;
-    selection_target(text, &anchor, &focus)
-}
-
-fn message_id_at(node: &web_sys::Node) -> Option<String> {
-    let element = node
-        .dyn_ref::<web_sys::Element>()
-        .cloned()
-        .or_else(|| node.parent_element())?;
-    element
-        .closest(".message-content[data-message-id]")
-        .ok()??
+    let range = selection.get_range_at(0).ok()?;
+    let anchor = source_at(&range.start_container().ok()?)?;
+    let focus = source_at(&range.end_container().ok()?)?;
+    if anchor != focus {
+        return None;
+    }
+    let id = anchor
         .get_attribute("data-message-id")
+        .or_else(|| anchor.get_attribute("data-activity-id"))?;
+    let (source_id, text) = selection_target(selection.to_string().as_string()?, &id, &id)?;
+    let rect = range.get_bounding_client_rect();
+    Some(TextSelection {
+        source_id,
+        text,
+        position: (rect.right(), rect.bottom()),
+    })
 }
 
-fn selection_target(text: String, anchor_id: &str, focus_id: &str) -> Option<BarSelection> {
+fn position_buttons(buttons: &NodeRef) {
+    let Some(buttons) = buttons.cast::<web_sys::Element>() else {
+        return;
+    };
+    let Some(selection) = gloo::utils::document().get_selection().ok().flatten() else {
+        return;
+    };
+    let Ok(range) = selection.get_range_at(0) else {
+        return;
+    };
+    let window = gloo::utils::window();
+    let (Some(width), Some(height)) = (
+        window.inner_width().ok().and_then(|v| v.as_f64()),
+        window.inner_height().ok().and_then(|v| v.as_f64()),
+    ) else {
+        return;
+    };
+    let rect = range.get_bounding_client_rect();
+    let size = buttons.get_bounding_client_rect();
+    let left = rect.right().clamp(0.0, (width - size.width()).max(0.0));
+    let top = rect.bottom().clamp(0.0, (height - size.height()).max(0.0));
+    let _ = buttons.set_attribute("style", &format!("left: {left}px; top: {top}px;"));
+}
+
+fn source_at(node: &web_sys::Node) -> Option<web_sys::Element> {
+    node.dyn_ref::<web_sys::Element>()
+        .cloned()
+        .or_else(|| node.parent_element())?
+        .closest(".message-content[data-message-id], [data-activity-id]")
+        .ok()?
+}
+
+fn selection_target(text: String, anchor_id: &str, focus_id: &str) -> Option<(Uuid, String)> {
     if text.trim().is_empty() || anchor_id != focus_id {
         return None;
     }
-    Some(BarSelection {
-        message_id: Uuid::parse_str(anchor_id).ok()?,
-        text,
-    })
+    Some((Uuid::parse_str(anchor_id).ok()?, text))
+}
+
+fn activity_context(activity: &ActivityDefinition) -> String {
+    let goals = activity
+        .goals
+        .iter()
+        .map(|goal| goal.goal.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{}\n{}\n{}", activity.title, activity.learner_brief, goals)
+}
+
+fn selection_context(props: &Props, selected: &TextSelection) -> Option<String> {
+    if let Some(activity) = props
+        .activity
+        .as_ref()
+        .filter(|a| a.activity_id == selected.source_id)
+    {
+        return Some(activity_context(activity));
+    }
+    message_context(&props.messages, selected.source_id)
 }
 
 fn message_context(messages: &[Message], id: Uuid) -> Option<String> {
@@ -108,29 +179,39 @@ fn action_callback(
 
 fn render_action_button(
     props: &Props,
-    selected: &BarSelection,
+    selected: &TextSelection,
     state: SelectionState,
     action: SelectionAction,
     context: String,
     label: &str,
 ) -> Html {
-    let request = (selected.message_id, action, selected.text.clone(), context);
+    let request = (selected.source_id, action, selected.text.clone(), context);
     let onclick = action_callback(state, props.on_action.clone(), request);
-    let disabled = props.translate_loading.contains(&selected.message_id);
-    html! { <button class="translate-selection-btn" {onclick} {disabled}>{label}</button> }
+    let disabled = props.translate_loading.contains(&selected.source_id);
+    let onpointerdown = Callback::from(|event: PointerEvent| event.prevent_default());
+    html! { <button type="button" class="translate-selection-btn" {onpointerdown} {onclick} {disabled}>{label}</button> }
 }
 
 #[function_component(SelectionActionButtons)]
 pub fn selection_action_buttons(props: &Props) -> Html {
-    let state = use_bar_selection();
+    let buttons = use_node_ref();
+    let state = use_text_selection(buttons.clone());
+    {
+        let buttons = buttons.clone();
+        use_effect_with((*state).clone(), move |_| position_buttons(&buttons));
+    }
     let Some(selected) = state.as_ref() else {
         return html! {};
     };
-    let Some(context) = message_context(&props.messages, selected.message_id) else {
+    let Some(context) = selection_context(props, selected) else {
         return html! {};
     };
+    let style = format!(
+        "left: {}px; top: {}px;",
+        selected.position.0, selected.position.1
+    );
     html! {
-        <div class="selection-action-bar">
+        <div ref={buttons} class="selection-action-buttons" {style}>
             {render_action_button(props, selected, state.clone(), SelectionAction::Translate, context.clone(), "Translate")}
             {render_action_button(props, selected, state.clone(), SelectionAction::ExplainGrammar, context, "Grammar")}
         </div>
@@ -162,10 +243,7 @@ mod tests {
         let id = message_id.to_string();
         assert_eq!(
             selection_target(" أهلا ".into(), &id, &id),
-            Some(BarSelection {
-                message_id,
-                text: " أهلا ".into()
-            })
+            Some((message_id, " أهلا ".into()))
         );
     }
 
@@ -180,5 +258,26 @@ mod tests {
         );
         assert_eq!(message_context(&messages, Uuid::new_v4()), None);
         assert_eq!(message_context(&[], second.id), None);
+    }
+
+    #[test]
+    fn activity_lookup_contains_only_visible_text() {
+        use dialect_coach_shared::models::{Dialect, LearningGoal};
+        let activity = ActivityDefinition {
+            activity_id: Uuid::new_v4(),
+            title: "Title".into(),
+            learner_brief: "Visible brief".into(),
+            shared_context: "Not displayed".into(),
+            partner_brief: "Hidden answer".into(),
+            goals: vec![LearningGoal {
+                goal: "Saved goal".into(),
+                dialect: Dialect::ArabicEgyptian,
+                completed: None,
+            }],
+        };
+        assert_eq!(
+            activity_context(&activity),
+            "Title\nVisible brief\nSaved goal"
+        );
     }
 }

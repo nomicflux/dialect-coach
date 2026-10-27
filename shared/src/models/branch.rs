@@ -38,6 +38,8 @@ impl BranchSettings {
 /// A branch in the conversation tree
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConversationBranch {
+    #[serde(default)]
+    pub activity_snapshots: Vec<super::ActivitySnapshot>,
     pub id: Uuid,
     pub parent_message_id: Option<Uuid>,
     pub leaf_message_id: Option<Uuid>,
@@ -63,6 +65,7 @@ impl ConversationBranch {
         settings: BranchSettings,
     ) -> Self {
         Self {
+            activity_snapshots: vec![],
             id: Uuid::new_v4(),
             parent_message_id,
             leaf_message_id,

@@ -1,3 +1,5 @@
+pub mod activity;
+pub use activity::*;
 pub mod admin;
 pub mod agent;
 pub mod auth;

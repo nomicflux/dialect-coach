@@ -135,7 +135,10 @@ pub fn on_teaching_mode_cycle(
 pub fn on_add_goal(dispatch: Callback<UserDomainAction>) -> Callback<String> {
     Callback::from(move |goal: String| {
         info!("Adding learning goal: {}", goal);
-        dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(goal)));
+        dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(
+            crate::app::app_state::user::GoalTarget::Dialect,
+            goal,
+        )));
     })
 }
 
@@ -143,6 +146,7 @@ pub fn on_delete_goal(dispatch: Callback<UserDomainAction>) -> Callback<usize> {
     Callback::from(move |index: usize| {
         info!("Deleting learning goal at index: {}", index);
         dispatch.emit(UserDomainAction::Learning(LearningAction::DeleteGoal(
+            crate::app::app_state::user::GoalTarget::Dialect,
             index,
         )));
     })
@@ -218,6 +222,7 @@ pub fn on_japanese_script_change(dispatch: Callback<UserDomainAction>) -> Callba
 pub fn on_create_branch(dispatch: Callback<UserDomainAction>) -> Callback<Uuid> {
     Callback::from(move |message_id: Uuid| {
         info!("Creating branch from message: {}", message_id);
+        crate::app::activity::commit_focused_goal();
         dispatch.emit(UserDomainAction::Branch(BranchAction::Create(message_id)));
     })
 }
@@ -225,6 +230,7 @@ pub fn on_create_branch(dispatch: Callback<UserDomainAction>) -> Callback<Uuid> 
 pub fn on_switch_branch(dispatch: Callback<UserDomainAction>) -> Callback<Uuid> {
     Callback::from(move |branch_id: Uuid| {
         info!("Switching to branch: {}", branch_id);
+        crate::app::activity::commit_focused_goal();
         dispatch.emit(UserDomainAction::Branch(BranchAction::Switch(branch_id)));
     })
 }

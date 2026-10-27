@@ -287,6 +287,8 @@ impl<'de> Deserialize<'de> for LearningItemScore {
 /// Analysis of user's progress on mistakes and explanations
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentAnalysis {
+    #[serde(default)]
+    pub goal_completion: Option<Vec<bool>>,
     pub mistake_scores: HashMap<MistakeId, LearningItemScore>,
     pub explained_scores: HashMap<ExplainedId, LearningItemScore>,
     pub translated_scores: HashMap<TranslatedId, LearningItemScore>,
@@ -296,6 +298,7 @@ pub struct AgentAnalysis {
 impl AgentAnalysis {
     pub fn new() -> Self {
         Self {
+            goal_completion: None,
             mistake_scores: HashMap::new(),
             explained_scores: HashMap::new(),
             translated_scores: HashMap::new(),

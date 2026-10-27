@@ -16,6 +16,10 @@ fn font_class(lang_option: &Option<LanguageOption>) -> &'static str {
 
 #[derive(Properties, PartialEq)]
 pub struct InputBoxProps {
+    #[prop_or_default]
+    pub children: Children,
+    #[prop_or_default]
+    pub send_disabled: bool,
     pub on_send: Callback<String>,
     // external_value removed
     #[prop_or_default]
@@ -43,10 +47,11 @@ pub fn input_box(props: &InputBoxProps) -> Html {
     let on_submit = {
         let input_value = input_value.clone();
         let on_send = props.on_send.clone();
+        let disabled = props.send_disabled;
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
             let value = (*input_value).clone();
-            if !value.trim().is_empty() {
+            if !disabled && !value.trim().is_empty() {
                 on_send.emit(value);
                 input_value.set(String::new());
             }
@@ -56,11 +61,12 @@ pub fn input_box(props: &InputBoxProps) -> Html {
     let on_keydown = {
         let input_value = input_value.clone();
         let on_send = props.on_send.clone();
+        let disabled = props.send_disabled;
         Callback::from(move |e: KeyboardEvent| {
             if e.shift_key() && e.key() == "Enter" {
                 e.prevent_default();
                 let value = (*input_value).clone();
-                if !value.trim().is_empty() {
+                if !disabled && !value.trim().is_empty() {
                     on_send.emit(value);
                     input_value.set(String::new());
                 }
@@ -72,6 +78,7 @@ pub fn input_box(props: &InputBoxProps) -> Html {
 
     html! {
         <div class="composer-dock">
+        { for props.children.iter() }
         <form class="composer" onsubmit={on_submit}>
             <textarea
                 ref={textarea_node_ref}
@@ -84,7 +91,7 @@ pub fn input_box(props: &InputBoxProps) -> Html {
                 aria-label="Type your message here. Press Shift+Enter to send."
             />
             <div class="composer-actions">
-                <button type="submit" class="btn btn--primary">{"Send"}</button>
+                <button type="submit" class="btn btn--primary" disabled={props.send_disabled}>{"Send"}</button>
             </div>
         </form>
         </div>

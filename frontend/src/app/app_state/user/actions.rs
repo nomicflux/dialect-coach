@@ -23,9 +23,28 @@ pub struct DeletedMessageLocation {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum MessageAction {
+    Reply {
+        message: Message,
+        origin: ReplyOrigin,
+    },
     Add(Message),
     Delete(Uuid),
     UndoDelete(DeletedMessage),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct ReplyOrigin {
+    pub branch_id: Uuid,
+    pub dialect: Dialect,
+    pub plan_id: Option<Uuid>,
+    pub activity: Option<Box<dialect_coach_shared::ActivityContext>>,
+    pub checked_head: Option<Uuid>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum GoalTarget {
+    Dialect,
+    Activity { branch_id: Uuid, activity_id: Uuid },
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -39,12 +58,26 @@ pub enum LearningAction {
     UpdateScores(AgentAnalysis),
     DeleteItem(Uuid),
     UndoDeleteItem(LearningItem),
-    AddGoal(String),
-    DeleteGoal(usize),
+    AddGoal(GoalTarget, String),
+    DeleteGoal(GoalTarget, usize),
+    UpdateGoal(GoalTarget, usize, String),
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum BranchAction {
+    ActivityGenerated {
+        branch_id: Uuid,
+        expected_head: Option<Uuid>,
+        definition: dialect_coach_shared::ActivityDefinition,
+    },
+    ActivityChecked {
+        origin: ReplyOrigin,
+        analysis: AgentAnalysis,
+    },
+    EndActivity {
+        branch_id: Uuid,
+        activity_id: Uuid,
+    },
     Create(Uuid),
     CreateNew,
     Switch(Uuid),

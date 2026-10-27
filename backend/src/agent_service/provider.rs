@@ -384,3 +384,29 @@ mod tests {
         assert_eq!(config.reasoning_budget, 275);
     }
 }
+
+#[cfg(test)]
+mod activity_temperature_tests {
+    use super::*;
+    #[test]
+    fn planning_adapter_transmits_activity_temperature_to_rig() {
+        let client = AnthropicClient::new("test-key").unwrap();
+        let model = client.completion_model("claude-haiku-4-5");
+        let agent = UnifiedCompletionAgent::new(
+            ProviderCompletionModel::Anthropic(model),
+            "claude-haiku-4-5".into(),
+            ANTHROPIC_PROVIDER.into(),
+            200,
+        );
+        let request = CompletionRequest {
+            preamble: "Author activity",
+            prompt: "Context",
+            history: &[],
+            max_tokens: 4096,
+            temperature: 0.7,
+        };
+        let transmitted =
+            agent.build_completion_request(&request, agent.provider_supports_temperature());
+        assert_eq!(transmitted.temperature, Some(0.7));
+    }
+}

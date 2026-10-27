@@ -23,12 +23,47 @@ pub fn add_message(msg: Message) -> SessionAction {
 }
 
 /// Send a coach request and apply its reply. The typing indicator shows until it resolves.
-fn send_chat(
+pub(crate) fn send_chat(
     app_state: &UseReducerHandle<AppState>,
     session: &UseReducerHandle<SessionState>,
     ui_state: &UseReducerHandle<UIState>,
-    stored: StoredRequest,
+    mut stored: StoredRequest,
 ) -> impl Future<Output = ()> + use<> {
+    let state = session
+        .user
+        .as_ref()
+        .expect("Chat requires signed-in state");
+    let origin = reply_origin(
+        &stored.request,
+        stored.origin_branch_id.unwrap_or(state.active_branch_id),
+        state,
+    );
+    stored.origin_branch_id = Some(origin.branch_id);
+    let opening = matches!(&stored.request, ChatRequest::Action { action, .. } if matches!(action.as_ref(), AIActionRequest::StartActivity { .. }));
+    let user_send = matches!(&stored.request, ChatRequest::Message(_));
+    let operation = if opening {
+        crate::app::app_state::ActivityOperation::Open
+    } else {
+        crate::app::app_state::ActivityOperation::Chat
+    };
+    ui_state.dispatch(UIStateAction::ActivityBusy(origin.branch_id, operation));
+    if let Some(activity) = &origin.activity {
+        let last_user = match &stored.request {
+            ChatRequest::Message(m) => Some(m.message.id),
+            ChatRequest::Action { action, .. } => action_context(action).and_then(|c| {
+                c.context_messages
+                    .iter()
+                    .rev()
+                    .find(|m| !m.is_agent() && activity.activity_message_ids.contains(&m.id))
+                    .map(|m| m.id)
+            }),
+        };
+        ui_state.dispatch(UIStateAction::ActivityAttempted(
+            origin.branch_id,
+            activity.snapshot.snapshot_id,
+            last_user,
+        ));
+    }
     app_state.dispatch(AppStateAction::SetLoading);
     let failure = chat_failure(&stored.request);
     let outcome = submit_kept(app_state, stored);
@@ -36,7 +71,21 @@ fn send_chat(
     async move {
         let outcome = outcome.await;
         app_state.dispatch(AppStateAction::LoadingComplete);
-        apply_chat_outcome(outcome, failure, &app_state, &session, &ui_state);
+        apply_chat_outcome(
+            outcome,
+            failure,
+            origin,
+            if opening {
+                ChatReplyKind::Opening
+            } else if user_send {
+                ChatReplyKind::Message
+            } else {
+                ChatReplyKind::Action
+            },
+            &app_state,
+            &session,
+            &ui_state,
+        );
     }
 }
 
@@ -70,6 +119,7 @@ fn chat_failure(request: &ChatRequest) -> &'static str {
     match request {
         ChatRequest::Message(_) => "Failed to send",
         ChatRequest::Action { action, .. } => match **action {
+            AIActionRequest::StartActivity { .. } => "Opening failed",
             AIActionRequest::StartConversation { .. } => "Failed to start conversation",
             AIActionRequest::ContinueBranch { .. } => "Failed to continue conversation",
             AIActionRequest::ExplainMessage { .. } => "Failed to explain message",
@@ -97,7 +147,18 @@ pub fn restore_outbox(
 ) {
     let stored = take_outbox(app_state, user_id);
     let (sent, unsent): (Vec<_>, Vec<_>) = stored.into_iter().partition(|s| s.sent);
-    let lost: Vec<ClientMessage> = sent.into_iter().map(|s| s.envelope().body).collect();
+    for request in &sent {
+        if let ChatRequest::Action { action, .. } = &request.request
+            && let AIActionRequest::StartActivity { context } = action.as_ref()
+            && let Some(activity) = &context.activity
+        {
+            ui_state.dispatch(UIStateAction::ActivityFinished(
+                activity.branch_id,
+                Some(crate::app::app_state::ActivityOperation::Open),
+            ));
+        }
+    }
+    let lost: Vec<ClientMessage> = sent.into_iter().filter(|s| !matches!(&s.request, ChatRequest::Action { action, .. } if matches!(action.as_ref(), AIActionRequest::StartActivity { .. }))).map(|s| s.envelope().body).collect();
     if let Some(notice) = lost_notice(&lost) {
         app_state.dispatch(AppStateAction::SetError(notice.to_string()));
     }
@@ -106,19 +167,57 @@ pub fn restore_outbox(
     }
 }
 
+#[derive(Clone, Copy)]
+enum ChatReplyKind {
+    Opening,
+    Message,
+    Action,
+}
+
 /// A lost request just ends the wait (the connection reports the loss); a failure shows `failure`.
 fn apply_chat_outcome(
     outcome: Result<Reply, RequestError>,
     failure: &str,
+    origin: crate::app::app_state::user::ReplyOrigin,
+    kind: ChatReplyKind,
     app_state: &UseReducerHandle<AppState>,
     session: &UseReducerHandle<SessionState>,
     ui_state: &UseReducerHandle<UIState>,
 ) {
+    use crate::app::app_state::ActivityOperation;
+    let opening = matches!(kind, ChatReplyKind::Opening);
+    let user_send = matches!(kind, ChatReplyKind::Message);
+    let branch_id = origin.branch_id;
     match outcome {
-        Ok(reply) => apply_chat_reply(chat_message(reply), app_state, session, ui_state),
-        Err(RequestError::Lost) => info!("Coach request lost"),
-        Err(RequestError::Failed(e)) => {
-            app_state.dispatch(AppStateAction::SetError(format!("{}: {}", failure, e)))
+        Ok(reply) => {
+            let message = chat_message(reply);
+            let check_failed = origin.activity.as_ref().is_some_and(|a| {
+                a.snapshot.is_active()
+                    && !a.snapshot.definition.goals.is_empty()
+                    && (user_send || !a.activity_message_ids.is_empty())
+            }) && matches!(&message.content, dialect_coach_shared::MessageContent::AgentMessage { content } if content.analysis.as_ref().and_then(|a| a.goal_completion.as_ref()).is_none());
+            ui_state.dispatch(UIStateAction::ActivityFinished(
+                branch_id,
+                check_failed.then_some(ActivityOperation::Check),
+            ));
+            if user_send {
+                ui_state.dispatch(UIStateAction::ActivitySent(branch_id));
+            }
+            apply_chat_reply(message, origin, app_state, session, ui_state);
+        }
+        Err(error) => {
+            ui_state.dispatch(UIStateAction::ActivityFinished(
+                branch_id,
+                opening.then_some(ActivityOperation::Open),
+            ));
+            if !opening {
+                match error {
+                    RequestError::Lost => info!("Coach request lost"),
+                    RequestError::Failed(e) => {
+                        app_state.dispatch(AppStateAction::SetError(format!("{}: {}", failure, e)))
+                    }
+                }
+            }
         }
     }
 }
@@ -144,7 +243,11 @@ pub fn signed_in(reply: Reply) -> SignInResult {
 }
 
 /// A coach action for the current conversation session.
-fn chat_action(session_id: Option<Uuid>, user_id: Uuid, action: AIActionRequest) -> ChatRequest {
+pub(crate) fn chat_action(
+    session_id: Option<Uuid>,
+    user_id: Uuid,
+    action: AIActionRequest,
+) -> ChatRequest {
     ChatRequest::Action {
         session_id: session_id.unwrap_or_else(Uuid::new_v4),
         user_id,
@@ -160,6 +263,16 @@ fn message_with_context(state: &UserState, msg: Message) -> UserMessageWithConte
     UserMessageWithContext::builder(state.user_id, msg)
         .past_learning_items(state.get_past_learning_items(&dialect))
         .active_branch_id(state.active_branch_id)
+        .activity(
+            state.activity_context(
+                state.active_branch_id,
+                &state
+                    .get_active_branch_messages()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            ),
+        )
         .active_plan(state.active_plan())
         .context_messages(context_messages.into_iter().cloned().collect())
         .learning_goals(goals.into_iter().cloned().collect())
@@ -178,6 +291,13 @@ pub fn on_send_message(
         let Some(state) = session.user.as_ref() else {
             return;
         };
+        if ui_state
+            .activities
+            .get(&state.active_branch_id)
+            .is_some_and(|a| a.busy.is_some())
+        {
+            return;
+        }
         info!("Sending message: {}", content);
         let session_id = app_state.session_id().unwrap_or_else(Uuid::new_v4);
         let msg = state.create_user_msg(session_id, &content);
@@ -349,6 +469,13 @@ pub fn on_auto_start(
         let Some(state) = session.user.as_ref() else {
             return;
         };
+        if ui_state
+            .activities
+            .get(&state.active_branch_id)
+            .is_some_and(|a| a.busy.is_some())
+        {
+            return;
+        }
         info!("Sending auto-start conversation request");
         let context = Box::new(state.build_action_context(vec![]));
         let action = AIActionRequest::StartConversation { context };
@@ -381,6 +508,13 @@ pub fn on_continue_branch(
         let Some(state) = session.user.as_ref() else {
             return;
         };
+        if ui_state
+            .activities
+            .get(&state.active_branch_id)
+            .is_some_and(|a| a.busy.is_some())
+        {
+            return;
+        }
         info!("Sending continue branch request");
         let action = continue_action(state, parent_message_id);
         let request = chat_action(app_state.session_id(), state.user_id, action);
@@ -425,6 +559,13 @@ pub fn on_explain_message(
         let Some(state) = session.user.as_ref() else {
             return;
         };
+        if ui_state
+            .activities
+            .get(&state.active_branch_id)
+            .is_some_and(|a| a.busy.is_some())
+        {
+            return;
+        }
         let Some(action) = explain_action(state, message_id) else {
             error!("Message not found for explain");
             return;
@@ -435,6 +576,54 @@ pub fn on_explain_message(
             &app_state, &session, &ui_state, request, message_id,
         ));
     })
+}
+
+pub(crate) fn action_context(
+    action: &AIActionRequest,
+) -> Option<&dialect_coach_shared::ConversationContext> {
+    match action {
+        AIActionRequest::StartActivity { context }
+        | AIActionRequest::StartConversation { context }
+        | AIActionRequest::ContinueBranch { context, .. } => Some(context),
+        AIActionRequest::ExplainMessage { .. } => None,
+    }
+}
+
+pub(crate) fn reply_origin(
+    request: &ChatRequest,
+    fallback_branch: Uuid,
+    state: &UserState,
+) -> crate::app::app_state::user::ReplyOrigin {
+    use crate::app::app_state::user::ReplyOrigin;
+    match request {
+        ChatRequest::Message(m) => ReplyOrigin {
+            branch_id: m.active_branch_id,
+            dialect: m.message.metadata.dialect,
+            plan_id: m.active_plan.as_ref().map(|p| p.id),
+            activity: m.activity.clone().map(Box::new),
+            checked_head: Some(m.message.id),
+        },
+        ChatRequest::Action { action, .. } => {
+            let context = action_context(action);
+            let branch_id = context
+                .and_then(|c| c.activity.as_ref().map(|a| a.branch_id).or(c.branch_id))
+                .unwrap_or(fallback_branch);
+            ReplyOrigin {
+                branch_id,
+                dialect: context.map(|c| c.dialect).unwrap_or_else(|| {
+                    state
+                        .branches
+                        .iter()
+                        .find(|b| b.id == branch_id)
+                        .map(|b| b.dialect)
+                        .unwrap_or(state.current_dialect())
+                }),
+                plan_id: context.and_then(|c| c.active_plan.as_ref().map(|p| p.id)),
+                activity: context.and_then(|c| c.activity.clone()).map(Box::new),
+                checked_head: context.and_then(|c| c.context_messages.last().map(|m| m.id)),
+            }
+        }
+    }
 }
 
 #[cfg(test)]

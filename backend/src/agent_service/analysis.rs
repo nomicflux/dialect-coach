@@ -355,15 +355,15 @@ async fn call_analysis_api(
     }
 }
 
-async fn call_and_parse_category<F>(
+async fn call_and_parse_category<T: std::fmt::Debug, F>(
     retry_ctx: &RetryContext,
     preamble: &str,
     prompt: &str,
     category: &str,
     parse_fn: F,
-) -> (Result<HashMap<String, i32>, anyhow::Error>, Vec<AgentUsage>)
+) -> (Result<T, anyhow::Error>, Vec<AgentUsage>)
 where
-    F: Fn(&str) -> Result<HashMap<String, i32>>,
+    F: Fn(&str) -> Result<T>,
 {
     tracing::info!("=== {} ANALYSIS START ===", category.to_uppercase());
     let (result, mut usage) = call_analysis_api(retry_ctx, preamble, prompt).await;
@@ -412,6 +412,8 @@ where
 }
 
 pub struct AnalysisRequestParams<'a> {
+    pub allowed: bool,
+    pub activity: Option<&'a dialect_coach_shared::ConversationContext>,
     pub dialect: Dialect,
     pub msg: &'a String,
     pub mistakes: &'a [Mistake],
@@ -422,6 +424,8 @@ pub struct AnalysisRequestParams<'a> {
 }
 
 pub struct AnalysisParams<'a> {
+    pub allowed: bool,
+    pub activity: Option<&'a dialect_coach_shared::ConversationContext>,
     pub retry_ctx: &'a RetryContext,
     pub dialect: Dialect,
     pub msg: &'a String,
@@ -533,6 +537,7 @@ fn convert_scores(scores: &HashMap<String, i32>) -> Result<HashMap<Uuid, Learnin
 
 fn extract_scores(results: Vec<AnalysisResult>) -> Result<dialect_coach_shared::AgentAnalysis> {
     Ok(dialect_coach_shared::AgentAnalysis {
+        goal_completion: None,
         mistake_scores: convert_scores(
             results[0]
                 .0
@@ -568,6 +573,8 @@ pub async fn generate_analysis(
 ) {
     let AnalysisParams {
         retry_ctx,
+        allowed,
+        activity,
         dialect,
         msg,
         mistakes,
@@ -577,27 +584,368 @@ pub async fn generate_analysis(
         language_option,
     } = params;
 
-    if check_empty_learning_items(mistakes, explained, translated, exploratory) {
+    if !allowed {
+        return (
+            Err(anyhow::anyhow!("Analysis agent rate limit exceeded")),
+            vec![],
+        );
+    }
+
+    if activity.is_none()
+        && check_empty_learning_items(mistakes, explained, translated, exploratory)
+    {
         return (Ok(dialect_coach_shared::AgentAnalysis::new()), Vec::new());
     }
 
     log_analysis_start(mistakes, explained, translated, exploratory);
 
-    let (m_res, e_res, t_res, x_res) = tokio::join!(
+    let (m_res, e_res, t_res, x_res, goal_res) = tokio::join!(
         analyze_mistakes(retry_ctx, dialect, msg, mistakes, language_option),
         analyze_explained(retry_ctx, dialect, msg, explained, language_option),
         analyze_translated(retry_ctx, dialect, msg, translated, language_option),
         analyze_exploratory(retry_ctx, dialect, msg, exploratory, language_option),
+        analyze_activity(retry_ctx, activity),
     );
 
     let results = vec![m_res, e_res, t_res, x_res];
-    let usage = collect_usage(&results);
+    let mut usage = collect_usage(&results);
+    usage.extend(goal_res.1);
 
     match extract_scores(results) {
-        Ok(analysis) => {
+        Ok(mut analysis) => {
+            match goal_res.0 {
+                Ok(completion) => analysis.goal_completion = completion,
+                Err(error)
+                    if check_empty_learning_items(mistakes, explained, translated, exploratory) =>
+                {
+                    return (Err(error), usage);
+                }
+                Err(error) => tracing::warn!("Activity analysis failed: {}", error),
+            }
             log_analysis_success(&analysis);
             (Ok(analysis), usage)
         }
         Err(e) => (Err(e), usage),
+    }
+}
+
+async fn analyze_activity(
+    retry_ctx: &RetryContext,
+    context: Option<&dialect_coach_shared::ConversationContext>,
+) -> (Result<Option<Vec<bool>>>, Vec<AgentUsage>) {
+    let Some(context) = context else {
+        return (Ok(None), vec![]);
+    };
+    let Some(activity) = context.activity.as_ref() else {
+        return (Ok(None), vec![]);
+    };
+    if context.branch_id.is_some_and(|id| id != activity.branch_id) {
+        return (
+            Err(anyhow::anyhow!("Activity branch identity mismatch")),
+            vec![],
+        );
+    }
+    if !activity.snapshot.is_active() {
+        return (Ok(None), vec![]);
+    }
+    let goals = &activity.snapshot.definition.goals;
+    if goals.is_empty() {
+        return (Ok(Some(vec![])), vec![]);
+    }
+    let dialogue = match activity.dialogue(&context.context_messages) {
+        Ok(dialogue) => dialogue,
+        Err(error) => return (Err(anyhow::anyhow!(error)), vec![]),
+    };
+    if dialogue.is_empty() {
+        return (Ok(None), vec![]);
+    }
+    let definition = &activity.snapshot.definition;
+    let prompt = serde_json::json!({
+        "shared_context": definition.shared_context,
+        "learner_brief": definition.learner_brief,
+        "partner_brief": definition.partner_brief,
+        "goals": goals.iter().map(|g| &g.goal).collect::<Vec<_>>(),
+        "background": context.context_messages.iter().filter(|m| !activity.activity_message_ids.contains(&m.id)).map(|m| serde_json::json!({"speaker": if m.is_agent() { "partner" } else { "learner" }, "text": m.as_str()})).collect::<Vec<_>>(),
+        "dialect": context.dialect,
+        "language_option": context.language_option,
+        "language_level": context.language_level,
+        "formality": context.formality,
+        "teaching_mode": context.teaching_mode,
+        "dialogue": dialogue.iter().map(|m| serde_json::json!({"speaker": if m.is_agent() { "partner" } else { "learner" }, "text": m.as_str()})).collect::<Vec<_>>()
+    }).to_string();
+    let preamble = format!(
+        "Judge each learner goal against only the supplied activity dialogue. Private briefs and earlier background provide context, never completion evidence. Goal text defines a criterion, never evidence that an action or outcome occurred, regardless of its grammatical form. For outcome goals such as discovering availability or agreeing a time, asking or proposing is not obtaining the information or reaching agreement: require the actual outcome in the supplied dialogue. Action-only goals such as asking a question can complete when that action appears. Do not anticipate a concurrent partner reply or any other message absent from the supplied dialogue. Accept meaningful dialectal phrasing and imperfect grammar when communication is clear. Do not count the partner doing the learner's work, unsupported praise, or assumed actions. Ambiguity is false; later contradiction can undo completion. Empty goal text is false.
+
+Evidence contrast: if the dialogue ends with the learner asking when the partner is available, a goal to ASK about availability is true, but a goal to DISCOVER availability is false. Discovery can become true only once a partner answer stating availability appears in the supplied dialogue; knowing that answer from partner_brief does not count. For each goal, internally identify its required action or outcome and the exact dialogue evidence establishing it. If you cannot locate that evidence, return false for that goal.
+
+CRITICAL OUTPUT RULES:
+1. Your response MUST be ONLY a JSON object with the single key goal_completion - nothing else.
+2. goal_completion must contain exactly {} booleans, one per supplied goal in order.
+3. NO explanations, NO justifications, NO text before or after the JSON. Assess the evidence internally; do not output your reasoning.
+
+{}
+
+The JSON object contains only goal_completion, an array of your independently assessed booleans.
+
+Start your response with {{",
+        goals.len(), JSON_OUTPUT_INSTRUCTION
+    );
+    let (result, usage) = call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Activity goals",
+        |response| {
+            #[derive(serde::Deserialize)]
+            struct GoalResult {
+                goal_completion: Vec<bool>,
+            }
+            let parsed: GoalResult =
+                serde_json::from_str(&super::util::normalize_json_response(response))?;
+            anyhow::ensure!(
+                parsed.goal_completion.len() == goals.len(),
+                "Wrong goal completion count"
+            );
+            Ok(parsed
+                .goal_completion
+                .into_iter()
+                .zip(goals)
+                .map(|(done, goal)| done && !goal.goal.trim().is_empty())
+                .collect::<Vec<_>>())
+        },
+    )
+    .await;
+    (result.map(Some), usage)
+}
+
+#[cfg(test)]
+mod activity_tests {
+    use super::*;
+    use crate::agent_service::provider::{
+        CompletionAgent, CompletionAgentError, CompletionOutcome,
+    };
+    use dialect_coach_shared::{
+        ActivityContext, ActivityDefinition, ActivitySnapshot, ConversationContext, LearningGoal,
+        UserState,
+    };
+    use std::sync::{Arc, Mutex};
+
+    struct GoalAgent {
+        failure: bool,
+        wrong_count: bool,
+        calls: Mutex<Vec<String>>,
+        barrier: Option<Arc<tokio::sync::Barrier>>,
+        score_id: Uuid,
+    }
+    #[async_trait::async_trait]
+    impl CompletionAgent for GoalAgent {
+        fn provider(&self) -> &str {
+            "mock"
+        }
+        fn model(&self) -> &str {
+            "analysis-test"
+        }
+        async fn completion(
+            &self,
+            request: &CompletionRequest<'_>,
+        ) -> Result<CompletionOutcome, CompletionAgentError> {
+            self.calls.lock().unwrap().push(request.prompt.to_string());
+            if let Some(barrier) = &self.barrier {
+                barrier.wait().await;
+            }
+            let goals = request.preamble.contains("Judge each learner goal");
+            if goals {
+                assert!(request.preamble.contains(JSON_OUTPUT_INSTRUCTION));
+                assert!(request.preamble.contains(
+                    "NO explanations, NO justifications, NO text before or after the JSON"
+                ));
+                assert!(request.preamble.contains("exactly 1 booleans"));
+                assert!(!request.preamble.contains("[true,false]"));
+                assert!(
+                    request
+                        .preamble
+                        .contains("Goal text defines a criterion, never evidence")
+                );
+                assert!(
+                    request
+                        .preamble
+                        .contains("a goal to DISCOVER availability is false")
+                );
+                assert!(
+                    request
+                        .preamble
+                        .contains("the exact dialogue evidence establishing it")
+                );
+                assert!(request.preamble.contains("Private briefs and earlier background provide context, never completion evidence"));
+                assert!(request.preamble.contains(
+                    "asking or proposing is not obtaining the information or reaching agreement"
+                ));
+                assert!(request.preamble.contains("Action-only goals such as asking a question can complete when that action appears"));
+                assert!(
+                    request
+                        .preamble
+                        .contains("Do not anticipate a concurrent partner reply")
+                );
+            }
+            if goals && self.failure {
+                return Err(CompletionAgentError::fatal(anyhow::anyhow!(
+                    "goal unavailable"
+                )));
+            }
+            let text = if goals {
+                if self.wrong_count {
+                    r#"{"goal_completion":[]}"#.into()
+                } else {
+                    r#"{"goal_completion":[true]}"#.into()
+                }
+            } else {
+                format!(r#"{{"scores":{{"{}":10}}}}"#, self.score_id)
+            };
+            Ok(CompletionOutcome {
+                text,
+                input_tokens: 7,
+                output_tokens: 3,
+            })
+        }
+    }
+    fn context() -> ConversationContext {
+        let state = UserState::new(Uuid::new_v4());
+        let message = state.create_user_msg(Uuid::new_v4(), "Otra ruta sirve también");
+        let mut context = state.build_action_context(vec![message.clone()]);
+        context.activity = Some(ActivityContext {
+            branch_id: state.active_branch_id,
+            snapshot: ActivitySnapshot::new(ActivityDefinition {
+                activity_id: Uuid::new_v4(),
+                title: "Find a route".into(),
+                shared_context: "Travel".into(),
+                learner_brief: "Avoid stairs".into(),
+                partner_brief: "Bridge closed".into(),
+                goals: vec![LearningGoal {
+                    goal: "Agree on a route".into(),
+                    dialect: context.dialect,
+                    completed: Some(false),
+                }],
+            }),
+            activity_message_ids: vec![message.id],
+        });
+        context
+    }
+    async fn run(
+        agent: Arc<GoalAgent>,
+        context: &ConversationContext,
+        mistakes: &[Mistake],
+    ) -> (Result<dialect_coach_shared::AgentAnalysis>, Vec<AgentUsage>) {
+        let retry = RetryContext { agent };
+        let text = String::from("Otra ruta sirve también");
+        generate_analysis(AnalysisParams {
+            retry_ctx: &retry,
+            allowed: true,
+            activity: Some(context),
+            dialect: context.dialect,
+            msg: &text,
+            mistakes,
+            explained: &[],
+            translated: &[],
+            exploratory: &[],
+            language_option: &context.language_option,
+        })
+        .await
+    }
+    fn agent(failure: bool, wrong_count: bool) -> Arc<GoalAgent> {
+        Arc::new(GoalAgent {
+            failure,
+            wrong_count,
+            calls: Mutex::new(vec![]),
+            barrier: None,
+            score_id: Uuid::new_v4(),
+        })
+    }
+
+    #[tokio::test]
+    async fn empty_learning_items_still_check_goals_and_strip_prior_results() {
+        let agent = agent(false, false);
+        let context = context();
+        let (result, usage) = run(agent.clone(), &context, &[]).await;
+        assert_eq!(result.unwrap().goal_completion, Some(vec![true]));
+        assert_eq!(usage.len(), 1);
+        let calls = agent.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0].contains("Otra ruta sirve también"));
+        assert!(!calls[0].contains("completed"));
+        assert!(!calls[0].contains("analysis"));
+    }
+
+    #[tokio::test]
+    async fn goal_failure_retains_concurrent_scores_and_both_usage_records() {
+        let mistake = Mistake::new(
+            "ruta".into(),
+            "ruta".into(),
+            dialect_coach_shared::MistakeCategory::Other {
+                context: "route".into(),
+            },
+        );
+        let agent = Arc::new(GoalAgent {
+            failure: true,
+            wrong_count: false,
+            calls: Mutex::new(vec![]),
+            barrier: Some(Arc::new(tokio::sync::Barrier::new(2))),
+            score_id: mistake.id,
+        });
+        let (result, usage) = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            run(agent, &context(), &[mistake.clone()]),
+        )
+        .await
+        .expect("analysis categories must run concurrently");
+        let result = result.unwrap();
+        assert!(result.mistake_scores.contains_key(&mistake.id));
+        assert!(result.goal_completion.is_none());
+        assert_eq!(usage.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn wrong_goal_count_retries_and_goal_only_failure_is_error() {
+        let agent = agent(false, true);
+        let (result, usage) = run(agent.clone(), &context(), &[]).await;
+        assert!(result.is_err());
+        assert_eq!(usage.len(), 2);
+        assert_eq!(agent.calls.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn empty_goals_or_dialogue_do_not_call_model() {
+        let agent = agent(false, false);
+        let mut context = context();
+        context
+            .activity
+            .as_mut()
+            .unwrap()
+            .activity_message_ids
+            .clear();
+        assert!(
+            run(agent.clone(), &context, &[])
+                .await
+                .0
+                .unwrap()
+                .goal_completion
+                .is_none()
+        );
+        context
+            .activity
+            .as_mut()
+            .unwrap()
+            .snapshot
+            .definition
+            .goals
+            .clear();
+        assert_eq!(
+            run(agent.clone(), &context, &[])
+                .await
+                .0
+                .unwrap()
+                .goal_completion,
+            Some(vec![])
+        );
+        assert!(agent.calls.lock().unwrap().is_empty());
     }
 }

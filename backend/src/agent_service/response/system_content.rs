@@ -12,9 +12,7 @@ use super::teaching::{
     language_level_instruction, level_checklist, mode_checklist, response_teaching_desc,
 };
 use crate::agent_service::language_instructions::build_language_instruction;
-use crate::agent_service::util::{
-    JSON_OUTPUT_INSTRUCTION, format_learning_items_context, learning_goals_section,
-};
+use crate::agent_service::util::{JSON_OUTPUT_INSTRUCTION, format_learning_items_context};
 
 fn collect_plan_items<'a>(step: &'a PlanStep, plan: &'a LanguagePlan) -> Vec<&'a LearningItem> {
     match &step.step_type {
@@ -141,6 +139,7 @@ fn build_debug_system_content(
 }
 
 struct NormalSystemParams<'a> {
+    activity: Option<super::PartnerActivity<'a>>,
     role_desc: &'a str,
     user_gender_str: &'a str,
     lang_section: &'a str,
@@ -169,7 +168,7 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
             # CRITICAL RULES
             {}
             2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples
-            3. Before generating your response, mentally check: 'Would a student at {} understand every word of this?' If not, simplify it immediately. Prioritize clarity over native nuance for this level.
+            3. Adapt vocabulary, syntax and support to {} using the proficiency guidance above. Do not equate proficiency with age, education or interests. Keep the selected dialect, formality and script while making the message accessible. JLPT guides input comprehension, not speaking or writing ability; use the learner's messages to judge needed support.
             4. {}
             {}
             {}
@@ -187,9 +186,8 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
             ## Level Requirements
             {}
 
-            Now respond to the user's message as if you were in a natural chatroom with a friend, as a local {} speaker would when speaking to someone at level {}, in the response field of the required JSON format.
-            You MUST ALWAYS respond - NEVER indicate the conversation has ended.
-            If it seems to have ended, provide a follow-up question or new topic.
+            Now respond to the user's message {}, as a local {} speaker would when speaking to someone at level {}, in the response field of the required JSON format.
+            {}
             The response field must be non-empty.
             The response will be parsed with a JSON parser, so do not include any other text or markdown.",
         CONTENT_FILTERING_DIRECTIVES,
@@ -208,8 +206,10 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
         RESPONSE_JSON_OUTPUT_FORMAT,
         params.mode_checklist_formatted,
         params.level_checklist_formatted,
+        if params.activity.is_some_and(|a| a.is_active()) { "in your activity partner role" } else { "as if you were in a natural chatroom with a friend" },
         params.dialect_name,
-        params.level_name
+        params.level_name,
+        if params.activity.is_some_and(|a| a.is_active()) { "Remain responsive to the learner. The activity may finish naturally; do not force a follow-up topic." } else { "You MUST ALWAYS respond - NEVER indicate the conversation has ended. If it seems to have ended, provide a follow-up question or new topic." }
     )
 }
 
@@ -224,6 +224,7 @@ pub(crate) fn build_system_content(
     language_option: &Option<LanguageOption>,
     active_plan: &Option<&LanguagePlan>,
     language_level: LanguageLevel,
+    activity: Option<super::PartnerActivity<'_>>,
 ) -> String {
     let formality_label = match formality {
         Formality::Formal => "FORMAL",
@@ -233,9 +234,21 @@ pub(crate) fn build_system_content(
     };
 
     let gender = extract_gender_from_dialect(&dialect);
-    let role_desc = speaker_desc(&dialect.dialect, &formality, &gender);
+    let role_desc = if activity.is_some_and(|a| a.is_active())
+        && teaching_mode != TeachingMode::Debug
+    {
+        format!(
+            "Play your active activity partner role as a local {} speaker. Preserve the selected dialect, script and formality.",
+            dialect.dialect.name()
+        )
+    } else {
+        speaker_desc(&dialect.dialect, &formality, &gender)
+    };
     let teaching_rules = response_teaching_desc(&teaching_mode);
-    let goals_section = learning_goals_section(learning_goals);
+    let goals_section = crate::agent_service::util::learning_goals_section_for_activity(
+        learning_goals,
+        activity.is_some_and(|a| a.is_active()),
+    );
     let learning_items_context = format_learning_items_context(
         &past_learning_items.mistakes,
         &past_learning_items.explained,
@@ -251,7 +264,20 @@ pub(crate) fn build_system_content(
 
     let level_instruction = language_level_instruction(language_level);
     let language_instr = build_language_instruction(language_option);
-    let plan_instr = build_plan_system_content(active_plan);
+    let mut plan_instr = build_plan_system_content(active_plan);
+    if activity.is_some_and(|a| a.is_active()) {
+        plan_instr.push_str("\nThe activity scenario takes precedence over conflicting plan scenarios; use compatible plan material.");
+    }
+    if let Some(super::PartnerActivity::Active {
+        shared_context,
+        partner_brief,
+    }) = activity.filter(|_| teaching_mode != TeachingMode::Debug)
+    {
+        plan_instr.push_str(&format!("\n<active_activity>\nShared context: {}\nYour private partner brief: {}\n</active_activity>\nIn Storyteller mode place this activity within the ongoing story. In ErrorFinding mode intentional language errors must not alter factual task constraints. Never disclose the raw brief. Follow its reveal conditions, including in the opening: volunteer only what it permits, and reveal discovery answers when the learner asks relevant questions. Let the learner do their own work.", shared_context, partner_brief));
+    }
+    if matches!(activity, Some(super::PartnerActivity::Closed)) {
+        plan_instr.push_str("\nThe activity is closed. Resume ordinary conversation without announcing closure. Do not continue the former task role.");
+    }
     let lang_section = build_lang_section(&language_instr);
     let mode_checklist_formatted = format_checklist(mode_checklist(&teaching_mode));
     let level_checklist_formatted = format_checklist(level_checklist(language_level));
@@ -267,6 +293,7 @@ pub(crate) fn build_system_content(
         )
     } else {
         build_normal_system_content(NormalSystemParams {
+            activity,
             role_desc: &role_desc,
             user_gender_str,
             lang_section: &lang_section,
@@ -312,6 +339,7 @@ mod tests {
             &None,
             &None,
             LanguageLevel::Cefr(CefrLevel::B1),
+            None,
         );
 
         assert!(content.contains("# YOUR ROLE"));
@@ -327,6 +355,7 @@ mod tests {
         let formality = Formality::Informal;
         let teaching_mode = TeachingMode::Immersive;
         let learning_goals = vec![LearningGoal {
+            completed: None,
             goal: "Goal 1".to_string(),
             dialect: Dialect::SpanishArgentinian,
         }];
@@ -342,6 +371,7 @@ mod tests {
             &None,
             &None,
             LanguageLevel::Cefr(CefrLevel::A2),
+            None,
         );
 
         assert!(content.contains("# YOUR ROLE"));
@@ -546,9 +576,10 @@ mod tests {
             &None,
             &None,
             LanguageLevel::Cefr(CefrLevel::A2),
+            None,
         );
 
-        assert!(content.contains("Would a student at A2 - Elementary understand"));
+        assert!(content.contains("Adapt vocabulary, syntax and support to A2 - Elementary using"));
         assert!(!content.contains("Would a student at [LEVEL] understand"));
     }
 
@@ -570,8 +601,81 @@ mod tests {
             &None,
             &None,
             LanguageLevel::Jlpt(dialect_coach_shared::JlptLevel::N5),
+            None,
         );
 
-        assert!(content.contains("Would a student at N5 - Beginner understand"));
+        assert!(content.contains("Adapt vocabulary, syntax and support to N5 - Beginner using"));
+    }
+}
+
+#[cfg(test)]
+mod activity_prompt_tests {
+    use super::*;
+    #[test]
+    fn closed_context_resumes_without_private_brief() {
+        let text = build_system_content(
+            dialect_coach_shared::models::dialect::dialect_features(
+                dialect_coach_shared::Dialect::SpanishMexican,
+            ),
+            Formality::Informal,
+            TeachingMode::Immersive,
+            &[],
+            &PastLearningItems::default(),
+            UserGender::NonBinary,
+            &None,
+            &None,
+            LanguageLevel::Cefr(dialect_coach_shared::CefrLevel::B1),
+            Some(super::super::PartnerActivity::Closed),
+        );
+        assert!(text.contains("Resume ordinary conversation without announcing closure"));
+        assert!(!text.contains("<active_activity>"));
+        assert!(text.contains("natural chatroom with a friend"));
+    }
+    #[test]
+    fn activity_prompt_keeps_partner_only_and_adapts_conflicting_rules() {
+        let activity = super::super::PartnerActivity::Active {
+            shared_context: "SHARED_FACT",
+            partner_brief: "PARTNER_SECRET",
+        };
+        for mode in [
+            TeachingMode::Immersive,
+            TeachingMode::Corrective,
+            TeachingMode::Explanatory,
+            TeachingMode::StoryTeller,
+            TeachingMode::ErrorFinding,
+            TeachingMode::Debug,
+        ] {
+            let text = build_system_content(
+                dialect_coach_shared::models::dialect::dialect_features(
+                    dialect_coach_shared::Dialect::SpanishMexican,
+                ),
+                Formality::Informal,
+                mode,
+                &[],
+                &PastLearningItems::default(),
+                UserGender::NonBinary,
+                &None,
+                &None,
+                LanguageLevel::Cefr(dialect_coach_shared::CefrLevel::A2),
+                Some(activity),
+            );
+            assert!(!text.contains("NEVER indicate the conversation has ended"));
+            assert!(!text.contains("do NOT engineer situations"));
+            assert!(!text.contains("natural chatroom with a friend"));
+            assert_eq!(
+                text.contains("Now respond to the user's message in your activity partner role"),
+                mode != TeachingMode::Debug
+            );
+            assert_eq!(text.contains("PARTNER_SECRET"), mode != TeachingMode::Debug);
+            assert_eq!(
+                text.contains("Follow its reveal conditions, including in the opening"),
+                mode != TeachingMode::Debug
+            );
+            assert!(
+                text.contains(language_level_instruction(LanguageLevel::Cefr(
+                    dialect_coach_shared::CefrLevel::A2
+                )))
+            );
+        }
     }
 }

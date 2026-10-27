@@ -102,6 +102,9 @@ fn build_response_params<'a>(
     let teaching_mode = msg_with_context.message.metadata.teaching_mode;
 
     GenerateResponseParams {
+        activity: crate::agent_service::response::PartnerActivity::from_context(
+            msg_with_context.activity.as_ref(),
+        ),
         user_message: user_text,
         dialect: dialect_features(dialect),
         formality,
@@ -139,12 +142,15 @@ async fn run_agents_with_analysis(
     );
 
     let user_text = msg_with_context.message.get_content();
+    let activity_context = message_analysis_context(msg_with_context);
 
     let ((response_result, response_usage, learning_usage), (analysis_result, analysis_usage)) = tokio::join!(
         state.agent.generate_response(params),
         state
             .agent
             .generate_analysis(crate::agent_service::analysis::AnalysisRequestParams {
+                allowed: super::activity::check_analysis_quota(state, &usage_stats).is_ok(),
+                activity: activity_context.as_ref(),
                 dialect,
                 msg: &user_text,
                 mistakes: &msg_with_context.past_mistakes,
@@ -181,8 +187,23 @@ async fn run_agents_parallel(
 ) -> Result<AgentResponse, anyhow::Error> {
     let user_text = msg_with_context.message.get_content();
     user::validate_user_message(&user_text)?;
+    if let Some(activity) = &msg_with_context.activity {
+        anyhow::ensure!(
+            activity.branch_id == msg_with_context.active_branch_id,
+            "Activity branch identity mismatch"
+        );
+        if activity.snapshot.is_active() {
+            activity
+                .dialogue(&msg_with_context.context_messages)
+                .map_err(|e| anyhow::anyhow!(e))?;
+        }
+    }
 
-    let has_learning_items = has_learning_items(msg_with_context);
+    let has_learning_items = has_learning_items(msg_with_context)
+        || msg_with_context
+            .activity
+            .as_ref()
+            .is_some_and(|a| a.snapshot.is_active());
     let teaching_mode = msg_with_context.message.metadata.teaching_mode;
     tracing::info!(
         "run_agents_parallel: has_learning_items={}, teaching_mode={:?}, past_mistakes={}, past_explained={}, past_translated={}, past_exploratory={}",
@@ -197,7 +218,11 @@ async fn run_agents_parallel(
         state,
         msg_with_context.user_id,
         teaching_mode,
-        has_learning_items,
+        has_learning_items
+            && !msg_with_context
+                .activity
+                .as_ref()
+                .is_some_and(|a| a.snapshot.is_active()),
     )
     .await?;
     let user_id = msg_with_context.user_id;
@@ -314,6 +339,7 @@ fn build_conversation_instruction(
     let gender_context = format_gender_context(user_gender, agent_gender);
 
     match action {
+        AIActionRequest::StartActivity { .. } => "[System: Open the installed activity naturally in your partner role. Honor the private partner brief's opening and reveal conditions; do not volunteer answers it reserves for learner questions. Give the learner room to act.]".to_string(),
         AIActionRequest::StartConversation { .. } => {
             format!(
                 "[System: Please greet the user in {} with {} formality level. {}]",
@@ -371,7 +397,8 @@ async fn process_ai_action_request(
 ) -> Message {
     tracing::info!(user_id = %user_id, "Processing AI action request: {:?}", action);
     match &action {
-        AIActionRequest::StartConversation { context }
+        AIActionRequest::StartActivity { context }
+        | AIActionRequest::StartConversation { context }
         | AIActionRequest::ContinueBranch { context, .. } => {
             process_conversation_action(state, &action, context, user_id, session_id).await
         }
@@ -439,11 +466,23 @@ async fn call_agent_for_conversation_action(
     user_id: Uuid,
 ) -> Result<AgentResponse, anyhow::Error> {
     let context = match action {
-        AIActionRequest::StartConversation { context } => context,
+        AIActionRequest::StartActivity { context }
+        | AIActionRequest::StartConversation { context } => context,
         AIActionRequest::ContinueBranch { context, .. } => context,
         _ => unreachable!("Only conversation actions"),
     };
 
+    if let Some(activity) = &context.activity {
+        anyhow::ensure!(
+            context.branch_id.is_none_or(|id| id == activity.branch_id),
+            "Activity branch identity mismatch"
+        );
+        if activity.snapshot.is_active() {
+            activity
+                .dialogue(&context.context_messages)
+                .map_err(|e| anyhow::anyhow!(e))?;
+        }
+    }
     let dialect = context.dialect;
     let formality = context.formality;
     let teaching_mode = context.teaching_mode;
@@ -456,6 +495,9 @@ async fn call_agent_for_conversation_action(
     let rag_config = RAGConfig::default_config();
 
     let params = GenerateResponseParams {
+        activity: crate::agent_service::response::PartnerActivity::from_context(
+            context.activity.as_ref(),
+        ),
         user_message: &instruction,
         dialect: dialect_features(dialect),
         formality,
@@ -473,29 +515,80 @@ async fn call_agent_for_conversation_action(
         language_level: context.language_level,
     };
 
-    let (result, response_usage) = state.agent.generate_response_for_action(&params).await;
-
+    let empty = String::new();
+    let ((result, response_usage), (analysis_result, analysis_usage)) = tokio::join!(
+        state.agent.generate_response_for_action(&params),
+        state
+            .agent
+            .generate_analysis(crate::agent_service::analysis::AnalysisRequestParams {
+                allowed: !context
+                    .activity
+                    .as_ref()
+                    .is_some_and(|a| a.snapshot.is_active())
+                    || super::activity::check_analysis_quota(state, &usage_stats).is_ok(),
+                activity: context
+                    .activity
+                    .as_ref()
+                    .filter(|a| a.snapshot.is_active())
+                    .map(|_| context.as_ref()),
+                dialect,
+                msg: &empty,
+                mistakes: &[],
+                explained: &[],
+                translated: &[],
+                exploratory: &[],
+                language_option: &context.language_option,
+            })
+    );
     let agent_usage = AgentUsageStats {
         response_usage,
-        learning_usage: Vec::new(),
-        analysis_usage: Vec::new(),
+        learning_usage: vec![],
+        analysis_usage,
     };
-    let now = chrono::Utc::now().timestamp();
-    user_state::update_and_save_usage(state, user_id, usage_stats, &agent_usage, now).await;
-
-    result
+    handle_parallel_agents_success(
+        state,
+        user_id,
+        usage_stats,
+        result,
+        analysis_result,
+        &agent_usage,
+        chrono::Utc::now().timestamp(),
+    )
+    .await
 }
 
 /// The coach's reply to a chat request.
-pub async fn answer(state: &AppState, request: ChatRequest) -> Message {
-    match request {
+pub async fn answer(state: &AppState, request: ChatRequest) -> Result<Message, String> {
+    if let ChatRequest::Action {
+        session_id,
+        user_id,
+        action,
+    } = &request
+        && let AIActionRequest::StartActivity { context } = action.as_ref()
+    {
+        if !context
+            .activity
+            .as_ref()
+            .is_some_and(|a| a.snapshot.is_active())
+        {
+            return Err("No active activity".into());
+        }
+        let result = call_agent_for_conversation_action(state, action, *user_id)
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(handle_agent_success(
+            &conversation_prompt(action, context, *session_id),
+            result,
+        ));
+    }
+    Ok(match request {
         ChatRequest::Message(message) => process_user_message(state, *message).await,
         ChatRequest::Action {
             session_id,
             user_id,
             action,
         } => process_ai_action_request(state, user_id, session_id, *action).await,
-    }
+    })
 }
 
 async fn process_user_message(
@@ -508,6 +601,35 @@ async fn process_user_message(
     let context_vec = build_context_from_messages(&msg_with_context.context_messages);
 
     call_agent_and_respond(state, &msg_with_context, dialect, &context_vec).await
+}
+
+fn message_analysis_context(
+    request: &UserMessageWithContext,
+) -> Option<dialect_coach_shared::ConversationContext> {
+    let mut activity = request
+        .activity
+        .clone()
+        .filter(|a| a.snapshot.is_active())?;
+    let mut messages = request.context_messages.clone();
+    messages.push(request.message.clone());
+    activity.activity_message_ids.push(request.message.id);
+    Some(dialect_coach_shared::ConversationContext {
+        branch_id: Some(request.active_branch_id),
+        activity: Some(activity),
+        active_plan: request.active_plan.clone(),
+        learning_goals: vec![],
+        past_mistakes: vec![],
+        past_explained: vec![],
+        past_translated: vec![],
+        past_exploratory: vec![],
+        user_gender: request.user_gender,
+        language_option: request.language_option,
+        dialect: request.message.metadata.dialect,
+        formality: request.message.metadata.formality,
+        teaching_mode: request.message.metadata.teaching_mode,
+        language_level: request.language_level,
+        context_messages: messages,
+    })
 }
 
 #[cfg(test)]
@@ -625,6 +747,8 @@ mod tests {
     #[test]
     fn test_conversation_prompt_uses_context_settings() {
         let context = dialect_coach_shared::ConversationContext {
+            branch_id: None,
+            activity: None,
             active_plan: None,
             learning_goals: vec![],
             past_mistakes: vec![],
@@ -650,5 +774,47 @@ mod tests {
         );
         assert_eq!(prompt.metadata.formality, Formality::Formal);
         assert_eq!(prompt.metadata.dialect, Dialect::SpanishArgentinian);
+    }
+}
+
+#[cfg(test)]
+mod activity_context_tests {
+    use super::*;
+    use dialect_coach_shared::{
+        ActivityContext, ActivityDefinition, ActivitySnapshot, LearningGoal, UserState,
+    };
+    #[test]
+    fn ordinary_check_includes_submitted_user_and_not_future_reply() {
+        let user = UserState::new(Uuid::new_v4());
+        let prior = user.create_user_msg(Uuid::new_v4(), "Earlier");
+        let incoming = user.create_user_msg(Uuid::new_v4(), "A las seis");
+        let snapshot = ActivitySnapshot::new(ActivityDefinition {
+            activity_id: Uuid::new_v4(),
+            title: "Meet".into(),
+            shared_context: "Meet later".into(),
+            learner_brief: "Choose a time".into(),
+            partner_brief: "After five".into(),
+            goals: vec![LearningGoal {
+                goal: "Agree a time".into(),
+                dialect: user.current_dialect(),
+                completed: None,
+            }],
+        });
+        let request = UserMessageWithContext::builder(user.user_id, incoming.clone())
+            .active_branch_id(user.active_branch_id)
+            .context_messages(vec![prior.clone()])
+            .activity(Some(ActivityContext {
+                branch_id: user.active_branch_id,
+                snapshot,
+                activity_message_ids: vec![prior.id],
+            }))
+            .build();
+        let check = message_analysis_context(&request).unwrap();
+        assert_eq!(check.context_messages.last().unwrap().id, incoming.id);
+        assert_eq!(
+            check.activity.as_ref().unwrap().activity_message_ids,
+            vec![prior.id, incoming.id]
+        );
+        assert_eq!(check.context_messages.len(), 2);
     }
 }

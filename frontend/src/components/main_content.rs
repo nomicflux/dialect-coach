@@ -88,6 +88,7 @@ struct DrawerCallbacks {
     active_tab: UseStateHandle<DrawerTab>,
     close: Callback<()>,
     change: Callback<DrawerTab>,
+    open_review: Callback<()>,
 }
 
 struct LearningCallbacks {
@@ -114,6 +115,11 @@ pub fn main_content(props: &MainContentProps) -> Html {
         return html! {};
     };
     let ctx = use_main_context(props.clone(), user.clone());
+    crate::app::activity::use_activity_requests(
+        props.app_state.clone(),
+        props.session.clone(),
+        props.ui_state.clone(),
+    );
     let callbacks = use_main_callbacks(&ctx);
     render_main_content(&ctx, &callbacks)
 }
@@ -123,8 +129,8 @@ fn render_main_content(ctx: &MainContext, callbacks: &MainCallbacks) -> Html {
         <>
             {render_chat_canvas(ctx, callbacks)}
             {render_drawer(ctx, callbacks)}
+            {render_selection_buttons(ctx, &callbacks.modal.action)}
             {render_modal(&callbacks.modal.state, &callbacks.modal.close, &callbacks.modal.save)}
-            <LearningItemsFlash items={ctx.props.ui_state.flashed_items.clone()} on_dismiss={callbacks.learning.dismiss.clone()} />
         </>
     }
 }
@@ -284,7 +290,7 @@ fn start_selection_action(props: MainContentProps, state: ModalState, request: S
         original_text: request.2.clone(),
     }));
     props.ui_state.dispatch(UIStateAction::SetTranslateLoading {
-        message_id: request.0,
+        source_id: request.0,
     });
     wasm_bindgen_futures::spawn_local(perform_selection_action(props, state, request));
 }
@@ -301,7 +307,7 @@ async fn perform_selection_action(
     props
         .ui_state
         .dispatch(UIStateAction::ClearTranslateLoading {
-            message_id: request.0,
+            source_id: request.0,
         });
 }
 
@@ -356,11 +362,15 @@ fn apply_selection_result(
 fn use_goal_callbacks(dispatch: Callback<UserDomainAction>) -> (Callback<String>, Callback<usize>) {
     let add = use_callback(dispatch.clone(), |goal: String, dispatch| {
         if !goal.trim().is_empty() {
-            dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(goal)));
+            dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(
+                crate::app::app_state::user::GoalTarget::Dialect,
+                goal,
+            )));
         }
     });
     let delete = use_callback(dispatch, |index, dispatch| {
         dispatch.emit(UserDomainAction::Learning(LearningAction::DeleteGoal(
+            crate::app::app_state::user::GoalTarget::Dialect,
             index,
         )))
     });
@@ -370,6 +380,7 @@ fn use_goal_callbacks(dispatch: Callback<UserDomainAction>) -> (Callback<String>
 #[hook]
 fn use_branch_callbacks(dispatch: Callback<UserDomainAction>) -> (Callback<Uuid>, Callback<Uuid>) {
     let switch = use_callback(dispatch.clone(), |id, dispatch| {
+        crate::app::activity::commit_focused_goal();
         dispatch.emit(UserDomainAction::Branch(BranchAction::Switch(id)))
     });
     let delete = use_callback(dispatch, |id, dispatch| {
@@ -381,12 +392,27 @@ fn use_branch_callbacks(dispatch: Callback<UserDomainAction>) -> (Callback<Uuid>
 #[hook]
 fn use_drawer_callbacks(ui: UseReducerHandle<UIState>) -> DrawerCallbacks {
     let active_tab = use_state(|| DrawerTab::Branches);
-    let close = use_callback(ui, |_, ui| ui.dispatch(UIStateAction::ToggleDrawer));
+    let close = use_callback(ui.clone(), |_, ui| {
+        crate::app::activity::commit_focused_goal();
+        let activity = ui.activity_editor.is_some();
+        let creating = ui.activity_creation.is_some();
+        ui.dispatch(UIStateAction::SetDrawerOpen(false));
+        if activity {
+            focus_activity_control("activity-edit");
+        } else if creating {
+            focus_activity_control("activity-start");
+        }
+    });
     let change = use_callback(active_tab.clone(), |tab, active| active.set(tab));
+    let open_review = use_callback((ui, active_tab.clone()), |_, (ui, active)| {
+        active.set(DrawerTab::Learning);
+        ui.dispatch(UIStateAction::SetDrawerOpen(true));
+    });
     DrawerCallbacks {
         active_tab,
         close,
         change,
+        open_review,
     }
 }
 
@@ -525,19 +551,29 @@ fn open_usage(ui: &UseReducerHandle<UIState>, active_tab: &UseStateHandle<Drawer
 fn render_chat_canvas(ctx: &MainContext, callbacks: &MainCallbacks) -> Html {
     html! {
         <div class="chat-canvas">
-            {render_chat(ctx, &callbacks.modal.action)}
-            {render_island(ctx)}
+            {render_chat(ctx, callbacks)}
+            {render_island(ctx, callbacks.drawer.open_review.clone())}
             {render_input(ctx)}
             {render_message_undo_notification(ctx.props.ui_state.deleted_messages.len(), on_undo_message_callback(ctx.props.ui_state.clone(), ctx.dispatch.clone()))}
         </div>
     }
 }
 
-fn render_selection_bar(ctx: &MainContext, action: &Callback<SelectionRequest>) -> Html {
-    html! { <TranslateSelectionButton messages={ctx.history.messages.clone()} translate_loading={ctx.props.ui_state.translate_loading.clone()} on_action={action.clone()} /> }
+fn render_selection_buttons(ctx: &MainContext, action: &Callback<SelectionRequest>) -> Html {
+    let activity = ctx
+        .user
+        .current_activity(ctx.user.active_branch_id)
+        .filter(|snapshot| snapshot.is_active())
+        .map(|snapshot| snapshot.definition.clone());
+    let key = format!(
+        "{}:{:?}",
+        ctx.user.active_branch_id,
+        activity.as_ref().map(|a| a.activity_id)
+    );
+    html! { <TranslateSelectionButton {key} {activity} messages={ctx.history.messages.clone()} translate_loading={ctx.props.ui_state.translate_loading.clone()} on_action={action.clone()} /> }
 }
 
-fn render_chat(ctx: &MainContext, action: &Callback<SelectionRequest>) -> Html {
+fn render_chat(ctx: &MainContext, callbacks: &MainCallbacks) -> Html {
     let app_state = &ctx.props.app_state;
     let ui_state = &ctx.props.ui_state;
     let session = &ctx.props.session;
@@ -550,30 +586,36 @@ fn render_chat(ctx: &MainContext, action: &Callback<SelectionRequest>) -> Html {
             on_continue_branch={Some(on_continue_branch(app_state.clone(), session.clone(), ui_state.clone()))}
             on_explain={Some(on_explain_message(app_state.clone(), session.clone(), ui_state.clone()))}
             explain_loading={ui_state.explain_loading.clone()}>
-            {render_selection_bar(ctx, action)}
+            <LearningItemsFlash items={ui_state.flashed_items.clone()} on_dismiss={callbacks.learning.dismiss.clone()} />
         </ChatWindow>
     }
 }
 
-fn render_island(ctx: &MainContext) -> Html {
+fn render_island(ctx: &MainContext, on_open_review_list: Callback<()>) -> Html {
     html! {
         <DynamicIsland items={ctx.data.items.clone()} current_step_title={current_step_title(&ctx.user)}
-            learning_goals={ctx.data.goals.clone()} quests={dialect_quests(&ctx.user)} />
+            learning_goals={ctx.data.goals.clone()} quests={dialect_quests(&ctx.user)} {on_open_review_list} />
     }
 }
 
 fn render_input(ctx: &MainContext) -> Html {
     html! {
         <InputBox on_send={on_send_message(ctx.props.app_state.clone(), ctx.props.session.clone(), ctx.props.ui_state.clone())}
-            textarea_ref={Some(ctx.chat_input_ref.clone())} language_option={ctx.user.current_language_option()} />
+            textarea_ref={Some(ctx.chat_input_ref.clone())} language_option={ctx.user.current_language_option()}
+            send_disabled={ctx.props.ui_state.activities.get(&ctx.user.active_branch_id).is_some_and(|s| s.busy.is_some())}>
+            {render_activity(ctx)}
+        </InputBox>
     }
 }
 
 fn render_drawer(ctx: &MainContext, callbacks: &MainCallbacks) -> Html {
     let app_state = &ctx.props.app_state;
     let ui_state = &ctx.props.ui_state;
+    let creating = ui_state.activity_creation.is_some();
     html! {
-        <Drawer is_open={ui_state.drawer_open} on_close={callbacks.drawer.close.clone()} title="Study Tools">
+        <Drawer suspend_focus={callbacks.modal.state.is_some()} trap_focus={creating || ui_state.activity_editor.is_some()} is_open={ui_state.drawer_open} on_close={callbacks.drawer.close.clone()} title={if creating { "Start activity" } else if ui_state.activity_editor.is_some() { "Activity goals" } else { "Study Tools" }}>
+            if creating { {render_activity_create(ctx)} }
+            else if ui_state.activity_editor.is_some() { {render_activity_editor(ctx, callbacks.drawer.close.clone())} } else {
             <StudyDrawerContent active_tab={*callbacks.drawer.active_tab} on_tab_change={callbacks.drawer.change.clone()}
                 user={ctx.user.clone()} is_admin={app_state.current_user.as_ref().map(|u| u.is_admin).unwrap_or(false)} dispatch={ctx.dispatch.clone()}
                 branches={ctx.history.branches.clone()} active_branch_id={ctx.user.active_branch_id} messages={ctx.history.messages.clone()}
@@ -584,6 +626,7 @@ fn render_drawer(ctx: &MainContext, callbacks: &MainCallbacks) -> Html {
                 on_delete_learning_item={callbacks.learning.delete.clone()} on_undo_delete_learning_item={callbacks.learning.undo.clone()}
                 on_log_out={on_signout_click(app_state.clone(), ctx.props.session.clone(), ui_state.clone())}
                 deleted_learning_items_count={ui_state.deleted_learning_items.len()} />
+            }
         </Drawer>
     }
 }
@@ -614,6 +657,150 @@ fn render_modal(
         },
         None => html! {},
     }
+}
+
+fn focus_activity_control(id: &str) {
+    if let Some(element) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.get_element_by_id(id))
+        .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+    {
+        let _ = element.focus();
+    }
+}
+
+fn render_activity(ctx: &MainContext) -> Html {
+    use crate::components::activity_control::ActivityControl;
+    let branch_id = ctx.user.active_branch_id;
+    let activity = ctx
+        .user
+        .current_activity(branch_id)
+        .filter(|s| s.is_active())
+        .cloned();
+    let id = activity.as_ref().map(|s| s.definition.activity_id);
+    let state = ctx
+        .props
+        .ui_state
+        .activities
+        .get(&branch_id)
+        .cloned()
+        .unwrap_or_default();
+    let ui = ctx.props.ui_state.clone();
+    let on_start = Callback::from(move |_| ui.dispatch(UIStateAction::ActivityCreate(branch_id)));
+    let ui = ctx.props.ui_state.clone();
+    let on_expand =
+        Callback::from(move |open| ui.dispatch(UIStateAction::ActivityExpanded(branch_id, open)));
+    let ui = ctx.props.ui_state.clone();
+    let on_edit = Callback::from(move |_| {
+        if let Some(id) = id {
+            ui.dispatch(UIStateAction::ActivityEditor(branch_id, id));
+        }
+    });
+    let (session, ui) = (ctx.props.session.clone(), ctx.props.ui_state.clone());
+    let on_end = Callback::from(move |_| {
+        if let Some(id) = id {
+            crate::app::activity::end(&session, &ui, branch_id, id);
+        }
+    });
+    let (app, session, ui) = (
+        ctx.props.app_state.clone(),
+        ctx.props.session.clone(),
+        ctx.props.ui_state.clone(),
+    );
+    let on_retry_open =
+        Callback::from(move |_| crate::app::activity::open(&app, &session, &ui, branch_id));
+    let ui = ctx.props.ui_state.clone();
+    let on_retry_check =
+        Callback::from(move |_| ui.dispatch(UIStateAction::ActivityRetryCheck(branch_id)));
+    html! { <ActivityControl {activity} {state} {on_start} {on_expand} {on_edit} {on_end} {on_retry_open} {on_retry_check} /> }
+}
+
+fn render_activity_create(ctx: &MainContext) -> Html {
+    use crate::components::activity_control::ActivityCreateForm;
+    let branch_id = ctx.user.active_branch_id;
+    let state = ctx
+        .props
+        .ui_state
+        .activities
+        .get(&branch_id)
+        .cloned()
+        .unwrap_or_default();
+    let ui = ctx.props.ui_state.clone();
+    let on_description = Callback::from(move |text| {
+        ui.dispatch(UIStateAction::ActivityDescription(branch_id, text))
+    });
+    html! { <ActivityCreateForm {state} {on_description} on_generate={crate::app::activity::generate(ctx.props.app_state.clone(), ctx.props.session.clone(), ctx.props.ui_state.clone())} /> }
+}
+
+fn render_activity_editor(ctx: &MainContext, close: Callback<()>) -> Html {
+    use crate::app::app_state::GoalTarget;
+    use crate::components::LearningGoalsPanel;
+    let Some((branch_id, activity_id)) = ctx.props.ui_state.activity_editor else {
+        return html! {};
+    };
+    let Some(activity) = ctx
+        .user
+        .current_activity(branch_id)
+        .filter(|s| s.is_active() && s.definition.activity_id == activity_id)
+    else {
+        return html! {};
+    };
+    let target = GoalTarget::Activity {
+        branch_id,
+        activity_id,
+    };
+    let (dispatch, add_target) = (ctx.dispatch.clone(), target.clone());
+    let on_add = Callback::from(move |text| {
+        dispatch.emit(UserDomainAction::Learning(LearningAction::AddGoal(
+            add_target.clone(),
+            text,
+        )))
+    });
+    let (dispatch, delete_target) = (ctx.dispatch.clone(), target.clone());
+    let on_delete = Callback::from(move |index| {
+        dispatch.emit(UserDomainAction::Learning(LearningAction::DeleteGoal(
+            delete_target.clone(),
+            index,
+        )))
+    });
+    let dispatch = ctx.dispatch.clone();
+    let on_edit = Callback::from(move |(index, text)| {
+        dispatch.emit(UserDomainAction::Learning(LearningAction::UpdateGoal(
+            target.clone(),
+            index,
+            text,
+        )))
+    });
+    let (session, ui) = (ctx.props.session.clone(), ctx.props.ui_state.clone());
+    let on_end = Callback::from(move |_| {
+        crate::app::activity::end(&session, &ui, branch_id, activity_id);
+    });
+    let status = ctx
+        .props
+        .ui_state
+        .activities
+        .get(&branch_id)
+        .cloned()
+        .unwrap_or_default();
+    let (app, session, ui) = (
+        ctx.props.app_state.clone(),
+        ctx.props.session.clone(),
+        ctx.props.ui_state.clone(),
+    );
+    let retry_open =
+        Callback::from(move |_| crate::app::activity::open(&app, &session, &ui, branch_id));
+    let ui = ctx.props.ui_state.clone();
+    let retry_check =
+        Callback::from(move |_| ui.dispatch(UIStateAction::ActivityRetryCheck(branch_id)));
+    html! { <div class="activity-editor">
+        <p dir="auto">{&activity.definition.title}</p>
+        {crate::components::activity_control::render_activity_feedback(activity, &status, retry_open, retry_check)}
+        <LearningGoalsPanel activity_id={Some(activity_id)} goals={activity.definition.goals.clone()} {on_add} {on_delete} on_edit={Some(on_edit)} heading={Some("Activity goals".to_string())} show_completion={true} />
+        <div class="form-buttons">
+            <button type="button" class="btn btn--primary" onclick={close.reform(|_| ())}>{"Done"}</button>
+            <button type="button" class="btn btn--ghost" onclick={on_end}>{"End activity"}</button>
+        </div>
+    </div> }
 }
 
 #[cfg(test)]

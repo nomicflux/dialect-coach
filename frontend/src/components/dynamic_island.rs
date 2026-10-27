@@ -14,6 +14,7 @@ pub struct DynamicIslandProps {
     pub learning_goals: Arc<Vec<LearningGoal>>,
     #[prop_or_default]
     pub quests: Vec<Quest>,
+    pub on_open_review_list: Callback<()>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -23,119 +24,122 @@ enum ViewState {
     Items(Vec<Uuid>), // UUIDs of items to show
 }
 
-#[function_component(DynamicIsland)]
-pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
-    let state = use_state(|| ViewState::Plan);
-
-    // --- Derived Values (from props) ---
-    let quest_item_ids: Vec<Uuid> = props
-        .quests
+fn quest_item_ids(quests: &[Quest]) -> Vec<Uuid> {
+    quests
         .iter()
         .filter(|q| !q.completed)
         .filter_map(|q| {
             q.id.strip_prefix("quest_")
-                .and_then(|s| Uuid::parse_str(s).ok())
+                .and_then(|id| Uuid::parse_str(id).ok())
         })
-        .collect();
+        .collect()
+}
 
-    let available_items: Vec<LearningItem> = props
-        .items
+fn available_items(items: &[LearningItem], quest_ids: &[Uuid]) -> Vec<LearningItem> {
+    items
         .iter()
-        .filter(|item| !quest_item_ids.contains(&item.id()))
+        .filter(|item| !quest_ids.contains(&item.id()))
         .cloned()
-        .collect();
+        .collect()
+}
 
-    let has_plan = props.current_step_title.is_some();
-    let has_goals = !props.learning_goals.is_empty();
-    let has_items = !available_items.is_empty();
-    let available_modes = get_available_modes(has_plan, has_goals, has_items);
-
-    let selected_mode = mode_from_view_state(&state);
-    let effective_mode = if available_modes.contains(&selected_mode) {
-        Some(selected_mode)
+fn effective_mode(state: &ViewState, available: &[Mode]) -> Option<Mode> {
+    let selected = mode_from_view_state(state);
+    if available.contains(&selected) {
+        Some(selected)
     } else {
-        available_modes.first().copied()
-    };
+        available.first().copied()
+    }
+}
 
-    // --- Click Handler ---
-    let on_click_container = {
-        let state = state.clone();
-        let available_items_for_click = available_items.clone();
+fn view_state_for_mode(mode: Mode, items: &[LearningItem]) -> ViewState {
+    match mode {
+        Mode::Plan => ViewState::Plan,
+        Mode::Goal => ViewState::Goal,
+        Mode::Items => ViewState::Items(pick_random_uuids(items, 3.min(items.len()), &[])),
+    }
+}
 
-        Callback::from(move |_: MouseEvent| {
-            let available = get_available_modes(has_plan, has_goals, has_items);
-            if available.is_empty() {
-                return;
+#[hook]
+fn use_cycle_click(
+    state: UseStateHandle<ViewState>,
+    modes: Vec<Mode>,
+    items: Vec<LearningItem>,
+) -> Callback<MouseEvent> {
+    Callback::from(move |_| {
+        if let Some(current) = effective_mode(&state, &modes)
+            && let Some(next) = get_next_mode(current, &modes)
+        {
+            state.set(view_state_for_mode(next, &items));
+        }
+    })
+}
+
+fn render_summary(count: usize, on_open: Callback<()>) -> Html {
+    html! {
+        <div class="island-summary">
+            <span class="island-label">{"Today's focus"}</span>
+            if count > 0 {
+                <button type="button" class="island-summary-count" onclick={on_open.reform(|_| ())}>
+                    {format!("{count} to review")}
+                </button>
             }
+        </div>
+    }
+}
 
-            let selected = mode_from_view_state(&state);
-            let cycle_from = if available.contains(&selected) {
-                selected
-            } else {
-                available[0]
-            };
-
-            if let Some(next_mode) = get_next_mode(cycle_from, &available) {
-                let new_state = match next_mode {
-                    Mode::Plan => ViewState::Plan,
-                    Mode::Goal => ViewState::Goal,
-                    Mode::Items => {
-                        let count = 3.min(available_items_for_click.len());
-                        let uuids = pick_random_uuids(&available_items_for_click, count, &[]);
-                        ViewState::Items(uuids)
-                    }
-                };
-                state.set(new_state);
-            }
-        })
+fn render_review_items(items: &[LearningItem], state: &UseStateHandle<ViewState>) -> Html {
+    let uuids = match &**state {
+        ViewState::Items(ids) => ids.clone(),
+        _ => pick_random_uuids(items, 3.min(items.len()), &[]),
     };
+    render_items(items, &uuids, state.clone())
+}
 
-    // --- Render (derived from effective_mode) ---
-    let content = match effective_mode {
+fn render_mode_content(
+    props: &DynamicIslandProps,
+    state: &UseStateHandle<ViewState>,
+    items: &[LearningItem],
+    mode: Option<Mode>,
+) -> Html {
+    match mode {
         None => render_guidance_message(),
         Some(Mode::Plan) => render_plan(props.current_step_title.as_ref().unwrap()),
         Some(Mode::Goal) => render_goal(&props.learning_goals),
-        Some(Mode::Items) => {
-            let uuids = match &*state {
-                ViewState::Items(u) => u.clone(),
-                _ => {
-                    let count = 3.min(available_items.len());
-                    pick_random_uuids(&available_items, count, &[])
-                }
-            };
-            render_items(&available_items, &uuids, state.clone())
-        }
-    };
+        Some(Mode::Items) => render_review_items(items, state),
+    }
+}
 
-    // Render quests above the main content if any undone quests exist
-    let quests_section = render_quests(&props.quests);
+fn render_island_body(
+    props: &DynamicIslandProps,
+    state: &UseStateHandle<ViewState>,
+    items: &[LearningItem],
+    mode: Option<Mode>,
+    onclick: Callback<MouseEvent>,
+) -> Html {
+    html! {
+        <div class="dynamic-island" {onclick} title="Click to toggle view">
+            {render_quests(&props.quests)}
+            {render_mode_content(props, state, items, mode)}
+        </div>
+    }
+}
 
-    // The summary is the whole panel on a narrow screen: the study band sits
-    // between the header and the conversation, so at full height it pushes the
-    // messages off the first screen. Collapsed it costs one line, and the
-    // <details> toggle opens it in place without taking the space until asked.
-    let review_count = available_items.len();
-
+#[function_component(DynamicIsland)]
+pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
+    let state = use_state(|| ViewState::Plan);
+    let items = available_items(&props.items, &quest_item_ids(&props.quests));
+    let modes = get_available_modes(
+        props.current_step_title.is_some(),
+        !props.learning_goals.is_empty(),
+        !items.is_empty(),
+    );
+    let onclick = use_cycle_click(state.clone(), modes.clone(), items.clone());
+    // The phone title and review link precede always-visible focus content.
     html! {
         <div class="dynamic-island-container">
-            <details class="island-disclosure">
-                <summary class="island-summary">
-                    <span class="island-label">{"Today's focus"}</span>
-                    if review_count > 0 {
-                        <span class="island-summary-count">
-                            {format!("{review_count} to review")}
-                        </span>
-                    }
-                </summary>
-                <div
-                    class="dynamic-island"
-                    onclick={on_click_container}
-                    title="Click to toggle view"
-                >
-                    {quests_section}
-                    {content}
-                </div>
-            </details>
+            {render_summary(items.len(), props.on_open_review_list.clone())}
+            {render_island_body(props, &state, &items, effective_mode(&state, &modes), onclick)}
         </div>
     }
 }
@@ -156,32 +160,36 @@ fn render_plan(step_title: &str) -> Html {
 
 /// Review rows kept visible at <=900px. Matches the `.island-item` cutoff in
 /// dynamic_island.css; the rest are hidden and counted by `.island-more`.
-const MOBILE_REVIEW_LIMIT: usize = 2;
+const MOBILE_REVIEW_LIMIT: usize = 1;
+const MOBILE_QUEST_LIMIT: usize = 2;
+
+fn review_rows(
+    all_items: &[LearningItem],
+    uuids: &[Uuid],
+    state: UseStateHandle<ViewState>,
+) -> Vec<Html> {
+    uuids
+        .iter()
+        .filter_map(|uuid| {
+            find_item_by_uuid(all_items, *uuid)
+                .map(|item| render_single_item(item, state.clone(), all_items))
+        })
+        .collect()
+}
 
 fn render_items(
     all_items: &[LearningItem],
     uuids: &[Uuid],
     state: UseStateHandle<ViewState>,
 ) -> Html {
-    let shown: Vec<Html> = uuids
-        .iter()
-        .filter_map(|uuid| {
-            find_item_by_uuid(all_items, *uuid)
-                .map(|item| render_single_item(item, state.clone(), all_items))
-        })
-        .collect();
-
-    // Rows past the second are hidden on a narrow screen so the band stays a
-    // strip above the conversation; the count keeps the hidden ones visible.
+    let shown = review_rows(all_items, uuids, state);
+    // Phones show one review row; the remaining rendered rows are counted below.
     let hidden = shown.len().saturating_sub(MOBILE_REVIEW_LIMIT);
-
     html! {
         <div class="island-list">
             <div class="island-header">
                 <span class="island-label">{"Review"}</span>
-                if hidden > 0 {
-                    <span class="island-more">{format!("+{hidden} more")}</span>
-                }
+                if hidden > 0 { <span class="island-more">{format!("+{hidden} more")}</span> }
             </div>
             {shown}
         </div>
@@ -222,30 +230,28 @@ fn render_single_item(
     }
 }
 
+fn render_quest(quest: &Quest) -> Html {
+    html! {
+        <div class="island-quest-item">
+            <span class="quest-icon">{"🎯"}</span>
+            <span class="island-text">{render_text_with_ruby(&quest.description)}</span>
+        </div>
+    }
+}
+
 fn render_quests(quests: &[Quest]) -> Html {
     let undone: Vec<_> = quests.iter().filter(|q| !q.completed).collect();
     if undone.is_empty() {
         return html! {};
     }
-
-    let hidden = undone.len().saturating_sub(MOBILE_REVIEW_LIMIT);
-
+    let hidden = undone.len().saturating_sub(MOBILE_QUEST_LIMIT);
     html! {
         <div class="island-quests">
             <div class="island-header">
                 <span class="island-label">{"Daily Focus"}</span>
-                if hidden > 0 {
-                    <span class="island-more">{format!("+{hidden} more")}</span>
-                }
+                if hidden > 0 { <span class="island-more">{format!("+{hidden} more")}</span> }
             </div>
-            {for undone.iter().map(|quest| {
-                html! {
-                    <div class="island-quest-item">
-                        <span class="quest-icon">{"🎯"}</span>
-                        <span class="island-text">{render_text_with_ruby(&quest.description)}</span>
-                    </div>
-                }
-            })}
+            {for undone.iter().map(|quest| render_quest(quest))}
         </div>
     }
 }
@@ -378,5 +384,81 @@ fn get_item_id(item: &LearningItem) -> Uuid {
         LearningItemType::Explanation(e) => e.id,
         LearningItemType::Translation(t) => t.id,
         LearningItemType::Exploration(e) => e.id,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_fixtures::{learning_item, quest};
+    use dialect_coach_shared::Dialect;
+
+    #[test]
+    fn incomplete_quests_supply_valid_item_ids_only() {
+        let id = Uuid::new_v4();
+        let pending = quest(id, Dialect::ArabicEgyptian, "Practice a greeting");
+        let mut complete = quest(Uuid::new_v4(), pending.dialect, "Completed");
+        complete.completed = true;
+        let mut invalid = pending.clone();
+        invalid.id = "quest_invalid".into();
+        let mut other = pending.clone();
+        other.id = format!("other_{id}");
+        assert_eq!(
+            quest_item_ids(&[pending, complete, invalid, other]),
+            vec![id]
+        );
+    }
+
+    #[test]
+    fn review_items_exclude_daily_targets_and_keep_full_content_in_order() {
+        let first = learning_item("أهلا", Dialect::ArabicEgyptian, 37);
+        let focus = learning_item("بالراحة", Dialect::ArabicEgyptian, 12);
+        let last = learning_item("واحدة واحدة", Dialect::ArabicEgyptian, 89);
+        let items = vec![first.clone(), focus.clone(), last.clone()];
+        assert_eq!(available_items(&items, &[focus.id()]), vec![first, last]);
+        assert_eq!(available_items(&items, &[]), items);
+    }
+
+    #[test]
+    fn no_review_items_remain_when_all_are_daily_targets() {
+        let items = [learning_item("أهلا", Dialect::ArabicEgyptian, 0)];
+        assert!(available_items(&items, &[items[0].id()]).is_empty());
+        assert!(available_items(&[], &[]).is_empty());
+    }
+
+    #[test]
+    fn selected_view_stays_selected_while_available() {
+        let modes = vec![Mode::Plan, Mode::Goal, Mode::Items];
+        assert_eq!(effective_mode(&ViewState::Goal, &modes), Some(Mode::Goal));
+        assert_eq!(
+            effective_mode(&ViewState::Items(vec![]), &modes),
+            Some(Mode::Items)
+        );
+    }
+
+    #[test]
+    fn unavailable_view_falls_back_in_plan_goal_items_order() {
+        let modes = get_available_modes(false, true, true);
+        assert_eq!(effective_mode(&ViewState::Plan, &modes), Some(Mode::Goal));
+        let modes = get_available_modes(false, false, true);
+        assert_eq!(effective_mode(&ViewState::Goal, &modes), Some(Mode::Items));
+        assert_eq!(
+            effective_mode(&ViewState::Items(vec![]), &[Mode::Plan]),
+            Some(Mode::Plan)
+        );
+        assert_eq!(effective_mode(&ViewState::Plan, &[]), None);
+    }
+
+    #[test]
+    fn clicking_cycles_available_views_and_wraps() {
+        let modes = get_available_modes(true, true, true);
+        assert_eq!(get_next_mode(Mode::Plan, &modes), Some(Mode::Goal));
+        assert_eq!(get_next_mode(Mode::Goal, &modes), Some(Mode::Items));
+        assert_eq!(get_next_mode(Mode::Items, &modes), Some(Mode::Plan));
+        assert_eq!(
+            get_next_mode(Mode::Items, &[Mode::Items]),
+            Some(Mode::Items)
+        );
+        assert_eq!(get_next_mode(Mode::Plan, &[]), None);
     }
 }

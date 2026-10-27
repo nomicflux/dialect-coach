@@ -42,3 +42,17 @@ pub fn quest(item_id: Uuid, dialect: Dialect, description: &str) -> Quest {
         dialect,
     }
 }
+
+pub fn learning_item(
+    text: &str,
+    dialect: Dialect,
+    score: u8,
+) -> dialect_coach_shared::LearningItem {
+    let explanation =
+        dialect_coach_shared::Explained::new(text.into(), "Meaning in context".into());
+    dialect_coach_shared::LearningItem::with_score(
+        dialect_coach_shared::LearningItemType::Explanation(explanation),
+        dialect,
+        score,
+    )
+}

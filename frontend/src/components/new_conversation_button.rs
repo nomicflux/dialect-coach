@@ -9,6 +9,7 @@ pub struct NewConversationButtonProps {
 
 fn new_conversation_click(session: UseReducerHandle<SessionState>) -> Callback<MouseEvent> {
     Callback::from(move |_| {
+        crate::app::activity::commit_focused_goal();
         session.dispatch(SessionAction::Domain(UserDomainAction::Branch(
             BranchAction::CreateNew,
         )));

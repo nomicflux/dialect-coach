@@ -17,6 +17,8 @@ struct UnsavedState {
 /// A coach request kept until it resolves.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredRequest {
+    #[serde(default)]
+    pub origin_branch_id: Option<Uuid>,
     pub id: RequestId,
     pub request: ChatRequest,
     /// Written to the socket; after a refresh its reply can no longer arrive.
@@ -27,6 +29,7 @@ impl StoredRequest {
     pub fn new(request: ChatRequest) -> Self {
         Self {
             id: Uuid::new_v4(),
+            origin_branch_id: None,
             request,
             sent: false,
         }
