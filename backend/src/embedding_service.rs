@@ -2,10 +2,11 @@ use anyhow::{Context, Result};
 use bzip2::read::BzDecoder;
 use fastembed::{TextEmbedding, TokenizerFiles, UserDefinedEmbeddingModel};
 use std::io;
+use std::sync::Arc;
 
 /// Embedding service using Fastembed
 pub struct EmbeddingService {
-    model: TextEmbedding,
+    model: Arc<TextEmbedding>,
 }
 
 /// Decompress model.onnx.bz2 and return bytes
@@ -52,15 +53,14 @@ impl EmbeddingService {
 
         tracing::info!("Embedding model loaded successfully");
 
-        Ok(Self { model })
+        Ok(Self {
+            model: Arc::new(model),
+        })
     }
 
     /// Generate embedding for a single text
-    pub fn embed_text(&self, text: &str) -> Result<Vec<f32>> {
-        let embeddings = self
-            .model
-            .embed(vec![text.to_string()], None)
-            .context("Failed to generate embedding")?;
+    pub async fn embed_text(&self, text: &str) -> Result<Vec<f32>> {
+        let embeddings = self.embed_batch(vec![text.to_string()]).await?;
 
         embeddings
             .into_iter()
@@ -69,10 +69,15 @@ impl EmbeddingService {
     }
 
     /// Generate embeddings for multiple texts
-    pub fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
-        self.model
-            .embed(texts, None)
-            .context("Failed to generate batch embeddings")
+    pub async fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        let model = Arc::clone(&self.model);
+        tokio::task::spawn_blocking(move || {
+            model
+                .embed(texts, None)
+                .context("Failed to generate batch embeddings")
+        })
+        .await
+        .context("Embedding task failed")?
     }
 
     /// Get the dimensionality of embeddings
@@ -91,18 +96,18 @@ mod tests {
         assert_eq!(service.dimension(), 768);
     }
 
-    #[test]
-    fn test_embed_text() {
+    #[tokio::test]
+    async fn test_embed_text() {
         let service = EmbeddingService::new().unwrap();
-        let embedding = service.embed_text("Hola, ¿cómo estás?").unwrap();
+        let embedding = service.embed_text("Hola, ¿cómo estás?").await.unwrap();
 
         assert_eq!(embedding.len(), 768);
         // Check that embedding is not all zeros
         assert!(embedding.iter().any(|&x| x != 0.0));
     }
 
-    #[test]
-    fn test_embed_batch() {
+    #[tokio::test]
+    async fn test_embed_batch() {
         let service = EmbeddingService::new().unwrap();
         let texts = vec![
             "Hola".to_string(),
@@ -110,7 +115,7 @@ mod tests {
             "¿Qué tal?".to_string(),
         ];
 
-        let embeddings = service.embed_batch(texts).unwrap();
+        let embeddings = service.embed_batch(texts).await.unwrap();
 
         assert_eq!(embeddings.len(), 3);
         for embedding in embeddings {

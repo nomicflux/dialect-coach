@@ -4,7 +4,7 @@ WORKDIR /app
 # Stage: Infrastructure
 FROM chef AS infrastructure
 
-RUN cargo install trunk --version 0.21.14
+RUN cargo install trunk --version 0.21.14 --locked
 RUN rustup target add wasm32-unknown-unknown
 
 FROM chef AS planner

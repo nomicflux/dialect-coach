@@ -30,11 +30,11 @@ impl ResponseContext {
         }
 
         // 1. Generate content embedding
-        let content_embedding = self.embeddings.embed_text(user_message)?;
+        let content_embedding = self.embeddings.embed_text(user_message).await?;
 
         // 2. Generate context embedding from conversation history
         let context_text = Self::build_context_string(conversation_history);
-        let context_embedding = self.embeddings.embed_text(&context_text)?;
+        let context_embedding = self.embeddings.embed_text(&context_text).await?;
 
         // 3. Extract keywords and generate embeddings
         let keywords = self
@@ -43,7 +43,7 @@ impl ResponseContext {
             .await
             .unwrap_or_default();
         let keyword_embeddings = if !keywords.is_empty() {
-            self.embeddings.embed_batch(keywords)?
+            self.embeddings.embed_batch(keywords).await?
         } else {
             Vec::new()
         };

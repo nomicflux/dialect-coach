@@ -1,5 +1,9 @@
 use super::{
     provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionRequest},
+    response::{
+        activity_level_instruction, extract_gender_from_dialect, formality_instruction,
+        mimic_instruction, proficiency_instruction, speaker_desc,
+    },
     retry::retry_completion_call,
     util::normalize_json_response,
 };
@@ -87,9 +91,21 @@ pub async fn generate(
         "learning_context": { "mistakes": context.past_mistakes, "explained": context.past_explained, "translated": context.past_translated, "exploratory": context.past_exploratory },
         "dialogue": context.context_messages.iter().map(|m| serde_json::json!({"speaker": if m.is_agent() { "partner" } else { "learner" }, "text": m.as_str()})).collect::<Vec<_>>()
     }).to_string();
+    let language_instruction =
+        super::language_instructions::build_language_instruction(&context.language_option);
+    let dialect = dialect_coach_shared::dialect_features(context.dialect);
+    let speaker = speaker_desc(
+        &context.dialect,
+        &context.formality,
+        &extract_gender_from_dialect(&dialect),
+    );
+    // Authoring has conversation context, but no retrieved dialect examples.
+    let dialect_rule = mimic_instruction(false);
+    let formality_rule = formality_instruction(context.formality, false);
+    let proficiency_rule = proficiency_instruction(context.language_level);
     let mut preamble = format!(
-        "Author a short communicative activity for this conversation. Follow the optional description; otherwise choose from the conversation and settings, including an empty conversation. Use prose, not a fixed recipe catalogue. Normally give one to three concrete observable goals, allowing different successful approaches, without a turn deadline. Distinguish shared context, private learner brief, and hidden partner facts/constraints; partner facts must be usable without the learner's private brief. Keep partner-only facts, values and reasons solely in partner_brief: never reveal them in title, shared_context, learner_brief or goals. Public goals must describe observable learner work, not disclose answers the learner must discover. The app automatically requests a partner opening before the learner sends a message; make both briefs fit that opening. When the task involves discovering information, make partner_brief self-contained about what may be volunteered in the opening and which facts to reveal only in response to relevant learner questions; do not volunteer the answers the learner is meant to discover. State these reveal conditions in ordinary prose without scripting an exchange. Before returning JSON, check each public field for hidden-answer leakage. The learner brief must stand alone and include the shared context needed to begin. Preserve known facts, dialect, script, formality and story continuity. Proficiency is not age. Write learner_brief and every goals string in the target dialect and script at the learner's stated proficiency, or only slightly above it, using the same proficiency guidance below. Use familiar vocabulary, short direct sentences and clear action verbs; allow only occasional unfamiliar language whose meaning is supported by context. Keep the concrete task and outcomes intact: simplify the wording rather than making the activity childish or removing its purpose. Write these as instructions addressed directly to the learner, using language they can already understand, rather than abstract descriptions of learning outcomes. At beginner levels, give one simple action per sentence and split multi-step goals into short sentences. Before returning, read each instruction as the learner and rewrite wording that requires more proficiency than the task itself. Apply the requested script to the instructions themselves as well as to any examples; check every learner-facing field against the script setting. Make the information demands manageable and a successful route feasible under these exact response limits: {}. Internally work through a short successful exchange, but do not output that exchange or prescribe dialogue. Return only JSON with nonempty string fields title, shared_context, learner_brief, partner_brief, and goals as a nonempty array of strings.",
-        super::response::activity_level_instruction(context.language_level)
+        "{speaker}\n\n{language_instruction}\n\n{dialect_rule}\n{formality_rule}\n{proficiency_rule}\n\nAuthor a short communicative activity for this conversation. Follow the optional description; otherwise choose from the conversation and settings, including an empty conversation. Use prose, not a fixed recipe catalogue. Normally give one to three concrete observable goals, allowing different successful approaches, without a turn deadline. Distinguish shared context, private learner brief, and hidden partner facts/constraints; partner facts must be usable without the learner's private brief. Keep partner-only facts, values and reasons solely in partner_brief: never reveal them in title, shared_context, learner_brief or goals. Public goals must describe observable learner work, not disclose answers the learner must discover. The app automatically requests a partner opening before the learner sends a message; make both briefs fit that opening. When the task involves discovering information, make partner_brief self-contained about what may be volunteered in the opening and which facts to reveal only in response to relevant learner questions; do not volunteer the answers the learner is meant to discover. State these reveal conditions in ordinary prose without scripting an exchange. Before returning JSON, check each public field for hidden-answer leakage. The learner brief must stand alone and include the shared context needed to begin. Preserve known facts, dialect, script, formality and story continuity. Proficiency is not age. Write learner_brief and every goals string in the target dialect and script at the learner's stated proficiency, or only slightly above it, using the same proficiency guidance below. Use familiar vocabulary, short direct sentences and clear action verbs; allow only occasional unfamiliar language whose meaning is supported by context. Keep the concrete task and outcomes intact: simplify the wording rather than making the activity childish or removing its purpose. Write these as instructions addressed directly to the learner, using language they can already understand, rather than abstract descriptions of learning outcomes. At beginner levels, give one simple action per sentence and split multi-step goals into short sentences. Before returning, read each instruction as the learner and rewrite wording that requires more proficiency than the task itself. Apply the requested script to the instructions themselves as well as to any examples; check every learner-facing field against the script setting. Make the information demands manageable and a successful route feasible under these exact response limits: {}. Internally work through a short successful exchange, but do not output that exchange or prescribe dialogue. Return only JSON with nonempty string fields title, shared_context, learner_brief, partner_brief, and goals as a nonempty array of strings.",
+        activity_level_instruction(context.language_level)
     );
     let mut usage = vec![];
     for attempt in 0..2 {
@@ -132,12 +148,14 @@ mod tests {
             ANTHROPIC_PROVIDER
         }
         fn model(&self) -> &str {
-            "claude-haiku-4-5"
+            "test-author"
         }
         async fn completion(
             &self,
             request: &CompletionRequest<'_>,
         ) -> Result<CompletionOutcome, CompletionAgentError> {
+            assert!(request.history.is_empty());
+            assert_eq!(request.max_tokens, 4096);
             let mut calls = self.calls.lock().unwrap();
             calls.push((
                 request.temperature,
@@ -153,6 +171,76 @@ mod tests {
                 input_tokens: 10,
                 output_tokens: 5,
             })
+        }
+    }
+    #[tokio::test]
+    async fn shared_language_instructions_reach_authoring_request() {
+        use dialect_coach_shared::{
+            ArabicScript, CefrLevel, Dialect, Formality, JapaneseScript, JlptLevel, LanguageLevel,
+            LanguageOption,
+        };
+        let cases = [
+            (
+                Dialect::JapaneseTokyo,
+                Some(LanguageOption::Japanese(JapaneseScript::KanjiWithRuby)),
+                Formality::Informal,
+                LanguageLevel::Jlpt(JlptLevel::N4),
+            ),
+            (
+                Dialect::ArabicLevantine,
+                Some(LanguageOption::Arabic(ArabicScript::Naskh)),
+                Formality::Slang,
+                LanguageLevel::Cefr(CefrLevel::A2),
+            ),
+            (
+                Dialect::SpanishArgentinian,
+                None,
+                Formality::ProfessionalCasual,
+                LanguageLevel::Cefr(CefrLevel::B2),
+            ),
+        ];
+        for (dialect, script, formality, level) in cases {
+            let state = dialect_coach_shared::UserState::new(uuid::Uuid::new_v4());
+            let mut context = state.build_action_context(vec![]);
+            context.dialect = dialect;
+            context.language_option = script;
+            context.formality = formality;
+            context.language_level = level;
+            let request = GenerateActivityRequest {
+                user_id: state.user_id,
+                branch_id: state.active_branch_id,
+                description: None,
+                context,
+            };
+            let author = Author {
+                calls: Mutex::new(vec![]),
+            };
+            let (result, _) = generate(&author, &request).await;
+            assert!(result.is_ok());
+            for (temperature, prompt, preamble) in author.calls.lock().unwrap().iter() {
+                let payload: serde_json::Value = serde_json::from_str(prompt).unwrap();
+                assert_eq!(payload["dialect"], serde_json::json!(dialect));
+                assert_eq!(payload["script"], serde_json::json!(script));
+                assert_eq!(payload["formality"], serde_json::json!(formality));
+                assert_eq!(payload["proficiency"], serde_json::json!(level));
+                assert_eq!(*temperature, 0.7);
+                let features = dialect_coach_shared::dialect_features(dialect);
+                assert!(preamble.contains(&speaker_desc(
+                    &dialect,
+                    &formality,
+                    &extract_gender_from_dialect(&features)
+                )));
+                assert!(preamble.contains(
+                    &super::super::language_instructions::build_language_instruction(&script)
+                ));
+                assert!(preamble.contains(mimic_instruction(false)));
+                assert!(preamble.contains(&formality_instruction(formality, false)));
+                assert_eq!(preamble.matches(activity_level_instruction(level)).count(), 1);
+                assert!(preamble.contains(&proficiency_instruction(level)));
+                assert!(!preamble.contains("shown in the examples"));
+                assert!(!preamble.contains("\"response\""));
+                assert!(preamble.contains("Return only JSON with nonempty string fields title, shared_context, learner_brief, partner_brief, and goals as a nonempty array of strings."));
+            }
         }
     }
     #[tokio::test]

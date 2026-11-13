@@ -224,6 +224,65 @@ async fn reattached(
 mod tests {
     use super::*;
 
+    // A single async worker makes blocking the networking runtime observable.
+    // Exercise the real embedding boundary, not an async sleep or a test worker.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_heartbeats_continue_during_embedding_and_reply_arrives_afterward() {
+        let embeddings = crate::embedding_service::EmbeddingService::new().unwrap();
+        let (tx, rx) = mpsc::unbounded_channel();
+        let id = Uuid::new_v4();
+        let started = Instant::now();
+        let request = async move {
+            // Keep generation busy beyond the frontend's 15-second watchdog.
+            while started.elapsed() < Duration::from_secs(16) {
+                embeddings
+                    .embed_text("¿Hay parques cerca del departamento?")
+                    .await
+                    .unwrap();
+            }
+            send::send(
+                &tx,
+                &ServerMessage::Reply {
+                    id,
+                    body: Reply::Failed("test reply after embedding".to_string()),
+                },
+            );
+        };
+        let mut written = Vec::new();
+        let sink = futures_util::sink::unfold(&mut written, |written, message| {
+            written.push((Instant::now(), message));
+            std::future::ready(Ok::<_, std::convert::Infallible>(written))
+        });
+        tokio::join!(request, forward(sink, rx));
+
+        let mut previous = started;
+        let mut heartbeats = 0;
+        for (received, frame) in &written {
+            assert!(
+                *received - previous < Duration::from_secs(15),
+                "heartbeat watchdog would expire"
+            );
+            previous = *received;
+            let WsMessage::Text(text) = frame else {
+                panic!("expected text frame")
+            };
+            match serde_json::from_str::<ServerMessage>(text).unwrap() {
+                ServerMessage::Heartbeat => heartbeats += 1,
+                ServerMessage::Reply { id: reply_id, .. } => {
+                    assert_eq!(reply_id, id);
+                    assert!(heartbeats >= 3, "heartbeats must arrive before the reply");
+                }
+                other => panic!("unexpected frame: {other:?}"),
+            }
+        }
+        let (_, WsMessage::Text(last)) = written.last().expect("reply delivered") else {
+            panic!("expected text frame")
+        };
+        assert!(
+            matches!(serde_json::from_str::<ServerMessage>(last).unwrap(), ServerMessage::Reply { id: reply_id, .. } if reply_id == id)
+        );
+    }
+
     #[tokio::test]
     async fn test_forward_writes_messages_in_order_until_channel_closes() {
         let (tx, rx) = mpsc::unbounded_channel();

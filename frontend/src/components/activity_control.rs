@@ -1,11 +1,13 @@
 use crate::app::app_state::{ActivityOperation, ActivityUi};
 use crate::components::learning_goals_panel::render_goals_list;
-use dialect_coach_shared::ActivitySnapshot;
+use crate::components::{message_bubble::font_class, ruby_text::render_text_with_ruby};
+use dialect_coach_shared::{ActivitySnapshot, LanguageOption};
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct ActivityControlProps {
     pub activity: Option<ActivitySnapshot>,
+    pub language_option: Option<LanguageOption>,
     pub state: ActivityUi,
     pub on_start: Callback<()>,
     pub on_expand: Callback<bool>,
@@ -43,16 +45,15 @@ pub fn activity_control(props: &ActivityControlProps) -> Html {
     } else {
         format!("{completed}/{total}")
     };
-    let label = format!("{} {}", definition.title, error);
     let on_expand = props.on_expand.clone();
     let expanded = state.expanded;
     let toggle = Callback::from(move |_| on_expand.emit(!expanded));
     let end = props.on_end.reform(|_| ());
     html! {
-        <section class="activity-control" aria-label="Activity">
+        <section class={classes!("activity-control", font_class(&props.language_option))} aria-label="Activity">
             <div class="activity-row">
-                <button type="button" class={classes!("activity-title", expanded.then_some("expanded"))} onclick={toggle} aria-label={label} aria-expanded={expanded.to_string()} aria-controls="activity-body">
-                    <span aria-hidden="true">{if expanded { "▾ " } else { "▸ " }}</span>{&definition.title}
+                <button type="button" class={classes!("activity-title", expanded.then_some("expanded"))} onclick={toggle} aria-expanded={expanded.to_string()} aria-controls="activity-body">
+                    <span aria-hidden="true">{if expanded { "▾ " } else { "▸ " }}</span>{render_text_with_ruby(&definition.title)}
                 </button>
                 <span class="activity-count" role="status" aria-label={if error.is_empty() && !checking && total > 0 { format!("{completed} of {total} activity goals achieved") } else { status.clone() }}>
                     {status}{if error.is_empty() && !checking && total > 0 { html! { <span class="activity-count-word">{" goals"}</span> } } else { html! {} }}
@@ -61,7 +62,7 @@ pub fn activity_control(props: &ActivityControlProps) -> Html {
             </div>
             if expanded {
                 <div id="activity-body" class="activity-body">
-                    <p dir="auto" data-activity-id={definition.activity_id.to_string()}>{&definition.learner_brief}</p>
+                    <p dir="auto" data-activity-id={definition.activity_id.to_string()}>{render_text_with_ruby(&definition.learner_brief)}</p>
                     {render_activity_feedback(activity, state, props.on_retry_open.clone(), props.on_retry_check.clone())}
                     {render_goals_list(&definition.goals, None, None, true, Some(definition.activity_id))}
                     <div class="form-buttons">

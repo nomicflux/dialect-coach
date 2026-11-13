@@ -33,7 +33,7 @@ pub async fn compute_corpus_similarity(
     embeddings: &EmbeddingService,
     limit: usize,
 ) -> Result<(f64, f64)> {
-    let response_embedding = embeddings.embed_text(response)?;
+    let response_embedding = embeddings.embed_text(response).await?;
     let samples_with_scores = qdrant
         .search_by_content(&response_embedding, &dialect, None, limit)
         .await?;
@@ -41,10 +41,10 @@ pub async fn compute_corpus_similarity(
         .into_iter()
         .map(|(doc, _)| doc)
         .collect();
-    compute_all_mse_metrics(&response_embedding, &samples, embeddings)
+    compute_all_mse_metrics(&response_embedding, &samples, embeddings).await
 }
 
-fn compute_all_mse_metrics(
+async fn compute_all_mse_metrics(
     response_embedding: &[f32],
     samples: &[dialect_coach_shared::DialectDocument],
     embeddings: &EmbeddingService,
@@ -53,7 +53,7 @@ fn compute_all_mse_metrics(
     let mut l2_mse_values = Vec::new();
 
     for doc in samples {
-        let sample_embedding = embeddings.embed_text(&doc.content)?;
+        let sample_embedding = embeddings.embed_text(&doc.content).await?;
         cosine_mse_values.push(cosine_distance_squared(
             response_embedding,
             &sample_embedding,

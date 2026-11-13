@@ -35,6 +35,21 @@ pub(crate) fn mimic_instruction(has_corpus: bool) -> &'static str {
     }
 }
 
+pub(crate) fn formality_instruction(formality: Formality, reference_examples: bool) -> String {
+    let label = match formality {
+        Formality::Formal => "formal",
+        Formality::ProfessionalCasual => "professional-casual",
+        Formality::Informal => "informal",
+        Formality::Slang => "slang",
+    };
+    let examples = if reference_examples {
+        " shown in the examples"
+    } else {
+        ""
+    };
+    format!("2. MAINTAIN FORMALITY: Match the {label} formality level{examples}")
+}
+
 pub(crate) fn extract_gender_from_dialect(dialect_with_features: &DialectWithFeatures) -> Gender {
     dialect_with_features
         .tts_voices

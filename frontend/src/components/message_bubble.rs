@@ -71,7 +71,7 @@ fn language_code(lang: Language) -> &'static str {
     }
 }
 
-fn font_class(lang_option: &Option<LanguageOption>) -> &'static str {
+pub(super) fn font_class(lang_option: &Option<LanguageOption>) -> &'static str {
     match lang_option {
         Some(LanguageOption::Arabic(script)) => {
             use dialect_coach_shared::models::ArabicScript;

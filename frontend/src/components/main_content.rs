@@ -11,6 +11,8 @@ use crate::app::app_state::{
 use crate::app::user_state_callbacks::{
     on_create_branch, on_delete_message_callback, on_undo_message_callback,
 };
+use crate::components::message_bubble::font_class;
+use crate::components::ruby_text::render_text_with_ruby;
 use crate::components::study_drawer_content::DrawerTab;
 use crate::components::{
     ChatWindow, Drawer, DynamicIsland, InputBox, LearningItemsFlash, SelectionModal,
@@ -712,7 +714,7 @@ fn render_activity(ctx: &MainContext) -> Html {
     let ui = ctx.props.ui_state.clone();
     let on_retry_check =
         Callback::from(move |_| ui.dispatch(UIStateAction::ActivityRetryCheck(branch_id)));
-    html! { <ActivityControl {activity} {state} {on_start} {on_expand} {on_edit} {on_end} {on_retry_open} {on_retry_check} /> }
+    html! { <ActivityControl {activity} language_option={ctx.user.current_language_option()} {state} {on_start} {on_expand} {on_edit} {on_end} {on_retry_open} {on_retry_check} /> }
 }
 
 fn render_activity_create(ctx: &MainContext) -> Html {
@@ -792,8 +794,8 @@ fn render_activity_editor(ctx: &MainContext, close: Callback<()>) -> Html {
     let ui = ctx.props.ui_state.clone();
     let retry_check =
         Callback::from(move |_| ui.dispatch(UIStateAction::ActivityRetryCheck(branch_id)));
-    html! { <div class="activity-editor">
-        <p dir="auto">{&activity.definition.title}</p>
+    html! { <div class={classes!("activity-editor", font_class(&ctx.user.current_language_option()))}>
+        <p dir="auto">{render_text_with_ruby(&activity.definition.title)}</p>
         {crate::components::activity_control::render_activity_feedback(activity, &status, retry_open, retry_check)}
         <LearningGoalsPanel activity_id={Some(activity_id)} goals={activity.definition.goals.clone()} {on_add} {on_delete} on_edit={Some(on_edit)} heading={Some("Activity goals".to_string())} show_completion={true} />
         <div class="form-buttons">

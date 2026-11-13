@@ -26,6 +26,7 @@ llm:
       model: "gpt-5.4"
     planning:
       provider: "anthropic"
+      model: "claude-sonnet-4-6"
 
 tts:
   eleven_labs:

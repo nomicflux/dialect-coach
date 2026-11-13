@@ -7,9 +7,12 @@ use dialect_coach_shared::{
 };
 
 use super::config::{CONTENT_FILTERING_DIRECTIVES, RESPONSE_JSON_OUTPUT_FORMAT};
-use super::speaker::{extract_gender_from_dialect, mimic_instruction, speaker_desc};
+use super::speaker::{
+    extract_gender_from_dialect, formality_instruction, mimic_instruction, speaker_desc,
+};
 use super::teaching::{
-    language_level_instruction, level_checklist, mode_checklist, response_teaching_desc,
+    language_level_instruction, level_checklist, mode_checklist, proficiency_instruction,
+    response_teaching_desc,
 };
 use crate::agent_service::language_instructions::build_language_instruction;
 use crate::agent_service::util::{JSON_OUTPUT_INSTRUCTION, format_learning_items_context};
@@ -148,9 +151,10 @@ struct NormalSystemParams<'a> {
     goals_section: &'a str,
     learning_items_context: &'a str,
     plan_instr: &'a str,
-    formality_label: &'a str,
+    formality: Formality,
     dialect_name: &'a str,
     level_name: &'a str,
+    language_level: LanguageLevel,
     has_corpus: bool,
     mode_checklist_formatted: &'a str,
     level_checklist_formatted: &'a str,
@@ -167,8 +171,8 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
             {}
             # CRITICAL RULES
             {}
-            2. MAINTAIN FORMALITY: Match the {} formality level shown in the examples
-            3. Adapt vocabulary, syntax and support to {} using the proficiency guidance above. Do not equate proficiency with age, education or interests. Keep the selected dialect, formality and script while making the message accessible. JLPT guides input comprehension, not speaking or writing ability; use the learner's messages to judge needed support.
+            {}
+            {}
             4. {}
             {}
             {}
@@ -196,8 +200,8 @@ fn build_normal_system_content(params: NormalSystemParams) -> String {
         params.lang_section,
         params.level_instruction,
         mimic_instruction(params.has_corpus),
-        params.formality_label.to_lowercase(),
-        params.level_name,
+        formality_instruction(params.formality, true),
+        proficiency_instruction(params.language_level),
         params.teaching_rules,
         params.goals_section,
         params.learning_items_context,
@@ -226,13 +230,6 @@ pub(crate) fn build_system_content(
     language_level: LanguageLevel,
     activity: Option<super::PartnerActivity<'_>>,
 ) -> String {
-    let formality_label = match formality {
-        Formality::Formal => "FORMAL",
-        Formality::ProfessionalCasual => "PROFESSIONAL-CASUAL",
-        Formality::Informal => "INFORMAL",
-        Formality::Slang => "SLANG",
-    };
-
     let gender = extract_gender_from_dialect(&dialect);
     let role_desc = if activity.is_some_and(|a| a.is_active())
         && teaching_mode != TeachingMode::Debug
@@ -302,9 +299,10 @@ pub(crate) fn build_system_content(
             goals_section: &goals_section,
             learning_items_context: &learning_items_context,
             plan_instr: &plan_instr,
-            formality_label,
+            formality,
             dialect_name: dialect.dialect.name(),
             level_name: language_level.name(),
+            language_level,
             has_corpus: dialect.has_corpus,
             mode_checklist_formatted: &mode_checklist_formatted,
             level_checklist_formatted: &level_checklist_formatted,

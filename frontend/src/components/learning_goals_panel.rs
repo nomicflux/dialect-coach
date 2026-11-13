@@ -1,3 +1,4 @@
+use crate::components::ruby_text::render_text_with_ruby;
 use dialect_coach_shared::models::LearningGoal;
 use uuid::Uuid;
 use web_sys::{HtmlInputElement, MouseEvent};
@@ -43,7 +44,7 @@ fn render_goal_item(
         <li class="goal-item" dir="auto">
             if completion { <span aria-label={if goal.completed == Some(true) { "Achieved" } else { "Not achieved" }}>{if goal.completed == Some(true) { "✓" } else { "○" }}</span> }
             if let Some(onchange) = onchange { <textarea data-activity-goal="true" data-activity-id={activity_id.map(|id| id.to_string())} data-goal-index={index.to_string()} aria-label={format!("Activity goal {}", index + 1)} class="goal-input" rows="2" value={goal.goal.clone()} {onchange} /> }
-            else { <span class="goal-text" data-activity-id={activity_id.map(|id| id.to_string())}>{&goal.goal}</span> }
+            else { <span class="goal-text" data-activity-id={activity_id.map(|id| id.to_string())}>{render_text_with_ruby(&goal.goal)}</span> }
             if let Some(on_delete) = on_delete {
                 <button type="button" aria-label="Delete goal" class="delete-button" onclick={Callback::from(move |_| on_delete.emit(index))}>{"×"}</button>
             }

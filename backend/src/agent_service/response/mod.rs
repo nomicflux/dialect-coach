@@ -21,7 +21,11 @@ mod speaker;
 mod system_content;
 mod teaching;
 
+pub(crate) use speaker::{
+    extract_gender_from_dialect, formality_instruction, mimic_instruction, speaker_desc,
+};
 pub(crate) use teaching::language_level_instruction as activity_level_instruction;
+pub(crate) use teaching::proficiency_instruction;
 
 #[derive(Clone, Copy)]
 pub enum PartnerActivity<'a> {

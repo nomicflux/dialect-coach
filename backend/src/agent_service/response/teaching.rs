@@ -105,6 +105,13 @@ pub(crate) fn language_level_instruction(level: LanguageLevel) -> &'static str {
     }
 }
 
+pub(crate) fn proficiency_instruction(level: LanguageLevel) -> String {
+    format!(
+        "3. Adapt vocabulary, syntax and support to {} using the supplied proficiency guidance. Do not equate proficiency with age, education or interests. Keep the selected dialect, formality and script while making the message accessible. JLPT guides input comprehension, not speaking or writing ability; use the learner's messages to judge needed support.",
+        level.name()
+    )
+}
+
 const IMMERSIVE_CHECKLIST: &[&str] = &[
     "Response is brief and conversational",
     "No explanations or corrections included",
