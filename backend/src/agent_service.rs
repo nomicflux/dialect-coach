@@ -62,7 +62,10 @@ fn load_channel_agent(
                 .model
                 .clone()
                 .unwrap_or_else(|| llm_config.openai.model.clone());
-            let config = ProviderAgentConfig::openai(api_key, model, reasoning_budget);
+            let mut config = ProviderAgentConfig::openai(api_key, model, reasoning_budget);
+            if let Some(effort) = &channel.reasoning_effort {
+                config.reasoning_effort = effort.clone();
+            }
             Ok((
                 Arc::from(CompletionAgentFactory::build(config.clone())?),
                 config,
@@ -270,6 +273,7 @@ mod tests {
             provider: provider.to_string(),
             model: None,
             reasoning_budget: None,
+            reasoning_effort: None,
         };
         ChannelsConfig {
             response: ch(),
@@ -323,7 +327,15 @@ mod tests {
         llm.channels.response.provider = "openai".to_string();
         let result = load_channel_agent(&llm.channels.response, "RESPONSE", &llm);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().0.provider(), OPENAI_PROVIDER);
+        let (agent, config) = result.unwrap();
+        assert_eq!(agent.provider(), OPENAI_PROVIDER);
+        assert_eq!(config.reasoning_effort, "low");
+        llm.channels.pronunciation =
+            serde_yaml::from_str("provider: openai\nmodel: gpt-5.4\nreasoning_effort: none")
+                .unwrap();
+        let (_, config) =
+            load_channel_agent(&llm.channels.pronunciation, "PRONUNCIATION", &llm).unwrap();
+        assert_eq!(config.reasoning_effort, "none");
         unsafe {
             std::env::remove_var("OPENAI_API_KEY");
         }

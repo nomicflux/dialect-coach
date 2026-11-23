@@ -72,6 +72,7 @@ pub struct ProviderAgentConfig {
     pub model: String,
     pub api_key: String,
     pub reasoning_budget: u32,
+    pub reasoning_effort: String,
 }
 
 impl ProviderAgentConfig {
@@ -81,6 +82,7 @@ impl ProviderAgentConfig {
             model,
             api_key,
             reasoning_budget,
+            reasoning_effort: "low".to_string(),
         }
     }
 
@@ -90,6 +92,7 @@ impl ProviderAgentConfig {
             model,
             api_key,
             reasoning_budget,
+            reasoning_effort: "low".to_string(),
         }
     }
 }
@@ -100,6 +103,7 @@ pub struct UnifiedCompletionAgent {
     model_name: String,
     provider_name: String,
     reasoning_budget: u32,
+    reasoning_effort: String,
 }
 
 impl UnifiedCompletionAgent {
@@ -114,6 +118,7 @@ impl UnifiedCompletionAgent {
             model_name,
             provider_name,
             reasoning_budget,
+            reasoning_effort: "low".to_string(),
         }
     }
 
@@ -162,6 +167,23 @@ impl UnifiedCompletionAgent {
 
     fn provider_supports_temperature(&self) -> bool {
         self.provider_name != OPENAI_PROVIDER
+    }
+
+    fn build_openai_request(&self, request: &CompletionRequest<'_>) -> RigCompletionRequest {
+        let mut rig_request = self.build_completion_request(request, false);
+        let actual_max_tokens = request.max_tokens + self.reasoning_budget as u64;
+        rig_request.max_tokens = Some(actual_max_tokens);
+        tracing::debug!(
+            "OpenAI reasoning budget: adding {} tokens to max_tokens={}",
+            self.reasoning_budget,
+            request.max_tokens
+        );
+        rig_request.additional_params = Some(serde_json::json!({
+            "reasoning": {
+                "effort": self.reasoning_effort
+            }
+        }));
+        rig_request
     }
 
     fn build_completion_request(
@@ -229,19 +251,7 @@ impl CompletionAgent for UnifiedCompletionAgent {
                 })
             }
             ProviderCompletionModel::OpenAI(model) => {
-                let mut rig_request = self.build_completion_request(request, false);
-                let actual_max_tokens = request.max_tokens + self.reasoning_budget as u64;
-                rig_request.max_tokens = Some(actual_max_tokens);
-                tracing::debug!(
-                    "OpenAI reasoning budget: adding {} tokens to max_tokens={}",
-                    self.reasoning_budget,
-                    request.max_tokens
-                );
-                rig_request.additional_params = Some(serde_json::json!({
-                    "reasoning": {
-                        "effort": "low"
-                    }
-                }));
+                let rig_request = self.build_openai_request(request);
                 let response = model
                     .completion(rig_request)
                     .await
@@ -292,12 +302,13 @@ impl CompletionAgentFactory {
             other => return Err(anyhow!("Unsupported provider: {}", other)),
         };
 
-        let agent = UnifiedCompletionAgent::new(
+        let mut agent = UnifiedCompletionAgent::new(
             completion_model,
             config.model,
             provider_name,
             config.reasoning_budget,
         );
+        agent.reasoning_effort = config.reasoning_effort;
         Ok(Box::new(agent))
     }
 }
@@ -305,6 +316,41 @@ impl CompletionAgentFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn openai_wire_request_preserves_reasoning_effort_and_output_allowance() {
+        let client = OpenAIClient::new("test-key").unwrap();
+        let mut agent = UnifiedCompletionAgent::new(
+            ProviderCompletionModel::OpenAI(client.completion_model("gpt-5.4")),
+            "gpt-5.4".into(),
+            OPENAI_PROVIDER.into(),
+            512,
+        );
+        let request = CompletionRequest {
+            preamble: "Pronunciation instructions",
+            prompt: "Text to pronounce",
+            history: &[],
+            max_tokens: 2048,
+            temperature: 0.0,
+        };
+        for effort in ["low", "none"] {
+            if effort == "none" {
+                agent.reasoning_effort = effort.into();
+            }
+            let wire = rig::providers::openai::responses_api::CompletionRequest::try_from((
+                agent.model_name.clone(),
+                agent.build_openai_request(&request),
+            ))
+            .unwrap();
+            let json = serde_json::to_value(wire).unwrap();
+            assert_eq!(json["reasoning"]["effort"], effort);
+            assert_eq!(json["max_output_tokens"], 2560);
+            assert_eq!(json["model"], "gpt-5.4");
+            assert_eq!(json["instructions"], request.preamble);
+            assert_eq!(json["input"][0]["content"][0]["text"], request.prompt);
+            assert!(json.get("temperature").is_none());
+        }
+    }
 
     #[test]
     fn test_provider_agent_config_openai_custom_model() {
@@ -359,6 +405,7 @@ mod tests {
             model: "test-model".to_string(),
             api_key: "test-key".to_string(),
             reasoning_budget: 200,
+            reasoning_effort: "low".to_string(),
         };
         let result = CompletionAgentFactory::build(config);
         assert!(result.is_err());

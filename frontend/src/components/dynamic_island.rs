@@ -75,10 +75,19 @@ fn use_cycle_click(
     })
 }
 
-fn render_summary(count: usize, on_open: Callback<()>) -> Html {
+fn render_summary(
+    count: usize,
+    on_open: Callback<()>,
+    expanded: bool,
+    on_toggle: Callback<MouseEvent>,
+) -> Html {
     html! {
         <div class="island-summary">
-            <span class="island-label">{"Today's focus"}</span>
+            <button type="button" class="island-summary-toggle" onclick={on_toggle}
+                aria-expanded={expanded.to_string()} aria-controls="todays-focus-content">
+                <span aria-hidden="true">{if expanded { "▾" } else { "▸" }}</span>
+                <span class="island-label">{"Today's focus"}</span>
+            </button>
             if count > 0 {
                 <button type="button" class="island-summary-count" onclick={on_open.reform(|_| ())}>
                     {format!("{count} to review")}
@@ -118,7 +127,7 @@ fn render_island_body(
     onclick: Callback<MouseEvent>,
 ) -> Html {
     html! {
-        <div class="dynamic-island" {onclick} title="Click to toggle view">
+        <div id="todays-focus-content" class="dynamic-island" {onclick} title="Click to toggle view">
             {render_quests(&props.quests)}
             {render_mode_content(props, state, items, mode)}
         </div>
@@ -128,6 +137,11 @@ fn render_island_body(
 #[function_component(DynamicIsland)]
 pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
     let state = use_state(|| ViewState::Plan);
+    let expanded = use_state(|| false);
+    let on_toggle = {
+        let expanded = expanded.clone();
+        Callback::from(move |_| expanded.set(!*expanded))
+    };
     let items = available_items(&props.items, &quest_item_ids(&props.quests));
     let modes = get_available_modes(
         props.current_step_title.is_some(),
@@ -135,10 +149,10 @@ pub fn dynamic_island(props: &DynamicIslandProps) -> Html {
         !items.is_empty(),
     );
     let onclick = use_cycle_click(state.clone(), modes.clone(), items.clone());
-    // The phone title and review link precede always-visible focus content.
+    // Mobile reserves only the summary row until details are requested.
     html! {
-        <div class="dynamic-island-container">
-            {render_summary(items.len(), props.on_open_review_list.clone())}
+        <div class={classes!("dynamic-island-container", (*expanded).then_some("is-expanded"))}>
+            {render_summary(items.len(), props.on_open_review_list.clone(), *expanded, on_toggle)}
             {render_island_body(props, &state, &items, effective_mode(&state, &modes), onclick)}
         </div>
     }

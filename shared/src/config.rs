@@ -45,6 +45,7 @@ pub struct ChannelConfig {
     pub provider: String,
     pub model: Option<String>,
     pub reasoning_budget: Option<u32>,
+    pub reasoning_effort: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -157,6 +158,7 @@ rate_limits:
         assert!(config.llm.anthropic.org_id.is_none());
         assert!(config.llm.channels.response.model.is_none());
         assert!(config.llm.channels.response.reasoning_budget.is_none());
+        assert!(config.llm.channels.response.reasoning_effort.is_none());
     }
 
     #[test]
