@@ -13,3 +13,4 @@ tracing = "0.1"
 async-trait = "0.1"
 serde_yaml = "0.9"
 anyhow.workspace = true
+url = "2"

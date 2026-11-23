@@ -70,6 +70,7 @@ pub trait CompletionAgent: Send + Sync {
 pub struct ProviderAgentConfig {
     pub provider: String,
     pub model: String,
+    pub base_url: Option<String>,
     pub api_key: String,
     pub reasoning_budget: u32,
     pub reasoning_effort: String,
@@ -80,6 +81,7 @@ impl ProviderAgentConfig {
         ProviderAgentConfig {
             provider: ANTHROPIC_PROVIDER.to_string(),
             model,
+            base_url: None,
             api_key,
             reasoning_budget,
             reasoning_effort: "low".to_string(),
@@ -90,6 +92,7 @@ impl ProviderAgentConfig {
         ProviderAgentConfig {
             provider: OPENAI_PROVIDER.to_string(),
             model,
+            base_url: None,
             api_key,
             reasoning_budget,
             reasoning_effort: "low".to_string(),
@@ -284,7 +287,11 @@ impl CompletionAgentFactory {
     pub fn build(config: ProviderAgentConfig) -> Result<Box<dyn CompletionAgent>> {
         let (completion_model, provider_name) = match config.provider.as_str() {
             ANTHROPIC_PROVIDER => {
-                let client = AnthropicClient::new(&config.api_key)?;
+                let builder = AnthropicClient::builder().api_key(&config.api_key);
+                let client = match &config.base_url {
+                    Some(url) => builder.base_url(url).build()?,
+                    None => builder.build()?,
+                };
                 let model = client.completion_model(&config.model);
                 (
                     ProviderCompletionModel::Anthropic(model),
@@ -292,7 +299,11 @@ impl CompletionAgentFactory {
                 )
             }
             OPENAI_PROVIDER => {
-                let client = OpenAIClient::new(&config.api_key)?;
+                let builder = OpenAIClient::builder().api_key(&config.api_key);
+                let client = match &config.base_url {
+                    Some(url) => builder.base_url(url).build()?,
+                    None => builder.build()?,
+                };
                 let model = client.completion_model(&config.model);
                 (
                     ProviderCompletionModel::OpenAI(model),
@@ -403,6 +414,7 @@ mod tests {
         let config = ProviderAgentConfig {
             provider: "unsupported".to_string(),
             model: "test-model".to_string(),
+            base_url: None,
             api_key: "test-key".to_string(),
             reasoning_budget: 200,
             reasoning_effort: "low".to_string(),

@@ -1,5 +1,8 @@
 use anyhow::{Context, Result, anyhow};
-use dialect_coach_shared::AgentUsage;
+use dialect_coach_shared::{
+    AgentUsage,
+    config::{LlmConfig, ProviderDriver},
+};
 use std::env;
 use std::sync::Arc;
 
@@ -23,60 +26,41 @@ pub mod retry;
 pub mod translation;
 pub mod util;
 
-use provider::{
-    ANTHROPIC_PROVIDER, CompletionAgent, CompletionAgentFactory, OPENAI_PROVIDER,
-    ProviderAgentConfig,
-};
+use provider::{CompletionAgent, CompletionAgentFactory, ProviderAgentConfig};
 use response::ResponseContext;
 use util::contains_illegal_characters;
 
 fn load_channel_agent(
-    channel: &dialect_coach_shared::config::ChannelConfig,
+    llm_config: &LlmConfig,
     channel_name: &str,
-    llm_config: &dialect_coach_shared::config::LlmConfig,
+    read_env: impl Fn(&str) -> Option<String>,
 ) -> Result<(Arc<dyn CompletionAgent>, ProviderAgentConfig)> {
-    let reasoning_budget = channel
-        .reasoning_budget
-        .unwrap_or(llm_config.openai.reasoning_budget);
-    let channel_api_key = env::var(format!("{}_API_KEY", channel_name)).ok();
-    match channel.provider.as_str() {
-        ANTHROPIC_PROVIDER => {
-            let api_key = channel_api_key
-                .or_else(|| env::var("ANTHROPIC_API_KEY").ok())
-                .ok_or_else(|| anyhow!("Missing API key for {} channel", channel_name))?;
-            let model = channel
-                .model
-                .clone()
-                .unwrap_or_else(|| llm_config.anthropic.model.clone());
-            let config = ProviderAgentConfig::anthropic(api_key, model, reasoning_budget);
-            Ok((
-                Arc::from(CompletionAgentFactory::build(config.clone())?),
-                config,
-            ))
+    let channel = llm_config.resolve_channel(channel_name)?;
+    let api_key = channel.api_key(read_env)?;
+    let mut config = match (channel.driver, api_key, channel.reasoning) {
+        (ProviderDriver::Anthropic, Some(key), _) => {
+            ProviderAgentConfig::anthropic(key, channel.model, 0)
         }
-        OPENAI_PROVIDER => {
-            let api_key = channel_api_key
-                .or_else(|| env::var("OPENAI_API_KEY").ok())
-                .ok_or_else(|| anyhow!("Missing API key for {} channel", channel_name))?;
-            let model = channel
-                .model
-                .clone()
-                .unwrap_or_else(|| llm_config.openai.model.clone());
-            let mut config = ProviderAgentConfig::openai(api_key, model, reasoning_budget);
-            if let Some(effort) = &channel.reasoning_effort {
-                config.reasoning_effort = effort.clone();
-            }
-            Ok((
-                Arc::from(CompletionAgentFactory::build(config.clone())?),
-                config,
-            ))
+        (ProviderDriver::OpenAi, Some(key), Some(reasoning)) => {
+            let mut config = ProviderAgentConfig::openai(key, channel.model, reasoning.budget);
+            config.reasoning_effort = reasoning.effort;
+            config
         }
-        other => Err(anyhow!(
-            "Unsupported provider '{}' for {} channel",
-            other,
-            channel_name
-        )),
-    }
+        (ProviderDriver::Ollama, _, _) => {
+            return Err(anyhow!(
+                "Unsupported provider driver 'ollama' for {channel_name} channel"
+            ));
+        }
+        _ => {
+            return Err(anyhow!(
+                "Incomplete provider settings for {channel_name} channel"
+            ));
+        }
+    };
+    config.base_url = Some(channel.base_url);
+    let agent = CompletionAgentFactory::build(config.clone())
+        .with_context(|| format!("Failed to initialize {channel_name} channel"))?;
+    Ok((Arc::from(agent), config))
 }
 
 #[derive(Clone)]
@@ -94,24 +78,16 @@ pub struct AgentService {
 
 impl AgentService {
     pub fn from_config(
-        llm_config: &dialect_coach_shared::config::LlmConfig,
+        llm_config: &LlmConfig,
         qdrant: Arc<QdrantService>,
         embeddings: Arc<EmbeddingService>,
     ) -> Result<Self> {
-        let response_agent =
-            load_channel_agent(&llm_config.channels.response, "RESPONSE", llm_config)?.0;
-        let learning_agent =
-            load_channel_agent(&llm_config.channels.learning, "LEARNING", llm_config)?.0;
-        let analysis_agent =
-            load_channel_agent(&llm_config.channels.analysis, "ANALYSIS", llm_config)?.0;
-        let (planning_agent, planning_config) =
-            load_channel_agent(&llm_config.channels.planning, "PLANNING", llm_config)?;
-        let pronunciation_agent = load_channel_agent(
-            &llm_config.channels.pronunciation,
-            "PRONUNCIATION",
-            llm_config,
-        )?
-        .0;
+        let load_agent = |name| load_channel_agent(llm_config, name, |key| env::var(key).ok());
+        let response_agent = load_agent("response")?.0;
+        let learning_agent = load_agent("learning")?.0;
+        let analysis_agent = load_agent("analysis")?.0;
+        let (planning_agent, planning_config) = load_agent("planning")?;
+        let pronunciation_agent = load_agent("pronunciation")?.0;
 
         let keyword_extractor = Arc::new(
             keyword_extraction::KeywordExtractor::new()
@@ -246,137 +222,60 @@ impl AgentService {
 
 #[cfg(test)]
 mod tests {
+    use super::provider::{ANTHROPIC_PROVIDER, OPENAI_PROVIDER};
     use super::*;
     use crate::embedding_service::EmbeddingService;
     use crate::qdrant_service::QdrantService;
-    use dialect_coach_shared::config::{
-        AnthropicProviderConfig, ChannelConfig, ChannelsConfig, LlmConfig, OpenAiProviderConfig,
-    };
-    use serial_test::serial;
 
-    fn make_llm_config() -> LlmConfig {
-        LlmConfig {
-            anthropic: AnthropicProviderConfig {
-                model: "claude-haiku-4-5".to_string(),
-                org_id: None,
-            },
-            openai: OpenAiProviderConfig {
-                model: "gpt-4o".to_string(),
-                reasoning_budget: 512,
-            },
-            channels: make_channels_config("anthropic"),
-        }
-    }
-
-    fn make_channels_config(provider: &str) -> ChannelsConfig {
-        let ch = || ChannelConfig {
-            provider: provider.to_string(),
-            model: None,
-            reasoning_budget: None,
-            reasoning_effort: None,
-        };
-        ChannelsConfig {
-            response: ch(),
-            learning: ch(),
-            analysis: ch(),
-            pronunciation: ch(),
-            planning: ch(),
-        }
+    fn hosted_config() -> LlmConfig {
+        dialect_coach_shared::config::load_config(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../config.yaml"
+        ))
+        .unwrap()
+        .llm
     }
 
     #[tokio::test]
     #[ignore] // Requires API key and Qdrant
     async fn test_agent_initialization() {
         dotenvy::dotenv().ok();
-        let config = dialect_coach_shared::config::load_config("config.yaml").unwrap();
+        let config = hosted_config();
         let qdrant_url = std::env::var("QDRANT_URL").unwrap();
         let qdrant_key = std::env::var("QDRANT_API_KEY").unwrap();
         let qdrant = QdrantService::new(&qdrant_url, &qdrant_key).await.unwrap();
         let embeddings = EmbeddingService::new().unwrap();
         let agent =
-            AgentService::from_config(&config.llm, Arc::new(qdrant), Arc::new(embeddings)).unwrap();
-        assert_eq!(agent.response_agent.provider(), ANTHROPIC_PROVIDER);
+            AgentService::from_config(&config, Arc::new(qdrant), Arc::new(embeddings)).unwrap();
+        assert_eq!(agent.response_agent.provider(), OPENAI_PROVIDER);
         assert!(!agent.response_agent.model().is_empty());
     }
 
     #[test]
-    #[serial]
     fn test_load_channel_agent_anthropic() {
-        unsafe {
-            std::env::set_var("ANTHROPIC_API_KEY", "test-key");
-            std::env::remove_var("RESPONSE_API_KEY");
-        }
-        let llm = make_llm_config();
-        let result = load_channel_agent(&llm.channels.response, "RESPONSE", &llm);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().0.provider(), ANTHROPIC_PROVIDER);
-        unsafe {
-            std::env::remove_var("ANTHROPIC_API_KEY");
-        }
+        let (agent, config) = load_channel_agent(&hosted_config(), "learning", |name| {
+            (name == "ANTHROPIC_API_KEY").then(|| "test-key".into())
+        })
+        .unwrap();
+        assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
+        assert_eq!(agent.model(), "claude-sonnet-4-6");
+        assert_eq!(
+            config.base_url.as_deref(),
+            Some("https://api.anthropic.com")
+        );
     }
 
     #[test]
-    #[serial]
     fn test_load_channel_agent_openai() {
-        unsafe {
-            std::env::set_var("OPENAI_API_KEY", "sk-test-key");
-            std::env::remove_var("RESPONSE_API_KEY");
-            std::env::remove_var("ANTHROPIC_API_KEY");
-        }
-        let mut llm = make_llm_config();
-        llm.channels.response.provider = "openai".to_string();
-        let result = load_channel_agent(&llm.channels.response, "RESPONSE", &llm);
-        assert!(result.is_ok());
-        let (agent, config) = result.unwrap();
+        let llm = hosted_config();
+        let read_key = |name: &str| (name == "OPENAI_API_KEY").then(|| "sk-test-key".into());
+        let (agent, config) = load_channel_agent(&llm, "response", read_key).unwrap();
         assert_eq!(agent.provider(), OPENAI_PROVIDER);
+        assert_eq!(agent.model(), "gpt-5.4");
+        assert_eq!(config.reasoning_budget, 512);
         assert_eq!(config.reasoning_effort, "low");
-        llm.channels.pronunciation =
-            serde_yaml::from_str("provider: openai\nmodel: gpt-5.4\nreasoning_effort: none")
-                .unwrap();
-        let (_, config) =
-            load_channel_agent(&llm.channels.pronunciation, "PRONUNCIATION", &llm).unwrap();
+
+        let (_, config) = load_channel_agent(&llm, "pronunciation", read_key).unwrap();
         assert_eq!(config.reasoning_effort, "none");
-        unsafe {
-            std::env::remove_var("OPENAI_API_KEY");
-        }
-    }
-
-    #[test]
-    #[serial]
-    fn test_load_channel_agent_openai_custom_model() {
-        unsafe {
-            std::env::set_var("OPENAI_API_KEY", "sk-test-key");
-            std::env::remove_var("RESPONSE_API_KEY");
-            std::env::remove_var("ANTHROPIC_API_KEY");
-        }
-        let mut llm = make_llm_config();
-        llm.channels.response.provider = "openai".to_string();
-        llm.channels.response.model = Some("gpt-4-turbo".to_string());
-        let result = load_channel_agent(&llm.channels.response, "RESPONSE", &llm);
-        assert!(result.is_ok());
-        let agent = result.unwrap().0;
-        assert_eq!(agent.provider(), OPENAI_PROVIDER);
-        assert_eq!(agent.model(), "gpt-4-turbo");
-        unsafe {
-            std::env::remove_var("OPENAI_API_KEY");
-        }
-    }
-
-    #[test]
-    fn test_channel_reasoning_budget_override() {
-        let mut llm = make_llm_config();
-        llm.channels.response.reasoning_budget = Some(300);
-        assert_eq!(llm.channels.response.reasoning_budget, Some(300));
-    }
-
-    #[test]
-    fn test_channel_reasoning_budget_default() {
-        let llm = make_llm_config();
-        let budget = llm
-            .channels
-            .response
-            .reasoning_budget
-            .unwrap_or(llm.openai.reasoning_budget);
-        assert_eq!(budget, 512);
     }
 }
