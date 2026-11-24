@@ -1,8 +1,5 @@
-use anyhow::{Context, Result, anyhow};
-use dialect_coach_shared::{
-    AgentUsage,
-    config::{LlmConfig, ProviderDriver},
-};
+use anyhow::{Context, Result};
+use dialect_coach_shared::{AgentUsage, config::LlmConfig};
 use std::env;
 use std::sync::Arc;
 
@@ -37,30 +34,22 @@ fn load_channel_agent(
 ) -> Result<(Arc<dyn CompletionAgent>, ProviderAgentConfig)> {
     let channel = llm_config.resolve_channel(channel_name)?;
     let api_key = channel.api_key(read_env)?;
-    let mut config = match (channel.driver, api_key, channel.reasoning) {
-        (ProviderDriver::Anthropic, Some(key), _) => {
-            ProviderAgentConfig::anthropic(key, channel.model, 0)
-        }
-        (ProviderDriver::OpenAi, Some(key), Some(reasoning)) => {
-            let mut config = ProviderAgentConfig::openai(key, channel.model, reasoning.budget);
-            config.reasoning_effort = reasoning.effort;
-            config
-        }
-        (ProviderDriver::Ollama, _, _) => {
-            return Err(anyhow!(
-                "Unsupported provider driver 'ollama' for {channel_name} channel"
-            ));
-        }
-        _ => {
-            return Err(anyhow!(
-                "Incomplete provider settings for {channel_name} channel"
-            ));
-        }
-    };
-    config.base_url = Some(channel.base_url);
-    let agent = CompletionAgentFactory::build(config.clone())
+    let agent = CompletionAgentFactory::build(&channel, api_key.as_deref())
         .with_context(|| format!("Failed to initialize {channel_name} channel"))?;
-    Ok((Arc::from(agent), config))
+    let config = ProviderAgentConfig {
+        provider: agent.provider().to_owned(),
+        model: channel.model,
+        base_url: Some(channel.base_url),
+        api_key: api_key.unwrap_or_default(),
+        reasoning_budget: channel
+            .reasoning
+            .as_ref()
+            .map_or(0, |options| options.budget),
+        reasoning_effort: channel
+            .reasoning
+            .map_or_else(|| "low".to_owned(), |options| options.effort),
+    };
+    Ok((agent, config))
 }
 
 #[derive(Clone)]
@@ -222,7 +211,7 @@ impl AgentService {
 
 #[cfg(test)]
 mod tests {
-    use super::provider::{ANTHROPIC_PROVIDER, OPENAI_PROVIDER};
+    use super::provider::{ANTHROPIC_PROVIDER, OLLAMA_PROVIDER, OPENAI_PROVIDER};
     use super::*;
     use crate::embedding_service::EmbeddingService;
     use crate::qdrant_service::QdrantService;
@@ -277,5 +266,23 @@ mod tests {
 
         let (_, config) = load_channel_agent(&llm, "pronunciation", read_key).unwrap();
         assert_eq!(config.reasoning_effort, "none");
+    }
+
+    #[test]
+    fn test_load_channel_agent_ollama_without_cloud_credentials() {
+        let config = serde_yaml::from_str(
+            "
+default_provider: local
+providers:
+  local: { driver: ollama, model: custom-local:42 }
+",
+        )
+        .unwrap();
+        let (agent, _) = load_channel_agent(&config, "response", |name| {
+            panic!("Unexpected credential lookup for {name}")
+        })
+        .unwrap();
+        assert_eq!(agent.provider(), OLLAMA_PROVIDER);
+        assert_eq!(agent.model(), "custom-local:42");
     }
 }

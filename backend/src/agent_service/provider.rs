@@ -1,19 +1,24 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
+use dialect_coach_shared::config::{ProviderDriver, ReasoningConfig, ResolvedChannel};
+use rig::client::Nothing;
 use rig::client::completion::CompletionClient;
 use rig::completion::message::{AssistantContent, Text, UserContent};
 use rig::completion::{
     CompletionError, CompletionModel, CompletionRequest as RigCompletionRequest,
     Message as RigMessage,
 };
+use rig::http_client::{HttpClientExt, ReqwestClient};
 use rig::one_or_many::OneOrMany;
 use rig::providers::anthropic::Client as AnthropicClient;
-use rig::providers::anthropic::completion::CompletionModel as AnthropicCompletionModel;
+use rig::providers::ollama;
 use rig::providers::openai::Client as OpenAIClient;
-use rig::providers::openai::responses_api::ResponsesCompletionModel as OpenAICompletionModel;
+
+use std::sync::Arc;
 
 pub const ANTHROPIC_PROVIDER: &str = "anthropic";
 pub const OPENAI_PROVIDER: &str = "openai";
+pub const OLLAMA_PROVIDER: &str = "ollama";
 
 #[derive(Debug, Clone)]
 pub struct CompletionRequest<'a> {
@@ -47,12 +52,6 @@ impl CompletionAgentError {
     pub fn fatal(message: impl Into<anyhow::Error>) -> Self {
         CompletionAgentError::Fatal(message.into())
     }
-}
-
-#[derive(Clone)]
-pub(crate) enum ProviderCompletionModel {
-    Anthropic(AnthropicCompletionModel),
-    OpenAI(OpenAICompletionModel),
 }
 
 #[async_trait]
@@ -100,28 +99,20 @@ impl ProviderAgentConfig {
     }
 }
 
-#[derive(Clone)]
-pub struct UnifiedCompletionAgent {
-    completion_model: ProviderCompletionModel,
+struct UnifiedCompletionAgent<M> {
+    completion_model: M,
     model_name: String,
-    provider_name: String,
-    reasoning_budget: u32,
-    reasoning_effort: String,
+    provider_name: &'static str,
+    reasoning: Option<ReasoningConfig>,
 }
 
-impl UnifiedCompletionAgent {
-    pub(crate) fn new(
-        completion_model: ProviderCompletionModel,
-        model_name: String,
-        provider_name: String,
-        reasoning_budget: u32,
-    ) -> Self {
+impl<M: CompletionModel> UnifiedCompletionAgent<M> {
+    fn new(completion_model: M, channel: &ResolvedChannel, provider_name: &'static str) -> Self {
         Self {
             completion_model,
-            model_name,
+            model_name: channel.model.clone(),
             provider_name,
-            reasoning_budget,
-            reasoning_effort: "low".to_string(),
+            reasoning: channel.reasoning.clone(),
         }
     }
 
@@ -168,32 +159,7 @@ impl UnifiedCompletionAgent {
         }
     }
 
-    fn provider_supports_temperature(&self) -> bool {
-        self.provider_name != OPENAI_PROVIDER
-    }
-
-    fn build_openai_request(&self, request: &CompletionRequest<'_>) -> RigCompletionRequest {
-        let mut rig_request = self.build_completion_request(request, false);
-        let actual_max_tokens = request.max_tokens + self.reasoning_budget as u64;
-        rig_request.max_tokens = Some(actual_max_tokens);
-        tracing::debug!(
-            "OpenAI reasoning budget: adding {} tokens to max_tokens={}",
-            self.reasoning_budget,
-            request.max_tokens
-        );
-        rig_request.additional_params = Some(serde_json::json!({
-            "reasoning": {
-                "effort": self.reasoning_effort
-            }
-        }));
-        rig_request
-    }
-
-    fn build_completion_request(
-        &self,
-        request: &CompletionRequest<'_>,
-        include_temperature: bool,
-    ) -> RigCompletionRequest {
+    fn build_completion_request(&self, request: &CompletionRequest<'_>) -> RigCompletionRequest {
         let mut chat_history = request.history.to_vec();
         chat_history.push(RigMessage::User {
             content: OneOrMany::one(UserContent::Text(Text {
@@ -207,7 +173,7 @@ impl UnifiedCompletionAgent {
             chat_history: OneOrMany::many(chat_history).expect("chat_history should not be empty"),
             documents: vec![],
             tools: vec![],
-            temperature: None,
+            temperature: Some(request.temperature),
             max_tokens: Some(request.max_tokens),
             tool_choice: None,
             additional_params: None,
@@ -216,8 +182,12 @@ impl UnifiedCompletionAgent {
             record_telemetry_content: false,
         };
 
-        if include_temperature {
-            rig_request.temperature = Some(request.temperature);
+        if let Some(reasoning) = &self.reasoning {
+            rig_request.temperature = None;
+            rig_request.max_tokens = Some(request.max_tokens + u64::from(reasoning.budget));
+            rig_request.additional_params = Some(serde_json::json!({
+                "reasoning": { "effort": reasoning.effort }
+            }));
         }
 
         rig_request
@@ -225,9 +195,9 @@ impl UnifiedCompletionAgent {
 }
 
 #[async_trait]
-impl CompletionAgent for UnifiedCompletionAgent {
+impl<M: CompletionModel> CompletionAgent for UnifiedCompletionAgent<M> {
     fn provider(&self) -> &str {
-        &self.provider_name
+        self.provider_name
     }
 
     fn model(&self) -> &str {
@@ -238,122 +208,296 @@ impl CompletionAgent for UnifiedCompletionAgent {
         &self,
         request: &CompletionRequest<'_>,
     ) -> Result<CompletionOutcome, CompletionAgentError> {
-        match &self.completion_model {
-            ProviderCompletionModel::Anthropic(model) => {
-                let rig_request =
-                    self.build_completion_request(request, self.provider_supports_temperature());
-                let response = model
-                    .completion(rig_request)
-                    .await
-                    .map_err(|err| self.categorize_error(err))?;
-                let text = self.extract_text(&response.choice)?;
-                Ok(CompletionOutcome {
-                    text,
-                    input_tokens: response.usage.input_tokens,
-                    output_tokens: response.usage.output_tokens,
-                })
-            }
-            ProviderCompletionModel::OpenAI(model) => {
-                let rig_request = self.build_openai_request(request);
-                let response = model
-                    .completion(rig_request)
-                    .await
-                    .map_err(|err| self.categorize_error(err))?;
-                let text = match self.extract_text(&response.choice) {
-                    Ok(t) => t,
-                    Err(e) => {
-                        tracing::error!(
-                            provider = %self.provider_name,
-                            model = %self.model_name,
-                            raw_response = ?response,
-                            "OpenAI response missing text content"
-                        );
-                        return Err(e);
-                    }
-                };
-                Ok(CompletionOutcome {
-                    text,
-                    input_tokens: response.usage.input_tokens,
-                    output_tokens: response.usage.output_tokens,
-                })
-            }
-        }
+        let response = self
+            .completion_model
+            .completion(self.build_completion_request(request))
+            .await
+            .map_err(|err| self.categorize_error(err))?;
+        let text = self.extract_text(&response.choice)?;
+        Ok(CompletionOutcome {
+            text,
+            input_tokens: response.usage.input_tokens,
+            output_tokens: response.usage.output_tokens,
+        })
     }
 }
 
 pub struct CompletionAgentFactory;
 
 impl CompletionAgentFactory {
-    pub fn build(config: ProviderAgentConfig) -> Result<Box<dyn CompletionAgent>> {
-        let (completion_model, provider_name) = match config.provider.as_str() {
-            ANTHROPIC_PROVIDER => {
-                let builder = AnthropicClient::builder().api_key(&config.api_key);
-                let client = match &config.base_url {
-                    Some(url) => builder.base_url(url).build()?,
-                    None => builder.build()?,
-                };
-                let model = client.completion_model(&config.model);
-                (
-                    ProviderCompletionModel::Anthropic(model),
-                    ANTHROPIC_PROVIDER.to_string(),
-                )
-            }
-            OPENAI_PROVIDER => {
-                let builder = OpenAIClient::builder().api_key(&config.api_key);
-                let client = match &config.base_url {
-                    Some(url) => builder.base_url(url).build()?,
-                    None => builder.build()?,
-                };
-                let model = client.completion_model(&config.model);
-                (
-                    ProviderCompletionModel::OpenAI(model),
-                    OPENAI_PROVIDER.to_string(),
-                )
-            }
-            other => return Err(anyhow!("Unsupported provider: {}", other)),
-        };
+    pub fn build(
+        channel: &ResolvedChannel,
+        api_key: Option<&str>,
+    ) -> Result<Arc<dyn CompletionAgent>> {
+        Self::build_with_client(channel, api_key, ReqwestClient::default())
+    }
 
-        let mut agent = UnifiedCompletionAgent::new(
-            completion_model,
-            config.model,
-            provider_name,
-            config.reasoning_budget,
-        );
-        agent.reasoning_effort = config.reasoning_effort;
-        Ok(Box::new(agent))
+    fn build_with_client<H: HttpClientExt + Clone + Default + std::fmt::Debug + 'static>(
+        channel: &ResolvedChannel,
+        api_key: Option<&str>,
+        http_client: H,
+    ) -> Result<Arc<dyn CompletionAgent>> {
+        let agent: Arc<dyn CompletionAgent> = match channel.driver {
+            ProviderDriver::Anthropic => {
+                let client = AnthropicClient::builder()
+                    .api_key(api_key.context("Anthropic API key is required")?)
+                    .base_url(&channel.base_url)
+                    .http_client(http_client)
+                    .build()?;
+                Arc::new(UnifiedCompletionAgent::new(
+                    client.completion_model(&channel.model),
+                    channel,
+                    ANTHROPIC_PROVIDER,
+                ))
+            }
+            ProviderDriver::OpenAi => {
+                let client = OpenAIClient::builder()
+                    .api_key(api_key.context("OpenAI API key is required")?)
+                    .base_url(&channel.base_url)
+                    .http_client(http_client)
+                    .build()?;
+                Arc::new(UnifiedCompletionAgent::new(
+                    client.completion_model(&channel.model),
+                    channel,
+                    OPENAI_PROVIDER,
+                ))
+            }
+            ProviderDriver::Ollama => {
+                let api_key = api_key.map_or_else(|| Nothing.into(), ollama::OllamaApiKey::from);
+                let client = ollama::Client::builder()
+                    .api_key(api_key)
+                    .base_url(&channel.base_url)
+                    .http_client(http_client)
+                    .build()?;
+                Arc::new(UnifiedCompletionAgent::new(
+                    client.completion_model(&channel.model),
+                    channel,
+                    OLLAMA_PROVIDER,
+                ))
+            }
+        };
+        Ok(agent)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_service::retry::retry_completion_call;
+    use axum::body::Bytes;
+    use dialect_coach_shared::config::LlmConfig;
+    use rig::core::test_utils::{MockHttpResponse, RecordingHttpClient};
+    use rig::http_client::{
+        self, LazyBody, Method, MultipartForm, Request, Response, StreamingResponse,
+    };
+    use serde_json::{Value, json};
+    use std::future::Future;
 
-    #[test]
-    fn openai_wire_request_preserves_reasoning_effort_and_output_allowance() {
-        let client = OpenAIClient::new("test-key").unwrap();
-        let mut agent = UnifiedCompletionAgent::new(
-            ProviderCompletionModel::OpenAI(client.completion_model("gpt-5.4")),
-            "gpt-5.4".into(),
-            OPENAI_PROVIDER.into(),
-            512,
-        );
-        let request = CompletionRequest {
-            preamble: "Pronunciation instructions",
-            prompt: "Text to pronounce",
+    // Rig's recorder captures the URI, headers and body. Assert the method at
+    // the same boundary before handing the request to the recorder.
+    #[derive(Clone, Debug, Default)]
+    struct RecordingPostClient(RecordingHttpClient);
+
+    impl HttpClientExt for RecordingPostClient {
+        fn send<T, U>(
+            &self,
+            request: Request<T>,
+        ) -> impl Future<Output = http_client::Result<Response<LazyBody<U>>>> + Send + 'static
+        where
+            T: Into<Bytes> + Send,
+            U: From<Bytes> + Send + 'static,
+        {
+            assert_eq!(request.method(), Method::POST);
+            self.0.send(request)
+        }
+
+        fn send_multipart<U>(
+            &self,
+            _: Request<MultipartForm>,
+        ) -> impl Future<Output = http_client::Result<Response<LazyBody<U>>>> + Send + 'static
+        where
+            U: From<Bytes> + Send + 'static,
+        {
+            async { panic!("Unexpected multipart request") }
+        }
+
+        async fn send_streaming<T>(&self, _: Request<T>) -> http_client::Result<StreamingResponse>
+        where
+            T: Into<Bytes> + Send,
+        {
+            panic!("Unexpected streaming request")
+        }
+    }
+
+    fn resolved_channel(provider: &str) -> ResolvedChannel {
+        let yaml = format!("default_provider: test\nproviders:\n  test:\n{provider}");
+        let config: LlmConfig = serde_yaml::from_str(&yaml).unwrap();
+        config.resolve_channel("response").unwrap()
+    }
+
+    fn request(max_tokens: u64) -> CompletionRequest<'static> {
+        CompletionRequest {
+            preamble: "Use a brief answer",
+            prompt: "Say hello",
             history: &[],
-            max_tokens: 2048,
-            temperature: 0.0,
-        };
-        for effort in ["low", "none"] {
-            if effort == "none" {
-                agent.reasoning_effort = effort.into();
-            }
-            let wire = rig::providers::openai::responses_api::CompletionRequest::try_from((
-                agent.model_name.clone(),
-                agent.build_openai_request(&request),
-            ))
+            max_tokens,
+            temperature: 0.7,
+        }
+    }
+
+    fn ollama_reply(text: &str) -> String {
+        json!({
+            "model": "custom-local:42",
+            "created_at": "2026-01-01T00:00:00Z",
+            "message": {"role": "assistant", "content": text, "thinking": "private reasoning"},
+            "done": true,
+            "done_reason": "stop",
+            "prompt_eval_count": 13,
+            "eval_count": 9
+        })
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn ollama_native_request_preserves_model_limits_and_authentication() {
+        let settings = r#"
+    driver: ollama
+    base_url: http://ollama.test:11434
+    model: custom-local:42
+"#;
+        for credential in [None, Some("test-local-key")] {
+            let settings = if credential.is_some() {
+                format!("{settings}    api_key_env: TEST_OLLAMA_KEY\n")
+            } else {
+                settings.into()
+            };
+            let channel = resolved_channel(&settings);
+            let key = channel
+                .api_key(|name| {
+                    assert_eq!(name, "TEST_OLLAMA_KEY");
+                    credential.map(str::to_owned)
+                })
+                .unwrap();
+            let http = RecordingHttpClient::new(ollama_reply("Hello there"));
+            let agent = CompletionAgentFactory::build_with_client(
+                &channel,
+                key.as_deref(),
+                RecordingPostClient(http.clone()),
+            )
             .unwrap();
-            let json = serde_json::to_value(wire).unwrap();
+
+            let (text, usage) = retry_completion_call(agent.as_ref(), &request(256), 1).await;
+            assert_eq!(text.unwrap(), "Hello there");
+            assert_eq!(usage.len(), 1);
+            assert_eq!(usage[0].input_tokens, 13);
+            assert_eq!(usage[0].output_tokens, 9);
+            assert!(!usage[0].is_estimate);
+            assert_eq!(usage[0].provider, OLLAMA_PROVIDER);
+            assert_eq!(usage[0].model, "custom-local:42");
+
+            let requests = http.requests();
+            assert_eq!(requests.len(), 1);
+            assert_eq!(requests[0].uri, "http://ollama.test:11434/api/chat");
+            let authorization = requests[0].headers.get("authorization");
+            assert_eq!(
+                authorization.map(|header| header.to_str().unwrap().to_owned()),
+                credential.map(|key| format!("Bearer {key}"))
+            );
+            let json: Value = serde_json::from_slice(&requests[0].body).unwrap();
+            assert_eq!(json["model"], "custom-local:42");
+            assert_eq!(json["options"]["temperature"], 0.7);
+            assert_eq!(json["options"]["num_predict"], 256);
+
+            // The fixture still includes a reasoning block, so this exercises
+            // the application's missing-text handling after Rig parses the reply.
+            http.set_response(MockHttpResponse::success(ollama_reply("")));
+            assert!(matches!(
+                agent.completion(&request(256)).await,
+                Err(CompletionAgentError::Retryable(_))
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn anthropic_wire_request_preserves_model_and_temperature() {
+        let channel = resolved_channel(
+            r#"
+    driver: anthropic
+    base_url: https://anthropic.test
+    model: claude-haiku-4-5
+"#,
+        );
+        let http = RecordingHttpClient::new(
+            json!({
+                "id": "msg_test",
+                "type": "message",
+                "model": "claude-haiku-4-5",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hello"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 3, "output_tokens": 1}
+            })
+            .to_string(),
+        );
+        let agent = CompletionAgentFactory::build_with_client(
+            &channel,
+            Some("test-key"),
+            RecordingPostClient(http.clone()),
+        )
+        .unwrap();
+        assert_eq!(agent.completion(&request(256)).await.unwrap().text, "Hello");
+        let requests = http.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].uri, "https://anthropic.test/v1/messages");
+        let json: Value = serde_json::from_slice(&requests[0].body).unwrap();
+        assert_eq!(json["model"], "claude-haiku-4-5");
+        assert_eq!(json["temperature"], 0.7);
+        assert_eq!(json["max_tokens"], 256);
+    }
+
+    #[tokio::test]
+    async fn openai_wire_request_preserves_reasoning_effort_and_output_allowance() {
+        for effort in ["low", "none"] {
+            let channel = resolved_channel(&format!(
+                r#"
+    driver: openai
+    base_url: https://openai.test/v1
+    model: gpt-5.4
+    reasoning_budget: 512
+    reasoning_effort: {effort}
+"#
+            ));
+            let http = RecordingHttpClient::new(
+                json!({
+                    "id": "resp_test",
+                    "object": "response",
+                    "created_at": 0,
+                    "status": "completed",
+                    "model": "gpt-5.4",
+                    "usage": {"input_tokens": 3, "output_tokens": 1, "total_tokens": 4},
+                    "output": [{
+                        "type": "message",
+                        "id": "msg_test",
+                        "status": "completed",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "annotations": [], "text": "Hello"}]
+                    }],
+                    "tools": []
+                })
+                .to_string(),
+            );
+            let agent = CompletionAgentFactory::build_with_client(
+                &channel,
+                Some("test-key"),
+                RecordingPostClient(http.clone()),
+            )
+            .unwrap();
+            let request = request(2048);
+            assert_eq!(agent.completion(&request).await.unwrap().text, "Hello");
+            let requests = http.requests();
+            assert_eq!(requests.len(), 1);
+            assert_eq!(requests[0].uri, "https://openai.test/v1/responses");
+            let json: Value = serde_json::from_slice(&requests[0].body).unwrap();
             assert_eq!(json["reasoning"]["effort"], effort);
             assert_eq!(json["max_output_tokens"], 2560);
             assert_eq!(json["model"], "gpt-5.4");
@@ -361,111 +505,5 @@ mod tests {
             assert_eq!(json["input"][0]["content"][0]["text"], request.prompt);
             assert!(json.get("temperature").is_none());
         }
-    }
-
-    #[test]
-    fn test_provider_agent_config_openai_custom_model() {
-        let config =
-            ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4-turbo".to_string(), 300);
-        assert_eq!(config.provider, OPENAI_PROVIDER);
-        assert_eq!(config.model, "gpt-4-turbo");
-        assert_eq!(config.api_key, "sk-test-key");
-        assert_eq!(config.reasoning_budget, 300);
-    }
-
-    #[test]
-    fn test_provider_agent_config_anthropic_custom_model() {
-        let config = ProviderAgentConfig::anthropic(
-            "test-key".to_string(),
-            "claude-3-opus".to_string(),
-            250,
-        );
-        assert_eq!(config.provider, ANTHROPIC_PROVIDER);
-        assert_eq!(config.model, "claude-3-opus");
-        assert_eq!(config.api_key, "test-key");
-        assert_eq!(config.reasoning_budget, 250);
-    }
-
-    #[test]
-    fn test_completion_agent_factory_anthropic() {
-        let config = ProviderAgentConfig::anthropic(
-            "test-key".to_string(),
-            "claude-sonnet-4-5".to_string(),
-            200,
-        );
-        let result = CompletionAgentFactory::build(config);
-        assert!(result.is_ok());
-        let agent = result.unwrap();
-        assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
-    }
-
-    #[test]
-    fn test_completion_agent_factory_openai() {
-        let config =
-            ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 200);
-        let result = CompletionAgentFactory::build(config);
-        assert!(result.is_ok());
-        let agent = result.unwrap();
-        assert_eq!(agent.provider(), OPENAI_PROVIDER);
-    }
-
-    #[test]
-    fn test_completion_agent_factory_unsupported_provider() {
-        let config = ProviderAgentConfig {
-            provider: "unsupported".to_string(),
-            model: "test-model".to_string(),
-            base_url: None,
-            api_key: "test-key".to_string(),
-            reasoning_budget: 200,
-            reasoning_effort: "low".to_string(),
-        };
-        let result = CompletionAgentFactory::build(config);
-        assert!(result.is_err());
-        match result {
-            Err(err) => assert!(err.to_string().contains("Unsupported provider")),
-            Ok(_) => panic!("Expected error"),
-        }
-    }
-
-    #[test]
-    fn test_unified_completion_agent_uses_reasoning_budget() {
-        let config =
-            ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 350);
-        let result = CompletionAgentFactory::build(config);
-        assert!(result.is_ok());
-        let _agent = result.unwrap();
-    }
-
-    #[test]
-    fn test_provider_agent_config_stores_reasoning_budget() {
-        let config =
-            ProviderAgentConfig::openai("sk-test-key".to_string(), "gpt-4o".to_string(), 275);
-        assert_eq!(config.reasoning_budget, 275);
-    }
-}
-
-#[cfg(test)]
-mod activity_temperature_tests {
-    use super::*;
-    #[test]
-    fn planning_adapter_transmits_activity_temperature_to_rig() {
-        let client = AnthropicClient::new("test-key").unwrap();
-        let model = client.completion_model("claude-haiku-4-5");
-        let agent = UnifiedCompletionAgent::new(
-            ProviderCompletionModel::Anthropic(model),
-            "claude-haiku-4-5".into(),
-            ANTHROPIC_PROVIDER.into(),
-            200,
-        );
-        let request = CompletionRequest {
-            preamble: "Author activity",
-            prompt: "Context",
-            history: &[],
-            max_tokens: 4096,
-            temperature: 0.7,
-        };
-        let transmitted =
-            agent.build_completion_request(&request, agent.provider_supports_temperature());
-        assert_eq!(transmitted.temperature, Some(0.7));
     }
 }
