@@ -1,0 +1,34 @@
+server:
+  bind_address: "0.0.0.0:3000"
+  backend_url: "http://localhost:3000"
+
+persistence:
+  db_path: "data/dialect-coach.db"
+
+llm:
+  default_provider: local
+  providers:
+    local:
+      driver: ollama
+      base_url: "http://ollama:11434"
+      model: "qwen3.8:27b-q4_K_M"
+      think: false
+  channels:
+    ocr:
+      request_timeout_seconds: 300
+
+tts:
+  eleven_labs:
+    url: "https://api.elevenlabs.io/v1/"
+    model: "eleven_multilingual_v2"
+  azure:
+    region: "eastus"
+
+rate_limits:
+  response_calls: 100
+  response_tokens: 100000
+  analysis_calls: 100
+  analysis_tokens: 50000
+  tts_calls: 200
+  tts_characters: 50000
+  window_hours: 24
