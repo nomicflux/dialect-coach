@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
 
     let planning_generator = Arc::new(agent_service::planning::PlanGenerator::new(
         agent.planning_agent.clone(),
-        agent.planning_config.clone(),
+        agent.ocr_agent.clone(),
     ));
 
     let translation_cache = Arc::new(SelectionCache::new(100));

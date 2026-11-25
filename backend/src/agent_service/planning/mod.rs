@@ -7,17 +7,17 @@ use dialect_coach_shared::Dialect;
 use dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan;
 
 use crate::agent_service::ocr::OcrService;
-use crate::agent_service::provider::{CompletionAgent, CompletionRequest, ProviderAgentConfig};
+use crate::agent_service::provider::{CompletionAgent, CompletionFormat, CompletionRequest};
 use std::sync::Arc;
 
 pub struct PlanGenerator {
     agent: Arc<dyn CompletionAgent>,
-    config: ProviderAgentConfig,
+    ocr_agent: Arc<dyn CompletionAgent>,
 }
 
 impl PlanGenerator {
-    pub fn new(agent: Arc<dyn CompletionAgent>, config: ProviderAgentConfig) -> Self {
-        Self { agent, config }
+    pub fn new(agent: Arc<dyn CompletionAgent>, ocr_agent: Arc<dyn CompletionAgent>) -> Self {
+        Self { agent, ocr_agent }
     }
 
     pub async fn generate_plan_from_images(
@@ -25,7 +25,7 @@ impl PlanGenerator {
         images: &[Vec<u8>],
         dialect: Dialect,
     ) -> Result<SimpleImportLanguagePlan> {
-        let text = OcrService::transcribe_images(images, &self.config)
+        let text = OcrService::transcribe_images(images, self.ocr_agent.as_ref())
             .await
             .context("Failed to transcribe images")?;
         self.generate_plan(&text, dialect).await
@@ -45,6 +45,7 @@ impl PlanGenerator {
         };
 
         let request = CompletionRequest {
+            format: plan_format(dialect),
             preamble: &system_prompt,
             prompt: &user_prompt,
             history: &[],
@@ -89,6 +90,7 @@ impl PlanGenerator {
                 };
 
                 let retry_params = retry::RetryPromptParams {
+                    format: request.format.clone(),
                     original_preamble: &system_prompt,
                     error_message: &error_msg,
                     prompt: &user_prompt,
@@ -125,6 +127,63 @@ impl PlanGenerator {
             }
         }
     }
+}
+
+fn plan_format(dialect: Dialect) -> CompletionFormat {
+    let item = schemars::json_schema!({
+        "anyOf": [
+            {
+                "type": "object",
+                "properties": {"vocab": {"type": "string"}, "translation": {"type": "string"}},
+                "required": ["vocab", "translation"],
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "properties": {"grammar": {"type": "string"}, "explanation": {"type": "string"}},
+                "required": ["grammar", "explanation"],
+                "additionalProperties": false
+            }
+        ]
+    });
+    // JSON is a YAML subset, so structured completions use the same import parser.
+    CompletionFormat::Structured(schemars::json_schema!({
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "minLength": 1},
+            "dialect": {"const": dialect.id()},
+            "description": {"type": "string"},
+            "steps": {
+                "type": "array", "minItems": 1,
+                "items": {
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string", "minLength": 1},
+                                "instructions": {"type": "string"},
+                                "learning_content": {"type": "array", "minItems": 1, "maxItems": 10, "items": item}
+                            },
+                            "required": ["title", "instructions", "learning_content"],
+                            "additionalProperties": false
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string", "minLength": 1},
+                                "instructions": {"type": "string"},
+                                "review_steps": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+                            },
+                            "required": ["title", "instructions", "review_steps"],
+                            "additionalProperties": false
+                        }
+                    ]
+                }
+            }
+        },
+        "required": ["title", "dialect", "steps"],
+        "additionalProperties": false
+    }))
 }
 
 pub fn try_parse_plan_output_yaml(response: &str) -> Result<SimpleImportLanguagePlan> {
@@ -186,12 +245,7 @@ steps:
     async fn test_generator_flow() {
         // Create a mock agent that returns a valid JSON plan
         let mock_agent = Arc::new(MockAgent);
-        let config = crate::agent_service::provider::ProviderAgentConfig::openai(
-            "test".to_string(),
-            "gpt-4o".to_string(),
-            200,
-        );
-        let generator = PlanGenerator::new(mock_agent, config);
+        let generator = PlanGenerator::new(mock_agent.clone(), mock_agent);
 
         // Verify public API
         let plan = generator

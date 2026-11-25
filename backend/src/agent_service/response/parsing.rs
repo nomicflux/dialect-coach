@@ -3,7 +3,7 @@ use dialect_coach_shared::{AgentResponse, Dialect};
 use rig::completion::Message as RigMessage;
 
 use crate::agent_service::learning::LearningAgentOutput;
-use crate::agent_service::provider::CompletionRequest;
+use crate::agent_service::provider::{CompletionFormat, CompletionRequest};
 use crate::agent_service::util::{clean_response, normalize_json_response};
 
 pub fn apply_learning_output(
@@ -54,6 +54,7 @@ pub(super) fn build_simple_completion_request<'a>(
     history: &'a [RigMessage],
 ) -> CompletionRequest<'a> {
     CompletionRequest {
+        format: CompletionFormat::Text,
         preamble: system_preamble,
         prompt,
         history,

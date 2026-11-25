@@ -20,7 +20,7 @@ use super::parsing::{
 use super::system_content::build_system_content;
 
 use crate::agent_service::learning::{LearningAgent, LearningAgentOutput, LearningAgentParams};
-use crate::agent_service::provider::CompletionRequest;
+use crate::agent_service::provider::{CompletionFormat, CompletionRequest};
 use crate::agent_service::retry::{
     RetryContext, build_retry_response_preamble, retry_completion_call,
 };
@@ -129,7 +129,7 @@ impl ResponseContext {
         usage: Vec<AgentUsage>,
         params: &GenerateResponseParams<'_>,
         system_content: &str,
-        history_with_prefill: Vec<RigMessage>,
+        history_with_examples: Vec<RigMessage>,
         skip_learning: bool,
     ) -> (
         Result<dialect_coach_shared::AgentResponse, anyhow::Error>,
@@ -142,7 +142,7 @@ impl ResponseContext {
                 usage.clone(),
                 params,
                 system_content,
-                history_with_prefill,
+                history_with_examples,
                 skip_learning,
             )
             .await
@@ -163,7 +163,7 @@ impl ResponseContext {
         initial_usage: Vec<AgentUsage>,
         params: &GenerateResponseParams<'_>,
         system_content: &str,
-        history_with_prefill: Vec<RigMessage>,
+        history_with_examples: Vec<RigMessage>,
         skip_learning: bool,
     ) -> Result<(
         dialect_coach_shared::AgentResponse,
@@ -187,7 +187,7 @@ impl ResponseContext {
                     initial_usage,
                     params,
                     system_content,
-                    history_with_prefill,
+                    history_with_examples,
                     skip_learning,
                     initial_error: &initial_error,
                 })
@@ -209,13 +209,13 @@ impl ResponseContext {
             return (Err(e), Vec::new(), Vec::new());
         }
 
-        let (system_content, history_with_prefill, _primary_examples, _secondary_examples) =
+        let (system_content, history_with_examples, _primary_examples, _secondary_examples) =
             match prepare_generation_context(self, params).await {
                 Ok(context) => context,
                 Err(e) => return (Err(e), Vec::new(), Vec::new()),
             };
 
-        let request = build_completion_request(params, &system_content, &history_with_prefill);
+        let request = build_completion_request(params, &system_content, &history_with_examples);
         let (result, usage) = execute_provider_completion(self, &request).await;
 
         match result {
@@ -225,7 +225,7 @@ impl ResponseContext {
                     usage,
                     params,
                     &system_content,
-                    history_with_prefill.to_vec(),
+                    history_with_examples.to_vec(),
                     skip_learning,
                 )
                 .await
@@ -351,7 +351,7 @@ struct RetryHandlingParams<'a> {
     initial_usage: Vec<AgentUsage>,
     params: &'a GenerateResponseParams<'a>,
     system_content: &'a str,
-    history_with_prefill: Vec<RigMessage>,
+    history_with_examples: Vec<RigMessage>,
     skip_learning: bool,
     initial_error: &'a str,
 }
@@ -378,6 +378,7 @@ async fn handle_parse_failure_with_retry(
     };
     let max_tokens = tokens_per_mode(&teaching_mode);
     let prompt_params = crate::agent_service::retry::RetryPromptParams {
+        format: response_format(),
         original_preamble: input.system_content,
         error_message: input.initial_error,
         prompt: input.params.user_message,
@@ -391,7 +392,7 @@ async fn handle_parse_failure_with_retry(
         input.ctx,
         retry_ctx,
         prompt_params,
-        input.history_with_prefill,
+        input.history_with_examples,
         config,
         parse_fn,
         log_success,
@@ -407,7 +408,7 @@ async fn execute_retry_with_learning<F>(
     ctx: &ResponseContext,
     retry_ctx: RetryContext,
     prompt_params: crate::agent_service::retry::RetryPromptParams<'_, F>,
-    history_with_prefill: Vec<RigMessage>,
+    history_with_examples: Vec<RigMessage>,
     config: GenerationConfig,
     parse_fn: impl Fn(&str) -> Result<dialect_coach_shared::AgentResponse>,
     log_success: impl Fn(&dialect_coach_shared::AgentResponse),
@@ -425,7 +426,7 @@ where
     match retry_ctx
         .retry_with_error_feedback_tracked(
             &prompt_params,
-            &history_with_prefill,
+            &history_with_examples,
             &config,
             &parse_fn,
             &log_success,
@@ -526,15 +527,14 @@ async fn prepare_generation_context(
         params.activity,
     );
     tracing::debug!("System content sent to Claude:\n{}", system_content);
-    let history_with_prefill = build_conversation_history_with_examples(
+    let history_with_examples = build_conversation_history_with_examples(
         params.conversation_history,
         &primary_examples,
         &secondary_examples,
-        ctx.response_agent.provider(),
     );
     Ok((
         system_content,
-        history_with_prefill,
+        history_with_examples,
         primary_examples,
         secondary_examples,
     ))
@@ -543,15 +543,25 @@ async fn prepare_generation_context(
 fn build_completion_request<'a>(
     params: &'a GenerateResponseParams<'_>,
     system_content: &'a str,
-    history_with_prefill: &'a [RigMessage],
+    history_with_examples: &'a [RigMessage],
 ) -> CompletionRequest<'a> {
     CompletionRequest {
+        format: response_format(),
         preamble: system_content,
         prompt: params.user_message,
-        history: history_with_prefill,
+        history: history_with_examples,
         max_tokens: tokens_per_mode(&params.teaching_mode),
         temperature: temperature_for_mode(&params.teaching_mode),
     }
+}
+
+fn response_format() -> CompletionFormat {
+    CompletionFormat::JsonSchema(schemars::json_schema!({
+        "type": "object",
+        "properties": { "response": { "type": "string", "minLength": 1 } },
+        "required": ["response"],
+        "additionalProperties": false
+    }))
 }
 
 async fn execute_provider_completion(

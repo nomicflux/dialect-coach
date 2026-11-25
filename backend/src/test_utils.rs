@@ -8,7 +8,7 @@ use rig::one_or_many::OneOrMany;
 use serde::{Deserialize, Serialize};
 
 use crate::agent_service::AgentService;
-use crate::agent_service::provider::{CompletionAgent, CompletionRequest};
+use crate::agent_service::provider::{CompletionAgent, CompletionFormat, CompletionRequest};
 use crate::agent_service::response::GenerateResponseParams;
 use crate::agent_service::retry::retry_completion_call;
 use crate::agent_service::util::contains_illegal_characters;
@@ -187,6 +187,7 @@ pub async fn attempt_user_message_retry(
     let retry_preamble = build_user_message_retry_preamble(original_preamble, failed_response);
     let prompt = "Continue the conversation naturally.";
     let request = CompletionRequest {
+        format: CompletionFormat::Text,
         preamble: &retry_preamble,
         prompt,
         history: conversation_history,
@@ -273,6 +274,7 @@ pub async fn generate_user_message(
 
     let prompt = "Continue the conversation naturally.";
     let request = CompletionRequest {
+        format: CompletionFormat::Text,
         preamble: &preamble,
         prompt,
         history: conversation_history,

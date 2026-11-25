@@ -4,11 +4,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use super::language_instructions::build_language_instruction;
-use super::provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionRequest};
+use super::provider::{CompletionAgent, CompletionFormat, CompletionRequest};
 use super::retry::retry_completion_call;
-use super::util::{
-    JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, normalize_json_response,
-};
+use super::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response};
 
 #[derive(Debug, Clone)]
 pub struct TranslationAgentParams<'a> {
@@ -61,15 +59,11 @@ impl TranslationAgent {
         let prompt = build_translation_prompt(params);
         tracing::debug!("Translation Agent Prompt:\n{}", prompt);
 
-        let mut history = Vec::new();
-        if self.agent.provider() == ANTHROPIC_PROVIDER {
-            history.push(create_prefilled_assistant_message());
-        }
-
         let request = CompletionRequest {
+            format: CompletionFormat::Json,
             preamble: &system_content,
             prompt: &prompt,
-            history: &history,
+            history: &[],
             max_tokens: 256,
             temperature: 0.0,
         };

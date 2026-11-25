@@ -112,12 +112,8 @@ mod tests {
     }
 
     fn generator() -> PlanGenerator {
-        let config = crate::agent_service::provider::ProviderAgentConfig::openai(
-            "test".to_string(),
-            "gpt-4o".to_string(),
-            200,
-        );
-        PlanGenerator::new(Arc::new(MockAgent), config)
+        let agent = Arc::new(MockAgent);
+        PlanGenerator::new(agent.clone(), agent)
     }
 
     fn request(source: PlanSource) -> PlanRequest {

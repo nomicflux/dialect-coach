@@ -5,11 +5,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use super::dialect_pronunciation_guides::build_dialect_pronunciation_guide;
-use super::provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionRequest};
+use super::provider::{CompletionAgent, CompletionFormat, CompletionRequest};
 use super::retry::retry_completion_call;
-use super::util::{
-    JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, normalize_json_response,
-};
+use super::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response};
 
 pub struct PronunciationAgentParams<'a> {
     pub response_text: &'a str,
@@ -29,7 +27,7 @@ impl PronunciationAgentOutput {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, schemars::JsonSchema)]
 struct RawPronunciationOutput {
     pronunciation_text: String,
 }
@@ -55,15 +53,11 @@ impl PronunciationAgent {
             build_pronunciation_system_content(params.dialect, params.language_option);
         let prompt = build_pronunciation_prompt(params.response_text);
 
-        let mut history = Vec::new();
-        if self.agent.provider() == ANTHROPIC_PROVIDER {
-            history.push(create_prefilled_assistant_message());
-        }
-
         let request = CompletionRequest {
+            format: CompletionFormat::JsonSchema(schemars::schema_for!(RawPronunciationOutput)),
             preamble: &system_content,
             prompt: &prompt,
-            history: &history,
+            history: &[],
             max_tokens: 2048,
             temperature: 0.0,
         };

@@ -189,6 +189,7 @@ pub async fn enrich_partial_mistake(
     };
 
     let request = super::provider::CompletionRequest {
+        format: super::provider::CompletionFormat::Text,
         preamble: "You are a dialect expert helping users learn languages.",
         prompt: &prompt,
         history: &[],
@@ -215,6 +216,7 @@ pub async fn enrich_partial_translated(
     };
 
     let request = super::provider::CompletionRequest {
+        format: super::provider::CompletionFormat::Text,
         preamble: "You are a dialect expert helping users learn languages.",
         prompt: &prompt,
         history: &[],
@@ -241,6 +243,7 @@ pub async fn enrich_partial_explained(
     };
 
     let request = super::provider::CompletionRequest {
+        format: super::provider::CompletionFormat::Text,
         preamble: "You are a dialect expert helping users learn languages.",
         prompt: &prompt,
         history: &[],
@@ -267,6 +270,7 @@ pub async fn enrich_partial_exploratory(
     };
 
     let request = super::provider::CompletionRequest {
+        format: super::provider::CompletionFormat::Text,
         preamble: "You are a dialect expert helping users learn languages.",
         prompt: &prompt,
         history: &[],

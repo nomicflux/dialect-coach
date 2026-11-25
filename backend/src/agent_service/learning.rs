@@ -3,16 +3,14 @@ use dialect_coach_shared::{
     AgentUsage, Dialect, Explained, Exploratory, Formality, LanguageOption, Mistake, TeachingMode,
     Translated,
 };
-use rig::completion::Message as RigMessage;
 use serde::Deserialize;
 use std::sync::Arc;
 
 use super::language_instructions::build_language_instruction;
-use super::provider::{CompletionAgent, CompletionRequest};
+use super::provider::{CompletionAgent, CompletionFormat, CompletionRequest};
 use super::retry::{RetryContext, build_retry_learning_preamble, retry_completion_call};
 use super::util::{
-    JSON_OUTPUT_INSTRUCTION, create_prefilled_assistant_message, format_learning_items_context,
-    normalize_json_response,
+    JSON_OUTPUT_INSTRUCTION, format_learning_items_context, normalize_json_response,
 };
 
 #[derive(Debug, Clone)]
@@ -168,15 +166,11 @@ impl LearningAgent {
         let prompt = build_learning_prompt(params);
         tracing::debug!("Learning prompt sent to Claude:\n{}", prompt);
 
-        let mut history_with_prefill = Vec::new();
-        if self.agent.provider() == super::provider::ANTHROPIC_PROVIDER {
-            history_with_prefill.push(create_prefilled_assistant_message());
-        }
-
         let request = CompletionRequest {
+            format: CompletionFormat::Json,
             preamble: &system_content,
             prompt: &prompt,
-            history: &history_with_prefill,
+            history: &[],
             max_tokens: 512,
             temperature: 0.0,
         };
@@ -184,15 +178,8 @@ impl LearningAgent {
         let (result, usage) = retry_completion_call(self.agent.as_ref(), &request, 3).await;
         match result {
             Ok(response) => {
-                self.handle_successful_completion(
-                    response,
-                    usage,
-                    params,
-                    &system_content,
-                    &prompt,
-                    &history_with_prefill,
-                )
-                .await
+                self.handle_successful_completion(response, usage, params, &system_content, &prompt)
+                    .await
             }
             Err(e) => (
                 Err(e.context(format!(
@@ -231,12 +218,12 @@ impl LearningAgent {
         let limits = calculate_learning_limits(params);
         let system_content = build_learning_system_content(params, &limits);
         let prompt = build_error_finding_prompt(params);
-        let history = self.build_prefill_history();
 
         let request = CompletionRequest {
+            format: CompletionFormat::Json,
             preamble: &system_content,
             prompt: &prompt,
-            history: &history,
+            history: &[],
             max_tokens: 512,
             temperature: 0.5,
         };
@@ -248,14 +235,6 @@ impl LearningAgent {
                 (parse_error_finding_output(&response), usage)
             }
             Err(e) => (Err(e.context("Failed to get error finding items")), usage),
-        }
-    }
-
-    fn build_prefill_history(&self) -> Vec<RigMessage> {
-        if self.agent.provider() == super::provider::ANTHROPIC_PROVIDER {
-            vec![create_prefilled_assistant_message()]
-        } else {
-            Vec::new()
         }
     }
 
@@ -519,17 +498,9 @@ impl LearningAgent {
         params: &LearningAgentParams<'_>,
         system_content: &str,
         prompt: &str,
-        history_with_prefill: &[RigMessage],
     ) -> (Result<LearningAgentOutput>, Vec<AgentUsage>) {
         match self
-            .handle_learning_response(
-                response,
-                usage.clone(),
-                params,
-                system_content,
-                prompt,
-                history_with_prefill,
-            )
+            .handle_learning_response(response, usage.clone(), params, system_content, prompt)
             .await
         {
             Ok((output, final_usage)) => (Ok(output), final_usage),
@@ -544,7 +515,6 @@ impl LearningAgent {
         _params: &LearningAgentParams<'_>,
         system_content: &str,
         prompt: &str,
-        history_with_prefill: &[RigMessage],
     ) -> Result<(LearningAgentOutput, Vec<AgentUsage>)> {
         match try_parse_learning_output(&response) {
             Ok(output) => {
@@ -561,6 +531,7 @@ impl LearningAgent {
                     |preamble: &str, error: &str| build_retry_learning_preamble(preamble, error);
                 let initial_error = format!("{}", e);
                 let prompt_params = super::retry::RetryPromptParams {
+                    format: CompletionFormat::Json,
                     original_preamble: system_content,
                     error_message: &initial_error,
                     prompt,
@@ -573,7 +544,7 @@ impl LearningAgent {
                 match retry_ctx
                     .retry_with_error_feedback_tracked(
                         &prompt_params,
-                        history_with_prefill,
+                        &[],
                         &config,
                         &parse_fn,
                         &log_success,

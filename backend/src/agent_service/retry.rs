@@ -3,7 +3,7 @@ use dialect_coach_shared::AgentUsage;
 use rig::completion::Message as RigMessage;
 use std::sync::Arc;
 
-use super::provider::{CompletionAgent, CompletionAgentError, CompletionRequest};
+use super::provider::{CompletionAgent, CompletionAgentError, CompletionFormat, CompletionRequest};
 use super::util::{self, GenerationConfig, get_message_text};
 
 pub struct RetryAttemptParams {
@@ -15,6 +15,7 @@ pub struct RetryPromptParams<'a, F>
 where
     F: Fn(&str, &str) -> String,
 {
+    pub format: CompletionFormat,
     pub original_preamble: &'a str,
     pub error_message: &'a str,
     pub prompt: &'a str,
@@ -303,6 +304,7 @@ impl RetryContext {
             prompt_params.error_message,
         );
         let request = CompletionRequest {
+            format: prompt_params.format.clone(),
             preamble: &retry_preamble,
             prompt: prompt_params.prompt,
             history: conversation_history,
@@ -369,6 +371,7 @@ impl RetryContext {
 
         for attempt in 1..=max_retries {
             let prompt_params_iter = RetryPromptParams {
+                format: prompt_params.format.clone(),
                 original_preamble: prompt_params.original_preamble,
                 error_message: &last_error_message,
                 prompt: prompt_params.prompt,
@@ -586,6 +589,7 @@ mod tests {
             Err(CompletionAgentError::fatal(anyhow!("fatal"))),
         ]);
         let request = CompletionRequest {
+            format: CompletionFormat::Text,
             preamble: "test",
             prompt: "prompt",
             history: &[],

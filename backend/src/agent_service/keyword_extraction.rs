@@ -1,12 +1,10 @@
 use anyhow::Result;
 use dialect_coach_shared::Dialect;
-use rig::prelude::*;
-use rig::providers::openai::{
-    self,
-    responses_api::{AdditionalParameters, Reasoning, ReasoningEffort},
-};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+use super::provider::CompletionAgent;
 
 #[derive(JsonSchema, Deserialize, Serialize, Debug, Clone)]
 pub struct ExtractedKeywords {
@@ -14,16 +12,15 @@ pub struct ExtractedKeywords {
 }
 
 pub struct KeywordExtractor {
-    client: openai::Client,
+    agent: Arc<dyn CompletionAgent>,
 }
 
 impl KeywordExtractor {
-    pub fn new() -> Result<Self> {
-        let client = openai::Client::from_env()?;
-        Ok(Self { client })
+    pub fn new(agent: Arc<dyn CompletionAgent>) -> Self {
+        Self { agent }
     }
 
-    /// Extract keywords from text using GPT-5-nano
+    /// Extract keywords from text using the configured keyword model.
     /// Returns dictionary forms of: nouns, verbs, slang, proper nouns,
     /// unusual adverbs/adjectives - sorted by unicode order
     pub async fn extract(&self, text: &str, dialect: Dialect) -> Result<Vec<String>> {
@@ -52,18 +49,7 @@ Return keywords sorted alphabetically."#,
             text = text
         );
 
-        let additional_params = AdditionalParameters {
-            reasoning: Some(Reasoning::new().with_effort(ReasoningEffort::Minimal)),
-            ..Default::default()
-        };
-
-        let extractor = self
-            .client
-            .extractor::<ExtractedKeywords>("gpt-5-nano")
-            .additional_params(additional_params.to_json())
-            .build();
-
-        let mut result = extractor.extract(&prompt).await?;
+        let mut result = self.agent.extract_keywords(&prompt).await?;
 
         result.keywords.sort();
 

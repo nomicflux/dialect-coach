@@ -1,5 +1,5 @@
 use super::{
-    provider::{ANTHROPIC_PROVIDER, CompletionAgent, CompletionRequest},
+    provider::{CompletionAgent, CompletionFormat, CompletionRequest},
     response::{
         activity_level_instruction, extract_gender_from_dialect, formality_instruction,
         mimic_instruction, proficiency_instruction, speaker_desc,
@@ -10,7 +10,7 @@ use super::{
 use anyhow::{Result, ensure};
 use dialect_coach_shared::{ActivityDefinition, AgentUsage, GenerateActivityRequest, LearningGoal};
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 struct AuthoredActivity {
     title: String,
     shared_context: String,
@@ -73,10 +73,10 @@ pub async fn generate(
             vec![],
         );
     }
-    if agent.provider() != ANTHROPIC_PROVIDER {
+    if !agent.supports_temperature() {
         return (
             Err(anyhow::anyhow!(
-                "Activity creation requires the Anthropic planning channel to transmit temperature 0.7"
+                "Activity creation requires a planning integration that can transmit temperature 0.7"
             )),
             vec![],
         );
@@ -107,9 +107,15 @@ pub async fn generate(
         "{speaker}\n\n{language_instruction}\n\n{dialect_rule}\n{formality_rule}\n{proficiency_rule}\n\nAuthor a short communicative activity for this conversation. Follow the optional description; otherwise choose from the conversation and settings, including an empty conversation. Use prose, not a fixed recipe catalogue. Normally give one to three concrete observable goals, allowing different successful approaches, without a turn deadline. Distinguish shared context, private learner brief, and hidden partner facts/constraints; partner facts must be usable without the learner's private brief. Keep partner-only facts, values and reasons solely in partner_brief: never reveal them in title, shared_context, learner_brief or goals. Public goals must describe observable learner work, not disclose answers the learner must discover. The app automatically requests a partner opening before the learner sends a message; make both briefs fit that opening. When the task involves discovering information, make partner_brief self-contained about what may be volunteered in the opening and which facts to reveal only in response to relevant learner questions; do not volunteer the answers the learner is meant to discover. State these reveal conditions in ordinary prose without scripting an exchange. Before returning JSON, check each public field for hidden-answer leakage. The learner brief must stand alone and include the shared context needed to begin. Preserve known facts, dialect, script, formality and story continuity. Proficiency is not age. Write learner_brief and every goals string in the target dialect and script at the learner's stated proficiency, or only slightly above it, using the same proficiency guidance below. Use familiar vocabulary, short direct sentences and clear action verbs; allow only occasional unfamiliar language whose meaning is supported by context. Keep the concrete task and outcomes intact: simplify the wording rather than making the activity childish or removing its purpose. Write these as instructions addressed directly to the learner, using language they can already understand, rather than abstract descriptions of learning outcomes. At beginner levels, give one simple action per sentence and split multi-step goals into short sentences. Before returning, read each instruction as the learner and rewrite wording that requires more proficiency than the task itself. Apply the requested script to the instructions themselves as well as to any examples; check every learner-facing field against the script setting. Make the information demands manageable and a successful route feasible under these exact response limits: {}. Internally work through a short successful exchange, but do not output that exchange or prescribe dialogue. Return only JSON with nonempty string fields title, shared_context, learner_brief, partner_brief, and goals as a nonempty array of strings.",
         activity_level_instruction(context.language_level)
     );
+    preamble.push_str(&format!(
+        "\nWrite learner_brief and every goal in {}.",
+        context.dialect.name()
+    ));
+    let format = CompletionFormat::Structured(schemars::schema_for!(AuthoredActivity));
     let mut usage = vec![];
     for attempt in 0..2 {
         let completion = CompletionRequest {
+            format: format.clone(),
             preamble: &preamble,
             prompt: &prompt,
             history: &[],
@@ -145,10 +151,13 @@ mod tests {
     #[async_trait::async_trait]
     impl CompletionAgent for Author {
         fn provider(&self) -> &str {
-            ANTHROPIC_PROVIDER
+            "test"
         }
         fn model(&self) -> &str {
             "test-author"
+        }
+        fn supports_temperature(&self) -> bool {
+            true
         }
         async fn completion(
             &self,
@@ -235,7 +244,10 @@ mod tests {
                 ));
                 assert!(preamble.contains(mimic_instruction(false)));
                 assert!(preamble.contains(&formality_instruction(formality, false)));
-                assert_eq!(preamble.matches(activity_level_instruction(level)).count(), 1);
+                assert_eq!(
+                    preamble.matches(activity_level_instruction(level)).count(),
+                    1
+                );
                 assert!(preamble.contains(&proficiency_instruction(level)));
                 assert!(!preamble.contains("shown in the examples"));
                 assert!(!preamble.contains("\"response\""));

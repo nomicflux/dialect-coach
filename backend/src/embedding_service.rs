@@ -4,6 +4,19 @@ use fastembed::{TextEmbedding, TokenizerFiles, UserDefinedEmbeddingModel};
 use std::io;
 use std::sync::Arc;
 
+#[async_trait::async_trait]
+pub trait TextEmbedder: Send + Sync {
+    async fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>>;
+
+    async fn embed_text(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_batch(vec![text.to_owned()])
+            .await?
+            .into_iter()
+            .next()
+            .context("No embedding generated")
+    }
+}
+
 /// Embedding service using Fastembed
 pub struct EmbeddingService {
     model: Arc<TextEmbedding>,
@@ -60,12 +73,7 @@ impl EmbeddingService {
 
     /// Generate embedding for a single text
     pub async fn embed_text(&self, text: &str) -> Result<Vec<f32>> {
-        let embeddings = self.embed_batch(vec![text.to_string()]).await?;
-
-        embeddings
-            .into_iter()
-            .next()
-            .context("No embedding generated")
+        TextEmbedder::embed_text(self, text).await
     }
 
     /// Generate embeddings for multiple texts
@@ -83,6 +91,13 @@ impl EmbeddingService {
     /// Get the dimensionality of embeddings
     pub fn dimension(&self) -> usize {
         768 // MultilingualE5Base produces 768-dimensional embeddings
+    }
+}
+
+#[async_trait::async_trait]
+impl TextEmbedder for EmbeddingService {
+    async fn embed_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+        Self::embed_batch(self, texts).await
     }
 }
 

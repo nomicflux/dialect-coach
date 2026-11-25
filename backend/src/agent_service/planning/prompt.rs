@@ -38,6 +38,7 @@ pub fn build_planning_system_prompt_yaml(dialect: Dialect) -> String {
         
         # OUTPUT SCHEMA
         {}
+        The example below shows the structure only. Use the supplied source text for the title, vocabulary, and grammar.
         title: \"Verbs with Con\"
         dialect: \"{}\"
         steps:

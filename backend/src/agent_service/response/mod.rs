@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use super::keyword_extraction::KeywordExtractor;
 use super::provider::CompletionAgent;
-use crate::embedding_service::EmbeddingService;
+use crate::embedding_service::TextEmbedder;
 use crate::qdrant_service::QdrantService;
 use crate::rag_config::RAGConfig;
 
@@ -80,6 +80,6 @@ pub struct ResponseContext {
     pub learning_agent: Arc<dyn CompletionAgent>,
     pub pronunciation_agent: Arc<dyn CompletionAgent>,
     pub qdrant: Arc<QdrantService>,
-    pub embeddings: Arc<EmbeddingService>,
+    pub embeddings: Arc<dyn TextEmbedder>,
     pub keyword_extractor: Arc<KeywordExtractor>,
 }

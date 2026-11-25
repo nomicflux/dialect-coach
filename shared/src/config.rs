@@ -1,6 +1,8 @@
 use anyhow::{Result, anyhow, ensure};
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
+use std::time::Duration;
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct AppConfig {
@@ -86,6 +88,7 @@ struct ProviderConfig {
     api_key_env: Option<String>,
     reasoning_budget: Option<u32>,
     reasoning_effort: Option<String>,
+    think: Option<bool>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -94,6 +97,7 @@ struct ChannelConfig {
     model: Option<String>,
     reasoning_budget: Option<u32>,
     reasoning_effort: Option<String>,
+    request_timeout_seconds: Option<NonZeroU32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -109,6 +113,8 @@ pub struct ResolvedChannel {
     pub base_url: String,
     pub model: String,
     pub reasoning: Option<ReasoningConfig>,
+    pub think: Option<bool>,
+    pub request_timeout: Option<Duration>,
     channel: String,
     channel_key_env: Option<String>,
     provider_key_env: Option<String>,
@@ -152,6 +158,7 @@ impl TryFrom<LlmConfigFile> for LlmConfig {
                         model: Some("gpt-5-nano".into()),
                         reasoning_budget: None,
                         reasoning_effort: Some("minimal".into()),
+                        request_timeout_seconds: None,
                     });
                 BTreeMap::from([
                     (
@@ -163,6 +170,7 @@ impl TryFrom<LlmConfigFile> for LlmConfig {
                             api_key_env: None,
                             reasoning_budget: None,
                             reasoning_effort: None,
+                            think: None,
                         },
                     ),
                     (
@@ -174,6 +182,7 @@ impl TryFrom<LlmConfigFile> for LlmConfig {
                             api_key_env: None,
                             reasoning_budget: Some(openai.reasoning_budget),
                             reasoning_effort: None,
+                            think: None,
                         },
                     ),
                 ])
@@ -230,6 +239,10 @@ impl LlmConfig {
                 && url.fragment().is_none()
         });
         ensure!(valid_url, "Invalid base_url for {name} channel");
+        ensure!(
+            provider.think.is_none() || provider.driver == ProviderDriver::Ollama,
+            "The think option requires an Ollama provider for {name} channel"
+        );
 
         let reasoning = if provider.driver == ProviderDriver::OpenAi {
             let budget = overrides
@@ -273,6 +286,10 @@ impl LlmConfig {
             base_url: base_url.into(),
             model: model.into(),
             reasoning,
+            think: provider.think,
+            request_timeout: channel
+                .and_then(|channel| channel.request_timeout_seconds)
+                .map(|seconds| Duration::from_secs(u64::from(seconds.get()))),
             channel: name.into(),
             channel_key_env: cloud_key_env
                 .map(|_| format!("{}_API_KEY", inherited_channel.to_ascii_uppercase())),

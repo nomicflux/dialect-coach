@@ -1,8 +1,5 @@
 use dialect_coach_shared::{Explained, Exploratory, Mistake, Translated};
-use rig::completion::{
-    Message as RigMessage, message::AssistantContent, message::Text, message::UserContent,
-};
-use rig::one_or_many::OneOrMany;
+use rig::completion::{Message as RigMessage, message::AssistantContent, message::UserContent};
 
 pub const JSON_OUTPUT_INSTRUCTION: &str =
     "Return raw JSON only. No markdown code blocks. Start with { end with }.";
@@ -137,16 +134,6 @@ pub fn get_message_text(message: &RigMessage) -> String {
         RigMessage::User { content } => get_user_content(&content.first()),
         RigMessage::Assistant { content, .. } => get_assistant_content(&content.first()),
         RigMessage::System { content } => content.clone(),
-    }
-}
-
-pub fn create_prefilled_assistant_message() -> RigMessage {
-    RigMessage::Assistant {
-        id: None,
-        content: OneOrMany::one(AssistantContent::Text(Text {
-            text: "{".to_string(),
-            additional_params: None,
-        })),
     }
 }
 

@@ -2,9 +2,6 @@ use dialect_coach_shared::DialectDocument;
 use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
 use rig::one_or_many::OneOrMany;
 
-use crate::agent_service::provider::ANTHROPIC_PROVIDER;
-use crate::agent_service::util::create_prefilled_assistant_message;
-
 pub fn format_examples_as_user_message(
     primary_examples: &[&DialectDocument],
     secondary_examples: &[&DialectDocument],
@@ -105,24 +102,17 @@ pub(crate) fn build_conversation_history_with_examples(
     conversation_history: &[RigMessage],
     primary_examples: &[DialectDocument],
     secondary_examples: &[DialectDocument],
-    provider: &str,
 ) -> Vec<RigMessage> {
     let primary_refs: Vec<_> = primary_examples.iter().collect();
     let secondary_refs: Vec<_> = secondary_examples.iter().collect();
     let examples_message = build_examples_message(&primary_refs, &secondary_refs);
-    let mut history_with_prefill = conversation_history.to_vec();
+    let mut history_with_examples = conversation_history.to_vec();
 
     if let Some(examples) = examples_message {
-        history_with_prefill.insert(0, examples);
+        history_with_examples.insert(0, examples);
     }
 
-    // Only add prefilled assistant message for Anthropic
-    // OpenAI uses response_format parameter instead
-    if provider == ANTHROPIC_PROVIDER {
-        history_with_prefill.push(create_prefilled_assistant_message());
-    }
-
-    history_with_prefill
+    history_with_examples
 }
 
 #[cfg(test)]
@@ -132,7 +122,6 @@ mod tests {
 
     #[test]
     fn test_build_conversation_history_with_examples() {
-        use crate::agent_service::provider::ANTHROPIC_PROVIDER;
         use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
         use rig::one_or_many::OneOrMany;
 
@@ -154,10 +143,9 @@ mod tests {
             &conversation_history,
             &primary_examples,
             &secondary_examples,
-            ANTHROPIC_PROVIDER,
         );
 
-        assert_eq!(history.len(), 3);
+        assert_eq!(history.len(), 2);
         match &history[0] {
             RigMessage::User { .. } => {}
             _ => panic!("First message should be examples user message"),
@@ -166,15 +154,10 @@ mod tests {
             RigMessage::User { .. } => {}
             _ => panic!("Second message should be original history"),
         }
-        match &history[2] {
-            RigMessage::Assistant { .. } => {}
-            _ => panic!("Last message should be prefilled assistant message"),
-        }
     }
 
     #[test]
     fn test_build_conversation_history_without_examples() {
-        use crate::agent_service::provider::ANTHROPIC_PROVIDER;
         use rig::completion::{Message as RigMessage, message::Text, message::UserContent};
         use rig::one_or_many::OneOrMany;
 
@@ -185,21 +168,12 @@ mod tests {
             })),
         }];
 
-        let history = build_conversation_history_with_examples(
-            &conversation_history,
-            &[],
-            &[],
-            ANTHROPIC_PROVIDER,
-        );
+        let history = build_conversation_history_with_examples(&conversation_history, &[], &[]);
 
-        assert_eq!(history.len(), 2);
+        assert_eq!(history.len(), 1);
         match &history[0] {
             RigMessage::User { .. } => {}
             _ => panic!("First message should be original history"),
-        }
-        match &history[1] {
-            RigMessage::Assistant { .. } => {}
-            _ => panic!("Last message should be prefilled assistant message"),
         }
     }
 }

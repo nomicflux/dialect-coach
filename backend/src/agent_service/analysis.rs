@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::language_instructions::build_language_instruction;
-use super::provider::CompletionRequest;
+use super::provider::{CompletionFormat, CompletionRequest};
 use super::retry::{RetryContext, retry_completion_call};
 use super::util::{JSON_OUTPUT_INSTRUCTION, normalize_json_response};
 
@@ -101,6 +101,7 @@ MISTAKES TO SCORE:
 HOW TO SCORE:
 - Read the learner's message carefully
 - For each mistake, check if they used the "specific_mistake" (error) or "correction" (fixed version)
+- Score the learner's message as written. The correction shown in these instructions is not evidence that the learner used it.
 - Score -10: Still making the error (used "specific_mistake")
 - Score 0: Neither the error nor correction appears
 - Score 5: Attempting "correction" imperfectly, but without using "specific_mistake"
@@ -322,19 +323,16 @@ async fn call_analysis_api(
     retry_ctx: &RetryContext,
     preamble: &str,
     prompt: &str,
+    format: CompletionFormat,
 ) -> (Result<String, anyhow::Error>, Vec<AgentUsage>) {
     tracing::info!("Analysis API call preamble:\n{}", preamble);
     tracing::info!("Analysis API call prompt: {}", prompt);
 
-    let mut history_with_prefill = Vec::new();
-    if retry_ctx.agent.provider() == super::provider::ANTHROPIC_PROVIDER {
-        history_with_prefill.push(super::util::create_prefilled_assistant_message());
-    }
-
     let request = CompletionRequest {
+        format,
         preamble,
         prompt,
-        history: &history_with_prefill,
+        history: &[],
         max_tokens: 1024,
         temperature: 0.2,
     };
@@ -360,13 +358,14 @@ async fn call_and_parse_category<T: std::fmt::Debug, F>(
     preamble: &str,
     prompt: &str,
     category: &str,
+    format: CompletionFormat,
     parse_fn: F,
 ) -> (Result<T, anyhow::Error>, Vec<AgentUsage>)
 where
     F: Fn(&str) -> Result<T>,
 {
     tracing::info!("=== {} ANALYSIS START ===", category.to_uppercase());
-    let (result, mut usage) = call_analysis_api(retry_ctx, preamble, prompt).await;
+    let (result, mut usage) = call_analysis_api(retry_ctx, preamble, prompt, format.clone()).await;
 
     match result {
         Ok(response) => match parse_fn(&response) {
@@ -382,7 +381,7 @@ where
                     preamble
                 );
                 let (retry_result, retry_usage) =
-                    call_analysis_api(retry_ctx, &retry_preamble, prompt).await;
+                    call_analysis_api(retry_ctx, &retry_preamble, prompt, format).await;
                 usage.extend(retry_usage);
 
                 match retry_result {
@@ -436,6 +435,31 @@ pub struct AnalysisParams<'a> {
     pub language_option: &'a Option<LanguageOption>,
 }
 
+fn score_format(ids: impl Iterator<Item = Uuid>) -> CompletionFormat {
+    let properties: serde_json::Map<_, _> = ids
+        .map(|id| {
+            (
+                id.to_string(),
+                serde_json::json!({"type": "integer", "minimum": -10, "maximum": 10}),
+            )
+        })
+        .collect();
+    let required = properties.keys().collect::<Vec<_>>();
+    CompletionFormat::JsonSchema(schemars::json_schema!({
+        "type": "object",
+        "properties": {
+            "scores": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+                "additionalProperties": false
+            }
+        },
+        "required": ["scores"],
+        "additionalProperties": false
+    }))
+}
+
 async fn analyze_mistakes(
     retry_ctx: &RetryContext,
     dialect: Dialect,
@@ -450,9 +474,15 @@ async fn analyze_mistakes(
     let preamble = mistakes_analysis_preamble(&dialect, mistakes, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    call_and_parse_category(retry_ctx, &preamble, &prompt, "Mistakes", |response| {
-        try_parse_category_scores(response, "Mistakes")
-    })
+    let format = score_format(mistakes.iter().map(|item| item.id));
+    call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Mistakes",
+        format,
+        |response| try_parse_category_scores(response, "Mistakes"),
+    )
     .await
 }
 
@@ -470,9 +500,15 @@ async fn analyze_explained(
     let preamble = explained_analysis_preamble(&dialect, explained, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    call_and_parse_category(retry_ctx, &preamble, &prompt, "Explained", |response| {
-        try_parse_category_scores(response, "Explained")
-    })
+    let format = score_format(explained.iter().map(|item| item.id));
+    call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Explained",
+        format,
+        |response| try_parse_category_scores(response, "Explained"),
+    )
     .await
 }
 
@@ -490,9 +526,15 @@ async fn analyze_translated(
     let preamble = translated_analysis_preamble(&dialect, translated, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    call_and_parse_category(retry_ctx, &preamble, &prompt, "Translated", |response| {
-        try_parse_category_scores(response, "Translated")
-    })
+    let format = score_format(translated.iter().map(|item| item.id));
+    call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Translated",
+        format,
+        |response| try_parse_category_scores(response, "Translated"),
+    )
     .await
 }
 
@@ -510,9 +552,15 @@ async fn analyze_exploratory(
     let preamble = exploratory_analysis_preamble(&dialect, exploratory, language_option);
     let prompt = format_analysis_prompt(msg);
 
-    call_and_parse_category(retry_ctx, &preamble, &prompt, "Exploratory", |response| {
-        try_parse_category_scores(response, "Exploratory")
-    })
+    let format = score_format(exploratory.iter().map(|item| item.id));
+    call_and_parse_category(
+        retry_ctx,
+        &preamble,
+        &prompt,
+        "Exploratory",
+        format,
+        |response| try_parse_category_scores(response, "Exploratory"),
+    )
     .await
 }
 
@@ -695,6 +743,7 @@ Start your response with {{",
         &preamble,
         &prompt,
         "Activity goals",
+        CompletionFormat::Json,
         |response| {
             #[derive(serde::Deserialize)]
             struct GoalResult {

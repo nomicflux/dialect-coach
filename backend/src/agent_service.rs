@@ -3,7 +3,7 @@ use dialect_coach_shared::{AgentUsage, config::LlmConfig};
 use std::env;
 use std::sync::Arc;
 
-use crate::embedding_service::EmbeddingService;
+use crate::embedding_service::TextEmbedder;
 use crate::qdrant_service::QdrantService;
 
 pub mod activity;
@@ -23,7 +23,7 @@ pub mod retry;
 pub mod translation;
 pub mod util;
 
-use provider::{CompletionAgent, CompletionAgentFactory, ProviderAgentConfig};
+use provider::{CompletionAgent, CompletionAgentFactory};
 use response::ResponseContext;
 use util::contains_illegal_characters;
 
@@ -31,25 +31,16 @@ fn load_channel_agent(
     llm_config: &LlmConfig,
     channel_name: &str,
     read_env: impl Fn(&str) -> Option<String>,
-) -> Result<(Arc<dyn CompletionAgent>, ProviderAgentConfig)> {
+) -> Result<Arc<dyn CompletionAgent>> {
     let channel = llm_config.resolve_channel(channel_name)?;
     let api_key = channel.api_key(read_env)?;
-    let agent = CompletionAgentFactory::build(&channel, api_key.as_deref())
-        .with_context(|| format!("Failed to initialize {channel_name} channel"))?;
-    let config = ProviderAgentConfig {
-        provider: agent.provider().to_owned(),
-        model: channel.model,
-        base_url: Some(channel.base_url),
-        api_key: api_key.unwrap_or_default(),
-        reasoning_budget: channel
-            .reasoning
-            .as_ref()
-            .map_or(0, |options| options.budget),
-        reasoning_effort: channel
-            .reasoning
-            .map_or_else(|| "low".to_owned(), |options| options.effort),
+    let build = if channel_name == "ocr" {
+        CompletionAgentFactory::build_ocr
+    } else {
+        CompletionAgentFactory::build
     };
-    Ok((agent, config))
+    build(&channel, api_key.as_deref())
+        .with_context(|| format!("Failed to initialize {channel_name} channel"))
 }
 
 #[derive(Clone)]
@@ -58,10 +49,10 @@ pub struct AgentService {
     pub learning_agent: Arc<dyn CompletionAgent>,
     pub analysis_agent: Arc<dyn CompletionAgent>,
     pub planning_agent: Arc<dyn CompletionAgent>,
-    pub planning_config: ProviderAgentConfig,
+    pub ocr_agent: Arc<dyn CompletionAgent>,
     pub pronunciation_agent: Arc<dyn CompletionAgent>,
     pub qdrant: Arc<QdrantService>,
-    pub embeddings: Arc<EmbeddingService>,
+    pub embeddings: Arc<dyn TextEmbedder>,
     pub keyword_extractor: Arc<keyword_extraction::KeywordExtractor>,
 }
 
@@ -69,26 +60,26 @@ impl AgentService {
     pub fn from_config(
         llm_config: &LlmConfig,
         qdrant: Arc<QdrantService>,
-        embeddings: Arc<EmbeddingService>,
+        embeddings: Arc<dyn TextEmbedder>,
     ) -> Result<Self> {
         let load_agent = |name| load_channel_agent(llm_config, name, |key| env::var(key).ok());
-        let response_agent = load_agent("response")?.0;
-        let learning_agent = load_agent("learning")?.0;
-        let analysis_agent = load_agent("analysis")?.0;
-        let (planning_agent, planning_config) = load_agent("planning")?;
-        let pronunciation_agent = load_agent("pronunciation")?.0;
+        let response_agent = load_agent("response")?;
+        let learning_agent = load_agent("learning")?;
+        let analysis_agent = load_agent("analysis")?;
+        let planning_agent = load_agent("planning")?;
+        let ocr_agent = load_agent("ocr")?;
+        let pronunciation_agent = load_agent("pronunciation")?;
 
-        let keyword_extractor = Arc::new(
-            keyword_extraction::KeywordExtractor::new()
-                .context("Failed to create keyword extractor")?,
-        );
+        let keyword_extractor = Arc::new(keyword_extraction::KeywordExtractor::new(load_agent(
+            "keywords",
+        )?));
 
         Ok(Self {
             response_agent,
             learning_agent,
             analysis_agent,
             planning_agent,
-            planning_config,
+            ocr_agent,
             pronunciation_agent,
             qdrant,
             embeddings,
@@ -204,7 +195,7 @@ impl AgentService {
         dialect: dialect_coach_shared::Dialect,
     ) -> Result<dialect_coach_shared::models::plan::import::SimpleImportLanguagePlan> {
         let generator =
-            planning::PlanGenerator::new(self.planning_agent.clone(), self.planning_config.clone());
+            planning::PlanGenerator::new(self.planning_agent.clone(), self.ocr_agent.clone());
         generator.generate_plan(text, dialect).await
     }
 }
@@ -242,30 +233,21 @@ mod tests {
 
     #[test]
     fn test_load_channel_agent_anthropic() {
-        let (agent, config) = load_channel_agent(&hosted_config(), "learning", |name| {
+        let agent = load_channel_agent(&hosted_config(), "learning", |name| {
             (name == "ANTHROPIC_API_KEY").then(|| "test-key".into())
         })
         .unwrap();
         assert_eq!(agent.provider(), ANTHROPIC_PROVIDER);
         assert_eq!(agent.model(), "claude-sonnet-4-6");
-        assert_eq!(
-            config.base_url.as_deref(),
-            Some("https://api.anthropic.com")
-        );
     }
 
     #[test]
     fn test_load_channel_agent_openai() {
         let llm = hosted_config();
         let read_key = |name: &str| (name == "OPENAI_API_KEY").then(|| "sk-test-key".into());
-        let (agent, config) = load_channel_agent(&llm, "response", read_key).unwrap();
+        let agent = load_channel_agent(&llm, "response", read_key).unwrap();
         assert_eq!(agent.provider(), OPENAI_PROVIDER);
         assert_eq!(agent.model(), "gpt-5.4");
-        assert_eq!(config.reasoning_budget, 512);
-        assert_eq!(config.reasoning_effort, "low");
-
-        let (_, config) = load_channel_agent(&llm, "pronunciation", read_key).unwrap();
-        assert_eq!(config.reasoning_effort, "none");
     }
 
     #[test]
@@ -278,7 +260,7 @@ providers:
 ",
         )
         .unwrap();
-        let (agent, _) = load_channel_agent(&config, "response", |name| {
+        let agent = load_channel_agent(&config, "response", |name| {
             panic!("Unexpected credential lookup for {name}")
         })
         .unwrap();
